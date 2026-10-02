@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "es2017",
+    "module": "commonjs",
+    "lib": ["es6", "dom", "es2022.intl"],
+    "jsx": "react",
+    "allowJs": true,
+    "outDir": "dist",
+    "rootDir": ".",
+    "strict": true,
+    "noImplicitAny": false,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "moduleResolution": "node",
+    "baseUrl": ".",
+    // The @atproto packages only expose types via package.json "exports",
+    // which the legacy "node" moduleResolution can't read — map them directly.
+    "paths": {
+      "@atproto/*": ["node_modules/@atproto/*/dist/index.d.ts"]
+    }
+  },
+  "include": ["src/**/*", "src/lib/**/*", "seed.ts", "prompts"],
+  "exclude": ["node_modules", "dist"]
+}

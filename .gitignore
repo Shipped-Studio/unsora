@@ -1,0 +1,24 @@
+# Dependencies & build output
+node_modules/
+dist/
+.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# Env files — only the committed examples are allowed
+.env
+.env.*
+!.env.example
+
+# Tooling state
+.trigger/
+.vercel/
+.clerk/
+.railway/
+coverage/
+
+# OS / logs
+.DS_Store
+*.log

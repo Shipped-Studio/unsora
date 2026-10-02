@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Unsora MCP App Preview</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #131416;
+        color: #ededed;
+        font-family:
+          ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+      }
+      .layout {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 24px 16px 48px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      h1 {
+        font-size: 17px;
+        font-weight: 700;
+        margin: 0;
+      }
+      h1 span {
+        color: #9aa3b2;
+        font-weight: 500;
+      }
+      .scenarios {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .scenarios button {
+        padding: 8px 14px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 999px;
+        background: #1d2021;
+        color: #ededed;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .scenarios button:hover {
+        background: #282b2c;
+      }
+      .scenarios button.active {
+        background: #d3f365;
+        border-color: #d3f365;
+        color: #161903;
+      }
+      .stage {
+        border: 1px dashed rgba(255, 255, 255, 0.14);
+        border-radius: 18px;
+        padding: 10px;
+        background: #0b0c0d;
+      }
+      iframe {
+        display: block;
+        width: 100%;
+        height: 560px;
+        border: none;
+        border-radius: 12px;
+        background: transparent;
+      }
+      .log {
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        background: #0b0c0d;
+        padding: 12px 14px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        line-height: 1.7;
+        color: #9aa3b2;
+        max-height: 220px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+      }
+      .log b {
+        color: #d3f365;
+      }
+      body.light .stage {
+        background: #ffffff;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <h1>Unsora MCP App Preview <span>— mock host, no server needed</span></h1>
+      <div class="scenarios" id="scenarios"></div>
+      <div class="stage"><iframe id="app" sandbox="allow-scripts"></iframe></div>
+      <div class="log" id="log">Pick a scenario above to render a view.</div>
+    </div>
+    <script type="module" src="/src/preview.ts"></script>
+  </body>
+</html>

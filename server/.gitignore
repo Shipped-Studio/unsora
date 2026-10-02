@@ -1,0 +1,12 @@
+temp
+node_modules
+dist
+.env
+.env*
+prisma/generated
+backups
+.DS_Store
+.DS_Store
+.trigger
+!.env.example
+

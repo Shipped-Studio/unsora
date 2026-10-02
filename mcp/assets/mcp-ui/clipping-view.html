@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Unsora Clips</title>
+<!--
+  Unsora clipping preview (MCP Apps, `text/html;profile=mcp-app`).
+
+  Flow: the host sends create_clipping's result -> we read the job id from
+  generationIds -> poll the app-only clipping_status tool (at once, after 20s,
+  then every 30s) -> show clips as they land, each with Save / Copy / Post,
+  and Recreate once the job is done.
+
+  No framework or SDK: a small JSON-RPC bridge over postMessage covers the
+  spec methods used here (ui/initialize, tools/call, ui/message,
+  ui/open-link, ui/download-file, ui/notifications/size-changed).
+-->
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: var(--color-background-primary, #ffffff);
+    --card: var(--color-background-secondary, #f7f7f7);
+    --media-bg: var(--color-background-tertiary, #eeeeee);
+    --text: var(--color-text-primary, #111111);
+    --muted: var(--color-text-secondary, #6b6b6b);
+    --border: var(--color-border-primary, rgba(0, 0, 0, 0.1));
+    --danger: var(--color-text-danger, #c0392b);
+    --primary: var(--color-text-primary, #111111);
+    --on-primary: var(--color-background-primary, #ffffff);
+    --radius: var(--border-radius-lg, 14px);
+    --radius-sm: var(--border-radius-md, 9px);
+    --font: var(--font-sans, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif);
+    --tile-aspect: 9 / 16;
+    --tile-min: 170px;
+  }
+  :root[data-theme="dark"] {
+    --bg: var(--color-background-primary, #1a1a1a);
+    --card: var(--color-background-secondary, #222222);
+    --media-bg: var(--color-background-tertiary, #2c2c2c);
+    --text: var(--color-text-primary, #f2f2f2);
+    --muted: var(--color-text-secondary, #a0a0a0);
+    --border: var(--color-border-primary, rgba(255, 255, 255, 0.12));
+    --danger: var(--color-text-danger, #ff7a6b);
+    --primary: var(--color-text-primary, #f2f2f2);
+    --on-primary: var(--color-background-primary, #1a1a1a);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
+  body { font: 14px/1.4 var(--font); color: var(--text); }
+  #root { padding: 2px; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+  }
+  .pending { display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
+  .progress { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .spinner {
+    width: 16px; height: 16px; flex: none;
+    border: 2px solid var(--border); border-top-color: var(--text);
+    border-radius: 50%; animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }
+  .pending strong, .progress strong { font-weight: 600; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .error { color: var(--danger); font-size: 13px; }
+
+  .grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(var(--tile-min), 1fr)); }
+  .media {
+    display: flex; align-items: center; justify-content: center;
+    aspect-ratio: var(--tile-aspect);
+    background: #000; border-radius: var(--radius-sm); overflow: hidden;
+  }
+  .media video { display: block; width: 100%; height: 100%; object-fit: contain; }
+  .meta { display: flex; align-items: center; gap: 6px; margin-top: 6px; min-width: 0; }
+  .title { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge {
+    flex: none; font-size: 12px; font-weight: 600; color: var(--muted);
+    padding: 2px 8px; border-radius: 999px; background: var(--media-bg);
+  }
+
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .grid .actions { margin-top: 6px; gap: 6px; flex-wrap: nowrap; }
+  button {
+    font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+    padding: 7px 14px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  }
+  button:hover:not(:disabled) { filter: brightness(0.96); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button.primary { background: var(--primary); color: var(--on-primary); border-color: transparent; }
+  .grid button { padding: 5px 10px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+(() => {
+  "use strict";
+
+  const STATUS_TOOL = "clipping_status";
+  const FIRST_CHECK_MS = 20000;
+  const CHECK_EVERY_MS = 30000;
+  // Long videos (a 2-hour podcast) take longer to clip than one generation.
+  const GIVE_UP_MS = 90 * 60 * 1000;
+
+  /* ------------------------------ bridge ------------------------------ */
+
+  let nextId = 1;
+  const pending = new Map();
+  let hostCaps = {};
+
+  function post(msg) { window.parent.postMessage({ jsonrpc: "2.0", ...msg }, "*"); }
+
+  function request(method, params) {
+    const id = nextId++;
+    post({ id, method, params });
+    return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+  }
+
+  function notify(method, params) { post({ method, params }); }
+
+  window.addEventListener("message", (event) => {
+    if (event.source !== window.parent) return;
+    const msg = event.data;
+    if (!msg || msg.jsonrpc !== "2.0") return;
+
+    // Response to one of our requests.
+    if (msg.id != null && !msg.method) {
+      const p = pending.get(msg.id);
+      if (!p) return;
+      pending.delete(msg.id);
+      msg.error ? p.reject(new Error(msg.error.message || "Request failed")) : p.resolve(msg.result);
+      return;
+    }
+    // Request from the host.
+    if (msg.id != null && msg.method) {
+      if (msg.method === "ui/resource-teardown" || msg.method === "ping") {
+        if (msg.method === "ui/resource-teardown") stopped = true;
+        post({ id: msg.id, result: {} });
+      } else {
+        post({ id: msg.id, error: { code: -32601, message: "Method not found" } });
+      }
+      return;
+    }
+    // Notifications.
+    const params = msg.params || {};
+    switch (msg.method) {
+      case "ui/notifications/tool-input":
+        lastArgs = params.arguments || null;
+        render();
+        break;
+      case "ui/notifications/tool-result":
+        onToolResult(params);
+        break;
+      case "ui/notifications/tool-cancelled":
+        state = { phase: "error", message: "Cancelled." };
+        render();
+        break;
+      case "ui/notifications/host-context-changed":
+        applyHostContext(params);
+        break;
+    }
+  });
+
+  function applyHostContext(ctx) {
+    if (!ctx) return;
+    const root = document.documentElement;
+    if (ctx.theme) root.dataset.theme = ctx.theme;
+    const vars = ctx.styles && ctx.styles.variables;
+    if (vars) for (const [k, v] of Object.entries(vars)) if (v) root.style.setProperty(k, v);
+  }
+
+  // Report our height so the host sizes the frame exactly (no inner scroll).
+  let lastHeight = 0;
+  new ResizeObserver(() => {
+    const height = Math.ceil(document.documentElement.getBoundingClientRect().height);
+    if (height !== lastHeight) {
+      lastHeight = height;
+      notify("ui/notifications/size-changed", { height });
+    }
+  }).observe(document.documentElement);
+
+  /* ------------------------------- state ------------------------------ */
+
+  let state = { phase: "waiting" }; // waiting | running | error
+  let job = null; // { id, status, clips: [{ title, url, thumbnailUrl, duration }], error }
+  let slug = "clipping"; // status tool arg
+  let mcpTool = null; // create tool to call again for Recreate
+  let lastArgs = null;
+  let startedAt = Date.now();
+  let stopped = false;
+  let generation = 0; // bumps on Recreate so old polls stop
+  const flash = {}; // button key -> temporary label
+
+  const isDone = (s) => s === "completed" || s === "failed";
+
+  function onToolResult(result) {
+    const sc = result && result.structuredContent;
+    if (!result || result.isError || !sc) {
+      state = { phase: "error", message: (sc && (sc.error || sc.message)) || textOf(result) || "Clipping failed to start." };
+      render();
+      return;
+    }
+    start(sc);
+  }
+
+  function textOf(result) {
+    const block = result && Array.isArray(result.content) && result.content.find((c) => c.type === "text");
+    return block ? String(block.text).slice(0, 300) : "";
+  }
+
+  /** Tiles follow the requested ratio: 9:16 by default, wider for 16:9 / 1:1. */
+  function applyAspect(ratio) {
+    const m = typeof ratio === "string" && ratio.match(/^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/);
+    const root = document.documentElement.style;
+    root.setProperty("--tile-aspect", m ? m[1] + " / " + m[2] : "9 / 16");
+    root.setProperty("--tile-min", m && Number(m[1]) >= Number(m[2]) ? "240px" : "170px");
+  }
+
+  function start(sc) {
+    const ids = Array.isArray(sc.generationIds) ? sc.generationIds.filter((v) => typeof v === "string") : [];
+    if (typeof sc.tool === "string") slug = sc.tool;
+    if (typeof sc.mcpTool === "string") mcpTool = sc.mcpTool;
+    applyAspect(sc.aspectRatio);
+    if (!ids.length) {
+      state = { phase: "error", message: "No clipping job was started." };
+      render();
+      return;
+    }
+    job = { id: ids[0], status: "queued", clips: [], error: null };
+    state = { phase: "running" };
+    startedAt = Date.now();
+    const run = ++generation;
+    render();
+    // Check once right away: on a page reload the result we were handed is
+    // the original "queued" one, and the job has often finished since.
+    check(run, FIRST_CHECK_MS);
+  }
+
+  /** One status check; reschedules itself `nextMs` later while running. */
+  async function check(run, nextMs = CHECK_EVERY_MS) {
+    if (stopped || run !== generation || !job || isDone(job.status)) return;
+    try {
+      const res = await request("tools/call", { name: STATUS_TOOL, arguments: { tool: slug, id: job.id } });
+      if (run !== generation) return;
+      const sc = (res && res.structuredContent) || {};
+      if (res && res.isError) {
+        Object.assign(job, { status: "failed", error: sc.error || "Status check failed." });
+      } else if (typeof sc.status === "string") {
+        job.status = sc.status;
+        job.error = sc.error || null;
+        if (Array.isArray(sc.clips)) job.clips = sc.clips.filter((c) => c && typeof c.url === "string");
+      }
+    } catch (err) {
+      // Transient bridge/network error: keep polling.
+    }
+    if (!isDone(job.status)) {
+      if (Date.now() - startedAt > GIVE_UP_MS) {
+        Object.assign(job, { status: "failed", error: "Still running. Check your Unsora library later." });
+      } else {
+        setTimeout(() => check(run), nextMs);
+      }
+    }
+    render();
+  }
+
+  /* ------------------------------ actions ----------------------------- */
+
+  async function download(url) {
+    try {
+      if (hostCaps.downloadFile) {
+        const res = await request("ui/download-file", {
+          contents: [{ type: "resource_link", uri: url, name: fileName(url) }],
+        });
+        if (!res || !res.isError) return;
+      }
+    } catch (err) { /* fall through to opening the link */ }
+    try {
+      await request("ui/open-link", { url });
+    } catch (err) {
+      window.open(url, "_blank", "noopener");
+    }
+  }
+
+  function fileName(url) {
+    try { return decodeURIComponent(new URL(url).pathname.split("/").pop()) || "unsora-clip.mp4"; }
+    catch (err) { return "unsora-clip.mp4"; }
+  }
+
+  async function copy(text, key) {
+    let ok = false;
+    try { await navigator.clipboard.writeText(text); ok = true; } catch (err) {
+      const area = document.createElement("textarea");
+      area.value = text;
+      area.style.position = "fixed";
+      area.style.opacity = "0";
+      document.body.appendChild(area);
+      area.select();
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      area.remove();
+    }
+    showFlash(key, ok ? "Copied" : "Copy failed");
+  }
+
+  /** Post a user message into the chat; the model drives create_post. */
+  async function publish(clip, key) {
+    try {
+      const res = await request("ui/message", {
+        role: "user",
+        content: [{
+          type: "text",
+          text:
+            "Publish this clip" + (clip.title ? ' ("' + clip.title + '")' : "") +
+            " as a social post with Unsora (media URL: " + clip.url + "). " +
+            "Show my connected accounts first, then ask me for the caption and posting time before calling create_post.",
+        }],
+      });
+      showFlash(key, res && res.isError ? "Couldn't send" : "Sent");
+    } catch (err) {
+      showFlash(key, "Couldn't send");
+    }
+  }
+
+  async function recreate() {
+    if (!mcpTool || !lastArgs) return;
+    const run = ++generation;
+    job = null;
+    state = { phase: "waiting" };
+    render();
+    try {
+      const res = await request("tools/call", { name: mcpTool, arguments: lastArgs });
+      if (run === generation) onToolResult(res);
+    } catch (err) {
+      state = { phase: "error", message: err.message || "Couldn't start a new clipping job." };
+      render();
+    }
+  }
+
+  function showFlash(key, label) {
+    flash[key] = label;
+    render();
+    setTimeout(() => { delete flash[key]; render(); }, 2000);
+  }
+
+  /* ------------------------------ render ------------------------------ */
+
+  const root = document.getElementById("root");
+
+  function el(tag, attrs, children) {
+    const node = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (k === "onclick") node.addEventListener("click", v);
+      else if (k === "class") node.className = v;
+      else if (v === true) node.setAttribute(k, "");
+      else if (v !== false && v != null) node.setAttribute(k, v);
+    }
+    for (const child of [].concat(children || [])) {
+      if (child != null) node.append(child);
+    }
+    return node;
+  }
+
+  function button(label, onclick, opts) {
+    const key = (opts && opts.key) || label;
+    return el("button", {
+      type: "button",
+      class: opts && opts.primary ? "primary" : "",
+      disabled: !!(opts && opts.disabled),
+      onclick,
+    }, flash[key] || label);
+  }
+
+  function pendingCard(label) {
+    return el("div", { class: "card pending", role: "status" }, [
+      el("span", { class: "spinner", "aria-hidden": "true" }),
+      el("strong", null, label),
+      el("span", { class: "muted" }, state.phase === "running" ? "checking every 30s" : ""),
+    ]);
+  }
+
+  function duration(seconds) {
+    if (typeof seconds !== "number" || seconds <= 0) return null;
+    const m = Math.floor(seconds / 60);
+    const s = Math.round(seconds % 60);
+    return m + ":" + String(s).padStart(2, "0");
+  }
+
+  function tile(clip, i) {
+    const key = clip.url;
+    const dur = duration(clip.duration);
+    return el("div", null, [
+      el("div", { class: "media" }, el("video", {
+        src: clip.url, poster: clip.thumbnailUrl || null, controls: true, playsinline: true, preload: "metadata",
+      })),
+      el("div", { class: "meta" }, [
+        el("span", { class: "title", title: clip.title || "" }, clip.title || "Clip " + (i + 1)),
+        dur ? el("span", { class: "badge" }, dur) : null,
+      ]),
+      el("div", { class: "actions" }, [
+        button("Save", () => download(clip.url), { primary: true, key: "dl:" + key }),
+        button("Copy", () => copy(clip.url, "cp:" + key), { key: "cp:" + key }),
+        button("Post", () => publish(clip, "po:" + key), { key: "po:" + key }),
+      ]),
+    ]);
+  }
+
+  function render() {
+    root.replaceChildren(view());
+  }
+
+  function view() {
+    if (state.phase === "error") {
+      return el("div", { class: "card" }, [
+        el("div", { class: "error" }, state.message),
+        canRecreate() ? el("div", { class: "actions" }, button("Try again", recreate)) : null,
+      ]);
+    }
+    if (state.phase === "waiting" || !job) return pendingCard("Starting…");
+
+    const done = isDone(job.status);
+    const clips = job.clips;
+    if (!done && !clips.length) return pendingCard("Finding the best moments…");
+
+    const card = el("div", { class: "card" });
+    if (!done) {
+      // Clips land one by one: show the ready ones while the rest render.
+      card.append(el("div", { class: "progress", role: "status" }, [
+        el("span", { class: "spinner", "aria-hidden": "true" }),
+        el("strong", null, "Clipping… " + clips.length + " ready"),
+        el("span", { class: "muted" }, "checking every 30s"),
+      ]));
+    }
+    if (job.status === "failed") {
+      card.append(el("div", { class: "error" }, "Clipping failed" + (job.error ? ": " + job.error : ".")));
+    } else if (done && !clips.length) {
+      card.append(el("div", { class: "muted" }, "No clips were found in this video."));
+    }
+    if (clips.length) {
+      card.append(el("div", { class: "grid", style: job.status === "failed" ? "margin-top:10px" : null }, clips.map(tile)));
+    }
+
+    const bar = [];
+    if (done && clips.length > 1) {
+      bar.push(button("Copy all URLs", () => copy(clips.map((c) => c.url).join("\n"), "Copy all URLs")));
+    }
+    if (done && canRecreate()) bar.push(button("Recreate", recreate));
+    if (bar.length) card.append(el("div", { class: "actions" }, bar));
+    return card;
+  }
+
+  const canRecreate = () => !!(mcpTool && lastArgs);
+
+  /* ------------------------------- start ------------------------------ */
+
+  render();
+  request("ui/initialize", {
+    appInfo: { name: "unsora-clipping-preview", version: "2.0.0" },
+    appCapabilities: {},
+    protocolVersion: "2026-01-26",
+  }).then((res) => {
+    hostCaps = (res && res.hostCapabilities) || {};
+    applyHostContext(res && res.hostContext);
+    notify("ui/notifications/initialized", {});
+  }).catch(() => {
+    notify("ui/notifications/initialized", {});
+  });
+})();
+</script>
+</body>
+</html>

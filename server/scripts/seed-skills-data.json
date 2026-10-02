@@ -1,0 +1,568 @@
+[
+  {
+    "slug": "ugc-generator",
+    "name": "UGC Generator",
+    "tagline": "Creator-style spots from a brief",
+    "description": "A Claude / agent skill that turns a product brief into authentic UGC — selfie clips, talking-head ads, and on-camera demos — through Unsora over MCP.",
+    "githubUrl": "https://github.com/sadekxD/ugc-ad-generator-skill",
+    "downloadPath": "/skills/ugc-generator/SKILL.md",
+    "installCommand": "curl -O https://github.com/sadekxD/ugc-ad-generator-skill/raw/main/SKILL.md",
+    "highlights": [
+      "Selfie & talking-head formats",
+      "Product-in-hand demos",
+      "9:16 social-first defaults",
+      "Works with Unsora MCP"
+    ],
+    "steps": [
+      {
+        "num": "01",
+        "title": "Connect Unsora",
+        "body": "Add the Unsora MCP to Claude, Cursor, or your agent. OAuth through the marketplace plugin, or an API key for local setups."
+      },
+      {
+        "num": "02",
+        "title": "Install the skill",
+        "body": "Drop ugc-generator into your skills folder, or pull it from the tryunsora GitHub repo. Your assistant loads the workflow automatically."
+      },
+      {
+        "num": "03",
+        "title": "Brief it in chat",
+        "body": "Describe the product, hook, and who should be on camera. The skill structures the prompt — shot, action, lighting, dialogue — then calls create_video."
+      },
+      {
+        "num": "04",
+        "title": "Ship the clip",
+        "body": "Get a full-res UGC spot back in the thread. Iterate on the hook, swap the face, or schedule it to TikTok and Instagram without leaving chat."
+      }
+    ],
+    "examples": [
+      "Make a 9:16 UGC ad for our vitamin C serum — kitchen selfie, casual, 8 seconds.",
+      "Talking-head clip: creator unboxes the wireless earbuds and hits one benefit.",
+      "Product demo with our bottle in frame — natural light, authentic not polished."
+    ],
+    "requirements": [
+      "Unsora account with credits",
+      "MCP connected (Claude plugin or API key)",
+      "Optional: product stills as public HTTPS URLs"
+    ],
+    "ctaHeadline": "Ready to generate UGC from chat?",
+    "ctaBody": "Download UGC Generator, connect Unsora, and ask for the spot.",
+    "sortOrder": 0,
+    "media": [
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/ugc-creator-product-demo.mp4",
+        "label": "UGC creator — authentic product demo",
+        "aspect": "9/16",
+        "sortOrder": 0
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/talking-head-casual-testimonial.mp4",
+        "label": "Talking head — casual testimonial",
+        "aspect": "9/16",
+        "sortOrder": 1
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/selfie-style-product-in-hand.mp4",
+        "label": "Selfie style — product in hand",
+        "aspect": "9/16",
+        "sortOrder": 2
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/creator-unbox-natural-light.mp4",
+        "label": "Creator unbox — natural light",
+        "aspect": "9/16",
+        "sortOrder": 3
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/ugc-spot-kitchen-background.mp4",
+        "label": "UGC spot — kitchen background",
+        "aspect": "9/16",
+        "sortOrder": 4
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/product-demo-authentic-feel.mp4",
+        "label": "Product demo — authentic feel",
+        "aspect": "9/16",
+        "sortOrder": 5
+      }
+    ]
+  },
+  {
+    "slug": "create-video",
+    "name": "Create Video",
+    "tagline": "Seedance 2.0 from a prompt",
+    "description": "Generate Seedance 2.0 videos through Unsora — text-to-video, image-to-video with reference frames, product demos, and cinematic clips from chat.",
+    "githubUrl": "https://github.com/sadekxD/ugc-ad-generator-skill",
+    "downloadPath": "/skills/create-video/SKILL.md",
+    "installCommand": "curl -O https://github.com/sadekxD/ugc-ad-generator-skill/raw/main/SKILL.md",
+    "highlights": [
+      "Text-to-video & image-to-video",
+      "4–15 second clips",
+      "Reference frames supported",
+      "Social & landscape ratios"
+    ],
+    "steps": [
+      {
+        "num": "01",
+        "title": "Connect Unsora",
+        "body": "Add the Unsora MCP to Claude, Cursor, or your agent. OAuth through the marketplace plugin, or an API key for local setups."
+      },
+      {
+        "num": "02",
+        "title": "Install the skill",
+        "body": "Add create-video from the tryunsora repo. Your assistant learns the Seedance workflow and when to use omni reference vs first/last frames."
+      },
+      {
+        "num": "03",
+        "title": "Describe the shot",
+        "body": "Subject, setting, duration, and ratio. Attach reference image URLs when you want image-to-video. The skill checks credits, then calls create_video."
+      },
+      {
+        "num": "04",
+        "title": "Iterate in thread",
+        "body": "Preview lands in chat. Ask for a different ratio, longer cut, or hand off to schedule-post when you are ready to publish."
+      }
+    ],
+    "examples": [
+      "Create a 9:16 Seedance video of a product demo in a kitchen, 8 seconds.",
+      "Animate this product still into a slow hero reveal, 16:9.",
+      "Cinematic b-roll of earbuds on black glass with soft rim light."
+    ],
+    "requirements": [
+      "Unsora account with credits",
+      "MCP connected (Claude plugin or API key)",
+      "Optional: public HTTPS image URLs for references"
+    ],
+    "ctaHeadline": "Ready to generate video from chat?",
+    "ctaBody": "Download Create Video, connect Unsora, and describe the shot.",
+    "sortOrder": 1,
+    "media": [
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/product-showcase-cinematic-reveal.mp4",
+        "label": "Product showcase — cinematic reveal",
+        "aspect": "9/16",
+        "sortOrder": 0
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/brand-spot-hero-shot.mp4",
+        "label": "Brand spot — hero shot",
+        "aspect": "9/16",
+        "sortOrder": 1
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/product-animation-smooth-motion.mp4",
+        "label": "Product animation — smooth motion",
+        "aspect": "9/16",
+        "sortOrder": 2
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/lifestyle-shot-ambient-scene.mp4",
+        "label": "Lifestyle shot — ambient scene",
+        "aspect": "9/16",
+        "sortOrder": 3
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/dynamic-shot-action-sequence.mp4",
+        "label": "Dynamic shot — action sequence",
+        "aspect": "9/16",
+        "sortOrder": 4
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/premium-ad-high-production.mp4",
+        "label": "Premium ad — high production",
+        "aspect": "9/16",
+        "sortOrder": 5
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/brand-campaign-polished.mp4",
+        "label": "Brand campaign — polished",
+        "aspect": "9/16",
+        "sortOrder": 6
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/hero-video-studio-quality.mp4",
+        "label": "Hero video — studio quality",
+        "aspect": "9/16",
+        "sortOrder": 7
+      }
+    ]
+  },
+  {
+    "slug": "clip-video",
+    "name": "Clip Video",
+    "tagline": "Long-form into viral shorts",
+    "description": "Turn a YouTube or direct video URL into short clips with AI clipping — captions, aspect ratios, and Find Moments mode for specific highlights.",
+    "githubUrl": "https://github.com/sadekxD/ugc-ad-generator-skill",
+    "downloadPath": "/skills/clip-video/SKILL.md",
+    "installCommand": "curl -O https://github.com/sadekxD/ugc-ad-generator-skill/raw/main/SKILL.md",
+    "highlights": [
+      "YouTube & direct MP4 sources",
+      "Captions with style presets",
+      "Find Moments queries",
+      "Shorts / Reels / TikTok ratios"
+    ],
+    "steps": [
+      {
+        "num": "01",
+        "title": "Connect Unsora",
+        "body": "Add the Unsora MCP to Claude, Cursor, or your agent. OAuth through the marketplace plugin, or an API key for local setups."
+      },
+      {
+        "num": "02",
+        "title": "Install the skill",
+        "body": "Add clip-video so your assistant knows to confirm source, ratio, captions, count, and length before spending credits."
+      },
+      {
+        "num": "03",
+        "title": "Point at the source",
+        "body": "Paste a YouTube or .mp4 URL. Optionally describe moments to find. The skill runs create_clipping with your choices locked in."
+      },
+      {
+        "num": "04",
+        "title": "Pick winners",
+        "body": "Review the short clips in chat, then schedule the best ones to Instagram or TikTok with schedule-post."
+      }
+    ],
+    "examples": [
+      "Clip this YouTube video into 5 vertical Shorts with yellow captions.",
+      "Find funny reaction moments and cut them to under 30 seconds.",
+      "Repurpose this podcast episode into 9:16 Reels, captions on."
+    ],
+    "requirements": [
+      "Unsora account with credits",
+      "MCP connected (Claude plugin or API key)",
+      "YouTube URL or direct .mp4 URL"
+    ],
+    "ctaHeadline": "Ready to clip long-form into shorts?",
+    "ctaBody": "Download Clip Video, connect Unsora, and paste a source URL.",
+    "sortOrder": 2,
+    "media": [
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/viral-moment-attention-hook.mp4",
+        "label": "Viral moment — attention hook",
+        "aspect": "9/16",
+        "sortOrder": 0
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/short-clip-paced-cut.mp4",
+        "label": "Short clip — paced cut",
+        "aspect": "9/16",
+        "sortOrder": 1
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/highlight-reel-best-moment.mp4",
+        "label": "Highlight reel — best moment",
+        "aspect": "9/16",
+        "sortOrder": 2
+      }
+    ]
+  },
+  {
+    "slug": "create-thumbnail",
+    "name": "Create Thumbnail",
+    "tagline": "CTR-ready YouTube covers",
+    "description": "Generate YouTube-style 16:9 thumbnails with face references, template styles, expressions, and multiple variations for A/B testing.",
+    "githubUrl": "https://github.com/sadekxD/ugc-ad-generator-skill",
+    "downloadPath": "/skills/create-thumbnail/SKILL.md",
+    "installCommand": "curl -O https://github.com/sadekxD/ugc-ad-generator-skill/raw/main/SKILL.md",
+    "highlights": [
+      "16:9 YouTube format",
+      "Face & template references",
+      "Expression control",
+      "Multiple variations"
+    ],
+    "steps": [
+      {
+        "num": "01",
+        "title": "Connect Unsora",
+        "body": "Add the Unsora MCP to Claude, Cursor, or your agent. OAuth through the marketplace plugin, or an API key for local setups."
+      },
+      {
+        "num": "02",
+        "title": "Install the skill",
+        "body": "Add create-thumbnail so your assistant gathers topic, face refs, and variation count before calling the tool."
+      },
+      {
+        "num": "03",
+        "title": "Brief the cover",
+        "body": "Share the video hook, optional face URL, and how many options you want. The skill checks credits and runs create_thumbnail."
+      },
+      {
+        "num": "04",
+        "title": "Pick a winner",
+        "body": "Compare variations in chat, refine expression or layout, and keep the strongest CTR option."
+      }
+    ],
+    "examples": [
+      "Make 4 YouTube thumbnails for a video about AI UGC ads — shocked expression.",
+      "Thumbnail with my face reference, bold text energy, 16:9.",
+      "Generate CTR covers mimicking this template layout."
+    ],
+    "requirements": [
+      "Unsora account with credits",
+      "MCP connected (Claude plugin or API key)",
+      "Optional: face or template image URLs"
+    ],
+    "ctaHeadline": "Ready to generate thumbnails from chat?",
+    "ctaBody": "Download Create Thumbnail, connect Unsora, and brief the cover.",
+    "sortOrder": 3,
+    "media": [
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/social-spot-scroll-stopper.mp4",
+        "label": "Social spot — scroll stopper",
+        "aspect": "9/16",
+        "sortOrder": 0
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/feed-optimized-quick-hook.mp4",
+        "label": "Feed optimized — quick hook",
+        "aspect": "9/16",
+        "sortOrder": 1
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/story-format-vertical-native.mp4",
+        "label": "Story format — vertical native",
+        "aspect": "9/16",
+        "sortOrder": 2
+      }
+    ]
+  },
+  {
+    "slug": "schedule-post",
+    "name": "Schedule Post",
+    "tagline": "Publish from the same thread",
+    "description": "Schedule or draft Instagram and TikTok posts using generated media — checks subscription, lists connected accounts, and posts with captions.",
+    "githubUrl": "https://github.com/sadekxD/ugc-ad-generator-skill",
+    "downloadPath": "/skills/schedule-post/SKILL.md",
+    "installCommand": "curl -O https://github.com/sadekxD/ugc-ad-generator-skill/raw/main/SKILL.md",
+    "highlights": [
+      "Instagram & TikTok",
+      "Draft or schedule",
+      "Uses generated media URLs",
+      "Caption + hashtags in chat"
+    ],
+    "steps": [
+      {
+        "num": "01",
+        "title": "Connect Unsora",
+        "body": "Add the Unsora MCP to Claude, Cursor, or your agent. OAuth through the marketplace plugin, or an API key for local setups."
+      },
+      {
+        "num": "02",
+        "title": "Install the skill",
+        "body": "Add schedule-post so your assistant verifies plan and connected accounts before creating a post."
+      },
+      {
+        "num": "03",
+        "title": "Pick media & caption",
+        "body": "Point at a generated video or image URL, write the caption, choose accounts and time. The skill calls create_post."
+      },
+      {
+        "num": "04",
+        "title": "Confirm the queue",
+        "body": "Get confirmation back in chat. Adjust caption, reschedule, or draft for later without leaving the thread."
+      }
+    ],
+    "examples": [
+      "Schedule this clip to TikTok tomorrow at 6pm with this caption.",
+      "Draft an Instagram Reel post from the last video we generated.",
+      "Post this thumbnail carousel to Instagram — caption ready."
+    ],
+    "requirements": [
+      "Active Unsora paid plan",
+      "Instagram or TikTok connected in the app",
+      "Public HTTPS media URL from a prior generation"
+    ],
+    "ctaHeadline": "Ready to schedule from chat?",
+    "ctaBody": "Download Schedule Post, connect accounts, and queue the drop.",
+    "sortOrder": 4,
+    "media": [
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/social-spot-scroll-stopper.mp4",
+        "label": "Social spot — scroll stopper",
+        "aspect": "9/16",
+        "sortOrder": 0
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/feed-optimized-quick-hook.mp4",
+        "label": "Feed optimized — quick hook",
+        "aspect": "9/16",
+        "sortOrder": 1
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/story-format-vertical-native.mp4",
+        "label": "Story format — vertical native",
+        "aspect": "9/16",
+        "sortOrder": 2
+      }
+    ]
+  },
+  {
+    "slug": "vox-style-collage-video",
+    "name": "Vox Collage Video",
+    "tagline": "Script to paper-collage explainer",
+    "description": "Turn a script or fact list into a finished Vox-style paper-collage explainer — torn-edge photo cut-outs, kinetic typography, one bold accent color — generated end-to-end on Unsora and cut to the narration with ffmpeg.",
+    "githubUrl": "https://github.com/sadekxD/vox-style-collage-video-skill",
+    "downloadPath": "/skills/vox-style-collage-video/SKILL.md",
+    "installCommand": "curl -O https://github.com/sadekxD/vox-style-collage-video-skill/raw/main/SKILL.md",
+    "highlights": [
+      "Narration-first pipeline",
+      "Torn-paper collage + kinetic type",
+      "Unsora image, video & music",
+      "ffmpeg timing, assembly & mix"
+    ],
+    "steps": [
+      {
+        "num": "01",
+        "title": "Connect Unsora",
+        "body": "Add the Unsora MCP to Claude, Cursor, or your agent. OAuth through the marketplace plugin, or an API key for local setups."
+      },
+      {
+        "num": "02",
+        "title": "Install the skill",
+        "body": "Drop vox-style-collage-video into your skills folder — SKILL.md plus the style-dna, pipeline, and beat-mapping references that define the whole visual system."
+      },
+      {
+        "num": "03",
+        "title": "Paste the script, approve the cut",
+        "body": "Share a script, beat list, or bare idea. The skill maps beats to shots, drafts the VO, and presents a full shot list — nothing generates until you say go."
+      },
+      {
+        "num": "04",
+        "title": "Generate and assemble",
+        "body": "Voiceover is timed first, then every shot runs through create_image and create_video with an optional mureka underscore — ffmpeg cuts each clip to its line and mixes the final MP4."
+      }
+    ],
+    "examples": [
+      "Make a Vox-style explainer from this script — 16:9, yellow accent.",
+      "Turn these five facts about the housing market into a 60-second paper-collage video.",
+      "Write and voice narration for a Vox-style short on EV batteries, 9:16."
+    ],
+    "requirements": [
+      "Unsora account with credits",
+      "MCP connected (Claude plugin or API key)",
+      "ffmpeg + ffprobe installed locally",
+      "Voiceover: a supplied audio file or a TTS tool in the session"
+    ],
+    "ctaHeadline": "Ready to explain it Vox-style?",
+    "ctaBody": "Download Vox Collage Video, connect Unsora, and paste your script.",
+    "sortOrder": 5,
+    "media": []
+  },
+  {
+    "slug": "media-router",
+    "name": "Media Router",
+    "tagline": "One skill for any media ask",
+    "description": "Smart default entry — introspects the live Unsora MCP catalog, picks the best tool for generate, clip, or schedule requests, and defers to specialized skills when they fit.",
+    "githubUrl": "https://github.com/sadekxD/ugc-ad-generator-skill",
+    "downloadPath": "/skills/media-router/SKILL.md",
+    "installCommand": "curl -O https://github.com/sadekxD/ugc-ad-generator-skill/raw/main/SKILL.md",
+    "highlights": [
+      "Routes any media request",
+      "Live MCP tool discovery",
+      "Defers to specialist skills",
+      "Credit checks before spend"
+    ],
+    "steps": [
+      {
+        "num": "01",
+        "title": "Connect Unsora",
+        "body": "Add the Unsora MCP to Claude, Cursor, or your agent. OAuth through the marketplace plugin, or an API key for local setups."
+      },
+      {
+        "num": "02",
+        "title": "Install the skill",
+        "body": "Add media-router as your default Unsora skill. It discovers tools each session instead of hardcoding names."
+      },
+      {
+        "num": "03",
+        "title": "Ask in plain language",
+        "body": "Generate, clip, thumbnail, music, influencer, or schedule — the router matches intent to the right MCP tool."
+      },
+      {
+        "num": "04",
+        "title": "Hand off when needed",
+        "body": "When a specialized skill fits better (UGC, clipping, thumbnails), the router defers so the deeper workflow takes over."
+      }
+    ],
+    "examples": [
+      "Check my Unsora credits.",
+      "Make me a short product video and a matching thumbnail.",
+      "Clip this YouTube link and schedule the best one to TikTok."
+    ],
+    "requirements": [
+      "Unsora account with credits",
+      "MCP connected (Claude plugin or API key)"
+    ],
+    "ctaHeadline": "Ready for one skill that routes it all?",
+    "ctaBody": "Download Media Router, connect Unsora, and ask for anything media.",
+    "sortOrder": 6,
+    "media": [
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/ugc-creator-product-demo.mp4",
+        "label": "UGC creator — authentic product demo",
+        "aspect": "9/16",
+        "sortOrder": 0
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/talking-head-casual-testimonial.mp4",
+        "label": "Talking head — casual testimonial",
+        "aspect": "9/16",
+        "sortOrder": 1
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/selfie-style-product-in-hand.mp4",
+        "label": "Selfie style — product in hand",
+        "aspect": "9/16",
+        "sortOrder": 2
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/creator-unbox-natural-light.mp4",
+        "label": "Creator unbox — natural light",
+        "aspect": "9/16",
+        "sortOrder": 3
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/ugc-spot-kitchen-background.mp4",
+        "label": "UGC spot — kitchen background",
+        "aspect": "9/16",
+        "sortOrder": 4
+      },
+      {
+        "type": "VIDEO",
+        "url": "https://rzowkcqjeadgkwmixtds.supabase.co/storage/v1/object/public/landing/product-demo-authentic-feel.mp4",
+        "label": "Product demo — authentic feel",
+        "aspect": "9/16",
+        "sortOrder": 5
+      }
+    ]
+  }
+]

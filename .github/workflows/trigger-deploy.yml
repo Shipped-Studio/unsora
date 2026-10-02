@@ -1,0 +1,33 @@
+name: Deploy Trigger.dev tasks
+
+# Manual on purpose: the API server must be live before tasks that depend on
+# new endpoints, so this runs after the Railway server deploy finishes.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Trigger.dev environment
+        type: choice
+        options: [prod, staging]
+        default: prod
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      # Pin the CLI to the installed SDK version so they never drift.
+      - run: |
+          version=$(node -p "require('@trigger.dev/sdk/package.json').version")
+          npx --yes "trigger.dev@${version}" deploy --env "${{ inputs.environment }}"
+        env:
+          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}

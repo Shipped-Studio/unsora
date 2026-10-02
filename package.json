@@ -1,0 +1,19 @@
+{
+  "name": "unsora",
+  "private": true,
+  "description": "Unsora: AI content generation and social scheduling. Web app, API server, MCP server and Remotion compositions.",
+  "scripts": {
+    "install:all": "npm ci --prefix server && npm ci --prefix client && npm ci --prefix mcp && npm ci --prefix remotion",
+    "dev:server": "npm run dev --prefix server",
+    "dev:trigger": "npm run trigger:dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "dev:mcp": "npm run dev --prefix mcp",
+    "build:server": "npm run build --prefix server",
+    "build:client": "npm run build --prefix client",
+    "build:mcp": "npm run build --prefix mcp",
+    "typecheck": "npm run build --prefix server && npm run build --prefix mcp && npx --prefix client tsc --noEmit -p client"
+  },
+  "engines": {
+    "node": ">=20.18.1"
+  }
+}
