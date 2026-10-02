@@ -1,24 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Image as ImageIcon, TextAa, UploadSimple } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Slider } from "@/components/ui/slider";
 import { Spinner } from "@/components/ui/spinner";
-import { TextAa, Image as ImageIcon } from "@phosphor-icons/react";
 import { uploadFileToStorage } from "@/lib/storage-client";
-
-export interface WatermarkOverlayConfig {
-  enabled: boolean;
-  type: "text" | "image";
-  text: string;
-  imageUrl: string;
-  fontSize: number;
-  color: string;
-  opacity: number;
-  position: WatermarkPosition;
-}
+import {
+  ChoiceGroup,
+  ChoiceItem,
+  ColorField,
+  EditorSection,
+  FieldCaption,
+  OVERLAY_COLORS,
+  SliderField,
+  SwitchRow,
+} from "@/components/subtitle-editor/editor-fields";
+import { failureMessage } from "@/components/subtitle-editor/format";
 
 export type WatermarkPosition =
   | "top-left"
@@ -31,6 +30,17 @@ export type WatermarkPosition =
   | "bottom-center"
   | "bottom-right";
 
+export interface WatermarkOverlayConfig {
+  enabled: boolean;
+  type: "text" | "image";
+  text: string;
+  imageUrl: string;
+  fontSize: number;
+  color: string;
+  opacity: number;
+  position: WatermarkPosition;
+}
+
 export const WATERMARK_OVERLAY_DEFAULTS: WatermarkOverlayConfig = {
   enabled: true,
   type: "text",
@@ -42,84 +52,17 @@ export const WATERMARK_OVERLAY_DEFAULTS: WatermarkOverlayConfig = {
   position: "bottom-right",
 };
 
-const COLOR_OPTIONS = [
-  "#ffffff",
-  "#000000",
-  "#ef4444",
-  "#f97316",
-  "#eab308",
-  "#22c55e",
-  "#3b82f6",
-  "#8b5cf6",
-  "#ec4899",
-  "#06b6d4",
+const POSITIONS: { value: WatermarkPosition; label: string }[] = [
+  { value: "top-left", label: "Top left" },
+  { value: "top-center", label: "Top" },
+  { value: "top-right", label: "Top right" },
+  { value: "center-left", label: "Left" },
+  { value: "center", label: "Center" },
+  { value: "center-right", label: "Right" },
+  { value: "bottom-left", label: "Bottom left" },
+  { value: "bottom-center", label: "Bottom" },
+  { value: "bottom-right", label: "Bottom right" },
 ];
-
-const POSITIONS: WatermarkPosition[] = [
-  "top-left",
-  "top-center",
-  "top-right",
-  "center-left",
-  "center",
-  "center-right",
-  "bottom-left",
-  "bottom-center",
-  "bottom-right",
-];
-
-function SliderField({
-  label,
-  unit,
-  value,
-  min,
-  max,
-  step,
-  onChange,
-}: {
-  label: string;
-  unit: string;
-  value: number;
-  min: number;
-  max: number;
-  step?: number;
-  onChange: (val: number) => void;
-}) {
-  const [localValue, setLocalValue] = useState([value]);
-
-  const handleChange = (val: number | readonly number[]) => {
-    const arr = Array.isArray(val) ? [...val] : [val];
-    setLocalValue(arr);
-    onChange(arr[0]);
-  };
-
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground">
-          {label}
-        </span>
-        <span className="text-xs tabular-nums">
-          {localValue[0]}
-          {unit}
-        </span>
-      </div>
-      <Slider
-        value={localValue}
-        min={min}
-        max={max}
-        step={step ?? 1}
-        onValueChange={handleChange}
-      />
-    </div>
-  );
-}
-
-function formatPositionLabel(pos: string) {
-  return pos
-    .split("-")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
 
 interface EditWatermarkTabProps {
   config: WatermarkOverlayConfig;
@@ -127,194 +70,172 @@ interface EditWatermarkTabProps {
 }
 
 export function EditWatermarkTab({ config, onChange }: EditWatermarkTabProps) {
+  const textId = useId();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
 
   const update = <K extends keyof WatermarkOverlayConfig>(
     key: K,
     value: WatermarkOverlayConfig[K],
-  ) => {
-    onChange({ ...config, [key]: value });
-  };
+  ) => onChange({ ...config, [key]: value });
 
-  // Upload to storage so the URL survives reloads and is reachable by the
-  // Remotion Lambda render (a browser blob: URL is neither).
-  const handleImageUpload = async (file: File) => {
+  // Upload to storage so the image survives reloads and the renderer can
+  // reach it (a blob: URL does neither).
+  const uploadImage = async (file: File) => {
     setIsUploading(true);
-    try {
-      const result = await uploadFileToStorage(file);
-      if (!result.success || !result.blobUrl) {
-        throw new Error(result.error || "Upload failed");
-      }
-      update("imageUrl", result.blobUrl);
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to upload image",
-      );
-    } finally {
-      setIsUploading(false);
+    const result = await uploadFileToStorage(file);
+    setIsUploading(false);
+    if (!result.success || !result.blobUrl) {
+      toast.error(failureMessage("upload the image", result.error));
+      return;
     }
+    update("imageUrl", result.blobUrl);
   };
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <label className="text-sm font-semibold">Show Watermark</label>
-        <Switch
+    <div className="space-y-8">
+      <EditorSection
+        title="Watermark"
+        description="A handle or logo shown for the whole video."
+      >
+        <SwitchRow
+          label="Show watermark"
           checked={config.enabled}
-          onCheckedChange={(v) => update("enabled", v)}
+          onCheckedChange={(checked) => update("enabled", checked)}
         />
-      </div>
 
-      <div>
-        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-          Watermark Type
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { value: "text" as const, label: "Text", icon: TextAa },
-            { value: "image" as const, label: "Image", icon: ImageIcon },
-          ].map((t) => (
-            <button
-              key={t.value}
-              onClick={() => update("type", t.value)}
-              className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all ${
-                config.type === t.value
-                  ? "border-primary bg-primary/5 text-primary ring-1 ring-primary/20"
-                  : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
-              }`}
-            >
-              <t.icon className="size-4" />
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
+        <ChoiceGroup
+          label="Watermark type"
+          value={config.type}
+          onChange={(type) => update("type", type)}
+          className="grid grid-cols-2"
+        >
+          <ChoiceItem value="text">
+            <TextAa />
+            Text
+          </ChoiceItem>
+          <ChoiceItem value="image">
+            <ImageIcon />
+            Image
+          </ChoiceItem>
+        </ChoiceGroup>
 
-      {config.type === "text" ? (
-        <>
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-              Watermark Text
-            </label>
-            <Input
-              value={config.text}
-              onChange={(e) => update("text", e.target.value)}
-              placeholder="e.g. @yourusername"
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-xs font-medium text-muted-foreground">
-              Color
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {COLOR_OPTIONS.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => update("color", c)}
-                  className="size-7 rounded-full border-2 transition-transform hover:scale-110"
-                  style={{
-                    backgroundColor: c,
-                    borderColor:
-                      config.color === c
-                        ? "var(--color-primary)"
-                        : "transparent",
-                  }}
-                />
-              ))}
-              <label className="relative flex size-7 cursor-pointer items-center justify-center rounded-full border-2 border-dashed border-muted-foreground/40">
-                <input
-                  type="color"
-                  value={config.color}
-                  onChange={(e) => update("color", e.target.value)}
-                  className="absolute inset-0 cursor-pointer opacity-0"
-                />
-                <span className="text-[10px] text-muted-foreground">+</span>
-              </label>
+        {config.type === "text" ? (
+          <>
+            <div className="space-y-2">
+              <FieldCaption htmlFor={textId}>Text</FieldCaption>
+              <Input
+                id={textId}
+                value={config.text}
+                onChange={(event) => update("text", event.target.value)}
+                placeholder="@yourhandle"
+              />
             </div>
-          </div>
-
-          <SliderField
-            label="Font Size"
-            unit="px"
-            value={config.fontSize}
-            min={12}
-            max={80}
-            onChange={(v) => update("fontSize", v)}
-          />
-        </>
-      ) : (
-        <div className="rounded-xl border border-dashed border-border p-6 text-center">
-          <ImageIcon
-            className="mx-auto size-8 text-muted-foreground/40"
-            weight="thin"
-          />
-          <p className="mt-2 text-xs text-muted-foreground">
-            Upload a logo or image for your watermark
-          </p>
-          <label
-            className={`mt-3 inline-flex items-center justify-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium shadow-xs ${
-              isUploading
-                ? "cursor-not-allowed opacity-60"
-                : "cursor-pointer hover:bg-accent hover:text-accent-foreground"
-            }`}
-          >
-            {isUploading && <Spinner className="size-3.5" />}
-            {isUploading ? "Uploading..." : "Upload Image"}
+            <ColorField
+              label="Color"
+              value={config.color}
+              options={OVERLAY_COLORS}
+              onChange={(color) => update("color", color)}
+            />
+            <SliderField
+              label="Font size"
+              unit="px"
+              value={config.fontSize}
+              min={12}
+              max={80}
+              defaultValue={WATERMARK_OVERLAY_DEFAULTS.fontSize}
+              onChange={(value) => update("fontSize", value)}
+            />
+          </>
+        ) : (
+          <div className="flex items-center gap-4 rounded-lg bg-muted p-4">
+            <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+              {config.imageUrl ? (
+                <img
+                  src={config.imageUrl}
+                  alt="Watermark"
+                  className="max-h-full max-w-full object-contain"
+                />
+              ) : (
+                <ImageIcon className="size-6 text-muted-foreground" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1 space-y-2">
+              <p className="text-xs text-muted-foreground">
+                PNG with a transparent background works best.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isUploading}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {isUploading ? <Spinner /> : <UploadSimple />}
+                  {isUploading
+                    ? "Uploading…"
+                    : config.imageUrl
+                      ? "Replace image"
+                      : "Upload image"}
+                </Button>
+                {config.imageUrl && !isUploading ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => update("imageUrl", "")}
+                  >
+                    Remove
+                  </Button>
+                ) : null}
+              </div>
+            </div>
             <input
+              ref={fileInputRef}
               type="file"
               accept="image/*"
               className="hidden"
-              disabled={isUploading}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                e.target.value = "";
-                if (!file) return;
-                void handleImageUpload(file);
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) void uploadImage(file);
               }}
             />
-          </label>
-          {config.imageUrl && (
-            <div className="mt-3">
-              <img
-                src={config.imageUrl}
-                alt="Watermark preview"
-                className="mx-auto max-h-16 max-w-[120px] rounded object-contain"
-              />
-            </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+      </EditorSection>
 
-      <SliderField
-        label="Opacity"
-        unit="%"
-        value={config.opacity}
-        min={10}
-        max={100}
-        onChange={(v) => update("opacity", v)}
-      />
-
-      <div>
-        <label className="mb-2 block text-xs font-medium text-muted-foreground">
-          Position
-        </label>
-        <div className="grid grid-cols-3 gap-1.5">
-          {POSITIONS.map((pos) => (
-            <button
-              key={pos}
-              onClick={() => update("position", pos)}
-              className={`rounded-md border px-2 py-1.5 text-[10px] font-medium transition-colors ${
-                config.position === pos
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              {formatPositionLabel(pos)}
-            </button>
-          ))}
+      <EditorSection title="Placement">
+        <SliderField
+          label="Opacity"
+          unit="%"
+          value={config.opacity}
+          min={10}
+          max={100}
+          defaultValue={WATERMARK_OVERLAY_DEFAULTS.opacity}
+          onChange={(value) => update("opacity", value)}
+        />
+        <div className="space-y-2">
+          <span className="text-xs font-medium text-muted-foreground">
+            Position
+          </span>
+          <ChoiceGroup
+            label="Watermark position"
+            value={config.position}
+            onChange={(position) => update("position", position)}
+            className="grid max-w-sm grid-cols-3"
+          >
+            {POSITIONS.map((position) => (
+              <ChoiceItem
+                key={position.value}
+                value={position.value}
+                className="text-xs"
+              >
+                {position.label}
+              </ChoiceItem>
+            ))}
+          </ChoiceGroup>
         </div>
-      </div>
+      </EditorSection>
     </div>
   );
 }

@@ -29,8 +29,18 @@ router.post(
   analyticsController.refresh.bind(analyticsController),
 );
 
+// Post counts per status (before "/:id")
+router.get("/counts", postController.getPostCounts.bind(postController));
+
 // Get single post
 router.get("/:id", postController.getPostById.bind(postController));
+
+// Copy a post into a new draft — requires an active paid plan
+router.post(
+  "/:id/duplicate",
+  requirePaidPlan,
+  postController.duplicatePost.bind(postController),
+);
 
 // Update post — requires an active paid plan
 router.put(

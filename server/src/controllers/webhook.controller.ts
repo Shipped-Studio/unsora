@@ -361,6 +361,21 @@ export class WebhookController {
           error: `TikTok publish failed: ${content.reason || "Unknown error"}`,
         },
       });
+
+      // Recompute the post's overall status from its legs, otherwise a post
+      // that looked fully published keeps saying so.
+      const legs = await prisma.postAccount.findMany({
+        where: { postId: postAccount.postId },
+        select: { published: true },
+      });
+      const publishedCount = legs.filter((leg) => leg.published).length;
+      await prisma.post.update({
+        where: { id: postAccount.postId },
+        data: {
+          status: publishedCount === 0 ? "FAILED" : "PARTIALLY_PUBLISHED",
+          error: `Failed to publish to ${legs.length - publishedCount} of ${legs.length} account(s)`,
+        },
+      });
     }
   }
 

@@ -82,7 +82,7 @@ export function useMovieMaterials(options?: {
           if (gen.status === "COMPLETED" || gen.status === "FAILED") {
             stopPolling(generationId);
             if (gen.status === "COMPLETED") {
-              toast.success("Movie material generated!");
+              toast.success("Image ready");
               onCompleteRef.current?.(generationId);
               setTimeout(() => {
                 setActiveGenerations((prev) =>
@@ -91,12 +91,14 @@ export function useMovieMaterials(options?: {
               }, AUTO_DISMISS_DELAY_MS);
             } else {
               toast.error(
-                `Generation failed: ${gen.error || "Unknown error"}`,
+                gen.error
+                  ? `Couldn't generate the image. ${gen.error}`
+                  : "Couldn't generate the image. Try again.",
               );
             }
           }
         } catch {
-          // network blip — keep polling
+          // Network blip: keep polling.
         }
       }, POLL_INTERVAL_MS);
 
@@ -131,10 +133,10 @@ export function useMovieMaterials(options?: {
           body: JSON.stringify(payload),
         });
 
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
 
         if (!res.ok || !data.success) {
-          const errorMsg = data.error || "Failed to start generation";
+          const errorMsg = data.error || "Couldn't start the image. Try again.";
           setActiveGenerations((prev) =>
             prev.map((g) =>
               g.id === tempId
@@ -165,11 +167,11 @@ export function useMovieMaterials(options?: {
         setActiveGenerations((prev) =>
           prev.map((g) =>
             g.id === tempId
-              ? { ...g, status: "FAILED" as const, error: "Network error" }
+              ? { ...g, status: "FAILED" as const, error: "Couldn't reach the server." }
               : g,
           ),
         );
-        toast.error("Network error — please try again");
+        toast.error("Couldn't reach the server. Check your connection and try again.");
         return null;
       }
     },

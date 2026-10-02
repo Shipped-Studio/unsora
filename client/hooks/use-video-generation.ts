@@ -142,8 +142,15 @@ function buildVideoGenerationPayload(params: VideoGenerationSubmitParams) {
   return body;
 }
 
-export function useVideoGeneration() {
+export function useVideoGeneration(options?: {
+  /** Called once a generation completes or fails. */
+  onSettled?: (id: string) => void;
+}) {
   const { authFetch } = useAuthFetch();
+  const onSettledRef = useRef(options?.onSettled);
+  useEffect(() => {
+    onSettledRef.current = options?.onSettled;
+  });
   const [activeGenerations, setActiveGenerations] = useState<
     ActiveVideoGeneration[]
   >([]);
@@ -158,6 +165,22 @@ export function useVideoGeneration() {
       pollTimers.current.delete(id);
     }
   }, []);
+
+  const notifySettled = useCallback(
+    (id: string, status: string, error?: string | null) => {
+      if (status === "COMPLETED") {
+        toast.success("Video ready");
+      } else {
+        toast.error(
+          error
+            ? `Couldn't generate the video. ${error}`
+            : "Couldn't generate the video. Try again.",
+        );
+      }
+      onSettledRef.current?.(id);
+    },
+    [],
+  );
 
   const pollStatus = useCallback(
     (generationId: string, model: string) => {
@@ -174,6 +197,10 @@ export function useVideoGeneration() {
       const timer = setInterval(async () => {
         try {
           const res = await authFetch(refreshPath);
+          if (res.status === 404) {
+            stopPolling(generationId);
+            return;
+          }
           if (!res.ok) return;
 
           const data = await res.json();
@@ -198,13 +225,7 @@ export function useVideoGeneration() {
               mapped.status === "FAILED"
             ) {
               stopPolling(generationId);
-              if (mapped.status === "COMPLETED") {
-                toast.success("Video generation complete!");
-              } else {
-                toast.error(
-                  `Generation failed: ${mapped.error || "Unknown error"}`,
-                );
-              }
+              notifySettled(generationId, mapped.status, mapped.error);
             }
             return;
           }
@@ -228,20 +249,16 @@ export function useVideoGeneration() {
 
           if (gen.status === "COMPLETED" || gen.status === "FAILED") {
             stopPolling(generationId);
-            if (gen.status === "COMPLETED") {
-              toast.success("Video generation complete!");
-            } else {
-              toast.error(`Generation failed: ${gen.error || "Unknown error"}`);
-            }
+            notifySettled(generationId, gen.status, gen.error);
           }
         } catch {
-          // network blip — keep polling
+          // Network blip: keep polling.
         }
       }, POLL_INTERVAL_MS);
 
       pollTimers.current.set(generationId, timer);
     },
-    [authFetch, stopPolling],
+    [authFetch, stopPolling, notifySettled],
   );
 
   const submitOne = useCallback(
@@ -277,10 +294,10 @@ export function useVideoGeneration() {
           body: JSON.stringify(body),
         });
 
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
 
         if (!res.ok || !data.success) {
-          const errorMsg = data.error || "Failed to start generation";
+          const errorMsg = data.error || "Couldn't start the video. Try again.";
           setActiveGenerations((prev) =>
             prev.map((g) =>
               g.id === tempId
@@ -311,11 +328,15 @@ export function useVideoGeneration() {
         setActiveGenerations((prev) =>
           prev.map((g) =>
             g.id === tempId
-              ? { ...g, status: "FAILED" as const, error: "Network error" }
+              ? {
+                  ...g,
+                  status: "FAILED" as const,
+                  error: "Couldn't reach the server.",
+                }
               : g,
           ),
         );
-        toast.error("Network error — please try again");
+        toast.error("Couldn't reach the server. Check your connection and try again.");
         return null;
       }
     },

@@ -3,14 +3,13 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldWarning } from "@phosphor-icons/react";
+import { PageBody, PageHeader } from "@/components/layout/page-header";
+import { EmptyState, LoadingState } from "@/components/shared/states";
 import { useIsAdmin } from "@/hooks/admin/use-admin-data";
-import { AdminNav } from "@/components/admin/admin-nav";
-import { Spinner } from "@/components/ui/spinner";
 
 /**
- * Client-side gate for the whole /admin section. This hides the UI from
- * non-admins; the real enforcement is the requireAdmin middleware on every
- * /api/admin/* endpoint, so even a forced navigation returns no data.
+ * Client-side gate for /admin. It hides the UI from non-admins; the real
+ * enforcement is the requireAdmin middleware on every /api/admin/* endpoint.
  */
 export default function AdminLayout({
   children,
@@ -27,30 +26,24 @@ export default function AdminLayout({
     }
   }, [loading, isAdmin, router]);
 
-  if (loading) {
+  if (loading || !isAdmin) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <Spinner className="size-6" />
-      </div>
+      <>
+        <PageHeader title="Admin" description={null} />
+        <PageBody>
+          {loading ? (
+            <LoadingState />
+          ) : (
+            <EmptyState
+              icon={ShieldWarning}
+              title="Admin access required"
+              description="This area is for Unsora admins. Taking you back to Home."
+            />
+          )}
+        </PageBody>
+      </>
     );
   }
 
-  if (!isAdmin) {
-    return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-center">
-        <ShieldWarning weight="fill" className="size-10 text-muted-foreground" />
-        <h1 className="text-lg font-semibold">Admin access required</h1>
-        <p className="max-w-sm text-sm text-muted-foreground">
-          This area is restricted. Redirecting you to the dashboard…
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 sm:py-6">
-      <AdminNav />
-      {children}
-    </div>
-  );
+  return children;
 }

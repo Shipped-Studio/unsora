@@ -222,7 +222,9 @@ export class ImageController {
             },
           },
         }),
-        prisma.imageGeneration.count({ where: { userId: user.id } }),
+        prisma.imageGeneration.count({
+          where: { userId: user.id, type: ImageGenerationType.BASIC },
+        }),
       ]);
 
       const totalPages = Math.ceil(totalCount / limit);

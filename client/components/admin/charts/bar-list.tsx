@@ -1,24 +1,13 @@
-"use client";
-
 import { cn } from "@/lib/utils";
-import { useChartTheme } from "./palette";
-import type { ReactNode } from "react";
 
 export interface BarItem {
   label: string;
   value: number;
-  /** Optional explicit color (else the sequential magnitude hue). */
-  color?: string;
-  /** Optional secondary text shown right-aligned before the value. */
-  meta?: ReactNode;
-  /** Optional href-like click handler. */
-  onClick?: () => void;
 }
 
 /**
- * Ranked horizontal bars — the right form for "which is biggest" (magnitude).
- * Single sequential hue by default; bars carry an in-row label so identity is
- * never color-alone. The value is direct-labeled at the end of each row.
+ * Ranked horizontal bars for "which is biggest". One hue for every bar; the
+ * label and value sit above the bar so they stay readable in both themes.
  */
 export function BarList({
   items,
@@ -31,7 +20,6 @@ export function BarList({
   emptyLabel?: string;
   className?: string;
 }) {
-  const theme = useChartTheme();
   const max = Math.max(...items.map((i) => i.value), 1);
 
   if (items.length === 0) {
@@ -43,47 +31,26 @@ export function BarList({
   }
 
   return (
-    <div className={cn("flex flex-col gap-2.5", className)}>
+    <ul className={cn("flex flex-col gap-3", className)}>
       {items.map((item, i) => {
         const pct = Math.max((item.value / max) * 100, item.value > 0 ? 2 : 0);
-        const color = item.color ?? theme.sequential;
         return (
-          <div
-            key={`${item.label}-${i}`}
-            className={cn(
-              "group grid grid-cols-[1fr_auto] items-center gap-3",
-              item.onClick && "cursor-pointer",
-            )}
-            onClick={item.onClick}
-          >
-            <div className="relative min-w-0">
-              <div className="relative h-7 w-full overflow-hidden rounded-md bg-muted/60">
-                <div
-                  className="absolute inset-y-0 left-0 rounded-md transition-[width] duration-500 group-hover:brightness-95"
-                  style={{
-                    width: `${pct}%`,
-                    backgroundColor: color,
-                    opacity: theme.isDark ? 0.85 : 0.9,
-                  }}
-                />
-                <span className="absolute inset-y-0 left-2.5 flex items-center truncate pr-2 text-xs font-medium text-foreground mix-blend-normal">
-                  {item.label}
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 tabular-nums">
-              {item.meta && (
-                <span className="text-xs text-muted-foreground">
-                  {item.meta}
-                </span>
-              )}
-              <span className="text-sm font-semibold text-foreground">
+          <li key={`${item.label}-${i}`} className="space-y-1">
+            <div className="flex items-baseline justify-between gap-3 text-sm">
+              <span className="truncate">{item.label}</span>
+              <span className="shrink-0 font-medium tabular-nums">
                 {valueFormat(item.value)}
               </span>
             </div>
-          </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${pct}%`, backgroundColor: "var(--chart-1)" }}
+              />
+            </div>
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 }

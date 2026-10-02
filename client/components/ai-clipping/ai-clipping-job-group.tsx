@@ -1,17 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Image from "next/image";
-import { CaretDown, Trash } from "@phosphor-icons/react";
-import { Spinner } from "@/components/ui/spinner";
-import { cn } from "@/lib/utils";
-import { getYouTubeVideoId } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+  ArrowSquareOut,
+  CaretDown,
+  DotsThree,
+  Trash,
+  VideoCamera,
+} from "@phosphor-icons/react";
+import { ToolGrid } from "@/components/generator/tool-layout";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,239 +19,281 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import type { AIClippingClip, AIClippingJob } from "@/hooks/use-ai-clippings";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { getCaptionStyleLabel } from "@/constant/caption-styles";
+import {
+  isClippingActive,
+  type AIClippingClip,
+  type AIClippingJob,
+} from "@/hooks/use-ai-clippings";
+import { cn, getYouTubeVideoId } from "@/lib/utils";
 import { AIClippingClipCard } from "./ai-clipping-clip-card";
-import { clipAspectClass, clipGridClass } from "./clip-ratio";
+import { clipAspectClass, clipGridShape, formatClipRatio } from "./clip-ratio";
 
-const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
-  QUEUED: {
-    label: "Queued",
-    className: "bg-muted text-muted-foreground",
-  },
-  PROCESSING: {
-    label: "Processing",
-    className: "bg-primary/10 text-primary",
-  },
-  COMPLETED: {
-    label: "Completed",
-    className: "bg-success/10 text-success",
-  },
-  FAILED: {
-    label: "Failed",
-    className: "bg-destructive/10 text-destructive",
-  },
-};
-
-function formatRatioLabel(ratio: string) {
-  const match = ratio.match(/^RATIO_(\d+)_(\d+)$/);
-  return match ? `${match[1]}:${match[2]}` : ratio;
-}
-
-function formatVideoLabel(url?: string | null) {
+function sourceLabel(url?: string | null) {
   if (!url) return "Video";
-  try {
-    const host = new URL(url).hostname.replace(/^www\./, "");
-    return host;
-  } catch {
-    return url.length > 48 ? `${url.slice(0, 48)}…` : url;
-  }
+  return url.replace(/^https?:\/\/(www\.)?/i, "");
 }
 
-function activePlaceholderCount(job: AIClippingJob) {
+function placeholderCount(job: AIClippingJob) {
   const limit = job.config?.limit;
   const clipCount = job.clips.length;
-
   if (typeof limit === "number" && limit > 0) {
-    return Math.max(0, limit - clipCount);
+    return Math.max(0, Math.min(limit - clipCount, 6));
   }
-
-  return clipCount === 0 ? 1 : 0;
+  return clipCount === 0 ? 3 : 0;
 }
 
 interface AIClippingJobGroupProps {
   job: AIClippingJob;
-  onPlayClip: (clip: AIClippingClip, job: AIClippingJob) => void;
+  defaultOpen?: boolean;
+  onOpenClip: (clip: AIClippingClip, job: AIClippingJob) => void;
   onDeleteJob: (jobId: string) => void;
   onDeleteClip: (jobId: string, clipId: string) => void;
 }
 
 export function AIClippingJobGroup({
   job,
-  onPlayClip,
+  defaultOpen = false,
+  onOpenClip,
   onDeleteJob,
   onDeleteClip,
 }: AIClippingJobGroupProps) {
-  const status = STATUS_CONFIG[job.status] ?? STATUS_CONFIG.QUEUED;
-  const isActive = job.status === "QUEUED" || job.status === "PROCESSING";
+  const active = isClippingActive(job.status);
+  const failed = job.status === "FAILED";
+  const [open, setOpen] = useState(defaultOpen || active);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
   const youTubeId = job.videoUrl ? getYouTubeVideoId(job.videoUrl) : null;
   const clipCount = job.clips.length;
+  const placeholders = active ? placeholderCount(job) : 0;
+  const query = job.config?.query;
 
-  const placeholders = isActive ? activePlaceholderCount(job) : 0;
+  const progress = active
+    ? clipCount > 0
+      ? `${clipCount} ${clipCount === 1 ? "clip" : "clips"} so far`
+      : query
+        ? `Finding “${query}”`
+        : "Finding clips"
+    : failed
+      ? "Failed"
+      : clipCount > 0
+        ? `${clipCount} ${clipCount === 1 ? "clip" : "clips"}`
+        : "No clips found";
 
-  const [open, setOpen] = useState(isActive);
-
-  useEffect(() => {
-    if (isActive) setOpen(true);
-  }, [isActive]);
+  const summary = [
+    progress,
+    !active && query ? `“${query}”` : null,
+    job.config?.ratio ? formatClipRatio(job.config.ratio) : null,
+    job.config?.enableCaption && job.config.captionStyle
+      ? `${getCaptionStyleLabel(job.config.captionStyle)} captions`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <Collapsible
-      open={open}
-      onOpenChange={setOpen}
-      className="overflow-hidden rounded-2xl border bg-card shadow-sm"
-    >
-      <div className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-3 text-left outline-none">
-          <div className="relative size-14 shrink-0 overflow-hidden rounded-lg bg-muted ring-1 ring-border/60">
-            {youTubeId ? (
-              <Image
-                src={`https://img.youtube.com/vi/${youTubeId}/hqdefault.jpg`}
-                alt=""
-                fill
-                className="object-cover"
-                sizes="56px"
-              />
-            ) : (
-              <div className="flex size-full items-center justify-center text-[10px] text-muted-foreground">
-                Video
-              </div>
-            )}
-          </div>
-
-          <div className="min-w-0 flex-1 space-y-1">
-            <p className="truncate text-sm font-semibold text-foreground">
-              {formatVideoLabel(job.videoUrl)}
-            </p>
-            <p className="truncate text-[11px] text-muted-foreground">
-              {job.videoUrl}
-            </p>
-            <p className="text-[11px] text-muted-foreground">
-              {isActive
-                ? clipCount > 0
-                  ? `${clipCount} clip${clipCount === 1 ? "" : "s"} found so far`
-                  : job.config?.query
-                    ? `Searching for “${job.config.query}”…`
-                    : "Analyzing video for viral clips…"
-                : clipCount > 0
-                  ? `${clipCount} clip${clipCount === 1 ? "" : "s"}`
-                  : "No clips returned"}
-              {!isActive && job.config?.query
-                ? ` · Moments: “${job.config.query}”`
-                : ""}
-              {job.config?.ratio
-                ? ` · ${formatRatioLabel(job.config.ratio)}`
-                : ""}
-              {job.config?.enableCaption && job.config.captionStyle
-                ? ` · ${getCaptionStyleLabel(job.config.captionStyle)}`
-                : ""}
-            </p>
-          </div>
-
-          <CaretDown
-            className={cn(
-              "size-4 shrink-0 text-muted-foreground transition-transform",
-              open && "rotate-180",
-            )}
-          />
-        </CollapsibleTrigger>
-
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          {isActive && <Spinner className="size-4 text-primary" />}
-          <span
-            className={cn(
-              "rounded-full px-2.5 py-1 text-[11px] font-medium",
-              status.className,
-            )}
-          >
-            {status.label}
-          </span>
-          <AlertDialog>
-            <AlertDialogTrigger>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="text-muted-foreground hover:text-destructive"
+    <section className="rounded-xl bg-muted">
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <div className="flex items-center gap-2 p-3">
+          <CollapsibleTrigger className="-m-1 flex min-w-0 flex-1 items-center gap-3 rounded-md p-1 text-left outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50">
+            <span className="relative flex aspect-video w-20 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+              {youTubeId ? (
+                <Image
+                  src={`https://img.youtube.com/vi/${youTubeId}/hqdefault.jpg`}
+                  alt=""
+                  fill
+                  sizes="80px"
+                  className="object-cover"
+                />
+              ) : (
+                <VideoCamera className="size-5 text-muted-foreground" />
+              )}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium">
+                {sourceLabel(job.videoUrl)}
+              </span>
+              <span
+                className={cn(
+                  "block truncate text-xs",
+                  failed ? "text-destructive" : "text-muted-foreground",
+                )}
               >
-                <Trash className="size-4" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent size="sm">
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete this clipping job?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This removes the entire group and all {clipCount} clip
-                  {clipCount === 1 ? "" : "s"} inside it. This action cannot be
-                  undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  variant="destructive"
-                  onClick={() => onDeleteJob(job.id)}
-                >
-                  Delete group
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+                {summary}
+              </span>
+            </span>
+            <CaretDown
+              className={cn(
+                "size-4 shrink-0 text-muted-foreground transition-transform",
+                open && "rotate-180",
+              )}
+            />
+            <span className="sr-only">{open ? "Hide clips" : "Show clips"}</span>
+          </CollapsibleTrigger>
+
+          {active ? (
+            <Badge variant="secondary">
+              <Spinner />
+              {job.status === "QUEUED" ? "Queued" : "Processing"}
+            </Badge>
+          ) : failed ? (
+            <Badge variant="destructive">Failed</Badge>
+          ) : null}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="More actions for this job"
+                />
+              }
+            >
+              <DotsThree weight="bold" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              {job.videoUrl ? (
+                <>
+                  <DropdownMenuItem
+                    render={
+                      <a
+                        href={job.videoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      />
+                    }
+                  >
+                    <ArrowSquareOut />
+                    Open source video
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              ) : null}
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => setConfirmOpen(true)}
+              >
+                <Trash />
+                Delete job
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {failed && job.error ? (
+          <p role="alert" className="border-t px-3 py-2 text-xs text-destructive">
+            {job.error}
+          </p>
+        ) : null}
+
+        <CollapsibleContent>
+          <div className="border-t p-3">
+            {clipCount === 0 && placeholders === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                {failed
+                  ? "No clips were made from this video."
+                  : "No clips matched. Try a different clip length or search."}
+              </p>
+            ) : (
+              <ToolGrid shape={clipGridShape(job.config?.ratio)}>
+                {job.clips.map((clip) => (
+                  <AIClippingClipCard
+                    key={clip.id}
+                    clip={clip}
+                    ratio={job.config?.ratio}
+                    sourceUrl={job.videoUrl}
+                    jobActive={active}
+                    onOpen={() => onOpenClip(clip, job)}
+                    onDelete={() => onDeleteClip(job.id, clip.id)}
+                  />
+                ))}
+                {Array.from({ length: placeholders }).map((_, i) => (
+                  <div
+                    key={`placeholder-${i}`}
+                    className="overflow-hidden rounded-xl bg-muted"
+                    aria-hidden
+                  >
+                    <div
+                      className={cn(
+                        "flex items-center justify-center bg-muted",
+                        clipAspectClass(job.config?.ratio),
+                      )}
+                    >
+                      <Spinner className="text-muted-foreground" />
+                    </div>
+                    <div className="space-y-2 p-3">
+                      <Skeleton className="h-4 w-2/3" />
+                      <Skeleton className="h-3 w-1/3" />
+                    </div>
+                  </div>
+                ))}
+              </ToolGrid>
+            )}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this job?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {clipCount > 0
+                ? `The job and its ${clipCount} ${clipCount === 1 ? "clip" : "clips"} will be removed. This can't be undone.`
+                : "The job will be removed. This can't be undone."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                setConfirmOpen(false);
+                onDeleteJob(job.id);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </section>
+  );
+}
+
+export function JobGroupSkeleton() {
+  return (
+    <div className="space-y-3 rounded-xl bg-muted p-3">
+      <div className="flex items-center gap-3">
+        <Skeleton className="aspect-video w-20 rounded-md" />
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-4 w-48" />
+          <Skeleton className="h-3 w-64" />
         </div>
       </div>
-
-      {job.error && job.status === "FAILED" && (
-        <div className="border-b bg-destructive/5 px-4 py-2 text-xs text-destructive">
-          {job.error}
-        </div>
-      )}
-
-      <CollapsibleContent>
-        <div className="p-4">
-          {clipCount === 0 && !isActive ? (
-            <p className="py-6 text-center text-xs text-muted-foreground">
-              No clips were generated for this video.
-            </p>
-          ) : (
-            <div className={clipGridClass(job.config?.ratio)}>
-              {job.clips.map((clip) => (
-                <AIClippingClipCard
-                  key={clip.id}
-                  clip={clip}
-                  ratio={job.config?.ratio}
-                  jobProcessing={isActive}
-                  onPlay={() => onPlayClip(clip, job)}
-                  onDelete={() => onDeleteClip(job.id, clip.id)}
-                />
-              ))}
-
-              {Array.from({ length: placeholders }).map((_, i) => (
-                <div
-                  key={`placeholder-${job.id}-${i}`}
-                  className="overflow-hidden rounded-xl border border-dashed bg-card"
-                >
-                  <div
-                    className={cn(
-                      "flex flex-col items-center justify-center gap-2",
-                      clipAspectClass(job.config?.ratio),
-                    )}
-                  >
-                    <Spinner className="size-5 text-primary" />
-                    <span className="text-[11px] text-muted-foreground">
-                      Finding clips…
-                    </span>
-                  </div>
-                  <div className="space-y-2 p-3">
-                    <div className="h-3 w-2/3 rounded bg-secondary" />
-                    <div className="h-2 w-1/3 rounded bg-secondary" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
+      <ToolGrid shape="video">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="aspect-video rounded-lg" />
+        ))}
+      </ToolGrid>
+    </div>
   );
 }

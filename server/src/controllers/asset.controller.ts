@@ -6,6 +6,10 @@ import {
   VideoOperation,
 } from "@prisma/client";
 import prisma from "../lib/db";
+import {
+  findUserFolder,
+  uploadAssetToLibraryItem,
+} from "./library.controller";
 
 const VALID_VIDEO_FEATURES = new Set<VideoGenerationType>([
   VideoGenerationType.OMNI_REFERENCE,
@@ -304,13 +308,34 @@ export class AssetController {
           .json({ success: false, error: "User not found" });
       }
 
-      const { name, url, mimeType, type, fileSize, width, height, duration } =
-        req.body;
+      const {
+        name,
+        url,
+        mimeType,
+        type,
+        fileSize,
+        width,
+        height,
+        duration,
+        folderId,
+      } = req.body;
 
       if (!name || !url || !mimeType || !type) {
         return res
           .status(400)
           .json({ success: false, error: "Missing required fields" });
+      }
+
+      // Optional: file the upload straight into one of the user's folders.
+      let targetFolderId: string | null = null;
+      if (folderId) {
+        const folder = await findUserFolder(user.id, folderId);
+        if (!folder) {
+          return res
+            .status(404)
+            .json({ success: false, error: "Folder not found" });
+        }
+        targetFolderId = folder.id;
       }
 
       const asset = await prisma.asset.create({
@@ -325,15 +350,108 @@ export class AssetController {
           width: width ?? null,
           height: height ?? null,
           duration: duration ?? null,
+          folderId: targetFolderId,
         },
       });
 
-      res.status(201).json({ success: true, asset });
+      res.status(201).json({
+        success: true,
+        asset,
+        item: uploadAssetToLibraryItem(asset),
+      });
     } catch (error) {
       console.error("Error creating uploaded asset:", error);
       res
         .status(500)
         .json({ success: false, error: "Failed to create uploaded asset" });
+    }
+  }
+
+  /**
+   * PATCH /api/assets/:id { name?, folderId? }
+   * Renames an asset and/or moves it to a folder (`folderId: null` unfiles
+   * it). Works for uploads and for generation outputs (by output asset id).
+   */
+  async update(req: Request, res: Response) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { clerkId: req.auth.userId },
+        select: { id: true },
+      });
+      if (!user) {
+        return res
+          .status(404)
+          .json({ success: false, error: "User not found" });
+      }
+
+      const existing = await prisma.asset.findFirst({
+        where: { id: req.params.id, userId: user.id },
+        select: { id: true },
+      });
+      if (!existing) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Asset not found" });
+      }
+
+      const body = (req.body ?? {}) as { name?: unknown; folderId?: unknown };
+      const data: Prisma.AssetUncheckedUpdateInput = {};
+
+      if (body.name !== undefined) {
+        const name =
+          typeof body.name === "string"
+            ? body.name.replace(/[\u0000-\u001f\u007f]/g, "").trim()
+            : "";
+        if (!name || name.length > 200) {
+          return res.status(400).json({
+            success: false,
+            error: "Names need 1 to 200 characters.",
+          });
+        }
+        data.name = name;
+      }
+
+      if (body.folderId !== undefined) {
+        if (body.folderId === null) {
+          data.folderId = null;
+        } else {
+          const folder = await findUserFolder(user.id, body.folderId);
+          if (!folder) {
+            return res
+              .status(404)
+              .json({ success: false, error: "Folder not found" });
+          }
+          data.folderId = folder.id;
+        }
+      }
+
+      if (Object.keys(data).length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: "Nothing to update. Send a name or a folderId.",
+        });
+      }
+
+      const asset = await prisma.asset.update({
+        where: { id: existing.id },
+        data,
+      });
+
+      return res.json({
+        success: true,
+        data: {
+          id: asset.id,
+          name: asset.name,
+          folderId: asset.folderId,
+          item:
+            asset.source === "UPLOAD" ? uploadAssetToLibraryItem(asset) : null,
+        },
+      });
+    } catch (error) {
+      console.error("Error updating asset:", error);
+      return res
+        .status(500)
+        .json({ success: false, error: "Failed to update the file" });
     }
   }
 

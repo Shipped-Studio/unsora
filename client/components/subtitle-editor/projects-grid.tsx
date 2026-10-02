@@ -1,41 +1,32 @@
 "use client";
 
 import {
+  PROJECT_GRID_CLASS,
   ProjectCard,
   ProjectCardSkeleton,
-  type TranscriptionListItem,
 } from "@/components/subtitle-editor/project-card";
+import type { TranscriptionListItem } from "@/hooks/subtitle/use-subtitle-api";
 
-const GRID_CLASS =
-  "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
-
-interface ProjectsGridProps {
+export function ProjectsGrid({
+  projects,
+  onDelete,
+}: {
   projects: TranscriptionListItem[];
-  onDelete: (id: string) => void;
-}
-
-export function ProjectsGrid({ projects, onDelete }: ProjectsGridProps) {
+  onDelete: (project: TranscriptionListItem) => void;
+}) {
   return (
-    <div className={GRID_CLASS}>
+    <div className={PROJECT_GRID_CLASS}>
       {projects.map((project) => (
-        <ProjectCard
-          key={project.id}
-          project={project}
-          onDelete={onDelete}
-        />
+        <ProjectCard key={project.id} project={project} onDelete={onDelete} />
       ))}
     </div>
   );
 }
 
-interface ProjectsGridSkeletonProps {
-  count?: number;
-}
-
-export function ProjectsGridSkeleton({ count = 12 }: ProjectsGridSkeletonProps) {
+export function ProjectsGridSkeleton({ count }: { count: number }) {
   return (
-    <div className={GRID_CLASS}>
-      {Array.from({ length: count }).map((_, i) => (
+    <div className={PROJECT_GRID_CLASS} aria-busy>
+      {Array.from({ length: count }, (_, i) => (
         <ProjectCardSkeleton key={i} />
       ))}
     </div>

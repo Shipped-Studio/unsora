@@ -1,250 +1,192 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Player } from "@remotion/player";
-import type { PlayerRef } from "@remotion/player";
-import { Button } from "@/components/ui/button";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Player, type PlayerRef } from "@remotion/player";
 import {
+  ClockClockwise,
+  ClockCounterClockwise,
   MonitorPlay,
-  ArrowsClockwise,
-  Play,
   Pause,
+  Play,
   SpeakerHigh,
   SpeakerSlash,
-  ClockCounterClockwise,
-  ClockClockwise,
 } from "@phosphor-icons/react";
-import { VideoComposition } from "./video-composition";
-import { getCdnUrl } from "@/lib/video-utils";
-import type { SubtitleChunk } from "@/remotion/types";
-import type { SubtitleStylePreset } from "./style-presets";
-import type { SizePositionValues } from "./tabs/style-subtitles-tab";
-import type { TitleOverlayConfig } from "./tabs/edit-title-tab";
-import type { WatermarkOverlayConfig } from "./tabs/edit-watermark-tab";
+import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
+import { EmptyState, ErrorState, LoadingState } from "@/components/shared/states";
+import { VideoComposition } from "@/components/subtitle-editor/video-composition";
+import { formatClock } from "@/components/subtitle-editor/format";
+import type { SubtitleStylePreset } from "@/components/subtitle-editor/style-presets";
+import type { SizePositionValues } from "@/components/subtitle-editor/tabs/style-subtitles-tab";
+import type { TitleOverlayConfig } from "@/components/subtitle-editor/tabs/edit-title-tab";
+import type { WatermarkOverlayConfig } from "@/components/subtitle-editor/tabs/edit-watermark-tab";
 import {
   getCompositionDimensions,
   type PreviewStyleConfig,
-} from "./tabs/preview-style-tab";
+} from "@/components/subtitle-editor/tabs/preview-style-tab";
+import type { SubtitleChunk } from "@/remotion/types";
 
 const FPS = 30;
 const FALLBACK_WIDTH = 1080;
 const FALLBACK_HEIGHT = 1920;
 
-function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
 interface VideoMetadata {
   durationInFrames: number;
-  sourceWidth: number;
-  sourceHeight: number;
+  width: number;
+  height: number;
 }
 
-function useVideoMetadata(videoUrl: string | null) {
-  const [metadataMap, setMetadataMap] = useState<
-    Record<string, VideoMetadata>
-  >({});
+type MetadataState =
+  | { key: string; status: "ready"; metadata: VideoMetadata }
+  | { key: string; status: "error" };
+
+/** Reads duration and size from the video file itself. */
+function useVideoMetadata(videoUrl: string | null, fallbackSeconds: number) {
+  const [attempt, setAttempt] = useState(0);
+  const [state, setState] = useState<MetadataState | null>(null);
+  const key = `${videoUrl}|${attempt}`;
 
   useEffect(() => {
     if (!videoUrl) return;
-    if (metadataMap[videoUrl]) return;
-
-    let cancelled = false;
     const video = document.createElement("video");
     video.crossOrigin = "anonymous";
     video.preload = "metadata";
 
-    const handleLoaded = () => {
-      if (cancelled) return;
-      setMetadataMap((prev) => ({
-        ...prev,
-        [videoUrl]: {
-          durationInFrames: Math.ceil(video.duration * FPS),
-          sourceWidth: video.videoWidth || FALLBACK_WIDTH,
-          sourceHeight: video.videoHeight || FALLBACK_HEIGHT,
+    const onLoaded = () => {
+      const seconds = Number.isFinite(video.duration)
+        ? video.duration
+        : fallbackSeconds;
+      if (!seconds || seconds <= 0) {
+        setState({ key, status: "error" });
+        return;
+      }
+      setState({
+        key,
+        status: "ready",
+        metadata: {
+          durationInFrames: Math.max(1, Math.ceil(seconds * FPS)),
+          width: video.videoWidth || FALLBACK_WIDTH,
+          height: video.videoHeight || FALLBACK_HEIGHT,
         },
-      }));
-      video.remove();
+      });
     };
+    const onError = () => setState({ key, status: "error" });
 
-    video.addEventListener("loadedmetadata", handleLoaded);
+    video.addEventListener("loadedmetadata", onLoaded);
+    video.addEventListener("error", onError);
     video.src = videoUrl;
 
     return () => {
-      cancelled = true;
-      video.removeEventListener("loadedmetadata", handleLoaded);
-      video.remove();
+      video.removeEventListener("loadedmetadata", onLoaded);
+      video.removeEventListener("error", onError);
+      video.removeAttribute("src");
+      video.load();
     };
-  }, [videoUrl, metadataMap]);
+  }, [videoUrl, fallbackSeconds, key]);
 
-  if (!videoUrl) return null;
-  return metadataMap[videoUrl] ?? null;
-}
-
-interface PlayerControlsProps {
-  playerRef: React.RefObject<PlayerRef | null>;
-  durationInFrames: number;
-  fps: number;
+  const current = state?.key === key ? state : null;
+  return {
+    metadata: current?.status === "ready" ? current.metadata : null,
+    failed: current?.status === "error",
+    retry: () => setAttempt((n) => n + 1),
+  };
 }
 
 function PlayerControls({
   playerRef,
   durationInFrames,
-  fps,
-}: PlayerControlsProps) {
+}: {
+  playerRef: React.RefObject<PlayerRef | null>;
+  durationInFrames: number;
+}) {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentFrame, setCurrentFrame] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
-  const seekingRef = useRef(false);
-  const progressRef = useRef<HTMLDivElement>(null);
-
-  const totalDuration = durationInFrames / fps;
-  const currentTime = currentFrame / fps;
-  const progress = durationInFrames > 0 ? currentFrame / durationInFrames : 0;
+  const [frame, setFrame] = useState(0);
+  const lastFrame = Math.max(0, durationInFrames - 1);
 
   useEffect(() => {
     const player = playerRef.current;
     if (!player) return;
-
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
-    const onFrame = (e: { detail: { frame: number } }) =>
-      setCurrentFrame(e.detail.frame);
+    const onFrame = (event: { detail: { frame: number } }) =>
+      setFrame(event.detail.frame);
+    const onMute = (event: { detail: { isMuted: boolean } }) =>
+      setIsMuted(event.detail.isMuted);
 
     player.addEventListener("play", onPlay);
     player.addEventListener("pause", onPause);
     player.addEventListener("frameupdate", onFrame);
-
+    player.addEventListener("seeked", onFrame);
+    player.addEventListener("mutechange", onMute);
     return () => {
       player.removeEventListener("play", onPlay);
       player.removeEventListener("pause", onPause);
       player.removeEventListener("frameupdate", onFrame);
+      player.removeEventListener("seeked", onFrame);
+      player.removeEventListener("mutechange", onMute);
     };
   }, [playerRef]);
 
-  const togglePlay = useCallback(() => {
-    playerRef.current?.toggle();
-  }, [playerRef]);
-
-  const toggleMute = useCallback(() => {
-    const player = playerRef.current;
-    if (!player) return;
-    if (player.isMuted()) {
-      player.unmute();
-      setIsMuted(false);
-    } else {
-      player.mute();
-      setIsMuted(true);
-    }
-  }, [playerRef]);
-
-  const skip = useCallback(
-    (seconds: number) => {
-      const player = playerRef.current;
-      if (!player) return;
-      const target = Math.min(
-        Math.max(0, currentFrame + seconds * fps),
-        durationInFrames - 1,
-      );
-      player.seekTo(target);
-    },
-    [playerRef, currentFrame, fps, durationInFrames],
-  );
-
-  const seekFromEvent = useCallback(
-    (clientX: number) => {
-      const bar = progressRef.current;
-      const player = playerRef.current;
-      if (!bar || !player) return;
-      const rect = bar.getBoundingClientRect();
-      const ratio = Math.min(
-        Math.max((clientX - rect.left) / rect.width, 0),
-        1,
-      );
-      player.seekTo(Math.round(ratio * (durationInFrames - 1)));
-    },
-    [playerRef, durationInFrames],
-  );
-
-  const onPointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      e.preventDefault();
-      seekingRef.current = true;
-      playerRef.current?.pause();
-      seekFromEvent(e.clientX);
-
-      const onMove = (ev: PointerEvent) => seekFromEvent(ev.clientX);
-      const onUp = () => {
-        seekingRef.current = false;
-        window.removeEventListener("pointermove", onMove);
-        window.removeEventListener("pointerup", onUp);
-      };
-
-      window.addEventListener("pointermove", onMove);
-      window.addEventListener("pointerup", onUp);
-    },
-    [playerRef, seekFromEvent],
-  );
+  const seek = (target: number) =>
+    playerRef.current?.seekTo(Math.min(Math.max(0, target), lastFrame));
 
   return (
-    <div className="space-y-2 px-1">
-      {/* Progress bar */}
-      <div
-        ref={progressRef}
-        className="group relative h-1.5 cursor-pointer rounded-full bg-muted"
-        onPointerDown={onPointerDown}
-      >
-        <div
-          className="absolute inset-y-0 left-0 rounded-full bg-primary"
-          style={{ width: `${progress * 100}%` }}
-        />
-        <div
-          className="absolute top-1/2 -translate-y-1/2 size-3 rounded-full bg-primary opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
-          style={{ left: `calc(${progress * 100}% - 6px)` }}
-        />
-      </div>
-
-      {/* Time + buttons row */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-2">
+      <Slider
+        aria-label="Playback position"
+        value={[Math.min(frame, lastFrame)]}
+        min={0}
+        max={lastFrame}
+        step={1}
+        onValueChange={(next) => {
+          const value = Array.isArray(next) ? next[0] : next;
+          if (typeof value === "number") seek(value);
+        }}
+      />
+      <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1">
-          <button
-            onClick={togglePlay}
-            className="flex size-8 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-muted"
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={isPlaying ? "Pause" : "Play"}
+            onClick={() => playerRef.current?.toggle()}
           >
-            {isPlaying ? (
-              <Pause className="size-4" weight="fill" />
-            ) : (
-              <Play className="size-4" weight="fill" />
-            )}
-          </button>
-          <button
-            onClick={() => skip(-10)}
-            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            {isPlaying ? <Pause weight="fill" /> : <Play weight="fill" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Back 10 seconds"
+            onClick={() => seek(frame - 10 * FPS)}
           >
-            <ClockCounterClockwise className="size-4" />
-          </button>
-          <button
-            onClick={() => skip(10)}
-            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            <ClockCounterClockwise />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Forward 10 seconds"
+            onClick={() => seek(frame + 10 * FPS)}
           >
-            <ClockClockwise className="size-4" />
-          </button>
+            <ClockClockwise />
+          </Button>
           <span className="ml-1 text-xs tabular-nums text-muted-foreground">
-            {formatTime(currentTime)} / {formatTime(totalDuration)}
+            {formatClock(frame / FPS)} / {formatClock(durationInFrames / FPS)}
           </span>
         </div>
-        <button
-          onClick={toggleMute}
-          className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={isMuted ? "Unmute" : "Mute"}
+          onClick={() => {
+            const player = playerRef.current;
+            if (!player) return;
+            if (player.isMuted()) player.unmute();
+            else player.mute();
+          }}
         >
-          {isMuted ? (
-            <SpeakerSlash className="size-4" />
-          ) : (
-            <SpeakerHigh className="size-4" />
-          )}
-        </button>
+          {isMuted ? <SpeakerSlash /> : <SpeakerHigh />}
+        </Button>
       </div>
     </div>
   );
@@ -252,80 +194,84 @@ function PlayerControls({
 
 interface VideoPreviewProps {
   videoUrl: string | null;
-  subtitleChunks?: SubtitleChunk[];
-  selectedPreset?: SubtitleStylePreset;
-  sizePosition?: SizePositionValues;
-  titleOverlay?: TitleOverlayConfig;
-  watermarkOverlay?: WatermarkOverlayConfig;
-  previewStyle?: PreviewStyleConfig;
-  onOpenMediaSelector: () => void;
-  onTimeUpdate?: (timeInSeconds: number) => void;
-  seekRef?: React.MutableRefObject<((timeInSeconds: number) => void) | null>;
+  /** Used when the file doesn't report its own duration. */
+  durationSeconds: number;
+  subtitleChunks: SubtitleChunk[];
+  selectedPreset: SubtitleStylePreset;
+  sizePosition: SizePositionValues;
+  titleOverlay: TitleOverlayConfig;
+  watermarkOverlay: WatermarkOverlayConfig;
+  previewStyle: PreviewStyleConfig;
+  onUploadVideo: () => void;
+  onTimeUpdate: (seconds: number) => void;
+  /** Filled with a seek function while the player is ready. */
+  seekRef: React.RefObject<((seconds: number) => void) | null>;
 }
 
+/**
+ * Live Remotion preview of the export. It fills its container, so give the
+ * container a height.
+ */
 export function VideoPreview({
   videoUrl,
-  subtitleChunks = [],
+  durationSeconds,
+  subtitleChunks,
   selectedPreset,
   sizePosition,
   titleOverlay,
   watermarkOverlay,
   previewStyle,
-  onOpenMediaSelector,
+  onUploadVideo,
   onTimeUpdate,
   seekRef,
 }: VideoPreviewProps) {
-  const metadata = useVideoMetadata(videoUrl);
+  const { metadata, failed, retry } = useVideoMetadata(
+    videoUrl,
+    durationSeconds,
+  );
   const playerRef = useRef<PlayerRef>(null);
   const onTimeUpdateRef = useRef(onTimeUpdate);
+  const playerReady = Boolean(metadata && videoUrl);
+
   useEffect(() => {
     onTimeUpdateRef.current = onTimeUpdate;
   }, [onTimeUpdate]);
-
-  const playerReady = !!metadata && !!videoUrl;
 
   useEffect(() => {
     if (!playerReady) return;
     const player = playerRef.current;
     if (!player) return;
-    const handler = (e: { detail: { frame: number } }) => {
-      onTimeUpdateRef.current?.(e.detail.frame / FPS);
+    const onFrame = (event: { detail: { frame: number } }) =>
+      onTimeUpdateRef.current(event.detail.frame / FPS);
+    player.addEventListener("frameupdate", onFrame);
+    player.addEventListener("seeked", onFrame);
+    return () => {
+      player.removeEventListener("frameupdate", onFrame);
+      player.removeEventListener("seeked", onFrame);
     };
-    player.addEventListener("frameupdate", handler);
-    return () => player.removeEventListener("frameupdate", handler);
   }, [playerReady]);
 
   useEffect(() => {
-    if (!seekRef) return;
-    if (!playerReady) {
-      seekRef.current = null;
-      return;
-    }
-    seekRef.current = (timeInSeconds: number) => {
-      playerRef.current?.seekTo(Math.round(timeInSeconds * FPS));
-    };
+    if (!playerReady) return;
+    seekRef.current = (seconds: number) =>
+      playerRef.current?.seekTo(Math.round(seconds * FPS));
     return () => {
       seekRef.current = null;
     };
   }, [seekRef, playerReady]);
 
-  const cdnVideoUrl = useMemo(
-    () => (videoUrl ? getCdnUrl(videoUrl) : ""),
-    [videoUrl],
-  );
-
   const inputProps = useMemo(
     () => ({
-      videoUrl: cdnVideoUrl,
+      videoUrl: videoUrl ?? "",
       subtitleChunks,
-      selectedPreset: selectedPreset ?? null,
-      sizePosition: sizePosition ?? null,
-      titleOverlay: titleOverlay ?? null,
-      watermarkOverlay: watermarkOverlay ?? null,
-      previewStyle: previewStyle ?? null,
+      selectedPreset,
+      sizePosition,
+      titleOverlay,
+      watermarkOverlay,
+      previewStyle,
     }),
     [
-      cdnVideoUrl,
+      videoUrl,
       subtitleChunks,
       selectedPreset,
       sizePosition,
@@ -335,78 +281,78 @@ export function VideoPreview({
     ],
   );
 
-  const compDimensions = useMemo(() => {
-    if (!metadata) return null;
-    return getCompositionDimensions(
-      previewStyle,
-      metadata.sourceWidth,
-      metadata.sourceHeight,
-    );
-  }, [metadata, previewStyle]);
+  const renderPlayerError = useCallback(
+    () => (
+      <div className="flex size-full items-center justify-center bg-muted p-4 text-center text-xs text-muted-foreground">
+        Couldn&apos;t play this video.
+      </div>
+    ),
+    [],
+  );
 
   if (!videoUrl) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
-        <MonitorPlay
-          className="size-12 text-muted-foreground/30"
-          weight="thin"
-        />
-        <p className="max-w-[280px] text-sm text-muted-foreground">
-          Upload your video and generate your subtitles to begin configuring
-          them
-        </p>
-        <Button variant="default" onClick={onOpenMediaSelector}>
-          Open Media Selector
-        </Button>
-      </div>
+      <EmptyState
+        icon={MonitorPlay}
+        title="No video"
+        description="This project has no video. Upload one to start a new project."
+        action={{ label: "Upload video", onClick: onUploadVideo }}
+        className="h-full"
+      />
+    );
+  }
+
+  if (failed) {
+    return (
+      <ErrorState
+        title="Couldn't load the video"
+        description="The file may have been removed or your connection dropped."
+        onRetry={retry}
+        className="h-full"
+      />
     );
   }
 
   if (!metadata) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-        <ArrowsClockwise className="size-6 animate-spin text-muted-foreground/50" />
-        <p className="text-sm text-muted-foreground">Loading video...</p>
-      </div>
-    );
+    return <LoadingState label="Loading video" className="h-full" />;
   }
 
-  const isLandscape =
-    !!compDimensions && compDimensions.width > compDimensions.height;
+  const { width, height } = getCompositionDimensions(
+    previewStyle,
+    metadata.width,
+    metadata.height,
+  );
 
   return (
-    <div
-      className={`mx-auto flex h-full w-full flex-col gap-4 ${
-        isLandscape ? "max-w-[560px]" : "max-w-[360px]"
-      }`}
-    >
-      <div className="flex items-center justify-center overflow-hidden">
-        <Player
-          ref={playerRef}
-          component={VideoComposition}
-          inputProps={inputProps}
-          durationInFrames={metadata.durationInFrames}
-          compositionWidth={compDimensions?.width ?? FALLBACK_WIDTH}
-          compositionHeight={compDimensions?.height ?? FALLBACK_HEIGHT}
-          fps={FPS}
-          style={{
-            width: "100%",
-            maxHeight: "100%",
-            borderRadius: "0.75rem",
-            overflow: "hidden",
-          }}
-          autoPlay={false}
-          loop={false}
-        />
+    <div className="flex h-full flex-col gap-3">
+      {/* Size container: the player keeps its aspect ratio inside it. */}
+      <div className="relative min-h-0 flex-1 [container-type:size]">
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div
+            className="overflow-hidden rounded-lg bg-media"
+            style={{
+              width: `min(100cqw, 100cqh * ${width} / ${height})`,
+              aspectRatio: `${width} / ${height}`,
+            }}
+          >
+            <Player
+              ref={playerRef}
+              component={VideoComposition}
+              inputProps={inputProps}
+              durationInFrames={metadata.durationInFrames}
+              compositionWidth={width}
+              compositionHeight={height}
+              fps={FPS}
+              style={{ width: "100%", height: "100%" }}
+              errorFallback={renderPlayerError}
+            />
+          </div>
+        </div>
       </div>
-
-      <div>
-        <PlayerControls
-          playerRef={playerRef}
-          durationInFrames={metadata.durationInFrames}
-          fps={FPS}
-        />
-      </div>
+      <PlayerControls
+        playerRef={playerRef}
+        durationInFrames={metadata.durationInFrames}
+      />
     </div>
   );
 }

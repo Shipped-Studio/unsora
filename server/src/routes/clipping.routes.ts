@@ -13,6 +13,11 @@ router.get(
   controller.refresh.bind(controller),
 );
 router.delete(
+  "/clips/:clipId",
+  requireAuth,
+  controller.deleteClip.bind(controller),
+);
+router.delete(
   "/:clippingId/clips/:clipId",
   requireAuth,
   controller.deleteClip.bind(controller),

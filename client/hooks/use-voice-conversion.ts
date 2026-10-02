@@ -24,6 +24,11 @@ export interface ActiveVoiceConversion {
 const POLL_INTERVAL_MS = 3_000;
 const AUTO_DISMISS_DELAY_MS = 2_000;
 
+export const voiceConversionQueryKeys = {
+  all: ["voice-conversions"] as const,
+  list: () => [...voiceConversionQueryKeys.all, "list"] as const,
+};
+
 export function useVoiceConversion(options?: {
   onComplete?: (id: string) => void;
 }) {
@@ -35,7 +40,9 @@ export function useVoiceConversion(options?: {
     new Map(),
   );
   const onCompleteRef = useRef(options?.onComplete);
-  onCompleteRef.current = options?.onComplete;
+  useEffect(() => {
+    onCompleteRef.current = options?.onComplete;
+  });
   const tempIdCounter = useRef(0);
 
   const stopPolling = useCallback((conversionId: string) => {
@@ -76,7 +83,7 @@ export function useVoiceConversion(options?: {
           if (conv.status === "COMPLETED" || conv.status === "FAILED") {
             stopPolling(conversionId);
             if (conv.status === "COMPLETED") {
-              toast.success("Voice conversion complete!");
+              toast.success("Voice changed");
               onCompleteRef.current?.(conversionId);
               setTimeout(() => {
                 setActiveConversions((prev) =>
@@ -85,12 +92,14 @@ export function useVoiceConversion(options?: {
               }, AUTO_DISMISS_DELAY_MS);
             } else {
               toast.error(
-                `Conversion failed: ${conv.error || "Unknown error"}`,
+                conv.error
+                  ? `Couldn't change the voice. ${conv.error}`
+                  : "Couldn't change the voice. Try again.",
               );
             }
           }
         } catch {
-          // keep polling
+          // A dropped poll is retried on the next tick.
         }
       }, POLL_INTERVAL_MS);
 
@@ -120,7 +129,7 @@ export function useVoiceConversion(options?: {
         const data = await res.json();
 
         if (!res.ok || !data.success) {
-          throw new Error(data.error || "Failed to start conversion");
+          throw new Error(data.error || "Couldn't start the conversion. Try again.");
         }
 
         const conversionId = data.conversion.id as string;
@@ -143,15 +152,19 @@ export function useVoiceConversion(options?: {
                   ...c,
                   status: "FAILED",
                   error:
-                    err instanceof Error ? err.message : "Submission failed",
+                    err instanceof Error
+                      ? err.message
+                      : "Couldn't start the conversion.",
                 }
               : c,
           ),
         );
         toast.error(
-          err instanceof Error ? err.message : "Failed to start conversion",
+          err instanceof Error
+            ? err.message
+            : "Couldn't start the conversion. Try again.",
         );
-        throw err;
+        return null;
       }
     },
     [authFetch, pollStatus],

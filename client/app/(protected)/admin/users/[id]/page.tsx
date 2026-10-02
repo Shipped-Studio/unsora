@@ -1,42 +1,29 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
+import { useParams } from "next/navigation";
 import { toast } from "sonner";
+import { AdminPage } from "@/components/admin/admin-page";
+import { BarList, ChartCard, kindLabel } from "@/components/admin/charts";
 import {
-  ArrowLeft,
-  Sparkle,
-  Plus,
-  Minus,
-  ShareNetwork,
-  Eye,
-} from "@phosphor-icons/react";
-import {
-  useAdminUser,
-  useUpdateAdminUser,
-  useAdjustCredits,
-} from "@/hooks/admin/use-admin-data";
-import { ChartCard, BarList, kindLabel } from "@/components/admin/charts";
+  EmptyRow,
+  TableShell,
+  Td,
+  Th,
+} from "@/components/admin/data-table";
 import { StatusBadge } from "@/components/admin/status-badge";
 import {
   TaskOutputDialog,
   type TaskRef,
 } from "@/components/admin/task-output-dialog";
-import { TableShell, Th, Td, Tr } from "@/components/admin/data-table";
-import {
-  compactNumber,
-  formatDate,
-  formatDateTime,
-  timeAgo,
-  titleCase,
-} from "@/lib/admin-format";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
+import { usePlanOptions } from "@/components/admin/use-plan-options";
+import { ErrorState } from "@/components/shared/states";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -44,231 +31,98 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
+import { TableBody, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { AdminUserDetail } from "@/hooks/admin/types";
 import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-} from "@/components/ui/tabs";
+  useAdjustCredits,
+  useAdminUser,
+  useUpdateAdminUser,
+} from "@/hooks/admin/use-admin-data";
+import {
+  formatDate,
+  formatDateTime,
+  timeAgo,
+  titleCase,
+} from "@/lib/admin-format";
+import { cn } from "@/lib/utils";
 
-const PLANS = ["free", "starter", "pro", "business"];
+const USERS_CRUMB = [{ label: "Users", href: "/admin/users" }];
 
 export default function AdminUserDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
-  const { data, isLoading } = useAdminUser(id);
-  const update = useUpdateAdminUser(id);
-  const adjust = useAdjustCredits(id);
+  const { data, isLoading, error, refetch } = useAdminUser(id);
 
-  // Editable form state, seeded from the loaded user.
-  const [plan, setPlan] = useState("free");
-  const [role, setRole] = useState("USER");
-  const [status, setStatus] = useState("");
-  const [isActive, setIsActive] = useState(false);
-  const [isCancelled, setIsCancelled] = useState(false);
-  const [delta, setDelta] = useState("");
-  const [reason, setReason] = useState("");
-  const [selectedTask, setSelectedTask] = useState<TaskRef | null>(null);
-
-  useEffect(() => {
-    if (data?.user) {
-      setPlan(data.user.plan || "free");
-      setRole(data.user.role || "USER");
-      setStatus(data.user.status || "");
-      setIsActive(data.user.isActive);
-      setIsCancelled(data.user.isCancelled);
-    }
-  }, [data?.user]);
-
-  if (isLoading || !data) {
+  if (error && !data) {
     return (
-      <div className="flex flex-col gap-4">
-        <Skeleton className="h-8 w-40 rounded-lg" />
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <Skeleton className="h-80 rounded-xl lg:col-span-1" />
-          <Skeleton className="h-80 rounded-xl lg:col-span-2" />
-        </div>
-      </div>
+      <AdminPage title="User" parents={USERS_CRUMB}>
+        <ErrorState
+          title="Couldn't load this user"
+          description={error.message}
+          onRetry={() => void refetch()}
+        />
+      </AdminPage>
     );
   }
 
+  if (isLoading || !data) {
+    return (
+      <AdminPage title="User" parents={USERS_CRUMB}>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <Skeleton className="h-96 rounded-xl" />
+          <Skeleton className="h-96 rounded-xl lg:col-span-2" />
+        </div>
+      </AdminPage>
+    );
+  }
+
+  return <UserDetail id={id} data={data} />;
+}
+
+function UserDetail({ id, data }: { id: string; data: AdminUserDetail }) {
+  const [selectedTask, setSelectedTask] = useState<TaskRef | null>(null);
   const u = data.user;
 
-  const dirty =
-    plan !== (u.plan || "free") ||
-    role !== (u.role || "USER") ||
-    status !== (u.status || "") ||
-    isActive !== u.isActive ||
-    isCancelled !== u.isCancelled;
-
-  const save = async () => {
-    try {
-      await update.mutateAsync({ plan, role, status, isActive, isCancelled });
-      toast.success("User updated");
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
-  };
-
-  const applyCredits = async (sign: 1 | -1) => {
-    const amount = parseInt(delta, 10);
-    if (Number.isNaN(amount) || amount <= 0) {
-      toast.error("Enter a positive amount");
-      return;
-    }
-    try {
-      const res = await adjust.mutateAsync({
-        delta: sign * amount,
-        reason: reason || "manual",
-      });
-      toast.success(`Balance is now ${res.credits.toLocaleString()} credits`);
-      setDelta("");
-      setReason("");
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
-  };
-
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={() => router.push("/admin/users")}
-        >
-          <ArrowLeft className="size-4" />
-        </Button>
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="truncate text-lg font-semibold text-foreground">
-              {u.email}
-            </h1>
-            {u.role === "ADMIN" && <Badge variant="secondary">admin</Badge>}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Joined {formatDate(u.createdAt)} · {data.counts.tasks} tasks ·{" "}
-            {data.counts.assets} assets
-          </p>
-        </div>
-      </div>
+    <AdminPage
+      title={
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="truncate">{u.email}</span>
+          {u.role === "ADMIN" ? <Badge variant="secondary">Admin</Badge> : null}
+        </span>
+      }
+      parents={USERS_CRUMB}
+    >
+      <p className="text-sm text-muted-foreground">
+        Joined {formatDate(u.createdAt)} · {data.counts.tasks.toLocaleString()} tasks ·{" "}
+        {data.counts.assets.toLocaleString()} assets
+      </p>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {/* Left: management */}
-        <div className="flex flex-col gap-4 lg:col-span-1">
-          {/* Plan & status editor */}
-          <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4">
-            <h3 className="text-sm font-semibold">Plan &amp; access</h3>
-
-            <Field label="Plan">
-              <Select value={plan} onValueChange={(v) => setPlan(v ?? "free")}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PLANS.map((p) => (
-                    <SelectItem key={p} value={p} className="capitalize">
-                      {p}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-
-            <Field label="Role">
-              <Select value={role} onValueChange={(v) => setRole(v ?? "USER")}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="USER">User</SelectItem>
-                  <SelectItem value="ADMIN">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-
-            <Field label="Subscription status (raw)">
-              <Input
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                placeholder="active / inactive / …"
-              />
-            </Field>
-
-            <div className="flex items-center justify-between">
-              <Label className="text-sm font-normal">Active access</Label>
-              <Switch checked={isActive} onCheckedChange={setIsActive} />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label className="text-sm font-normal">Cancelling (ends soon)</Label>
-              <Switch checked={isCancelled} onCheckedChange={setIsCancelled} />
-            </div>
-
-            <Button
-              onClick={save}
-              disabled={!dirty || update.isPending}
-              className="w-full"
-            >
-              {update.isPending ? "Saving…" : "Save changes"}
-            </Button>
-          </div>
-
-          {/* Credits */}
-          <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">Credits</h3>
-              <span className="flex items-center gap-1 text-sm font-semibold tabular-nums">
-                <Sparkle weight="fill" className="size-4 text-primary" />
-                {data.credits.toLocaleString()}
-              </span>
-            </div>
-            <div className="flex gap-2">
-              <Input
-                type="number"
-                value={delta}
-                onChange={(e) => setDelta(e.target.value)}
-                placeholder="Amount"
-                className="flex-1"
-              />
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => applyCredits(1)}
-                disabled={adjust.isPending}
-                title="Grant credits"
-              >
-                <Plus className="size-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => applyCredits(-1)}
-                disabled={adjust.isPending}
-                title="Deduct credits"
-              >
-                <Minus className="size-4" />
-              </Button>
-            </div>
-            <Input
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Reason (optional)"
-            />
-          </div>
-
-          {/* Billing snapshot */}
-          <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4 text-sm">
-            <h3 className="mb-1 text-sm font-semibold">Billing</h3>
-            <Row label="Stripe customer" value={u.stripeCustomerId ?? "—"} mono />
-            <Row label="Subscription" value={u.stripeSubscriptionId ?? "—"} mono />
-            <Row
-              label="Renews / ends"
-              value={formatDate(u.stripeCurrentPeriodEnd)}
-            />
-          </div>
+        <div className="flex flex-col gap-4">
+          {/* Keyed so the form re-seeds after a save refetches the user. */}
+          <AccessCard key={u.updatedAt} id={id} user={u} />
+          <CreditsCard id={id} credits={data.credits} />
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Billing</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <dl className="space-y-2">
+                <Row label="Stripe customer" value={u.stripeCustomerId} mono />
+                <Row label="Subscription" value={u.stripeSubscriptionId} mono />
+                <Row
+                  label="Renews or ends"
+                  value={u.stripeCurrentPeriodEnd ? formatDate(u.stripeCurrentPeriodEnd) : null}
+                />
+              </dl>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Right: activity */}
         <div className="flex flex-col gap-4 lg:col-span-2">
           <ChartCard title="Feature usage" description="Tasks by feature">
             <BarList
@@ -280,171 +134,352 @@ export default function AdminUserDetailPage() {
             />
           </ChartCard>
 
-          {/* Connected accounts */}
-          <div className="rounded-xl border border-border bg-card p-4">
-            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-              <ShareNetwork className="size-4" /> Connected accounts (
-              {data.socialAccounts.length})
-            </h3>
-            {data.socialAccounts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No connected social accounts.
-              </p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {data.socialAccounts.map((a) => (
-                  <div
-                    key={a.id}
-                    className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2"
-                  >
-                    <Avatar className="size-7">
-                      <AvatarImage src={a.profilePicture ?? undefined} />
-                      <AvatarFallback className="text-[10px]">
-                        {a.provider.slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <div className="text-xs font-medium capitalize text-foreground">
-                        {a.provider}
-                      </div>
-                      <div className="truncate text-[11px] text-muted-foreground">
-                        {a.accountUsername || a.accountName || "—"}
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>
+                Connected accounts{" "}
+                <span className="text-muted-foreground tabular-nums">
+                  {data.socialAccounts.length}
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {data.socialAccounts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No connected social accounts.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {data.socialAccounts.map((a) => (
+                    <div
+                      key={a.id}
+                      className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2"
+                    >
+                      <Avatar size="sm">
+                        <AvatarImage src={a.profilePicture ?? undefined} alt="" />
+                        <AvatarFallback>
+                          {a.provider.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium">{titleCase(a.provider)}</div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {a.accountUsername || a.accountName || "Unnamed account"}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-          {/* Activity — tasks & credit ledger as tabs */}
           <Tabs defaultValue="tasks">
             <TabsList>
               <TabsTrigger value="tasks">Recent tasks</TabsTrigger>
               <TabsTrigger value="ledger">Credit ledger</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="tasks" className="mt-3">
-            <TableShell>
-              <thead>
-                <tr>
-                  <Th>Feature</Th>
-                  <Th>Status</Th>
-                  <Th>Prompt</Th>
-                  <Th className="text-right">Credits</Th>
-                  <Th>When</Th>
-                  <Th className="text-right">Output</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.recentTasks.map((t) => (
-                  <Tr
-                    key={`${t.kind}-${t.id}`}
-                    onClick={() => setSelectedTask({ kind: t.kind, id: t.id })}
-                  >
-                    <Td className="whitespace-nowrap">{kindLabel(t.kind)}</Td>
-                    <Td>
-                      <StatusBadge status={t.status} />
-                    </Td>
-                    <Td className="max-w-[240px] truncate text-muted-foreground">
-                      {t.label || t.model || "—"}
-                    </Td>
-                    <Td className="text-right tabular-nums">{t.credits}</Td>
-                    <Td className="whitespace-nowrap text-muted-foreground">
-                      {timeAgo(t.createdAt)}
-                    </Td>
-                    <Td className="text-right">
-                      <span className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-xs font-medium text-foreground">
-                        <Eye className="size-3.5" /> View
-                      </span>
-                    </Td>
-                  </Tr>
-                ))}
-                {data.recentTasks.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={6}
-                      className="px-4 py-8 text-center text-sm text-muted-foreground"
-                    >
-                      No tasks yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </TableShell>
+            <TabsContent value="tasks" className="mt-2">
+              <TableShell>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <Th>Feature</Th>
+                    <Th>Status</Th>
+                    <Th>Prompt</Th>
+                    <Th className="text-right">Credits</Th>
+                    <Th>When</Th>
+                    <Th className="text-right">Output</Th>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.recentTasks.length === 0 ? (
+                    <EmptyRow cols={6}>No tasks yet.</EmptyRow>
+                  ) : (
+                    data.recentTasks.map((t) => (
+                      <TableRow key={`${t.kind}-${t.id}`}>
+                        <Td>{kindLabel(t.kind)}</Td>
+                        <Td>
+                          <StatusBadge status={t.status} />
+                        </Td>
+                        <Td className="max-w-60 truncate text-muted-foreground">
+                          {t.label || t.model || ""}
+                        </Td>
+                        <Td className="text-right tabular-nums">{t.credits}</Td>
+                        <Td className="text-muted-foreground">{timeAgo(t.createdAt)}</Td>
+                        <Td className="text-right">
+                          <Button
+                            variant="outline"
+                            size="xs"
+                            onClick={() => setSelectedTask({ kind: t.kind, id: t.id })}
+                          >
+                            View
+                          </Button>
+                        </Td>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </TableShell>
             </TabsContent>
 
-            <TabsContent value="ledger" className="mt-3">
-            <TableShell>
-              <thead>
-                <tr>
-                  <Th>Type</Th>
-                  <Th>Reason</Th>
-                  <Th className="text-right">Amount</Th>
-                  <Th>When</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.creditTransactions.map((t) => (
-                  <Tr key={t.id}>
-                    <Td>
-                      <Badge variant="outline" className="capitalize">
-                        {titleCase(t.type)}
-                      </Badge>
-                    </Td>
-                    <Td className="max-w-[260px] truncate text-muted-foreground">
-                      {t.reason}
-                    </Td>
-                    <Td
-                      className={`text-right tabular-nums font-medium ${
-                        t.amount >= 0 ? "text-[#0a8a0a]" : "text-destructive"
-                      }`}
-                    >
-                      {t.amount >= 0 ? "+" : ""}
-                      {t.amount.toLocaleString()}
-                    </Td>
-                    <Td className="whitespace-nowrap text-muted-foreground">
-                      {formatDateTime(t.createdAt)}
-                    </Td>
-                  </Tr>
-                ))}
-                {data.creditTransactions.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={4}
-                      className="px-4 py-8 text-center text-sm text-muted-foreground"
-                    >
-                      No credit activity yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </TableShell>
+            <TabsContent value="ledger" className="mt-2">
+              <TableShell>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <Th>Type</Th>
+                    <Th>Reason</Th>
+                    <Th className="text-right">Amount</Th>
+                    <Th>When</Th>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.creditTransactions.length === 0 ? (
+                    <EmptyRow cols={4}>No credit activity yet.</EmptyRow>
+                  ) : (
+                    data.creditTransactions.map((t) => (
+                      <TableRow key={t.id}>
+                        <Td>
+                          <Badge variant="outline">{titleCase(t.type.toLowerCase())}</Badge>
+                        </Td>
+                        <Td className="max-w-64 truncate text-muted-foreground">
+                          {t.reason}
+                        </Td>
+                        <Td
+                          className={cn(
+                            "text-right font-medium tabular-nums",
+                            t.amount > 0 ? "text-success" : "text-foreground",
+                          )}
+                        >
+                          {t.amount > 0 ? "+" : t.amount < 0 ? "−" : ""}
+                          {Math.abs(t.amount).toLocaleString()}
+                        </Td>
+                        <Td className="text-muted-foreground">
+                          {formatDateTime(t.createdAt)}
+                        </Td>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </TableShell>
             </TabsContent>
           </Tabs>
         </div>
       </div>
 
-      <TaskOutputDialog
-        task={selectedTask}
-        onClose={() => setSelectedTask(null)}
-      />
-    </div>
+      <TaskOutputDialog task={selectedTask} onClose={() => setSelectedTask(null)} />
+    </AdminPage>
   );
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function AccessCard({ id, user }: { id: string; user: AdminUserDetail["user"] }) {
+  const update = useUpdateAdminUser(id);
+  const [plan, setPlan] = useState(user.plan || "free");
+  const [role, setRole] = useState(user.role || "USER");
+  const [status, setStatus] = useState(user.status || "");
+  const [isActive, setIsActive] = useState(user.isActive);
+  const [isCancelled, setIsCancelled] = useState(user.isCancelled);
+  const planOptions = usePlanOptions(user.plan || "free");
+
+  const dirty =
+    plan !== (user.plan || "free") ||
+    role !== (user.role || "USER") ||
+    status !== (user.status || "") ||
+    isActive !== user.isActive ||
+    isCancelled !== user.isCancelled;
+
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault();
+    try {
+      await update.mutateAsync({ plan, role, status, isActive, isCancelled });
+      toast.success("User updated");
+    } catch (e) {
+      toast.error("Couldn't update this user", {
+        description: (e as Error).message,
+      });
+    }
+  };
+
+  const planItems = planOptions.map((p) => ({ value: p, label: titleCase(p) }));
+  const roleItems = [
+    { value: "USER", label: "User" },
+    { value: "ADMIN", label: "Admin" },
+  ];
+
   return (
-    <div className="flex flex-col gap-1.5">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
-      {children}
-    </div>
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>Plan and access</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={save}>
+          <FieldGroup className="gap-4">
+            <Field>
+              <FieldLabel>Plan</FieldLabel>
+              <Select
+                value={plan}
+                items={planItems}
+                onValueChange={(v) => setPlan((v as string | null) ?? "free")}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {planItems.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+
+            <Field>
+              <FieldLabel>Role</FieldLabel>
+              <Select
+                value={role}
+                items={roleItems}
+                onValueChange={(v) => setRole((v as string | null) ?? "USER")}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {roleItems.map((r) => (
+                    <SelectItem key={r.value} value={r.value}>
+                      {r.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="subscription-status">
+                Subscription status (raw)
+              </FieldLabel>
+              <Input
+                id="subscription-status"
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                placeholder="active, trialing, canceled"
+              />
+            </Field>
+
+            <Field orientation="horizontal">
+              <FieldLabel htmlFor="active-access" className="font-normal">
+                Active access
+              </FieldLabel>
+              <Switch
+                id="active-access"
+                checked={isActive}
+                onCheckedChange={setIsActive}
+              />
+            </Field>
+            <Field orientation="horizontal">
+              <FieldLabel htmlFor="cancelling" className="font-normal">
+                Cancelling at period end
+              </FieldLabel>
+              <Switch
+                id="cancelling"
+                checked={isCancelled}
+                onCheckedChange={setIsCancelled}
+              />
+            </Field>
+
+            <Button type="submit" disabled={!dirty || update.isPending}>
+              {update.isPending ? <Spinner data-icon="inline-start" /> : null}
+              Save changes
+            </Button>
+          </FieldGroup>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CreditsCard({ id, credits }: { id: string; credits: number }) {
+  const adjust = useAdjustCredits(id);
+  const [delta, setDelta] = useState("");
+  const [reason, setReason] = useState("");
+  const [pendingSign, setPendingSign] = useState<1 | -1 | null>(null);
+
+  const apply = async (sign: 1 | -1) => {
+    const amount = parseInt(delta, 10);
+    if (Number.isNaN(amount) || amount <= 0) {
+      toast.error("Enter a positive amount");
+      return;
+    }
+    setPendingSign(sign);
+    try {
+      const res = await adjust.mutateAsync({
+        delta: sign * amount,
+        reason: reason || "manual",
+      });
+      toast.success(`Balance is now ${res.credits.toLocaleString()} credits`);
+      setDelta("");
+      setReason("");
+    } catch (e) {
+      toast.error("Couldn't adjust credits", {
+        description: (e as Error).message,
+      });
+    } finally {
+      setPendingSign(null);
+    }
+  };
+
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle className="flex items-baseline justify-between gap-2">
+          Credits
+          <span className="font-medium tabular-nums">
+            {credits.toLocaleString()}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <FieldGroup className="gap-3">
+          <Field>
+            <FieldLabel htmlFor="credit-amount">Amount</FieldLabel>
+            <Input
+              id="credit-amount"
+              type="number"
+              min={1}
+              inputMode="numeric"
+              value={delta}
+              onChange={(e) => setDelta(e.target.value)}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="credit-reason">Reason (optional)</FieldLabel>
+            <Input
+              id="credit-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant="outline"
+              disabled={adjust.isPending}
+              onClick={() => void apply(1)}
+            >
+              {pendingSign === 1 ? <Spinner data-icon="inline-start" /> : null}
+              Add
+            </Button>
+            <Button
+              variant="outline"
+              disabled={adjust.isPending}
+              onClick={() => void apply(-1)}
+            >
+              {pendingSign === -1 ? <Spinner data-icon="inline-start" /> : null}
+              Deduct
+            </Button>
+          </div>
+        </FieldGroup>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -454,17 +489,15 @@ function Row({
   mono,
 }: {
   label: string;
-  value: string;
+  value: string | null;
   mono?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span
-        className={`truncate text-xs text-foreground ${mono ? "font-mono" : ""}`}
-      >
-        {value}
-      </span>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className={cn("truncate text-xs", mono && "font-mono", !value && "text-muted-foreground")}>
+        {value ?? "None"}
+      </dd>
     </div>
   );
 }

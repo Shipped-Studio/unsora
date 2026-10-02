@@ -1,267 +1,175 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
-import {
-  Warning,
-  DownloadSimple,
-  Trash,
-  Play,
-  Pause,
-  FileVideo,
-} from "@phosphor-icons/react";
-import { Spinner } from "@/components/ui/spinner";
-import {
-  ReactCompareSlider,
-  ReactCompareSliderHandle,
-} from "react-compare-slider";
+import { useCallback, useRef, useState } from "react";
+import { DownloadSimple, Pause, Play } from "@phosphor-icons/react";
+import { ReactCompareSlider } from "react-compare-slider";
+import { ScheduleLink } from "@/components/generator/tool-layout";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogTitle,
   DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import type { VideoJob } from "@/hooks/use-video-jobs";
 import { getCdnUrl } from "@/lib/video-utils";
 
-interface ProcessedVideo {
-  id: string;
-  originalName: string;
-  originalUrl: string;
-  processedUrl?: string | null;
-  status: string;
-  error?: string | null;
-  createdAt: string;
-}
-
-interface VideoDetailDialogProps {
-  video: ProcessedVideo | null;
-  open: boolean;
+interface VideoCompareDialogProps {
+  job: VideoJob | null;
   onOpenChange: (open: boolean) => void;
-  onDelete?: (id: string) => void;
+  /** Label on the processed side, e.g. "Upscaled". */
+  processedLabel: string;
+  /** Extra detail next to the date, e.g. the model. */
+  detail?: string | null;
 }
 
-export function VideoDetailDialog({
-  video,
-  open,
+/** Side-by-side slider comparing a job's original and processed video. */
+export function VideoCompareDialog({
+  job,
   onOpenChange,
-  onDelete,
-}: VideoDetailDialogProps) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  processedLabel,
+  detail,
+}: VideoCompareDialogProps) {
+  return (
+    <Dialog open={job !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-4xl">
+        {job ? (
+          <CompareBody job={job} processedLabel={processedLabel} detail={detail} />
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CompareBody({
+  job,
+  processedLabel,
+  detail,
+}: {
+  job: VideoJob;
+  processedLabel: string;
+  detail?: string | null;
+}) {
   const [playing, setPlaying] = useState(false);
   const originalRef = useRef<HTMLVideoElement>(null);
   const processedRef = useRef<HTMLVideoElement>(null);
 
-  const isComplete = video?.status === "completed";
-  const isFailed = video?.status === "failed";
-  const isProcessing =
-    video?.status === "queued" || video?.status === "processing";
-  const outputUrl = video?.processedUrl;
-
-  useEffect(() => {
-    if (!open) {
-      setPlaying(false);
-      originalRef.current?.pause();
-      processedRef.current?.pause();
-    }
-  }, [open]);
-
   const syncProcessedToOriginal = useCallback(() => {
-    const orig = originalRef.current;
-    const proc = processedRef.current;
-    if (!orig || !proc) return;
-    if (Math.abs(orig.currentTime - proc.currentTime) > 0.15) {
-      proc.currentTime = orig.currentTime;
+    const original = originalRef.current;
+    const processed = processedRef.current;
+    if (!original || !processed) return;
+    if (Math.abs(original.currentTime - processed.currentTime) > 0.15) {
+      processed.currentTime = original.currentTime;
     }
   }, []);
 
   const togglePlay = useCallback(() => {
-    const orig = originalRef.current;
-    const proc = processedRef.current;
-    if (!orig || !proc) return;
+    const original = originalRef.current;
+    const processed = processedRef.current;
+    if (!original || !processed) return;
 
-    if (orig.paused) {
-      proc.currentTime = orig.currentTime;
-      orig.play();
-      proc.play();
-      setPlaying(true);
+    if (original.paused) {
+      processed.currentTime = original.currentTime;
+      Promise.all([original.play(), processed.play()])
+        .then(() => setPlaying(true))
+        .catch(() => setPlaying(false));
     } else {
-      orig.pause();
-      proc.pause();
+      original.pause();
+      processed.pause();
       setPlaying(false);
     }
   }, []);
 
-  if (!video) return null;
-
-  const createdDate = new Date(video.createdAt).toLocaleDateString("en-US", {
+  const createdDate = new Date(job.createdAt).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
     year: "numeric",
   });
+  const outputUrl = job.processedUrl;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] sm:max-w-5xl max-h-[85vh] overflow-y-auto p-0 gap-0 bg-background border">
-        <DialogTitle className="sr-only">
-          Subtitle Removal — {video.originalName}
-        </DialogTitle>
-        <DialogDescription className="sr-only">
-          Compare original and processed video
+    <>
+      <DialogHeader className="p-4 pr-12">
+        <DialogTitle className="truncate">{job.originalName}</DialogTitle>
+        <DialogDescription>
+          {[detail, createdDate].filter(Boolean).join(" · ")}
         </DialogDescription>
+      </DialogHeader>
 
-        <div>
-          {isComplete && outputUrl && video.originalUrl ? (
-            <>
-              <div className="bg-black">
-              <ReactCompareSlider
-                handle={
-                  <ReactCompareSliderHandle
-                    buttonStyle={{
-                      backdropFilter: "none",
-                      background: "white",
-                      border: 0,
-                      color: "#333",
-                      maxHeight: "450px",
-                    }}
-                    linesStyle={{ opacity: 0.5 }}
-                  />
-                }
-                itemOne={
-                  <div className="flex items-center justify-center">
-                    <video
-                      ref={originalRef}
-                      src={getCdnUrl(video.originalUrl)}
-                      className="object-contain max-h-[450px]"
-                      muted
-                      playsInline
-                      loop
-                      onTimeUpdate={syncProcessedToOriginal}
-                      onSeeked={syncProcessedToOriginal}
-                    />
-                    <span className="absolute left-3 top-3 rounded-md bg-black/60 px-2 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
-                      Original
-                    </span>
-                  </div>
-                }
-                itemTwo={
-                  <div className="flex items-center justify-center">
-                    <video
-                      ref={processedRef}
-                      src={getCdnUrl(outputUrl)}
-                      className="object-contain max-h-[450px]"
-                      muted
-                      playsInline
-                      loop
-                    />
-                    <span className="absolute right-3 top-3 rounded-md bg-black/60 px-2 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
-                      Processed
-                    </span>
-                  </div>
-                }
-              />
+      {outputUrl && job.originalUrl ? (
+        <div className="border-y bg-muted">
+          <ReactCompareSlider
+            itemOne={
+              <div className="relative flex items-center justify-center">
+                <video
+                  ref={originalRef}
+                  src={getCdnUrl(job.originalUrl)}
+                  className="max-h-[60vh] object-contain"
+                  muted
+                  playsInline
+                  loop
+                  onTimeUpdate={syncProcessedToOriginal}
+                  onSeeked={syncProcessedToOriginal}
+                />
+                <Badge variant="secondary" className="absolute top-3 left-3">
+                  Original
+                </Badge>
               </div>
-
-              {/* Bottom bar */}
-              <div className=" flex items-center justify-between px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={togglePlay}
-                    className="flex items-center gap-1.5 rounded-full bg-secondary px-3.5 py-1.5 text-xs font-medium text-foreground backdrop-blur-sm transition-colors hover:bg-secondary/80"
-                  >
-                    {playing ? (
-                      <Pause className="size-3.5" weight="fill" />
-                    ) : (
-                      <Play className="size-3.5" weight="fill" />
-                    )}
-                    {playing ? "Pause" : "Play"}
-                  </button>
-                  <div className="hidden sm:flex flex-col">
-                    <span className="text-xs font-medium text-foreground line-clamp-1 max-w-[300px]">
-                      {video.originalName}
-                    </span>
-                    <span className="text-[11px] text-muted-foreground">
-                      {createdDate}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  {outputUrl && (
-                    <a
-                      href={getCdnUrl(outputUrl, { download: true })}
-                      download
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 rounded-full bg-secondary px-3.5 py-1.5 text-xs font-medium text-foreground backdrop-blur-sm transition-colors hover:bg-secondary/80"
-                    >
-                      <DownloadSimple className="size-3.5" weight="bold" />
-                      Download
-                    </a>
-                  )}
-                  {onDelete && (
-                    <button
-                      onClick={() => setConfirmDelete(true)}
-                      className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-xs font-medium text-foreground backdrop-blur-sm transition-colors hover:bg-destructive"
-                    >
-                      <Trash className="size-3.5" />
-                    </button>
-                  )}
-                </div>
+            }
+            itemTwo={
+              <div className="relative flex items-center justify-center">
+                <video
+                  ref={processedRef}
+                  src={getCdnUrl(outputUrl)}
+                  className="max-h-[60vh] object-contain"
+                  muted
+                  playsInline
+                  loop
+                />
+                <Badge variant="secondary" className="absolute top-3 right-3">
+                  {processedLabel}
+                </Badge>
               </div>
-            </>
-          ) : isFailed ? (
-            <div className="flex flex-col items-center gap-2 px-6 py-12">
-              <Warning className="size-8 text-destructive" />
-              <p className="text-sm text-destructive text-center">
-                {video.error || "Processing failed"}
-              </p>
-            </div>
-          ) : isProcessing ? (
-            <div className="flex flex-col items-center gap-2 py-12">
-              <Spinner className="size-8 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Processing…</span>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-2 py-12">
-              <FileVideo className="size-8 text-muted-foreground" />
-            </div>
-          )}
+            }
+          />
         </div>
-      </DialogContent>
+      ) : outputUrl ? (
+        <div className="border-y bg-muted">
+          <video
+            src={getCdnUrl(outputUrl)}
+            className="mx-auto max-h-[60vh] object-contain"
+            controls
+            playsInline
+          />
+        </div>
+      ) : null}
 
-      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete video?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently remove this processed video. This action
-              cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => {
-                onDelete?.(video.id);
-                setConfirmDelete(false);
-                onOpenChange(false);
-              }}
+      <DialogFooter className="flex-row flex-wrap items-center p-4 sm:justify-between">
+        {job.originalUrl ? (
+          <Button variant="outline" size="sm" onClick={togglePlay}>
+            {playing ? <Pause weight="fill" /> : <Play weight="fill" />}
+            {playing ? "Pause" : "Play both"}
+          </Button>
+        ) : (
+          <span />
+        )}
+        {outputUrl ? (
+          <div className="flex gap-2">
+            <a
+              href={getCdnUrl(outputUrl, { download: true })}
+              download
+              className={buttonVariants({ variant: "outline", size: "sm" })}
             >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </Dialog>
+              <DownloadSimple />
+              Download
+            </a>
+            <ScheduleLink url={outputUrl} mediaType="video" variant="default" />
+          </div>
+        ) : null}
+      </DialogFooter>
+    </>
   );
 }

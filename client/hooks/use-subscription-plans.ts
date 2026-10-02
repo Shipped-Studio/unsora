@@ -2,12 +2,16 @@ import { useQuery } from "@tanstack/react-query";
 import { useUser } from "@clerk/nextjs";
 import { useAuthFetch } from "./use-auth-fetch";
 
+export type PlanInterval = "MONTH" | "YEAR";
+
 export interface SubscriptionPlan {
   key: string;
   name: string;
   description?: string;
   credits: number;
   priceUsd: number;
+  /** Billing interval. Only rendered when the server sends it. */
+  interval?: PlanInterval | null;
   isPopular?: boolean;
   sortOrder: number;
 }
@@ -18,11 +22,10 @@ export const subscriptionPlansQueryKeys = {
 };
 
 /**
- * Fetches the subscription tier catalog (basic / pro / power) from the server.
- * The DB `plans` table is the single source of truth for names, prices, and
- * credits — never inline these on the client, or the card can advertise a
- * different amount than the webhook actually grants. Checkout is driven by the
- * plan `key`, so the price ID never reaches the browser.
+ * Subscription tiers from the server. The DB `plans` table is the single
+ * source of truth for names, prices and credits, so the UI can never
+ * advertise a different amount than the webhook grants. Checkout is driven by
+ * the plan `key`; the Stripe price ID never reaches the browser.
  */
 export function useSubscriptionPlans() {
   const { authFetch } = useAuthFetch();
@@ -32,9 +35,10 @@ export function useSubscriptionPlans() {
     queryKey: subscriptionPlansQueryKeys.list(),
     queryFn: async (): Promise<SubscriptionPlan[]> => {
       const res = await authFetch("/api/stripe/subscription-plans");
-      if (!res.ok) throw new Error("Failed to load subscription plans");
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || "Failed to load");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || "Couldn't load plans.");
+      }
       return data.data as SubscriptionPlan[];
     },
     enabled: !!isSignedIn,
@@ -46,5 +50,6 @@ export function useSubscriptionPlans() {
     plans: query.data ?? null,
     loading: query.isLoading,
     error: query.error?.message ?? null,
+    refetch: query.refetch,
   };
 }

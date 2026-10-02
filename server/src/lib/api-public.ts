@@ -104,3 +104,19 @@ export async function saveIdempotentResponse(
 export function getApiKeyId(req: Request): string | undefined {
   return req.auth.apiKeyId;
 }
+
+/**
+ * Where a public API request came from. The Unsora MCP server sends
+ * `X-Unsora-Client: mcp`; everything else on /api/v1 counts as the REST API.
+ */
+export function resolvePostSource(req: Request): {
+  source: "API" | "MCP";
+  apiKeyId: string | null;
+} {
+  const client = req.headers["x-unsora-client"];
+  const isMcp = typeof client === "string" && client.toLowerCase() === "mcp";
+  return {
+    source: isMcp ? "MCP" : "API",
+    apiKeyId: req.auth.apiKeyId ?? null,
+  };
+}

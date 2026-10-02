@@ -1,12 +1,17 @@
+import { Suspense } from "react";
+import type { Metadata } from "next";
+import { PageHeader } from "@/components/layout/page-header";
+import { SettingsView } from "@/components/settings/settings-view";
+
+export const metadata: Metadata = { title: "Settings" };
+
 export default function SettingsPage() {
   return (
-    <div className="mx-auto max-w-3xl space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Settings</h1>
-        <p className="text-sm text-muted-foreground">
-          Account settings will live here.
-        </p>
-      </div>
-    </div>
+    <>
+      <PageHeader title="Settings" description={null} />
+      <Suspense>
+        <SettingsView />
+      </Suspense>
+    </>
   );
 }

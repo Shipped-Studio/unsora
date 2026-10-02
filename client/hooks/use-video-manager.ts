@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { VideoFile } from "@/types/video";
 import {
   createVideoFile,
@@ -8,24 +8,41 @@ import {
 import { uploadFileToStorage } from "@/lib/storage-client";
 import { toast } from "sonner";
 
+function truncateFileName(fileName: string, maxLength = 30): string {
+  if (fileName.length <= maxLength) return fileName;
+  const extension = fileName.split(".").pop();
+  const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf("."));
+  const truncatedName = nameWithoutExt.substring(
+    0,
+    maxLength - (extension?.length ?? 0) - 4,
+  );
+  return `${truncatedName}...${extension}`;
+}
+
+/**
+ * Local video queue for the upload-based video tools: validates duration,
+ * uploads each file to storage right away and tracks progress.
+ */
 export function useVideoManager(
   maxFiles: number = 20,
-  action: VideoAction = "process-video"
+  action: VideoAction = "process-video",
 ) {
   const [videos, setVideos] = useState<VideoFile[]>([]);
 
-  const truncateFileName = useCallback(
-    (fileName: string, maxLength: number = 30): string => {
-      if (fileName.length <= maxLength) return fileName;
-      const extension = fileName.split(".").pop();
-      const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf("."));
-      const truncatedName = nameWithoutExt.substring(
-        0,
-        maxLength - (extension?.length ?? 0) - 4
-      );
-      return `${truncatedName}...${extension}`;
+  // Revoke preview URLs when the form unmounts.
+  const videosRef = useRef<VideoFile[]>([]);
+  useEffect(() => {
+    videosRef.current = videos;
+  }, [videos]);
+  useEffect(
+    () => () => {
+      videosRef.current.forEach((video) => {
+        if (video.previewUrl?.startsWith("blob:")) {
+          URL.revokeObjectURL(video.previewUrl);
+        }
+      });
     },
-    []
+    [],
   );
 
   const uploadVideoFile = useCallback(async (videoFile: VideoFile) => {
@@ -35,8 +52,8 @@ export function useVideoManager(
       prev.map((v) =>
         v.id === videoFile.id
           ? { ...v, uploadStatus: "uploading", uploadProgress: 0 }
-          : v
-      )
+          : v,
+      ),
     );
 
     try {
@@ -45,31 +62,29 @@ export function useVideoManager(
           prev.map((v) =>
             v.id === videoFile.id
               ? { ...v, uploadProgress: progress.percentage }
-              : v
-          )
+              : v,
+          ),
         );
       });
 
-      if (result.success) {
-        setVideos((prev) =>
-          prev.map((v) =>
-            v.id === videoFile.id
-              ? {
-                  ...v,
-                  uploadStatus: "completed",
-                  uploadProgress: 100,
-                  storageBlobUrl: result.blobUrl,
-                  storageBlobName: result.blobName,
-                }
-              : v
-          )
-        );
-        toast.success(`${videoFile.name} uploaded successfully!`);
-      } else {
+      if (!result.success) {
         throw new Error(result.error || "Upload failed");
       }
+
+      setVideos((prev) =>
+        prev.map((v) =>
+          v.id === videoFile.id
+            ? {
+                ...v,
+                uploadStatus: "completed",
+                uploadProgress: 100,
+                storageBlobUrl: result.blobUrl,
+                storageBlobName: result.blobName,
+              }
+            : v,
+        ),
+      );
     } catch (error) {
-      console.error("Upload error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Upload failed";
 
@@ -77,10 +92,10 @@ export function useVideoManager(
         prev.map((v) =>
           v.id === videoFile.id
             ? { ...v, uploadStatus: "failed", uploadError: errorMessage }
-            : v
-        )
+            : v,
+        ),
       );
-      toast.error(`Failed to upload ${videoFile.name}: ${errorMessage}`);
+      toast.error(`Couldn't upload ${videoFile.name}. ${errorMessage}`);
     }
   }, []);
 
@@ -93,13 +108,12 @@ export function useVideoManager(
       const duplicates: string[] = [];
 
       if (videos.length + fileArray.length > maxFiles) {
-        toast.error(`You can only upload up to ${maxFiles} videos at once.`);
+        toast.error(`You can add up to ${maxFiles} videos at a time.`);
         return;
       }
 
       for (const file of fileArray) {
-        const isDuplicate = videos.some((v) => v.name === file.name);
-        if (isDuplicate) {
+        if (videos.some((v) => v.name === file.name)) {
           duplicates.push(truncateFileName(file.name));
           continue;
         }
@@ -108,15 +122,11 @@ export function useVideoManager(
           const validation = await validateVideoFileWithDuration(file, action);
           if (validation.valid) {
             const videoFile = createVideoFile(file);
-            videoFile.uploadStatus = "pending";
-            videoFile.uploadProgress = 0;
-
             if (validation.metadata) {
               videoFile.width = validation.metadata.width;
               videoFile.height = validation.metadata.height;
               videoFile.duration = validation.metadata.duration;
             }
-
             validFiles.push(videoFile);
 
             if (validation.warning) {
@@ -125,19 +135,16 @@ export function useVideoManager(
           } else {
             errors.push(`${file.name}: ${validation.error}`);
           }
-        } catch (error) {
-          errors.push(`${file.name}: Failed to validate video`);
+        } catch {
+          errors.push(`${file.name}: couldn't read this video.`);
         }
       }
 
       if (duplicates.length > 0) {
         toast.warning(
           duplicates.length === 1
-            ? `"${duplicates[0]}" is already in your upload queue.`
-            : `${
-                duplicates.length
-              } duplicate video(s) skipped: ${duplicates.join(", ")}`,
-          { duration: 4000 }
+            ? `${duplicates[0]} is already added.`
+            : `Skipped ${duplicates.length} videos that are already added.`,
         );
       }
 
@@ -151,133 +158,39 @@ export function useVideoManager(
 
       if (validFiles.length > 0) {
         setVideos((prev) => [...prev, ...validFiles]);
-        toast.success(
-          `${validFiles.length} video(s) added. Starting upload...`
-        );
-
-        validFiles.forEach(async (videoFile) => {
-          await uploadVideoFile(videoFile);
+        validFiles.forEach((videoFile) => {
+          void uploadVideoFile(videoFile);
         });
       }
     },
-    [videos, maxFiles, uploadVideoFile, truncateFileName]
-  );
-
-  const handleUrlSubmit = useCallback(
-    (urlInput: string) => {
-      const urls = urlInput
-        .split("\n")
-        .map((url) => url.trim())
-        .filter((url) => url.length > 0);
-
-      if (urls.length === 0) {
-        toast.error("Please enter at least one URL.");
-        return false;
-      }
-
-      if (videos.length + urls.length > maxFiles) {
-        toast.error(`You can only add up to ${maxFiles} videos at once.`);
-        return false;
-      }
-
-      const validUrls: VideoFile[] = [];
-      const invalidUrls: string[] = [];
-      const soraUrlPattern =
-        /^https:\/\/sora\.chatgpt\.com\/p\/s_[a-zA-Z0-9]+$/;
-
-      urls.forEach((url, index) => {
-        if (!soraUrlPattern.test(url)) {
-          invalidUrls.push(url);
-          return;
-        }
-
-        const isDuplicate = videos.some((v) => v.url === url);
-        if (isDuplicate) {
-          toast.warning(`URL already added: ${url}`);
-          return;
-        }
-
-        const videoId = url.split("/p/")[1];
-        const videoFile: VideoFile = {
-          id: `url-${Date.now()}-${index}`,
-          name: `Sora Video: ${videoId}`,
-          size: 0,
-          type: "video/url",
-          url: url,
-          uploadStatus: "completed",
-          uploadProgress: 100,
-        };
-
-        validUrls.push(videoFile);
-      });
-
-      if (invalidUrls.length > 0) {
-        toast.error(
-          `Invalid Sora URL format. URLs must be in the format:\nhttps://sora.chatgpt.com/p/s_...\n\nInvalid URLs:\n${invalidUrls.join(
-            "\n"
-          )}`,
-          { duration: 6000 }
-        );
-      }
-
-      if (validUrls.length > 0) {
-        setVideos((prev) => [...prev, ...validUrls]);
-        toast.success(`${validUrls.length} Sora video(s) added successfully!`);
-        return true;
-      }
-
-      return false;
-    },
-    [videos, maxFiles]
-  );
-
-  const addAssetVideo = useCallback(
-    (asset: { name: string; url: string }) => {
-      if (videos.length >= maxFiles) {
-        toast.error(`You can only add up to ${maxFiles} videos at once.`);
-        return;
-      }
-
-      const isDuplicate = videos.some(
-        (v) => v.storageBlobUrl === asset.url || v.url === asset.url,
-      );
-      if (isDuplicate) {
-        toast.warning("This asset is already in your queue.");
-        return;
-      }
-
-      const videoFile: VideoFile = {
-        id: `asset-${Date.now()}`,
-        name: asset.name || "Library asset",
-        size: 0,
-        type: "video/mp4",
-        previewUrl: asset.url,
-        storageBlobUrl: asset.url,
-        uploadStatus: "completed",
-        uploadProgress: 100,
-      };
-
-      setVideos((prev) => [...prev, videoFile]);
-      toast.success(`${videoFile.name} added from library`);
-    },
-    [videos, maxFiles],
+    [videos, maxFiles, action, uploadVideoFile],
   );
 
   const removeVideo = useCallback((id: string) => {
-    setVideos((prev) => prev.filter((video) => video.id !== id));
+    setVideos((prev) => {
+      const video = prev.find((v) => v.id === id);
+      if (video?.previewUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(video.previewUrl);
+      }
+      return prev.filter((v) => v.id !== id);
+    });
   }, []);
 
   const clearAll = useCallback(() => {
-    setVideos([]);
+    setVideos((prev) => {
+      prev.forEach((video) => {
+        if (video.previewUrl?.startsWith("blob:")) {
+          URL.revokeObjectURL(video.previewUrl);
+        }
+      });
+      return [];
+    });
   }, []);
 
   return {
     videos,
     handleFiles,
-    handleUrlSubmit,
-    addAssetVideo,
     removeVideo,
     clearAll,
-    truncateFileName,
   };
 }

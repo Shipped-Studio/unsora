@@ -124,10 +124,10 @@ export const InstagramIcon = ({ className, ...props }: IconProps) => {
           y2="28.9118"
           gradientUnits="userSpaceOnUse"
         >
-          <stop stop-color="#FAAD4F" />
-          <stop offset="0.35" stop-color="#DD2A7B" />
-          <stop offset="0.62" stop-color="#9537B0" />
-          <stop offset="1" stop-color="#515BD4" />
+          <stop stopColor="#FAAD4F" />
+          <stop offset="0.35" stopColor="#DD2A7B" />
+          <stop offset="0.62" stopColor="#9537B0" />
+          <stop offset="1" stopColor="#515BD4" />
         </linearGradient>
       </defs>
     </svg>
@@ -223,10 +223,10 @@ export const KlinkIcon = ({ className, ...props }: IconProps) => {
           id="lobe-icons-kling-fill-0"
           r="1"
         >
-          <stop offset=".095" stop-color="#FFF959" />
-          <stop offset=".326" stop-color="#0DF35E" />
-          <stop offset=".64" stop-color="#0BF2F9" />
-          <stop offset="1" stop-color="#04A6F0" />
+          <stop offset=".095" stopColor="#FFF959" />
+          <stop offset=".326" stopColor="#0DF35E" />
+          <stop offset=".64" stopColor="#0BF2F9" />
+          <stop offset="1" stopColor="#04A6F0" />
         </radialGradient>
         <radialGradient
           cx="0"
@@ -236,10 +236,10 @@ export const KlinkIcon = ({ className, ...props }: IconProps) => {
           id="lobe-icons-kling-fill-1"
           r="1"
         >
-          <stop offset=".095" stop-color="#FFF959" />
-          <stop offset=".326" stop-color="#0DF35E" />
-          <stop offset=".64" stop-color="#0BF2F9" />
-          <stop offset="1" stop-color="#04A6F0" />
+          <stop offset=".095" stopColor="#FFF959" />
+          <stop offset=".326" stopColor="#0DF35E" />
+          <stop offset=".64" stopColor="#0BF2F9" />
+          <stop offset="1" stopColor="#04A6F0" />
         </radialGradient>
         <linearGradient
           gradientUnits="userSpaceOnUse"
@@ -249,8 +249,8 @@ export const KlinkIcon = ({ className, ...props }: IconProps) => {
           y1="1.798"
           y2="9.861"
         >
-          <stop stop-color="#003EFF" />
-          <stop offset="1" stop-color="#0BFFE7" />
+          <stop stopColor="#003EFF" />
+          <stop offset="1" stopColor="#0BFFE7" />
         </linearGradient>
         <linearGradient
           gradientUnits="userSpaceOnUse"
@@ -260,8 +260,8 @@ export const KlinkIcon = ({ className, ...props }: IconProps) => {
           y1="22.142"
           y2="14.079"
         >
-          <stop stop-color="#003EFF" />
-          <stop offset="1" stop-color="#0BFFE7" />
+          <stop stopColor="#003EFF" />
+          <stop offset="1" stopColor="#0BFFE7" />
         </linearGradient>
       </defs>
     </svg>

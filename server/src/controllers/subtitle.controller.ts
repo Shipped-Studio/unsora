@@ -751,6 +751,7 @@ export class SubtitleController {
           id: t.id,
           videoUrl: t.videoAsset?.url,
           filename: t.filename,
+          title: t.title,
           text: t.text,
           language: t.language,
           duration: t.duration,

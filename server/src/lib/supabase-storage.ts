@@ -1,3 +1,4 @@
+import fs from "fs";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import ws from "ws";
 
@@ -93,6 +94,33 @@ export async function uploadBufferToSupabase(
   const { error } = await supabase.storage
     .from(SUPABASE_STORAGE_BUCKET)
     .upload(path, buffer, { contentType, upsert: false });
+
+  if (error) {
+    throw new Error(`Supabase upload failed: ${error.message}`);
+  }
+
+  const { data } = supabase.storage
+    .from(SUPABASE_STORAGE_BUCKET)
+    .getPublicUrl(path);
+
+  return data.publicUrl;
+}
+
+/**
+ * Upload a file from local disk without reading it into memory. The file is
+ * sent as a file-backed Blob, the same multipart shape the browser's signed
+ * upload uses, so the same bucket size limits apply.
+ */
+export async function uploadFileToSupabase(
+  filePath: string,
+  path: string,
+  contentType: string,
+): Promise<string> {
+  const supabase = getClient();
+  const blob = await fs.openAsBlob(filePath, { type: contentType });
+  const { error } = await supabase.storage
+    .from(SUPABASE_STORAGE_BUCKET)
+    .upload(path, blob as unknown as Blob, { contentType, upsert: false });
 
   if (error) {
     throw new Error(`Supabase upload failed: ${error.message}`);

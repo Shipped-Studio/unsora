@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { planLimits } from "../lib/limit";
 import prisma from "../lib/db";
 import { stripe } from "../lib/stripe";
 import { clerkClient } from "@clerk/express";
@@ -1171,6 +1172,9 @@ export class StripeController {
           priceUsd: pub.priceUsd,
           isPopular: pub.isPopular,
           sortOrder: pub.sortOrder,
+          interval: pub.interval,
+          socialAccounts:
+            planLimits[pub.key as keyof typeof planLimits]?.socialAccounts ?? null,
         };
       });
       return res.json({ success: true, data });

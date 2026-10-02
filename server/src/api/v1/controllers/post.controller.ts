@@ -16,7 +16,14 @@ import { formatPublicPostSummary } from "../helpers/public-post-response";
 import { withPublicCreate } from "../helpers/public-create";
 import { handlePublicError, sendError } from "../helpers/public-response";
 import { postAccountSettingsForProvider } from "../helpers/post-platform-settings";
-import { postService } from "../../../services/post.service";
+import { resolvePostSource } from "../../../lib/api-public";
+import { reconcilePostLegs } from "../../../lib/post-legs";
+import {
+  PostRuleError,
+  assertCaptionForType,
+  assertMediaMatchesType,
+  assertProvidersSupportType,
+} from "../../../lib/post-rules";
 
 async function verifyUserAccounts(userId: string, accountIds: string[]) {
   const uniqueIds = [...new Set(accountIds)];
@@ -81,6 +88,15 @@ export class PublicPostController {
 
         const status: PostStatus = payload.scheduledAt ? "SCHEDULED" : "DRAFT";
 
+        if (payload.scheduledAt) {
+          assertMediaMatchesType(payload.postType, payload.media, true);
+          assertCaptionForType(payload.postType, payload.caption);
+          assertProvidersSupportType(
+            payload.postType,
+            linkedAccounts.map((a) => a.provider),
+          );
+        }
+
         let mediaCreateData:
           | Awaited<ReturnType<typeof buildMediaCreateData>>
           | undefined;
@@ -94,6 +110,7 @@ export class PublicPostController {
         const post = await prisma.post.create({
           data: {
             userId: user.id,
+            ...resolvePostSource(req),
             type: payload.postType,
             mainCaption: payload.caption,
             status,
@@ -136,6 +153,11 @@ export class PublicPostController {
         return body;
       });
     } catch (error) {
+      if (error instanceof PostRuleError) {
+        return res
+          .status(error.status)
+          .json({ success: false, error: error.message, code: error.code });
+      }
       return handlePublicError(
         res,
         error,
@@ -247,58 +269,6 @@ export class PublicPostController {
     }
   };
 
-  retryPost = async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-
-      if (!id?.trim()) {
-        return sendError(res, 400, "Post ID is required");
-      }
-
-      const user = await resolveUser(req.auth.userId);
-      if (!user) {
-        return sendError(res, 404, "User not found");
-      }
-
-      const post = await prisma.post.findFirst({
-        where: { id, userId: user.id },
-        select: { id: true, status: true },
-      });
-
-      if (!post) {
-        return sendError(res, 404, "Post not found");
-      }
-
-      if (post.status !== "FAILED" && post.status !== "PARTIALLY_PUBLISHED") {
-        return sendError(
-          res,
-          400,
-          `Only failed or partially published posts can be retried (status: ${post.status})`,
-        );
-      }
-
-      const result = await postService.retryPost(id);
-
-      return res.json({
-        success: result.success,
-        message: result.success
-          ? "Post published successfully"
-          : "Retry completed with some errors",
-        data: {
-          postId: id,
-          results: result.results,
-        },
-      });
-    } catch (error) {
-      return handlePublicError(
-        res,
-        error,
-        "Retry post error:",
-        "Failed to retry post",
-      );
-    }
-  };
-
   updatePost = async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
@@ -321,6 +291,17 @@ export class PublicPostController {
         return sendError(res, 400, scheduleResult.error);
       }
 
+      if (
+        scheduleResult.value &&
+        scheduleResult.value.getTime() < Date.now() + 60_000
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: "scheduledFor must be at least 1 minute in the future",
+          code: "SCHEDULE_IN_PAST",
+        });
+      }
+
       let accountsResult: ReturnType<typeof parseAccounts> | undefined;
       
       if (accounts !== undefined) {
@@ -338,7 +319,13 @@ export class PublicPostController {
 
       const existingPost = await prisma.post.findFirst({
         where: { id, userId: user.id },
-        select: { id: true, status: true },
+        select: {
+          id: true,
+          status: true,
+          postAccounts: {
+            select: { id: true, accountId: true, published: true },
+          },
+        },
       });
 
       if (!existingPost) {
@@ -347,6 +334,14 @@ export class PublicPostController {
 
       if (existingPost.status === "PUBLISHED") {
         return sendError(res, 400, "Cannot edit published posts");
+      }
+
+      if (existingPost.status === "PUBLISHING") {
+        return sendError(
+          res,
+          409,
+          "This post is publishing right now. Try again in a minute.",
+        );
       }
 
       if (accountsResult?.ok) {
@@ -385,26 +380,31 @@ export class PublicPostController {
         } else {
           updateData.scheduledFor = null;
           updateData.scheduledTimezone = null;
-          updateData.status = "DRAFT";
+          if (existingPost.status === "SCHEDULED") updateData.status = "DRAFT";
         }
       }
 
-      await prisma.post.update({
-        where: { id },
-        data: updateData,
-      });
-
-      if (accountsResult?.ok) {
-        await prisma.postAccount.deleteMany({ where: { postId: id } });
-        await prisma.postAccount.createMany({
-          data: accountsResult.value.map((a) => ({
-            postId: id,
-            accountId: a.accountId,
-            customCaption: a.customCaption ?? null,
-            title: a.title ?? null,
-          })),
+      await prisma.$transaction(async (tx) => {
+        await tx.post.update({
+          where: { id },
+          data: updateData,
         });
-      }
+
+        // Settings aren't part of this payload, so existing legs keep theirs,
+        // and legs that already published are left alone.
+        if (accountsResult?.ok) {
+          await reconcilePostLegs(
+            tx,
+            id,
+            existingPost.postAccounts,
+            accountsResult.value.map((a) => ({
+              accountId: a.accountId,
+              customCaption: a.customCaption ?? null,
+              title: a.title ?? null,
+            })),
+          );
+        }
+      });
 
       const post = await prisma.post.findFirst({
         where: { id, userId: user.id },
@@ -440,11 +440,19 @@ export class PublicPostController {
 
       const post = await prisma.post.findFirst({
         where: { id, userId: user.id },
-        select: { id: true },
+        select: { id: true, status: true },
       });
 
       if (!post) {
         return sendError(res, 404, "Post not found");
+      }
+
+      if (post.status === "PUBLISHING") {
+        return sendError(
+          res,
+          409,
+          "This post is publishing right now. Try again in a minute.",
+        );
       }
 
       await prisma.post.delete({ where: { id } });

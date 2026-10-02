@@ -1,78 +1,185 @@
 "use client";
 
-import { Crown, Lightning } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardAction,
-  CardDescription,
   CardContent,
+  CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
-  CardFooter,
 } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
+import type { SubscriptionPlan } from "@/hooks/use-subscription-plans";
+import { formatLongDate, formatUsd, intervalLabel, planCreditsLabel } from "./format";
+
+export type PlanState = "free" | "active" | "trialing" | "ending";
 
 interface CurrentPlanCardProps {
-  name: string;
-  description: string;
-  price: number;
-  isPaid: boolean | undefined;
-  /** Credits remaining in the user's wallet right now. */
+  planName: string;
+  /** Catalog entry for the current plan, when it's a paid tier. */
+  plan: SubscriptionPlan | null;
+  state: PlanState;
+  /** ISO end of the current paid (or trial) period. */
+  periodEnd: string | null;
   credits: number;
-  /** Monthly credit allowance for the current plan. Used as the "of N" denominator. */
-  monthlyCredits: number;
+  /** Which portal-bound button is waiting on the redirect. */
+  portalPending: "manage" | "resume" | null;
+  activating: boolean;
+  onChangePlan: () => void;
+  onManageBilling: () => void;
+  onResume: () => void;
+  onCancelPlan: () => void;
+  onActivateTrial: () => void;
+  onCancelTrial: () => void;
 }
 
-/**
- * Header card on the billing page showing the user's current plan tier,
- * description, and price. Purely presentational.
- *
- * Uses the project `Card` primitive so the styling stays in sync with the
- * rest of the app (rounded-2xl, ring-1, bg-card). The price block lives in
- * `CardAction` so it auto-aligns to the top-right of the header grid.
- */
-export function CurrentPlanCard({
-  name,
-  description,
-  price,
-  isPaid,
-  credits,
-  monthlyCredits,
-}: CurrentPlanCardProps) {
-  return (
-    <Card className="mb-8">
-      <CardHeader>
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-            <Crown weight="fill" className="size-5 text-primary" />
-          </div>
-          <div className="min-w-0">
-            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-              {name} Plan
-              {isPaid && (
-                <Badge variant="secondary" className="text-[10px]">
-                  Active
-                </Badge>
-              )}
-            </CardTitle>
-            <CardDescription className="text-xs">{description}</CardDescription>
-          </div>
-        </div>
+function statusLine(state: PlanState, endsOn: string | null) {
+  switch (state) {
+    case "free":
+      return "Choose a plan to get credits and connect more social accounts.";
+    case "active":
+      return endsOn ? `Renews on ${endsOn}.` : "Your subscription is active.";
+    case "trialing":
+      return endsOn
+        ? `Your trial ends on ${endsOn}. Activate now to start your plan, or cancel to return to Free.`
+        : "Activate now to start your plan, or cancel to return to Free.";
+    case "ending":
+      return "Your plan won't renew. You keep access and your credits until then.";
+  }
+}
 
-        <CardAction className="text-right">
-          <p className="text-2xl font-bold leading-none">${price}</p>
-          <p className="mt-1 text-xs text-muted-foreground">/month</p>
-        </CardAction>
+export function CurrentPlanCard({
+  planName,
+  plan,
+  state,
+  periodEnd,
+  credits,
+  portalPending,
+  activating,
+  onChangePlan,
+  onManageBilling,
+  onResume,
+  onCancelPlan,
+  onActivateTrial,
+  onCancelTrial,
+}: CurrentPlanCardProps) {
+  const endsOn = formatLongDate(periodEnd);
+  const per = intervalLabel(plan?.interval);
+  const portalBusy = portalPending !== null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex flex-wrap items-center gap-2">
+          {planName}
+          {state === "active" ? <Badge variant="secondary">Active</Badge> : null}
+          {state === "trialing" ? <Badge variant="outline">Trial</Badge> : null}
+          {state === "ending" ? (
+            <Badge variant="outline">
+              {endsOn ? `Ends on ${endsOn}` : "Ending"}
+            </Badge>
+          ) : null}
+        </CardTitle>
+        <CardDescription>{statusLine(state, endsOn)}</CardDescription>
+        {plan ? (
+          <CardAction className="text-right">
+            <p className="text-lg font-medium tabular-nums">
+              {formatUsd(plan.priceUsd)}
+              {per ? (
+                <span className="text-sm font-normal text-muted-foreground">
+                  {" "}
+                  / {per}
+                </span>
+              ) : null}
+            </p>
+          </CardAction>
+        ) : null}
       </CardHeader>
 
-      <CardFooter className="flex gap-4 justify-end">
-        <div className="flex items-center gap-2">
-          <Lightning weight="fill" className="size-4 text-primary" />
-          <span className="text-sm font-medium">Available credits</span>
-        </div>
-        <div className="text-sm">
-          <span className="font-bold">{credits.toLocaleString()}</span>
-        </div>
+      <CardContent>
+        <dl className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <dt className="text-xs text-muted-foreground">Credit balance</dt>
+            <dd className="mt-1 text-2xl font-medium tabular-nums">
+              {credits.toLocaleString()}
+              <span className="ml-1.5 text-sm font-normal text-muted-foreground">
+                credits
+              </span>
+            </dd>
+          </div>
+          {plan ? (
+            <div>
+              <dt className="text-xs text-muted-foreground">Plan includes</dt>
+              <dd className="mt-1 text-sm">
+                {planCreditsLabel(plan.credits, plan.interval)}
+              </dd>
+            </div>
+          ) : null}
+        </dl>
+      </CardContent>
+
+      <CardFooter className="flex flex-wrap gap-2 border-t">
+        {state === "free" ? (
+          <Button onClick={onChangePlan}>Choose a plan</Button>
+        ) : null}
+
+        {state === "trialing" ? (
+          <Button onClick={onActivateTrial} disabled={activating}>
+            {activating ? <Spinner data-icon="inline-start" /> : null}
+            Activate plan
+          </Button>
+        ) : null}
+
+        {state === "ending" ? (
+          <Button onClick={onResume} disabled={portalBusy}>
+            {portalPending === "resume" ? (
+              <Spinner data-icon="inline-start" />
+            ) : null}
+            Resume plan
+          </Button>
+        ) : null}
+
+        {state === "active" || state === "ending" ? (
+          <Button variant="outline" onClick={onChangePlan}>
+            Change plan
+          </Button>
+        ) : null}
+
+        {state !== "free" ? (
+          <Button
+            variant="outline"
+            onClick={onManageBilling}
+            disabled={portalBusy}
+          >
+            {portalPending === "manage" ? (
+              <Spinner data-icon="inline-start" />
+            ) : null}
+            Manage billing
+          </Button>
+        ) : null}
+
+        {state === "active" ? (
+          <Button
+            variant="ghost"
+            className="text-muted-foreground sm:ml-auto"
+            onClick={onCancelPlan}
+          >
+            Cancel plan
+          </Button>
+        ) : null}
+
+        {state === "trialing" ? (
+          <Button
+            variant="ghost"
+            className="text-muted-foreground sm:ml-auto"
+            onClick={onCancelTrial}
+          >
+            Cancel trial
+          </Button>
+        ) : null}
       </CardFooter>
     </Card>
   );

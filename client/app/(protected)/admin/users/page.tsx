@@ -1,22 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { MagnifyingGlass } from "@phosphor-icons/react";
-import { PageHeader } from "@/components/admin/page-header";
+import { AdminPage } from "@/components/admin/admin-page";
 import {
-  TableShell,
-  Th,
-  Td,
-  Tr,
+  EmptyRow,
   Pager,
+  SkeletonRows,
+  TableShell,
+  Td,
+  Th,
 } from "@/components/admin/data-table";
-import { StatusBadge } from "@/components/admin/status-badge";
-import { useAdminUsers, type UsersQuery } from "@/hooks/admin/use-admin-data";
-import { useDebounce } from "@/hooks/use-debounce";
-import { compactNumber, formatDate } from "@/lib/admin-format";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
+import { usePlanOptions } from "@/components/admin/use-plan-options";
+import { StatusDot } from "@/components/admin/status-badge";
+import { ErrorState } from "@/components/shared/states";
+import { Badge } from "@/components/ui/badge";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import {
   Select,
   SelectContent,
@@ -24,19 +28,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
+import { TableBody, TableHeader, TableRow } from "@/components/ui/table";
+import { useAdminUsers, type UsersQuery } from "@/hooks/admin/use-admin-data";
+import { useDebounce } from "@/hooks/use-debounce";
+import { compactNumber, formatDate, titleCase } from "@/lib/admin-format";
 import { cn } from "@/lib/utils";
 
-const PLAN_OPTIONS = ["all", "free", "starter", "pro", "business"];
+const COLS = 7;
 
 export default function AdminUsersPage() {
-  const router = useRouter();
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const [plan, setPlan] = useState("all");
   const [role, setRole] = useState("all");
   const [active, setActive] = useState("all");
   const search = useDebounce(searchInput, 350);
+  const planOptions = usePlanOptions();
 
   const query: UsersQuery = {
     page,
@@ -46,7 +53,7 @@ export default function AdminUsersPage() {
     role: role === "all" ? "" : role,
     active: active === "all" ? "" : active,
   };
-  const { data, isLoading, isFetching } = useAdminUsers(query);
+  const { data, isLoading, isFetching, error, refetch } = useAdminUsers(query);
 
   const reset = (fn: () => void) => {
     fn();
@@ -54,46 +61,56 @@ export default function AdminUsersPage() {
   };
 
   return (
-    <div>
-      <PageHeader
-        title="Users"
-        description="Search, inspect, and manage every account."
-      />
-
-      {/* Filters */}
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-        <div className="relative flex-1 sm:max-w-xs">
-          <MagnifyingGlass className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
+    <AdminPage title="Users" description="Search, inspect and manage accounts">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <InputGroup className="sm:max-w-xs">
+          <InputGroupInput
             value={searchInput}
             onChange={(e) => reset(() => setSearchInput(e.target.value))}
-            placeholder="Search by email…"
-            className="pl-9"
+            placeholder="Search by email"
+            aria-label="Search by email"
           />
-        </div>
-        <Filter value={plan} onChange={(v) => reset(() => setPlan(v))} placeholder="Plan" options={PLAN_OPTIONS} />
+          <InputGroupAddon>
+            <MagnifyingGlass />
+          </InputGroupAddon>
+        </InputGroup>
+        <Filter
+          value={plan}
+          onChange={(v) => reset(() => setPlan(v))}
+          allLabel="All plans"
+          options={planOptions.map((p) => ({ value: p, label: titleCase(p) }))}
+        />
         <Filter
           value={role}
           onChange={(v) => reset(() => setRole(v))}
-          placeholder="Role"
-          options={["all", "USER", "ADMIN"]}
+          allLabel="All roles"
+          options={[
+            { value: "USER", label: "User" },
+            { value: "ADMIN", label: "Admin" },
+          ]}
         />
         <Filter
           value={active}
           onChange={(v) => reset(() => setActive(v))}
-          placeholder="Status"
-          options={["all", "true", "false"]}
-          labels={{ all: "All", true: "Active", false: "Inactive" }}
+          allLabel="Any status"
+          options={[
+            { value: "true", label: "Active" },
+            { value: "false", label: "Inactive" },
+          ]}
         />
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-96 rounded-xl" />
+      {error && !data ? (
+        <ErrorState
+          title="Couldn't load users"
+          description={error.message}
+          onRetry={() => void refetch()}
+        />
       ) : (
-        <div className={cn(isFetching && "opacity-60 transition-opacity")}>
+        <div className={cn("space-y-3", isFetching && !isLoading && "opacity-60 transition-opacity")}>
           <TableShell>
-            <thead>
-              <tr>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
                 <Th>User</Th>
                 <Th>Plan</Th>
                 <Th>Status</Th>
@@ -101,97 +118,98 @@ export default function AdminUsersPage() {
                 <Th className="text-right">Tasks</Th>
                 <Th className="text-right">Accounts</Th>
                 <Th>Joined</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {data?.users.map((u) => (
-                <Tr key={u.id} onClick={() => router.push(`/admin/users/${u.id}`)}>
-                  <Td>
-                    <div className="flex items-center gap-2">
-                      <span className="truncate font-medium text-foreground">
-                        {u.email}
-                      </span>
-                      {u.role === "ADMIN" && (
-                        <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
-                          admin
-                        </Badge>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading || !data ? (
+                <SkeletonRows cols={COLS} />
+              ) : data.users.length === 0 ? (
+                <EmptyRow cols={COLS}>No users match these filters.</EmptyRow>
+              ) : (
+                data.users.map((u) => (
+                  <TableRow key={u.id}>
+                    <Td className="max-w-72">
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/admin/users/${u.id}`}
+                          className="truncate font-medium underline-offset-4 hover:underline"
+                        >
+                          {u.email}
+                        </Link>
+                        {u.role === "ADMIN" ? (
+                          <Badge variant="secondary">Admin</Badge>
+                        ) : null}
+                      </div>
+                    </Td>
+                    <Td>{titleCase(u.plan || "free")}</Td>
+                    <Td>
+                      {u.isActive ? (
+                        u.isCancelled ? (
+                          <StatusDot tone="warning">Ending</StatusDot>
+                        ) : (
+                          <StatusDot tone="success">Active</StatusDot>
+                        )
+                      ) : (
+                        <StatusDot tone="muted">Inactive</StatusDot>
                       )}
-                    </div>
-                  </Td>
-                  <Td>
-                    <span className="capitalize text-foreground">
-                      {u.plan || "free"}
-                    </span>
-                  </Td>
-                  <Td>
-                    {u.isActive ? (
-                      <StatusBadge status={u.isCancelled ? "QUEUED" : "COMPLETED"} />
-                    ) : (
-                      <span className="text-xs text-muted-foreground">inactive</span>
-                    )}
-                  </Td>
-                  <Td className="text-right tabular-nums">
-                    {compactNumber(u.credits)}
-                  </Td>
-                  <Td className="text-right tabular-nums">
-                    {compactNumber(u.taskCount)}
-                  </Td>
-                  <Td className="text-right tabular-nums">
-                    {u.connectedAccounts}
-                  </Td>
-                  <Td className="whitespace-nowrap text-muted-foreground">
-                    {formatDate(u.createdAt)}
-                  </Td>
-                </Tr>
-              ))}
-              {data?.users.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="px-4 py-10 text-center text-sm text-muted-foreground"
-                  >
-                    No users match these filters.
-                  </td>
-                </tr>
+                    </Td>
+                    <Td className="text-right tabular-nums">
+                      {compactNumber(u.credits)}
+                    </Td>
+                    <Td className="text-right tabular-nums">
+                      {compactNumber(u.taskCount)}
+                    </Td>
+                    <Td className="text-right tabular-nums">
+                      {u.connectedAccounts}
+                    </Td>
+                    <Td className="text-muted-foreground">
+                      {formatDate(u.createdAt)}
+                    </Td>
+                  </TableRow>
+                ))
               )}
-            </tbody>
+            </TableBody>
           </TableShell>
-          {data && (
+          {data ? (
             <Pager
               page={data.pagination.page}
               totalPages={data.pagination.totalPages}
               total={data.pagination.total}
               onPage={setPage}
+              disabled={isFetching}
             />
-          )}
+          ) : null}
         </div>
       )}
-    </div>
+    </AdminPage>
   );
 }
 
 function Filter({
   value,
   onChange,
-  placeholder,
+  allLabel,
   options,
-  labels,
 }: {
   value: string;
   onChange: (v: string) => void;
-  placeholder: string;
-  options: string[];
-  labels?: Record<string, string>;
+  allLabel: string;
+  options: { value: string; label: string }[];
 }) {
+  const items = [{ value: "all", label: allLabel }, ...options];
   return (
-    <Select value={value} onValueChange={(v) => onChange(v ?? "all")}>
-      <SelectTrigger className="w-full sm:w-[140px]">
-        <SelectValue placeholder={placeholder} />
+    <Select
+      value={value}
+      onValueChange={(v) => onChange((v as string | null) ?? "all")}
+      items={items}
+    >
+      <SelectTrigger className="w-full sm:w-36">
+        <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {options.map((o) => (
-          <SelectItem key={o} value={o} className="capitalize">
-            {labels?.[o] ?? (o === "all" ? `All ${placeholder.toLowerCase()}s` : o)}
+        {items.map((o) => (
+          <SelectItem key={o.value} value={o.value}>
+            {o.label}
           </SelectItem>
         ))}
       </SelectContent>

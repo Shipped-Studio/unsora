@@ -369,11 +369,19 @@ export class ClippingController {
     }
   }
 
+  /**
+   * DELETE /api/clippings/:clippingId/clips/:clipId, or
+   * DELETE /api/clippings/clips/:clipId when only the clip id is known
+   * (the Library lists clips without their parent job).
+   */
   async deleteClip(req: Request, res: Response) {
     try {
       const clerkUserId = req.auth.userId;
 
-      const { clippingId, clipId } = req.params;
+      const { clippingId, clipId } = req.params as {
+        clippingId?: string;
+        clipId: string;
+      };
       const user = await resolveUser(clerkUserId);
       if (!user) {
         return res
@@ -384,7 +392,7 @@ export class ClippingController {
       const clip = await prisma.aIClippingClip.findFirst({
         where: {
           id: clipId,
-          aiClippingId: clippingId,
+          ...(clippingId ? { aiClippingId: clippingId } : {}),
           aiClipping: { userId: user.id },
         },
         select: { id: true },

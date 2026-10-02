@@ -1,128 +1,183 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { VideoPromptForm } from "@/components/video-generator/prompt-form";
+import { useMemo, useState } from "react";
+import { VideoCamera } from "@phosphor-icons/react";
+import { ToolPage } from "@/components/generator/tool-layout";
+import { ToolResults } from "@/components/generator/tool-results";
 import {
-  VideoCard,
-  type CardGeneration,
-} from "@/components/video-generator/video-card";
-import { VideoDetailDialog } from "@/components/video-generator/video-detail-dialog";
+  MediaResultCard,
+  isPending,
+  type MediaResult,
+} from "@/components/generator/media-result-card";
+import {
+  MediaResultDialog,
+  detailRows,
+  formatCredits,
+} from "@/components/generator/media-result-dialog";
+import { VideoPromptForm } from "@/components/video-generator/prompt-form";
+import { videoModelLabel } from "@/components/video-generator/forms/model-configs";
 import { useVideoGeneration } from "@/hooks/use-video-generation";
 import {
-  useGenerations,
-  useDeleteGeneration,
-  generationQueryKeys,
-} from "@/hooks/use-generations-query";
-import { Skeleton } from "@/components/ui/skeleton";
+  useDeleteFromHistory,
+  useGenerationHistory,
+  useRefreshHistory,
+  startedRecently,
+} from "@/hooks/use-generation-history";
+
+const TOOL = "video";
+const LIST_PATH = "/api/v1/videos/all";
+const DELETE_PATH = "/api/v1/videos";
+
+interface VideoRecord {
+  id: string;
+  status: string;
+  prompt: string;
+  model: string;
+  outputAsset?: { url: string } | null;
+  thumbnailAsset?: { url: string } | null;
+  error?: string | null;
+  duration?: number | null;
+  ratio?: string | null;
+  creditsUsed?: number | null;
+  createdAt: string;
+}
+
+interface VideoListResponse {
+  generations?: VideoRecord[];
+  pagination?: { hasNextPage?: boolean };
+}
+
+interface VideoItem extends MediaResult {
+  model: string;
+  duration?: number | null;
+  ratio?: string | null;
+  credits?: number | null;
+  createdAt: string;
+}
 
 export default function VideoGeneratorPage() {
-  const queryClient = useQueryClient();
-  const { activeGenerations, submit } = useVideoGeneration();
-  const { data, isLoading } = useGenerations(1, 12);
-  const deleteGeneration = useDeleteGeneration();
-  const generations = data?.generations ?? [];
+  const history = useGenerationHistory<VideoRecord>({
+    tool: TOOL,
+    path: LIST_PATH,
+    parse: (body) => {
+      const data = body as VideoListResponse;
+      return {
+        items: data.generations ?? [],
+        hasNextPage: !!data.pagination?.hasNextPage,
+      };
+    },
+    isInProgress: (g) => isPending(g.status) && startedRecently(g.createdAt),
+  });
+  const refreshHistory = useRefreshHistory(TOOL);
+  const deleteVideo = useDeleteFromHistory({
+    tool: TOOL,
+    path: DELETE_PATH,
+    noun: "video",
+  });
+  const { activeGenerations, submit, dismiss } = useVideoGeneration({
+    onSettled: () => void refreshHistory(),
+  });
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const [selectedGeneration, setSelectedGeneration] =
-    useState<CardGeneration | null>(null);
+  const items = useMemo<VideoItem[]>(() => {
+    const historyIds = new Set(history.items.map((g) => g.id));
+    const activeById = new Map(activeGenerations.map((g) => [g.id, g]));
 
-  const completedIds = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    for (const gen of activeGenerations) {
-      if (gen.status === "COMPLETED" && !completedIds.current.has(gen.id)) {
-        completedIds.current.add(gen.id);
-        queryClient.invalidateQueries({
-          queryKey: generationQueryKeys.lists(),
-        });
-        break;
-      }
-    }
-  }, [activeGenerations, queryClient]);
+    const fromActive = activeGenerations
+      .filter((g) => !historyIds.has(g.id))
+      .map<VideoItem>((g) => ({
+        id: g.id,
+        status: g.status,
+        prompt: g.prompt,
+        mediaType: "video",
+        url: g.outputAsset?.url ?? null,
+        thumbnailUrl: g.thumbnailAsset?.url ?? null,
+        error: g.error ?? null,
+        local: g.id.startsWith("temp-"),
+        model: g.model,
+        createdAt: g.createdAt,
+      }));
 
-  const activeIds = new Set(activeGenerations.map((g) => g.id));
-  const historyGenerations = generations.filter((g) => !activeIds.has(g.id));
+    const fromHistory = history.items.map<VideoItem>((g) => {
+      const active = activeById.get(g.id);
+      return {
+        id: g.id,
+        status: active?.status ?? g.status,
+        prompt: g.prompt,
+        mediaType: "video",
+        url: active?.outputAsset?.url ?? g.outputAsset?.url ?? null,
+        thumbnailUrl:
+          active?.thumbnailAsset?.url ?? g.thumbnailAsset?.url ?? null,
+        error: active?.error ?? g.error ?? null,
+        model: g.model,
+        duration: g.duration,
+        ratio: g.ratio,
+        credits: g.creditsUsed,
+        createdAt: g.createdAt,
+      };
+    });
 
-  const isEmpty =
-    activeGenerations.length === 0 &&
-    historyGenerations.length === 0 &&
-    !isLoading;
+    return [...fromActive, ...fromHistory];
+  }, [activeGenerations, history.items]);
+
+  const selected = items.find((item) => item.id === selectedId) ?? null;
+
+  const handleDelete = (id: string) => {
+    dismiss(id);
+    deleteVideo.mutate(id);
+  };
 
   return (
-    <>
-      <div className="flex-1 overflow-auto">
-        {isLoading && historyGenerations.length === 0 && activeGenerations.length === 0 ? (
-          <div className="grid grid-cols-2 gap-3 p-3 pb-44 sm:grid-cols-3 sm:p-5 sm:pb-52">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={`init-skeleton-${i}`} className="aspect-video" />
-            ))}
-          </div>
-        ) : isEmpty ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center text-muted-foreground">
-            <span className="text-sm">No videos yet. Start generating!</span>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 p-3 pb-44 sm:grid-cols-3 sm:p-5 sm:pb-52">
-            {activeGenerations.map((gen) => {
-              const card: CardGeneration = {
-                ...gen,
-                outputUrl: gen.outputAsset?.url ?? null,
-                thumbnailUrl: gen.thumbnailAsset?.url ?? null,
-                error: gen.error ?? null,
-              };
-              return (
-                <VideoCard
-                  key={gen.id}
-                  generation={card}
-                  displayMode="asset"
-                  onClick={() => setSelectedGeneration(card)}
-                  onDelete={(id) => deleteGeneration.mutate(id)}
-                />
-              );
-            })}
-            {historyGenerations.map((gen) => {
-              const card: CardGeneration = {
-                id: gen.id,
-                status: gen.status,
-                model: gen.model,
-                prompt: gen.prompt,
-                outputUrl: gen.outputAsset?.url ?? null,
-                thumbnailUrl: gen.thumbnailAsset?.url ?? null,
-                error: gen.error ?? null,
-                duration: gen.duration,
-                ratio: gen.ratio,
-                createdAt: gen.createdAt,
-              };
-              return (
-                <VideoCard
-                  key={gen.id}
-                  generation={card}
-                  displayMode="asset"
-                  onClick={() => setSelectedGeneration(card)}
-                  onDelete={(id) => deleteGeneration.mutate(id)}
-                />
-              );
-            })}
-            {isLoading &&
-              Array.from({ length: 8 }).map((_, i) => (
-                <Skeleton key={`skeleton-${i}`} className="aspect-video" />
-              ))}
-          </div>
+    <ToolPage dock={<VideoPromptForm onSubmit={submit} />}>
+      <ToolResults
+        items={items}
+        getKey={(item) => item.id}
+        history={history}
+        shape="square"
+        aspectClassName="aspect-square"
+        plural="videos"
+        empty={{
+          icon: VideoCamera,
+          title: "No videos yet",
+          description:
+            "Describe a video below. Finished videos show up here and in Files.",
+        }}
+        renderItem={(item) => (
+          <MediaResultCard
+            result={item}
+            noun="video"
+            aspectClassName="aspect-square"
+            onOpen={() => setSelectedId(item.id)}
+            onDelete={handleDelete}
+            onDismiss={dismiss}
+          />
         )}
-      </div>
-
-      <VideoDetailDialog
-        generation={selectedGeneration}
-        open={selectedGeneration !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelectedGeneration(null);
-        }}
-        onDelete={(id) => {
-          deleteGeneration.mutate(id);
-          setSelectedGeneration(null);
-        }}
       />
 
-      <VideoPromptForm onSubmit={submit} />
-    </>
+      <MediaResultDialog
+        result={selected}
+        noun="video"
+        title="Video"
+        createdAt={selected?.createdAt}
+        details={
+          selected
+            ? detailRows([
+                { label: "Model", value: videoModelLabel(selected.model) },
+                {
+                  label: "Duration",
+                  value: selected.duration ? `${selected.duration}s` : null,
+                },
+                { label: "Aspect ratio", value: selected.ratio },
+                { label: "Credits", value: formatCredits(selected.credits) },
+              ])
+            : []
+        }
+        open={selected !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedId(null);
+        }}
+        onDelete={handleDelete}
+      />
+    </ToolPage>
   );
 }

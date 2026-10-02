@@ -12,4 +12,7 @@ router.post(
   controller.createSignedUrl.bind(controller),
 );
 
+// Authenticated: import files from a link, Dropbox, Google Drive or OneDrive.
+router.post("/import", requireAuth, controller.importFiles.bind(controller));
+
 export default router;

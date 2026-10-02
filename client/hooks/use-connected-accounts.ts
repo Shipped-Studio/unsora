@@ -1,48 +1,92 @@
-import { useQuery } from "@tanstack/react-query";
-import { useAuthFetch } from "./use-auth-fetch";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { useApi } from "./use-api";
+import { platformName } from "@/lib/scheduler/formats";
+import type { ConnectedAccount } from "@/lib/scheduler/types";
 
-export interface ConnectedAccount {
-  id: string;
-  provider: string;
-  providerAccountId: string;
-  accountName: string | null;
-  accountUsername: string | null;
-  profilePicture: string | null;
-  expiresAt: string | null;
-}
-
-interface ConnectedAccountsResponse {
-  success: boolean;
-  data: ConnectedAccount[];
-  error?: string;
-}
+export type { ConnectedAccount };
 
 export const connectedAccountsQueryKeys = {
   all: ["connected-accounts"] as const,
   list: () => [...connectedAccountsQueryKeys.all, "list"] as const,
+  pinterestBoards: (accountId: string) =>
+    [...connectedAccountsQueryKeys.all, "pinterest-boards", accountId] as const,
 };
 
 export function useConnectedAccounts() {
-  const { authFetch } = useAuthFetch();
-
+  const api = useApi();
   return useQuery({
     queryKey: connectedAccountsQueryKeys.list(),
-    queryFn: async (): Promise<ConnectedAccount[]> => {
-      const response = await authFetch("/api/connect/accounts");
+    queryFn: () => api<ConnectedAccount[]>("/api/connect/accounts"),
+    staleTime: 60_000,
+  });
+}
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch connected accounts");
-      }
-
-      const data: ConnectedAccountsResponse = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || "Failed to fetch connected accounts");
-      }
-
-      return data.data || [];
+/** Starts an OAuth connection and sends the browser to the platform. */
+export function useConnectAccount() {
+  const api = useApi();
+  return useMutation({
+    mutationFn: async ({
+      provider,
+      handle,
+    }: {
+      provider: string;
+      handle?: string;
+    }) => {
+      const params = new URLSearchParams();
+      if (handle) params.set("handle", handle);
+      const query = params.toString();
+      const { authUrl } = await api<{ authUrl: string }>(
+        `/api/connect/${provider}${query ? `?${query}` : ""}`,
+      );
+      if (!authUrl) throw new Error("Couldn't start the connection. Try again.");
+      window.location.href = authUrl;
     },
-    staleTime: 60 * 1000, // 1 minute
-    gcTime: 5 * 60 * 1000, // 5 minutes
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
+export function useRefreshAccount() {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (accountId: string) =>
+      api(`/api/connect/accounts/${accountId}/refresh`, { method: "POST" }),
+    onSuccess: () => {
+      toast.success("Account refreshed");
+      void queryClient.invalidateQueries({ queryKey: connectedAccountsQueryKeys.all });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
+export function useDisconnectAccount() {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (account: ConnectedAccount) =>
+      api(`/api/connect/accounts/${account.id}`, { method: "DELETE" }),
+    onSuccess: (_, account) => {
+      toast.success(`${platformName(account.provider)} account disconnected`);
+      void queryClient.invalidateQueries({ queryKey: connectedAccountsQueryKeys.all });
+      void queryClient.invalidateQueries({ queryKey: ["posts"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
+export interface PinterestBoard {
+  id: string;
+  name: string;
+  privacy?: string;
+}
+
+export function usePinterestBoards(accountId: string | undefined) {
+  const api = useApi();
+  return useQuery({
+    queryKey: connectedAccountsQueryKeys.pinterestBoards(accountId ?? ""),
+    queryFn: () => api<PinterestBoard[]>(`/api/connect/pinterest/${accountId}/boards`),
+    enabled: Boolean(accountId),
+    staleTime: 5 * 60_000,
   });
 }

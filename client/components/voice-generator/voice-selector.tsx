@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Play, Plus, Stop, UserSound } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -11,15 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { VoiceCloneDialog } from "@/components/voice-generator/voice-clone-dialog";
-import {
-  useVoiceClones,
-  type ElevenV3Voice,
-  type VoiceClone,
-  type VoicePreset,
-} from "@/hooks/use-voice-clones";
+import { useVoiceClones } from "@/hooks/use-voice-clones";
 
 /** Play/stop toggle for a voice's sample clip. */
 function useVoicePreview() {
@@ -44,7 +39,7 @@ function useVoicePreview() {
       audio.onerror = () => setPlayingUrl(null);
       audioRef.current = audio;
       setPlayingUrl(url);
-      void audio.play().catch(() => setPlayingUrl(null));
+      audio.play().catch(() => setPlayingUrl(null));
     },
     [playingUrl, stop],
   );
@@ -60,8 +55,9 @@ interface VoiceSelectorProps {
   disabled?: boolean;
   label?: string;
   showCloneButton?: boolean;
+  /** Inline toolbar variant without a label, for composer docks. */
   compact?: boolean;
-  /** When true, only show user cloned voices (for voice changer / music vocals). */
+  /** Only list the user's cloned voices (voice changer, music vocals). */
   clonesOnly?: boolean;
 }
 
@@ -74,23 +70,33 @@ export function VoiceSelector({
   compact = false,
   clonesOnly = false,
 }: VoiceSelectorProps) {
+  const triggerId = useId();
   const { catalog, loading, createClone } = useVoiceClones();
   const [cloneOpen, setCloneOpen] = useState(false);
   const { playingUrl, toggle, stop } = useVoicePreview();
 
-  const presets = catalog.presets as VoicePreset[];
-  const elevenV3 = catalog.elevenV3 as ElevenV3Voice[];
-  const clones = catalog.clones as VoiceClone[];
-  const canClone =
-    showCloneButton && catalog.elevenLabsConfigured && !loading;
+  const { presets, elevenV3, clones } = useMemo(
+    () => ({
+      presets: clonesOnly ? [] : catalog.presets,
+      elevenV3: clonesOnly ? [] : catalog.elevenV3,
+      clones: catalog.clones,
+    }),
+    [catalog, clonesOnly],
+  );
+  const canClone = showCloneButton && catalog.elevenLabsConfigured && !loading;
 
-  const displayPresets = clonesOnly ? [] : presets;
-  const displayElevenV3 = clonesOnly ? [] : elevenV3;
-  const displayClones = clones;
+  const voiceItems = useMemo(
+    () => [
+      ...elevenV3.map((voice) => ({ value: voice.id, label: voice.label })),
+      ...presets.map((voice) => ({ value: voice.id, label: voice.label })),
+      ...clones.map((clone) => ({ value: clone.id, label: clone.name })),
+    ],
+    [elevenV3, presets, clones],
+  );
 
   const selectedVoice = useMemo(
-    () => elevenV3.find((v) => v.id === value) ?? null,
-    [elevenV3, value],
+    () => catalog.elevenV3.find((v) => v.id === value) ?? null,
+    [catalog.elevenV3, value],
   );
   const previewUrl = selectedVoice?.previewUrl ?? null;
   const isPreviewPlaying = previewUrl !== null && playingUrl === previewUrl;
@@ -103,150 +109,139 @@ export function VoiceSelector({
     [onChange, stop],
   );
 
-  if (clonesOnly && !loading && displayClones.length === 0) {
+  const cloneDialog = (
+    <VoiceCloneDialog
+      open={cloneOpen}
+      onOpenChange={setCloneOpen}
+      cloneCreditCost={catalog.cloneCreditCost}
+      maxClones={catalog.maxClones}
+      currentCloneCount={clones.length}
+      onCreate={async (params) => {
+        const clone = await createClone(params);
+        onChange(clone.id);
+      }}
+    />
+  );
+
+  if (clonesOnly && !loading && clones.length === 0) {
     return (
       <>
         <div className={compact ? "min-w-0 flex-1" : "space-y-2"}>
-          {!compact && <Label className="text-xs">{label}</Label>}
+          {!compact ? <p className="text-sm font-medium">{label}</p> : null}
           <p className="text-xs text-muted-foreground">
-            Create a voice clone first to use this feature.
+            You don&apos;t have a cloned voice yet.
           </p>
-          {canClone && (
+          {canClone ? (
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className="mt-2"
               onClick={() => setCloneOpen(true)}
             >
-              <Plus className="size-4" />
-              Clone your voice
+              <Plus />
+              Clone a voice
             </Button>
-          )}
+          ) : null}
         </div>
-        <VoiceCloneDialog
-          open={cloneOpen}
-          onOpenChange={setCloneOpen}
-          cloneCreditCost={catalog.cloneCreditCost}
-          maxClones={catalog.maxClones}
-          currentCloneCount={clones.length}
-          onCreate={async (params) => {
-            const clone = await createClone(params);
-            onChange(clone.id);
-          }}
-        />
+        {cloneDialog}
       </>
     );
   }
 
   return (
     <>
-      <div className={compact ? "flex min-w-0 flex-1 items-center gap-1.5" : "space-y-2"}>
-        {!compact && <Label className="text-xs">{label}</Label>}
-        <div className={compact ? "flex min-w-0 flex-1 items-center gap-1.5" : "flex gap-2"}>
+      <div className={compact ? "flex min-w-0 items-center gap-1.5" : "space-y-2"}>
+        {!compact ? <Label htmlFor={triggerId}>{label}</Label> : null}
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <Select
+            items={voiceItems}
             value={value}
             onValueChange={(v) => v && handleChange(v)}
             disabled={disabled || loading}
           >
-            <SelectTrigger className={compact ? "min-w-0 flex-1" : "w-full max-w-full"}>
-              {compact ? (
-                <UserSound className="size-3.5 shrink-0" weight="fill" />
-              ) : null}
-              <SelectValue placeholder={loading ? "Loading voices…" : "Select voice"} />
+            <SelectTrigger
+              id={triggerId}
+              aria-label={compact ? label : undefined}
+              size={compact ? "sm" : "default"}
+              className={compact ? "min-w-0 max-w-48" : "min-w-0 flex-1"}
+            >
+              {compact ? <UserSound className="text-muted-foreground" /> : null}
+              <SelectValue
+                placeholder={loading ? "Loading voices" : "Choose a voice"}
+              />
             </SelectTrigger>
             <SelectContent>
-              {displayElevenV3.length > 0 && (
+              {elevenV3.length > 0 ? (
                 <SelectGroup>
                   <SelectLabel>ElevenLabs voices</SelectLabel>
-                  {displayElevenV3.map((opt) => (
-                    <SelectItem key={opt.id} value={opt.id}>
-                      {opt.label}
-                      <span className="ml-1 text-[10px] text-muted-foreground">
-                        {opt.gender} · {opt.accent}
+                  {elevenV3.map((voice) => (
+                    <SelectItem key={voice.id} value={voice.id}>
+                      {voice.label}
+                      <span className="text-xs text-muted-foreground">
+                        {voice.gender} · {voice.accent}
                       </span>
                     </SelectItem>
                   ))}
                 </SelectGroup>
-              )}
-              {displayPresets.length > 0 && (
+              ) : null}
+              {presets.length > 0 ? (
                 <SelectGroup>
                   <SelectLabel>Built-in voices</SelectLabel>
-                  {displayPresets.map((opt) => (
-                    <SelectItem key={opt.id} value={opt.id}>
-                      {opt.label}
+                  {presets.map((voice) => (
+                    <SelectItem key={voice.id} value={voice.id}>
+                      {voice.label}
                     </SelectItem>
                   ))}
                 </SelectGroup>
-              )}
-              {displayClones.length > 0 && (
+              ) : null}
+              {clones.length > 0 ? (
                 <SelectGroup>
-                  <SelectLabel>
-                    {clonesOnly ? "Cloned voices" : "Your cloned voices"}
-                  </SelectLabel>
-                  {displayClones.map((clone) => (
+                  <SelectLabel>Your cloned voices</SelectLabel>
+                  {clones.map((clone) => (
                     <SelectItem key={clone.id} value={clone.id}>
                       {clone.name}
                     </SelectItem>
                   ))}
                 </SelectGroup>
-              )}
+              ) : null}
             </SelectContent>
           </Select>
 
-          {previewUrl && (
+          {previewUrl ? (
             <Button
               type="button"
               variant="outline"
               size={compact ? "icon-sm" : "icon"}
-              className="shrink-0"
               disabled={disabled}
               onClick={() => toggle(previewUrl)}
-              title={
-                isPreviewPlaying ? "Stop preview" : "Preview this voice"
-              }
+              aria-label={isPreviewPlaying ? "Stop preview" : "Preview voice"}
             >
-              {isPreviewPlaying ? (
-                <Stop className="size-4" weight="fill" />
-              ) : (
-                <Play className="size-4" weight="fill" />
-              )}
+              {isPreviewPlaying ? <Stop weight="fill" /> : <Play weight="fill" />}
             </Button>
-          )}
+          ) : null}
 
-          {canClone && (
+          {canClone ? (
             <Button
               type="button"
               variant="outline"
-              size={compact ? "icon-sm" : "sm"}
-              className={compact ? "shrink-0" : "shrink-0"}
+              size={compact ? "icon-sm" : "default"}
               disabled={disabled}
               onClick={() => setCloneOpen(true)}
-              title="Clone your voice"
+              aria-label={compact ? "Clone a voice" : undefined}
             >
-              <Plus className="size-4" />
-              {!compact && <span className="ml-1">Clone</span>}
+              <Plus />
+              {compact ? null : "Clone"}
             </Button>
-          )}
+          ) : null}
         </div>
-        {!compact && selectedVoice && (
-          <p className="text-[11px] leading-snug text-muted-foreground">
+        {!compact && selectedVoice?.description ? (
+          <p className="text-xs text-muted-foreground">
             {selectedVoice.description}
           </p>
-        )}
+        ) : null}
       </div>
 
-      <VoiceCloneDialog
-        open={cloneOpen}
-        onOpenChange={setCloneOpen}
-        cloneCreditCost={catalog.cloneCreditCost}
-        maxClones={catalog.maxClones}
-        currentCloneCount={clones.length}
-        onCreate={async (params) => {
-          const clone = await createClone(params);
-          onChange(clone.id);
-        }}
-      />
+      {cloneDialog}
     </>
   );
 }

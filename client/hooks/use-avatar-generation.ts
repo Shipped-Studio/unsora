@@ -26,6 +26,11 @@ export interface ActiveAvatarGeneration {
 const POLL_INTERVAL_MS = 5_000;
 const AUTO_DISMISS_DELAY_MS = 2_000;
 
+export const avatarGenerationQueryKeys = {
+  all: ["avatar-generations"] as const,
+  list: () => [...avatarGenerationQueryKeys.all, "list"] as const,
+};
+
 export function useAvatarGeneration(options?: {
   onComplete?: (id: string) => void;
 }) {
@@ -37,7 +42,9 @@ export function useAvatarGeneration(options?: {
     new Map(),
   );
   const onCompleteRef = useRef(options?.onComplete);
-  onCompleteRef.current = options?.onComplete;
+  useEffect(() => {
+    onCompleteRef.current = options?.onComplete;
+  });
   const tempIdCounter = useRef(0);
 
   const stopPolling = useCallback((generationId: string) => {
@@ -79,7 +86,7 @@ export function useAvatarGeneration(options?: {
           if (gen.status === "COMPLETED" || gen.status === "FAILED") {
             stopPolling(generationId);
             if (gen.status === "COMPLETED") {
-              toast.success("Avatar video ready!");
+              toast.success("Avatar video ready");
               onCompleteRef.current?.(generationId);
               setTimeout(() => {
                 setActiveGenerations((prev) =>
@@ -88,12 +95,14 @@ export function useAvatarGeneration(options?: {
               }, AUTO_DISMISS_DELAY_MS);
             } else {
               toast.error(
-                `Generation failed: ${gen.error || "Unknown error"}`,
+                gen.error
+                  ? `Couldn't make the avatar video. ${gen.error}`
+                  : "Couldn't make the avatar video. Try again.",
               );
             }
           }
         } catch {
-          // keep polling
+          // A dropped poll is retried on the next tick.
         }
       }, POLL_INTERVAL_MS);
 
@@ -134,7 +143,8 @@ export function useAvatarGeneration(options?: {
         const data = await res.json();
 
         if (!res.ok || !data.success) {
-          const errorMsg = data.error || "Failed to start generation";
+          const errorMsg =
+            data.error || "Couldn't start the avatar video. Try again.";
           setActiveGenerations((prev) =>
             prev.map((g) =>
               g.id === tempId
@@ -165,11 +175,17 @@ export function useAvatarGeneration(options?: {
         setActiveGenerations((prev) =>
           prev.map((g) =>
             g.id === tempId
-              ? { ...g, status: "FAILED" as const, error: "Network error" }
+              ? {
+                  ...g,
+                  status: "FAILED" as const,
+                  error: "Couldn't reach the server.",
+                }
               : g,
           ),
         );
-        toast.error("Network error — please try again");
+        toast.error(
+          "Couldn't reach the server. Check your connection and try again.",
+        );
         return null;
       }
     },

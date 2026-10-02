@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useAuthFetch } from "@/hooks/use-auth-fetch";
+import { useCallback, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useAuthFetch } from "@/hooks/use-auth-fetch";
+import { assertOk, usePollIds } from "@/hooks/use-paged-list";
 
 export type ClippingStatus = "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
 
@@ -53,98 +55,81 @@ export interface AIClippingJob {
 
 const POLL_INTERVAL_MS = 5_000;
 
-function isActiveStatus(status: string) {
+export const aiClippingQueryKeys = {
+  all: ["ai-clippings"] as const,
+  list: () => [...aiClippingQueryKeys.all, "list"] as const,
+};
+
+export function isClippingActive(status: string) {
   return status === "QUEUED" || status === "PROCESSING";
 }
 
+/** Clipping jobs with their clips; active jobs are refreshed until done. */
 export function useAiClippings() {
   const { authFetch } = useAuthFetch();
-  const [jobs, setJobs] = useState<AIClippingJob[]>([]);
-  const [loading, setLoading] = useState(true);
-  const pollTimers = useRef<Map<string, ReturnType<typeof setInterval>>>(
-    new Map(),
-  );
+  const queryClient = useQueryClient();
+  const queryKey = aiClippingQueryKeys.list();
 
-  const stopPolling = useCallback((jobId: string) => {
-    const timer = pollTimers.current.get(jobId);
-    if (timer) {
-      clearInterval(timer);
-      pollTimers.current.delete(jobId);
-    }
-  }, []);
-
-  const startPolling = useCallback(
-    (jobId: string) => {
-      if (pollTimers.current.has(jobId)) return;
-
-      const timer = setInterval(async () => {
-        try {
-          const res = await authFetch(`/api/clippings/refresh/${jobId}`);
-          if (!res.ok) return;
-
-          const data = await res.json();
-          if (!data.success || !data.data) return;
-
-          const job = data.data as AIClippingJob;
-          setJobs((prev) =>
-            prev.map((j) => (j.id === jobId ? { ...j, ...job } : j)),
-          );
-
-          if (job.status === "COMPLETED") {
-            stopPolling(jobId);
-            toast.success(
-              `Clipping complete · ${job.clips.length} clip${job.clips.length === 1 ? "" : "s"}`,
-            );
-          } else if (job.status === "FAILED") {
-            stopPolling(jobId);
-            toast.error(job.error || "Clipping failed");
-          }
-        } catch {
-          // keep polling on network errors
-        }
-      }, POLL_INTERVAL_MS);
-
-      pollTimers.current.set(jobId, timer);
-    },
-    [authFetch, stopPolling],
-  );
-
-  const fetchJobs = useCallback(async () => {
-    try {
+  const query = useQuery({
+    queryKey,
+    queryFn: async (): Promise<AIClippingJob[]> => {
       const res = await authFetch("/api/clippings/all");
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !body?.success || !Array.isArray(body.data)) {
+        throw new Error(
+          body?.error || "Couldn't load your clipping jobs. Try again.",
+        );
+      }
+      return body.data as AIClippingJob[];
+    },
+  });
+
+  const jobs = useMemo(() => query.data ?? [], [query.data]);
+
+  const updateJobs = useCallback(
+    (fn: (jobs: AIClippingJob[]) => AIClippingJob[]) => {
+      queryClient.setQueryData<AIClippingJob[]>(
+        aiClippingQueryKeys.list(),
+        (prev) => fn(prev ?? []),
+      );
+    },
+    [queryClient],
+  );
+
+  usePollIds(
+    jobs.filter((job) => isClippingActive(job.status)).map((job) => job.id),
+    async (jobId) => {
+      const res = await authFetch(`/api/clippings/refresh/${jobId}`);
       if (!res.ok) return;
+      const body = await res.json();
+      if (!body?.success || !body.data) return;
 
-      const data = await res.json();
-      if (!data.success || !Array.isArray(data.data)) return;
+      const job = body.data as AIClippingJob;
+      updateJobs((prev) =>
+        prev.map((j) => (j.id === jobId ? { ...j, ...job } : j)),
+      );
 
-      const fetched = data.data as AIClippingJob[];
-      setJobs(fetched);
-
-      fetched.forEach((job) => {
-        if (isActiveStatus(job.status)) {
-          startPolling(job.id);
-        }
-      });
-    } catch {
-      setJobs([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [authFetch, startPolling]);
-
-  const refresh = useCallback(() => {
-    setLoading(true);
-    fetchJobs();
-  }, [fetchJobs]);
+      if (job.status === "COMPLETED") {
+        const count = job.clips?.length ?? 0;
+        toast.success(
+          count === 1 ? "Found 1 clip" : `Found ${count} clips`,
+        );
+      } else if (job.status === "FAILED") {
+        toast.error(
+          job.error
+            ? `Couldn't clip the video. ${job.error}`
+            : "Couldn't clip the video. Try again.",
+        );
+      }
+    },
+    POLL_INTERVAL_MS,
+  );
 
   const prependJob = useCallback(
     (job: AIClippingJob) => {
-      setJobs((prev) => [job, ...prev.filter((j) => j.id !== job.id)]);
-      if (isActiveStatus(job.status)) {
-        startPolling(job.id);
-      }
+      updateJobs((prev) => [job, ...prev.filter((j) => j.id !== job.id)]);
     },
-    [startPolling],
+    [updateJobs],
   );
 
   const deleteJob = useCallback(
@@ -153,44 +138,33 @@ export function useAiClippings() {
         const res = await authFetch(`/api/clippings/${jobId}`, {
           method: "DELETE",
         });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || "Failed to delete job");
-        }
-
-        stopPolling(jobId);
-        setJobs((prev) => prev.filter((j) => j.id !== jobId));
-        toast.success("Clipping job deleted");
+        await assertOk(res, "Couldn't delete the job. Try again.");
+        updateJobs((prev) => prev.filter((j) => j.id !== jobId));
+        toast.success("Job deleted");
         return true;
       } catch (error) {
         toast.error(
-          error instanceof Error ? error.message : "Failed to delete job",
+          error instanceof Error
+            ? error.message
+            : "Couldn't delete the job. Try again.",
         );
         return false;
       }
     },
-    [authFetch, stopPolling],
+    [authFetch, updateJobs],
   );
 
   const deleteClip = useCallback(
     async (jobId: string, clipId: string) => {
       try {
-        const res = await authFetch(
-          `/api/clippings/${jobId}/clips/${clipId}`,
-          { method: "DELETE" },
-        );
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || "Failed to delete clip");
-        }
-
-        setJobs((prev) =>
+        const res = await authFetch(`/api/clippings/${jobId}/clips/${clipId}`, {
+          method: "DELETE",
+        });
+        await assertOk(res, "Couldn't delete the clip. Try again.");
+        updateJobs((prev) =>
           prev.map((job) =>
             job.id === jobId
-              ? {
-                  ...job,
-                  clips: job.clips.filter((clip) => clip.id !== clipId),
-                }
+              ? { ...job, clips: job.clips.filter((c) => c.id !== clipId) }
               : job,
           ),
         );
@@ -198,33 +172,25 @@ export function useAiClippings() {
         return true;
       } catch (error) {
         toast.error(
-          error instanceof Error ? error.message : "Failed to delete clip",
+          error instanceof Error
+            ? error.message
+            : "Couldn't delete the clip. Try again.",
         );
         return false;
       }
     },
-    [authFetch],
+    [authFetch, updateJobs],
   );
-
-  useEffect(() => {
-    fetchJobs();
-  }, [fetchJobs]);
-
-  useEffect(() => {
-    const timers = pollTimers.current;
-    return () => {
-      timers.forEach((timer) => clearInterval(timer));
-    };
-  }, []);
 
   return {
     jobs,
-    loading,
-    refresh,
+    isLoading: query.isPending,
+    // A failed background refetch keeps showing the jobs we already have.
+    error: query.data === undefined ? query.error : null,
+    refetch: query.refetch,
     prependJob,
     deleteJob,
     deleteClip,
-    stopPolling,
   };
 }
 

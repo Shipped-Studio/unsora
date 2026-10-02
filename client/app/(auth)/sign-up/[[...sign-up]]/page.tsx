@@ -1,26 +1,19 @@
-"use client";
+import type { Metadata } from "next";
+import { Suspense } from "react";
+import { SignUpForm } from "./sign-up-form";
 
-import Link from "next/link";
-import { SignUp } from "@clerk/nextjs";
-import { ArrowRight, Check } from "@phosphor-icons/react";
-import { useClerkAppearance } from "../../_components/clerk-appearance";
-
-const PERKS = [
-  "Free credits to try every tool",
-  "Sora 2, Veo 3 & Kling 2 in one place",
-  "Upscale, dub, and edit in your browser",
-];
+export const metadata: Metadata = {
+  title: "Create your account",
+  description:
+    "Create an Unsora account to schedule posts across Instagram, TikTok, YouTube, LinkedIn and more.",
+  // Collapses /sign-up?plan=... duplicates onto one URL.
+  alternates: { canonical: "/sign-up" },
+};
 
 export default function SignUpPage() {
-  const appearance = useClerkAppearance();
-
   return (
-    <div className="space-y-6">
-      <SignUp
-        appearance={appearance}
-        signInUrl="/sign-in"
-        fallbackRedirectUrl="/"
-      />
-    </div>
+    <Suspense>
+      <SignUpForm />
+    </Suspense>
   );
 }

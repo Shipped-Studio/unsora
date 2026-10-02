@@ -2,16 +2,18 @@
 
 import { useState } from "react";
 import {
-  ImageSquare,
-  VideoCamera,
-  MusicNotes,
   FileText,
+  ImageSquare,
+  MusicNotes,
+  Play,
 } from "@phosphor-icons/react";
-import { PageHeader } from "@/components/admin/page-header";
+import { AdminPage } from "@/components/admin/admin-page";
 import { Pager } from "@/components/admin/data-table";
+import { EmptyState, ErrorState } from "@/components/shared/states";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useAdminContent, type ContentQuery } from "@/hooks/admin/use-admin-data";
 import { timeAgo } from "@/lib/admin-format";
-import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 const TYPES = [
@@ -22,6 +24,8 @@ const TYPES = [
   { key: "DOCUMENT", label: "Docs" },
 ];
 
+const GRID = "grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6";
+
 export default function AdminContentPage() {
   const [page, setPage] = useState(1);
   const [type, setType] = useState("all");
@@ -31,107 +35,97 @@ export default function AdminContentPage() {
     limit: 48,
     type: type === "all" ? "" : type,
   };
-  const { data, isLoading, isFetching } = useAdminContent(query);
+  const { data, isLoading, isFetching, error, refetch } = useAdminContent(query);
 
   const countFor = (t: string) =>
     data?.typeCounts.find((c) => c.type === t)?.count ?? 0;
 
   return (
-    <div>
-      <PageHeader
-        title="Content"
-        description="What users are actually generating — the media they produce."
-      />
+    <AdminPage title="Content" description="The media users generate and upload">
+      <ToggleGroup
+        variant="outline"
+        size="sm"
+        spacing={0}
+        aria-label="Media type"
+        value={[type]}
+        onValueChange={(next) => {
+          if (!next[0]) return;
+          setType(String(next[0]));
+          setPage(1);
+        }}
+        className="max-w-full overflow-x-auto no-scrollbar"
+      >
+        {TYPES.map((t) => (
+          <ToggleGroupItem key={t.key} value={t.key} className="gap-1.5">
+            {t.label}
+            {t.key === "all" ? null : (
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {countFor(t.key).toLocaleString()}
+              </span>
+            )}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
 
-      <div className="mb-4 flex flex-wrap gap-1.5">
-        {TYPES.map((t) => {
-          const active = type === t.key;
-          const count = t.key === "all" ? undefined : countFor(t.key);
-          return (
-            <button
-              key={t.key}
-              onClick={() => {
-                setType(t.key);
-                setPage(1);
-              }}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
-                active
-                  ? "border-primary/30 bg-primary/10 text-primary"
-                  : "border-border bg-card text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {t.label}
-              {count !== undefined && (
-                <span className="tabular-nums opacity-70">
-                  {count.toLocaleString()}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {isLoading ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+      {error && !data ? (
+        <ErrorState
+          title="Couldn't load content"
+          description={error.message}
+          onRetry={() => void refetch()}
+        />
+      ) : isLoading || !data ? (
+        <div className={GRID}>
           {Array.from({ length: 18 }).map((_, i) => (
             <Skeleton key={i} className="aspect-square rounded-xl" />
           ))}
         </div>
-      ) : data && data.assets.length === 0 ? (
-        <div className="flex h-48 items-center justify-center rounded-xl border border-border bg-card text-sm text-muted-foreground">
-          No content found.
-        </div>
+      ) : data.assets.length === 0 ? (
+        <EmptyState
+          icon={ImageSquare}
+          title="No content found"
+          description="Nothing of this type has been generated or uploaded yet."
+        />
       ) : (
-        <div className={cn(isFetching && "opacity-60 transition-opacity")}>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-            {data?.assets.map((a) => (
+        <div className={cn("space-y-3", isFetching && "opacity-60 transition-opacity")}>
+          <div className={GRID}>
+            {data.assets.map((a) => (
               <a
                 key={a.id}
                 href={a.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-shadow hover:shadow-md"
                 title={a.name}
+                className="flex flex-col overflow-hidden rounded-xl bg-muted transition-colors hover:border-foreground/20"
               >
                 <div className="relative aspect-square overflow-hidden bg-muted">
                   <AssetPreview type={a.type} url={a.url} />
                 </div>
                 <div className="flex flex-col gap-0.5 p-2">
-                  <span className="truncate text-[11px] text-muted-foreground">
-                    {a.user?.email ?? "—"}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground/70">
+                  <span className="truncate text-xs">{a.user?.email ?? "Unknown user"}</span>
+                  <span className="text-xs text-muted-foreground">
                     {timeAgo(a.createdAt)}
                   </span>
                 </div>
               </a>
             ))}
           </div>
-          {data && (
-            <Pager
-              page={data.pagination.page}
-              totalPages={data.pagination.totalPages}
-              total={data.pagination.total}
-              onPage={setPage}
-            />
-          )}
+          <Pager
+            page={data.pagination.page}
+            totalPages={data.pagination.totalPages}
+            total={data.pagination.total}
+            onPage={setPage}
+            disabled={isFetching}
+          />
         </div>
       )}
-    </div>
+    </AdminPage>
   );
 }
 
 function AssetPreview({ type, url }: { type: string; url: string }) {
   if (type === "IMAGE") {
-    // eslint-disable-next-line @next/next/no-img-element
     return (
-      <img
-        src={url}
-        alt=""
-        loading="lazy"
-        className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
-      />
+      <img src={url} alt="" loading="lazy" className="size-full object-cover" />
     );
   }
   if (type === "VIDEO") {
@@ -144,17 +138,16 @@ function AssetPreview({ type, url }: { type: string; url: string }) {
           preload="metadata"
           className="size-full object-cover"
         />
-        <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-          <VideoCamera weight="fill" className="size-7 text-white/90" />
-        </div>
+        <span className="absolute bottom-1.5 left-1.5 flex size-6 items-center justify-center rounded-md bg-background/80 text-foreground">
+          <Play weight="fill" className="size-3" />
+        </span>
       </>
     );
   }
-  const Icon =
-    type === "AUDIO" ? MusicNotes : type === "DOCUMENT" ? FileText : ImageSquare;
+  const Icon = type === "AUDIO" ? MusicNotes : type === "DOCUMENT" ? FileText : ImageSquare;
   return (
     <div className="flex size-full items-center justify-center">
-      <Icon weight="duotone" className="size-8 text-muted-foreground" />
+      <Icon className="size-8 text-muted-foreground" />
     </div>
   );
 }

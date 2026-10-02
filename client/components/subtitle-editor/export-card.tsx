@@ -1,148 +1,253 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
+import { useInView } from "react-intersection-observer";
 import {
-  DownloadSimple,
-  FilmSlate,
-  Trash,
   ArrowSquareOut,
+  DotsThreeVertical,
+  DownloadSimple,
+  Play,
+  Trash,
   WarningCircle,
 } from "@phosphor-icons/react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
-import { Skeleton } from "@/components/ui/skeleton";
-import { getCdnUrl } from "@/lib/video-utils";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
-  StatusBadge,
-  buildDownloadUrl,
-  formatDuration,
-  type ExportListItem,
-} from "./exports-list";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
+import { ScheduleLink } from "@/components/generator/tool-layout";
+import {
+  asSentence,
+  downloadUrl,
+  exportFileName,
+  formatClock,
+  formatDate,
+} from "@/components/subtitle-editor/format";
+import { getExportStatus } from "@/hooks/subtitle/use-subtitle-queries";
+import type { ExportListItem } from "@/hooks/subtitle/use-subtitle-api";
 
-function formatDate(value: Date | string): string {
-  return new Date(value).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+export const EXPORT_GRID_CLASS =
+  "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
+
+function exportMeta(item: ExportListItem): string {
+  return [
+    formatDate(item.createdAt),
+    formatClock(item.duration),
+    item.width && item.height ? `${item.width}×${item.height}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
-interface ExportCardProps {
+/** First frame of the video, loaded once the card scrolls near view. */
+function VideoFrame({ url }: { url: string }) {
+  const { ref, inView } = useInView({ rootMargin: "300px 0px", triggerOnce: true });
+  return (
+    <span ref={ref} className="block size-full">
+      {inView ? (
+        <video
+          src={`${url}#t=0.1`}
+          muted
+          playsInline
+          preload="metadata"
+          className="size-full object-contain"
+        />
+      ) : null}
+    </span>
+  );
+}
+
+export function ExportCard({
+  item,
+  onDelete,
+  showProjectLink = false,
+}: {
   item: ExportListItem;
-  /** Request deletion — the parent shows a confirmation dialog. */
-  onDelete: (id: string) => void;
-}
-
-export function ExportCard({ item, onDelete }: ExportCardProps) {
-  const fileName =
-    typeof item.settings?.fileName === "string" && item.settings.fileName
-      ? (item.settings.fileName as string)
-      : "Export";
-  const outputUrl = item.outputAsset?.url;
-  const isReady = item.status === "completed" && !!outputUrl;
+  onDelete: (item: ExportListItem) => void;
+  /** Adds an "Open project" menu item, for lists that span projects. */
+  showProjectLink?: boolean;
+}) {
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const fileName = exportFileName(item);
+  const status = getExportStatus(item);
+  const url = status === "completed" ? item.outputAsset?.url : undefined;
+  const meta = exportMeta(item);
 
   return (
-    <Card size="sm" className="group gap-0 overflow-hidden rounded-xl py-0">
-      <div className="relative aspect-video w-full overflow-hidden bg-black">
-        {isReady ? (
-          <video
-            src={getCdnUrl(outputUrl!)}
-            controls
-            playsInline
-            preload="metadata"
-            className="h-full w-full object-contain"
-          />
+    <article className="flex flex-col overflow-hidden rounded-xl bg-muted">
+      <div className="relative aspect-video bg-muted">
+        {url ? (
+          <button
+            type="button"
+            onClick={() => setPreviewOpen(true)}
+            aria-label={`Play ${fileName}`}
+            className="group absolute inset-0 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
+          >
+            <VideoFrame url={url} />
+            <span className="absolute inset-0 flex items-center justify-center">
+              <span className="flex size-10 items-center justify-center rounded-full bg-background/90 text-foreground shadow-xs">
+                <Play weight="fill" className="size-4" />
+              </span>
+            </span>
+          </button>
+        ) : status === "failed" || status === "completed" ? (
+          <div className="flex size-full flex-col items-center justify-center gap-2 bg-muted px-4 text-center">
+            <WarningCircle className="size-6 text-destructive" />
+            <p className="text-xs text-muted-foreground">
+              {status === "failed" ? "Render failed" : "Video unavailable"}
+            </p>
+          </div>
         ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-muted/50">
-            {item.status === "failed" ? (
-              <>
-                <WarningCircle className="size-8 text-destructive/70" />
-                <p className="max-w-[90%] truncate text-xs text-destructive">
-                  {item.error || "Export failed"}
-                </p>
-              </>
-            ) : (
-              <>
-                <Spinner className="size-6 text-muted-foreground" />
-                <p className="text-xs text-muted-foreground capitalize">
-                  {item.status || "queued"}...
-                </p>
-              </>
-            )}
+          <div
+            role="status"
+            className="flex size-full flex-col items-center justify-center gap-2 bg-muted"
+          >
+            <Spinner aria-hidden className="size-5 text-muted-foreground" />
+            <p className="text-xs text-muted-foreground">
+              {status === "processing" ? "Rendering" : "Queued"}
+            </p>
           </div>
         )}
       </div>
 
-      <CardContent className="space-y-2 p-3">
-        <div className="flex items-center justify-between gap-2">
-          <p className="truncate text-sm font-medium">{fileName}</p>
-          <StatusBadge status={item.status} />
+      <div className="flex flex-1 flex-col gap-3 p-4">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="truncate text-sm font-medium">{fileName}</p>
+            <p className="truncate text-xs tabular-nums text-muted-foreground">
+              {meta}
+            </p>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="-mt-1 -mr-2"
+                  aria-label={`Actions for ${fileName}`}
+                />
+              }
+            >
+              <DotsThreeVertical />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              {showProjectLink && item.transcription ? (
+                <>
+                  <DropdownMenuItem
+                    render={
+                      <Link href={`/subtitle-editor/${item.transcription.id}`} />
+                    }
+                  >
+                    <ArrowSquareOut />
+                    Open project
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              ) : null}
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => onDelete(item)}
+              >
+                <Trash />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
-        <p className="text-xs text-muted-foreground">
-          {formatDate(item.createdAt)} · {formatDuration(item.duration)}
-          {item.width && item.height ? ` · ${item.width}×${item.height}` : ""}
-        </p>
-
-        {item.transcription && (
-          <Link
-            href={`/subtitle-editor/${item.transcription.id}`}
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-          >
-            <ArrowSquareOut className="size-3" />
-            <span className="truncate">
-              {item.transcription.filename || "Open project"}
-            </span>
-          </Link>
-        )}
-
-        <div className="flex items-center gap-1.5 pt-1">
-          {isReady && (
+        {status === "failed" ? (
+          <>
+            <p className="line-clamp-3 text-xs text-destructive">
+              {item.error
+                ? asSentence(item.error)
+                : "The render failed. Delete it and export again."}
+            </p>
             <Button
               variant="outline"
-              size="xs"
-              className="flex-1 gap-1.5 text-xs"
-              render={<a href={buildDownloadUrl(outputUrl!, fileName)} />}
+              size="sm"
+              className="mt-auto self-start"
+              onClick={() => onDelete(item)}
             >
-              <DownloadSimple className="size-3.5" weight="bold" />
-              Download
+              <Trash />
+              Delete
             </Button>
-          )}
-          <button
-            onClick={() => onDelete(item.id)}
-            className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-          >
-            <Trash className="size-3.5" />
-          </button>
-        </div>
-      </CardContent>
-    </Card>
+          </>
+        ) : null}
+
+        {url ? (
+          <div className="mt-auto flex flex-wrap gap-2">
+            <a
+              href={downloadUrl(url, fileName)}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              <DownloadSimple />
+              Download
+            </a>
+            <ScheduleLink url={url} mediaType="video" />
+          </div>
+        ) : null}
+      </div>
+
+      {url ? (
+        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="truncate pr-8">{fileName}</DialogTitle>
+              <DialogDescription className="tabular-nums">{meta}</DialogDescription>
+            </DialogHeader>
+            <video
+              src={url}
+              controls
+              autoPlay
+              playsInline
+              className="max-h-[65svh] w-full rounded-lg bg-muted"
+            />
+            <DialogFooter>
+              <ScheduleLink url={url} mediaType="video" size="default" />
+              <a
+                href={downloadUrl(url, fileName)}
+                className={buttonVariants()}
+              >
+                <DownloadSimple />
+                Download
+              </a>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+    </article>
   );
 }
 
 export function ExportCardSkeleton() {
   return (
-    <Card size="sm" className="gap-0 overflow-hidden rounded-xl py-0">
-      <Skeleton className="aspect-video w-full rounded-b-none" />
-      <CardContent className="space-y-2 p-3">
-        <Skeleton className="h-4 w-3/4" />
-        <Skeleton className="h-3 w-1/2" />
-        <Skeleton className="h-7 w-full rounded-md" />
-      </CardContent>
-    </Card>
-  );
-}
-
-export function ExportsEmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 py-20 text-center">
-      <FilmSlate className="size-10 text-muted-foreground/40" weight="thin" />
-      <p className="text-sm text-muted-foreground">No exports yet</p>
-      <p className="max-w-xs text-xs text-muted-foreground/70">
-        Export a video from any subtitle project and it will show up here so
-        you can download it anytime.
-      </p>
+    <div className="overflow-hidden rounded-xl bg-muted">
+      <Skeleton className="aspect-video w-full rounded-none" />
+      <div className="space-y-3 p-4">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-2/3" />
+          <Skeleton className="h-3 w-1/2" />
+        </div>
+        <div className="flex gap-2">
+          <Skeleton className="h-8 w-24" />
+          <Skeleton className="h-8 w-24" />
+        </div>
+      </div>
     </div>
   );
 }

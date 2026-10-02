@@ -4,7 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import type { ComponentType } from "react";
 import type { IconProps } from "@phosphor-icons/react";
-import { CaretDown } from "@phosphor-icons/react";
+import { CaretDown, Check } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -16,19 +16,18 @@ import { cn } from "@/lib/utils";
 export interface ModelPickerItem {
   key: string;
   label: string;
-  /** Small line under the label (provider name or short description). */
+  /** Line under the label: the provider name, or a short description. */
   sublabel: string;
-  /** Hover tooltip (full description, price hint). */
+  /** Native tooltip with the full description or price. */
   title?: string;
-  badge?: "Popular" | "New";
   /** Logo image path under /public; takes precedence over `icon`. */
   iconSrc?: string;
   icon?: ComponentType<IconProps>;
 }
 
 interface ModelPickerProps {
-  heading: string;
-  headingIcon: ComponentType<IconProps>;
+  /** Accessible name for the trigger, e.g. "Model" or "Mode". */
+  label: string;
   items: ModelPickerItem[];
   activeKey: string;
   disabled?: boolean;
@@ -36,44 +35,29 @@ interface ModelPickerProps {
   onSelect: (key: string) => void;
 }
 
-function ItemIcon({
-  item,
-  size,
-}: {
-  item: ModelPickerItem;
-  size: "sm" | "lg";
-}) {
-  const px = size === "sm" ? 16 : 20;
+function ItemIcon({ item, size }: { item: ModelPickerItem; size: "sm" | "lg" }) {
+  const className = size === "sm" ? "size-4 shrink-0" : "size-5 shrink-0";
   if (item.iconSrc) {
     return (
       <Image
         src={item.iconSrc}
         alt=""
-        width={px}
-        height={px}
-        className={size === "sm" ? "size-4 shrink-0" : "size-5"}
+        width={size === "sm" ? 16 : 20}
+        height={size === "sm" ? 16 : 20}
+        className={className}
         unoptimized
       />
     );
   }
   if (item.icon) {
-    return (
-      <item.icon
-        className={cn(
-          "shrink-0 text-muted-foreground",
-          size === "sm" ? "size-4" : "size-5",
-        )}
-        weight="fill"
-      />
-    );
+    return <item.icon className={cn(className, "text-muted-foreground")} />;
   }
   return null;
 }
 
-/** Toolbar trigger + popover panel for picking a model or generation mode. */
+/** Composer toolbar trigger plus a popover grid for picking a model or mode. */
 export function ModelPicker({
-  heading,
-  headingIcon: HeadingIcon,
+  label,
   items,
   activeKey,
   disabled = false,
@@ -85,80 +69,70 @@ export function ModelPicker({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger>
-        <Button
-          variant="ghost"
-          disabled={disabled}
-          className="h-8 text-xs gap-1.5 px-2 font-medium"
-        >
-          <ItemIcon item={active} size="sm" />
-          <span className="truncate">{active.label}</span>
-          <CaretDown className="size-3 text-muted-foreground" />
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={disabled}
+            aria-label={`${label}: ${active.label}`}
+            className="font-medium"
+          />
+        }
+      >
+        <ItemIcon item={active} size="sm" />
+        <span className="truncate">{active.label}</span>
+        <CaretDown className="size-3 text-muted-foreground" />
       </PopoverTrigger>
       <PopoverContent
         className={cn(
-          "max-w-[calc(100vw-2rem)] rounded-2xl p-4",
+          "max-w-[calc(100vw-2rem)] gap-2 p-2",
           columns === 3 ? "w-[640px]" : "w-[480px]",
         )}
         side="top"
         align="start"
-        sideOffset={12}
+        sideOffset={8}
       >
-        
+        <p className="px-2 pt-1 text-xs text-muted-foreground">{label}</p>
         <div
+          role="group"
+          aria-label={label}
           className={cn(
-            "grid grid-cols-1 gap-1",
+            "grid max-h-[min(60svh,32rem)] grid-cols-1 gap-1 overflow-y-auto",
             columns === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2",
           )}
         >
           {items.map((item) => {
-            const isActive = item.key === activeKey;
+            const isActive = item.key === active.key;
             return (
               <button
                 key={item.key}
+                type="button"
+                aria-pressed={isActive}
+                title={item.title}
                 onClick={() => {
                   onSelect(item.key);
                   setOpen(false);
                 }}
-                title={item.title}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left transition-colors",
-                  isActive
-                    ? "border-primary/40 bg-primary/5"
-                    : "border-transparent hover:bg-muted",
+                  "flex items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-secondary",
+                  isActive && "bg-muted",
                 )}
               >
-                <span
-                  className={cn(
-                    "flex size-9 shrink-0 items-center justify-center rounded-lg border",
-                    item.iconSrc ? "bg-card" : "bg-muted/50",
-                  )}
-                >
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
                   <ItemIcon item={item} size="lg" />
                 </span>
-                <span className="flex min-w-0 flex-col">
-                  <span className="truncate text-sm font-semibold leading-tight">
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-sm font-medium">
                     {item.label}
                   </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="truncate text-xs text-muted-foreground">
-                      {item.sublabel}
-                    </span>
-                    {item.badge && (
-                      <span
-                        className={cn(
-                          "shrink-0 rounded px-1 py-px text-[8px] font-bold uppercase tracking-wide",
-                          item.badge === "Popular"
-                            ? "bg-warning/15 text-warning"
-                            : "bg-success/15 text-success",
-                        )}
-                      >
-                        {item.badge}
-                      </span>
-                    )}
+                  <span className="truncate text-xs text-muted-foreground">
+                    {item.sublabel}
                   </span>
                 </span>
+                {isActive && (
+                  <Check className="size-4 shrink-0 text-foreground" />
+                )}
               </button>
             );
           })}

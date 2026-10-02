@@ -109,8 +109,13 @@ function parseSimpleMedia(media: unknown): MediaParseResult {
     const parsed = parseMedia(media);
     if (!parsed.ok) return parsed;
     const items = parsed.value ?? [];
-    const postType: PostType =
-      items.length > 1 ? "CAROUSEL" : items[0]?.type === "VIDEO" ? "VIDEO" : "IMAGE";
+    // A cover (THUMBNAIL) rides along with a video; it isn't a carousel item.
+    const content = items.filter((m) => m.type !== "THUMBNAIL");
+    const postType: PostType = content.some((m) => m.type === "VIDEO")
+      ? "VIDEO"
+      : content.length > 1
+        ? "CAROUSEL"
+        : "IMAGE";
     const thumb = items.find((m) => m.type === "THUMBNAIL");
     return {
       ok: true,

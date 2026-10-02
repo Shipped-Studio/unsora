@@ -8,7 +8,6 @@ import {
   useState,
 } from "react";
 import { cn } from "@/lib/utils";
-import { useChartTheme } from "./palette";
 
 export interface AreaSeries {
   key: string;
@@ -16,12 +15,15 @@ export interface AreaSeries {
   color: string;
 }
 
+function val(row: object, key: string): number {
+  return Number((row as Record<string, unknown>)[key]) || 0;
+}
+
 /**
- * Time-series line/area chart with a crosshair + tooltip (an HTML/SVG chart is
- * interactive by default). Supports one or several series, optionally stacked.
- * Recessive gridlines, 2px lines, ≥8px hover markers, a legend for ≥2 series.
+ * Time-series line/area chart with a crosshair and tooltip. One or several
+ * series, optionally stacked. Series colors are CSS values (chart tokens).
  *
- * Generic over the row shape so callers can pass strongly-typed arrays
+ * Generic over the row shape so callers can pass typed arrays
  * (e.g. `{ date, count }[]`); series keys index into each row.
  */
 export function AreaChart<T extends { date: string }>({
@@ -39,9 +41,6 @@ export function AreaChart<T extends { date: string }>({
   valueFormat?: (n: number) => string;
   className?: string;
 }) {
-  const val = (row: T, key: string): number =>
-    Number((row as Record<string, unknown>)[key]) || 0;
-  const theme = useChartTheme();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(640);
   const [hover, setHover] = useState<number | null>(null);
@@ -165,7 +164,7 @@ export function AreaChart<T extends { date: string }>({
               x2={width - padR}
               y1={y(t)}
               y2={y(t)}
-              stroke={theme.grid}
+              className="stroke-border"
               strokeWidth={1}
             />
             <text
@@ -173,8 +172,8 @@ export function AreaChart<T extends { date: string }>({
               y={y(t)}
               textAnchor="end"
               dominantBaseline="middle"
-              fontSize={10}
-              fill={theme.muted}
+              fontSize={11}
+              className="fill-muted-foreground tabular-nums"
             >
               {valueFormat(Math.round(t))}
             </text>
@@ -186,8 +185,8 @@ export function AreaChart<T extends { date: string }>({
           <path
             key={`a-${ser.key}`}
             d={areaPath(ser, si)}
-            fill={ser.color}
-            opacity={stacked ? (theme.isDark ? 0.55 : 0.5) : 0.12}
+            style={{ fill: ser.color }}
+            opacity={stacked ? 0.5 : 0.12}
           />
         ))}
         {/* lines */}
@@ -196,7 +195,7 @@ export function AreaChart<T extends { date: string }>({
             key={`l-${ser.key}`}
             d={linePath(ser, si)}
             fill="none"
-            stroke={ser.color}
+            style={{ stroke: ser.color }}
             strokeWidth={2}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -211,8 +210,8 @@ export function AreaChart<T extends { date: string }>({
               x={x(i)}
               y={height - 6}
               textAnchor="middle"
-              fontSize={10}
-              fill={theme.muted}
+              fontSize={11}
+              className="fill-muted-foreground tabular-nums"
             >
               {fmtDate(row.date)}
             </text>
@@ -227,7 +226,7 @@ export function AreaChart<T extends { date: string }>({
               x2={x(hover)}
               y1={padT}
               y2={padT + innerH}
-              stroke={theme.axis}
+              className="stroke-muted-foreground/40"
               strokeWidth={1}
               strokeDasharray="3 3"
             />
@@ -241,8 +240,8 @@ export function AreaChart<T extends { date: string }>({
                   cx={x(hover)}
                   cy={y(v)}
                   r={4}
-                  fill={ser.color}
-                  stroke={theme.surface}
+                  className="stroke-card"
+                  style={{ fill: ser.color }}
                   strokeWidth={2}
                 />
               );
@@ -293,7 +292,7 @@ function Tooltip({
   const flip = x > width - 160;
   return (
     <div
-      className="pointer-events-none absolute top-2 z-10 min-w-[120px] rounded-lg border border-border bg-popover p-2 text-xs shadow-md"
+      className="pointer-events-none absolute top-2 z-10 min-w-32 rounded-md border bg-popover p-2 text-xs text-popover-foreground shadow-md"
       style={{
         left: flip ? undefined : Math.min(x + 10, width - 140),
         right: flip ? Math.max(width - x + 10, 8) : undefined,
@@ -304,7 +303,7 @@ function Tooltip({
         {rows.map((r) => (
           <div key={r.label} className="flex items-center gap-1.5">
             <span
-              className="size-2 shrink-0 rounded-[2px]"
+              className="size-2 shrink-0 rounded-xs"
               style={{ backgroundColor: r.color }}
             />
             <span className="flex-1 truncate text-muted-foreground">

@@ -1,511 +1,205 @@
-import { useAuthFetch } from "../use-auth-fetch";
-import { TranscriptionData } from "@/remotion/types";
+"use client";
 
-export interface TranscribeRequest {
+import { useMemo } from "react";
+import { useAuthFetch } from "@/hooks/use-auth-fetch";
+import type {
+  EditorSettings,
+  SubtitleChunk,
+  TranscriptionData,
+  VideoExportItem,
+} from "@/remotion/types";
+
+/** Every subtitle endpoint answers `{ success, data?, error? }`. */
+export interface ApiResult<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  /** Only on list endpoints. */
+  pagination?: PaginationMeta;
+  /** HTTP status. 0 when the request never reached the server. */
+  status: number;
+}
+
+export interface PaginationMeta {
+  currentPage: number;
+  totalPages: number;
+  totalCount: number;
+  limit: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+export interface TranscriptionListItem {
+  id: string;
+  /** Not returned by the list endpoint yet; falls back to `filename`. */
+  title?: string | null;
+  videoUrl?: string | null;
+  filename?: string | null;
+  language?: string | null;
+  duration?: number | null;
+  status: string;
+  error?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportListItem extends VideoExportItem {
+  transcription?: {
+    id: string;
+    filename?: string | null;
+    language?: string | null;
+  } | null;
+}
+
+export interface CreateTranscriptionRequest {
   videoUrl: string;
-  maxWordsPerChunk?: number;
   filename?: string;
-  width?: number;
-  height?: number;
-  inputLanguage?: string;
-  outputLanguage?: string;
 }
 
-export interface BatchTranscribeRequest {
-  videos: TranscribeRequest[];
-}
-
-export interface BatchTranscribeResponse {
-  success: boolean;
-  data?: {
-    results: Array<{
-      success: boolean;
-      data?: { id: string; taskId: string; status: string; filename?: string };
-      error?: string;
-      filename?: string;
-    }>;
-    summary: {
-      total: number;
-      successful: number;
-      failed: number;
-    };
-    message: string;
-  };
-  error?: string;
-}
-
-export interface TranscribeResponse {
-  success: boolean;
-  data?: TranscriptionData;
-  error?: string;
+export interface UpdateTranscriptionRequest {
+  title?: string;
+  subtitleChunks?: SubtitleChunk[];
+  editorSettings?: EditorSettings;
+  maxWordsPerChunk?: number;
 }
 
 export interface ExportRequest {
-  transcriptionId?: string;
+  transcriptionId: string;
   videoUrl: string;
-  subtitleChunks: any[];
-  style: any;
+  subtitleChunks: SubtitleChunk[];
+  style: EditorSettings;
   duration: number;
-  fps?: number;
-  width?: number;
-  height?: number;
+  fps: number;
+  width: number;
+  height: number;
 }
 
-export interface ExportResponse {
-  success: boolean;
-  data?: {
-    taskId?: string;
-    message?: string;
-    creditsUsed?: number;
-    creditsRemaining?: number;
-    /** Set on 402 responses so the UI can surface the shortfall. */
-    creditsRequired?: number;
-    creditsAvailable?: number;
+export interface ExportQueued {
+  taskId?: string;
+  creditsUsed?: number;
+  creditsRemaining?: number;
+  /** Set on 402 responses. */
+  creditsRequired?: number;
+  creditsAvailable?: number;
+}
+
+export interface ExportJob {
+  taskId: string;
+  progress: number;
+  status: "processing" | "completed" | "failed";
+  failedReason?: string;
+  result?: {
+    success: boolean;
+    exportId: string;
+    videoUrl?: string;
+    error?: string;
   };
-  error?: string;
 }
 
-export interface ExportJobStatus {
-  success: boolean;
-  data?: {
-    taskId: string;
-    progress: number;
-    status: "processing" | "completed" | "failed";
-    processedOn?: string;
-    finishedOn?: string;
-    failedReason?: string;
-    result?: {
-      success: boolean;
-      exportId: string;
-      videoUrl?: string;
-      error?: string;
+const NETWORK_ERROR =
+  "Couldn't reach the server. Check your connection and try again.";
+
+async function readResult<T>(response: Response): Promise<ApiResult<T>> {
+  const body = (await response.json().catch(() => null)) as {
+    success?: boolean;
+    data?: T;
+    error?: string;
+    pagination?: PaginationMeta;
+  } | null;
+
+  if (!body) {
+    return {
+      success: false,
+      status: response.status,
+      error:
+        response.status === 401
+          ? "Your session expired. Sign in again."
+          : `The server responded with status ${response.status}.`,
     };
+  }
+
+  return {
+    success: Boolean(body.success),
+    data: body.data,
+    error: body.error,
+    pagination: body.pagination,
+    status: response.status,
   };
-  error?: string;
 }
 
+/**
+ * Typed calls for the subtitle editor. The returned object is stable for the
+ * lifetime of the signed-in session, so its functions are safe to use as
+ * effect and callback dependencies.
+ */
 export function useSubtitleApi() {
   const { authFetch } = useAuthFetch();
 
-  /**
-   * Transcribe a video with word-level timestamps
-   */
-  const createSubtitleRecord = async (
-    request: TranscribeRequest,
-  ): Promise<TranscribeResponse> => {
-    try {
-      const response = await authFetch("/api/subtitles/create", {
-        method: "POST",
-        body: JSON.stringify(request),
-      });
-
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error("Create subtitle record error:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Failed to create subtitle record",
-      };
+  return useMemo(() => {
+    async function request<T>(
+      path: string,
+      init?: RequestInit,
+    ): Promise<ApiResult<T>> {
+      try {
+        const response = await authFetch(path, init);
+        return await readResult<T>(response);
+      } catch {
+        return { success: false, status: 0, error: NETWORK_ERROR };
+      }
     }
-  };
 
-  /**
-   * Get a transcription by ID
-   */
-  const getTranscription = async (id: string): Promise<TranscribeResponse> => {
-    try {
-      const response = await authFetch(`/api/subtitles/${id}`, {
-        method: "GET",
-      });
+    const pageQuery = (page: number, limit: number) =>
+      new URLSearchParams({ page: String(page), limit: String(limit) });
 
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error("Get transcription error:", error);
-      return {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to get transcription",
-      };
-    }
-  };
+    return {
+      /** Creates a draft project for an uploaded video. */
+      createTranscription: (body: CreateTranscriptionRequest) =>
+        request<{ id: string; status: string; filename?: string }>(
+          "/api/subtitles/create",
+          { method: "POST", body: JSON.stringify(body) },
+        ),
 
-  /**
-   * Get transcription status by ID
-   */
-  const getTranscriptionStatus = async (
-    id: string,
-  ): Promise<{
-    success: boolean;
-    data?: { id: string; status: string; error?: string; progress: number };
-    error?: string;
-  }> => {
-    try {
-      const response = await authFetch(`/api/subtitles/${id}/status`, {
-        method: "GET",
-      });
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error("Get transcription status error:", error);
-      return {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to get transcription status",
-      };
-    }
-  };
+      /** Queues transcription for a draft project. */
+      startTranscription: (
+        id: string,
+        options: { language?: string; maxWordsPerChunk?: number } = {},
+      ) =>
+        request<{ id: string; taskId: string; status: string }>(
+          `/api/subtitles/${id}/start`,
+          { method: "POST", body: JSON.stringify(options) },
+        ),
 
-  /**
-   * Update subtitle chunks with new maxWordsPerChunk
-   */
-  const updateSubtitleChunks = async (
-    id: string,
-    maxWordsPerChunk: number,
-  ): Promise<TranscribeResponse> => {
-    try {
-      const response = await authFetch(`/api/subtitles/${id}/chunks`, {
-        method: "PUT",
-        body: JSON.stringify({ maxWordsPerChunk }),
-      });
+      getTranscription: (id: string) =>
+        request<TranscriptionData>(`/api/subtitles/${id}`),
 
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error("Update chunks error:", error);
-      return {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Failed to update chunks",
-      };
-    }
-  };
+      updateTranscription: (id: string, body: UpdateTranscriptionRequest) =>
+        request<TranscriptionData>(`/api/subtitles/${id}`, {
+          method: "PUT",
+          body: JSON.stringify(body),
+        }),
 
-  /**
-   * Get all user transcriptions
-   */
-  const getUserTranscriptions = async (
-    page: number = 1,
-    limit: number = 12,
-  ): Promise<{
-    success: boolean;
-    data?: any[];
-    pagination?: any;
-    error?: string;
-  }> => {
-    try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: limit.toString(),
-      });
+      deleteTranscription: (id: string) =>
+        request<unknown>(`/api/subtitles/${id}`, { method: "DELETE" }),
 
-      const response = await authFetch(`/api/subtitles?${params}`, {
-        method: "GET",
-      });
+      getUserTranscriptions: (page: number, limit: number) =>
+        request<TranscriptionListItem[]>(
+          `/api/subtitles?${pageQuery(page, limit)}`,
+        ),
 
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error("Get user transcriptions error:", error);
-      return {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to get transcriptions",
-      };
-    }
-  };
+      createExport: (body: ExportRequest) =>
+        request<ExportQueued>("/api/exports", {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
 
-  const createExport = async (
-    request: ExportRequest,
-  ): Promise<ExportResponse> => {
-    try {
-      const response = await authFetch("/api/exports", {
-        method: "POST",
-        body: JSON.stringify(request),
-      });
+      getExportJobStatus: (taskId: string) =>
+        request<ExportJob>(`/api/exports/job/${taskId}`),
 
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error("Export error:", error);
-      return {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Failed to queue export job",
-      };
-    }
-  };
+      getUserExports: (page: number, limit: number) =>
+        request<ExportListItem[]>(`/api/exports?${pageQuery(page, limit)}`),
 
-  const getExportJobStatus = async (
-    taskId: string,
-  ): Promise<ExportJobStatus> => {
-    try {
-      const response = await authFetch(`/api/exports/job/${taskId}`, {
-        method: "GET",
-      });
-
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error("Get export job status error:", error);
-      return {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to get export job status",
-      };
-    }
-  };
-
-  const getExport = async (
-    id: string,
-  ): Promise<{ success: boolean; data?: any; error?: string }> => {
-    try {
-      const response = await authFetch(`/api/exports/${id}`, {
-        method: "GET",
-      });
-
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error("Get export error:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Failed to get export",
-      };
-    }
-  };
-
-  const getTranscriptionById = async (
-    id: string,
-  ): Promise<{ success: boolean; data?: any; error?: string }> => {
-    try {
-      const response = await authFetch(`/api/subtitles/${id}`, {
-        method: "GET",
-      });
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error("Get transcription by id error:", error);
-      return {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to get transcription by id",
-      };
-    }
-  };
-
-  const deleteExport = async (
-    id: string,
-  ): Promise<{ success: boolean; error?: string }> => {
-    try {
-      const response = await authFetch(`/api/exports/${id}`, {
-        method: "DELETE",
-      });
-
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error("Delete export error:", error);
-      return {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Failed to delete export",
-      };
-    }
-  };
-
-  const getUserExports = async (
-    page: number = 1,
-    limit: number = 12,
-  ): Promise<{
-    success: boolean;
-    data?: any[];
-    pagination?: any;
-    error?: string;
-  }> => {
-    try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: limit.toString(),
-      });
-      const response = await authFetch(`/api/exports?${params}`, {
-        method: "GET",
-      });
-
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error("Get user exports error:", error);
-      return {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Failed to get user exports",
-      };
-    }
-  };
-
-  /**
-   * Delete a transcription by ID
-   */
-  const deleteTranscription = async (
-    id: string,
-  ): Promise<{ success: boolean; error?: string }> => {
-    try {
-      const response = await authFetch(`/api/subtitles/${id}`, {
-        method: "DELETE",
-      });
-
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error("Delete transcription error:", error);
-      return {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to delete transcription",
-      };
-    }
-  };
-
-  /**
-   * Delete multiple transcriptions (bulk delete)
-   */
-  const deleteTranscriptions = async (
-    ids: string[],
-  ): Promise<{ success: boolean; count?: number; error?: string }> => {
-    try {
-      const response = await authFetch(`/api/subtitles/bulk`, {
-        method: "DELETE",
-        body: JSON.stringify({ ids }),
-      });
-
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error("Delete transcriptions error:", error);
-      return {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to delete transcriptions",
-      };
-    }
-  };
-
-  /**
-   * Create a transcription record without starting processing
-   */
-  const createTranscription = async (
-    request: TranscribeRequest,
-  ): Promise<{
-    success: boolean;
-    data?: { id: string; status: string; filename?: string };
-    error?: string;
-  }> => {
-    try {
-      const response = await authFetch("/api/subtitles/create", {
-        method: "POST",
-        body: JSON.stringify(request),
-      });
-      return await response.json();
-    } catch (error) {
-      console.error("Create transcription error:", error);
-      return {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to create transcription",
-      };
-    }
-  };
-
-  /**
-   * Start transcription processing for an existing draft record
-   */
-  const startTranscription = async (
-    id: string,
-    options?: { language?: string; maxWordsPerChunk?: number },
-  ): Promise<{
-    success: boolean;
-    data?: { id: string; taskId: string; status: string };
-    error?: string;
-  }> => {
-    try {
-      const response = await authFetch(`/api/subtitles/${id}/start`, {
-        method: "POST",
-        body: JSON.stringify(options ?? {}),
-      });
-      return await response.json();
-    } catch (error) {
-      console.error("Start transcription error:", error);
-      return {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to start transcription",
-      };
-    }
-  };
-
-  const updateTranscription = async (
-    id: string,
-    data: {
-      title?: string;
-      subtitleChunks?: any[];
-      editorSettings?: object;
-      maxWordsPerChunk?: number;
-    },
-  ): Promise<{ success: boolean; data?: any; error?: string }> => {
-    try {
-      const response = await authFetch(`/api/subtitles/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      });
-      return await response.json();
-    } catch (error) {
-      console.error("Update transcription error:", error);
-      return {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to update transcription",
-      };
-    }
-  };
-
-  return {
-    createSubtitleRecord,
-    createTranscription,
-    startTranscription,
-    getTranscription,
-    getTranscriptionStatus,
-    updateSubtitleChunks,
-    updateTranscription,
-    getUserTranscriptions,
-    createExport,
-    getExportJobStatus,
-    getExport,
-    getTranscriptionById,
-    deleteExport,
-    getUserExports,
-    deleteTranscription,
-    deleteTranscriptions,
-  };
+      deleteExport: (id: string) =>
+        request<unknown>(`/api/exports/${id}`, { method: "DELETE" }),
+    };
+  }, [authFetch]);
 }

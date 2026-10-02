@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import {
+  ArrowsLeftRight,
+  DotsThree,
   DownloadSimple,
-  Trash,
-  Warning,
   FileVideo,
-  CheckCircle,
+  Trash,
+  WarningCircle,
 } from "@phosphor-icons/react";
-import { getCdnUrl } from "@/lib/video-utils";
+import { ScheduleLink } from "@/components/generator/tool-layout";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,196 +19,203 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { VideoThumbnail } from "@/components/ui/video-thumbnail";
-import { DeleteFailedButton } from "@/components/ui/delete-failed-button";
+import { isVideoJobActive, type VideoJob } from "@/hooks/use-video-jobs";
+import { getCdnUrl } from "@/lib/video-utils";
 
-export interface VideoCardData {
-  id: string;
-  originalName: string;
-  originalUrl: string;
-  processedUrl?: string | null;
-  status: string;
-  error?: string | null;
+interface VideoJobCardProps {
+  job: VideoJob;
+  /** Status line while the job runs, e.g. "Upscaling". */
+  activeLabel: string;
+  /** Extra detail for finished jobs, e.g. the model. */
+  detail?: string | null;
+  onOpen: () => void;
+  onDelete: () => void;
 }
 
-interface VideoCardProps {
-  video: VideoCardData;
-  onDelete?: (id: string) => void;
-  onClick?: () => void;
-  displayMode?: "default" | "asset";
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  queued: "Queued",
-  processing: "Processing…",
-};
-
-export function VideoCard({
-  video,
+/** Result card for the video upscaler and subtitle remover. */
+export function VideoJobCard({
+  job,
+  activeLabel,
+  detail,
+  onOpen,
   onDelete,
-  onClick,
-  displayMode = "default",
-}: VideoCardProps) {
-  const [hovered, setHovered] = useState(false);
-  const isInProgress =
-    video.status === "queued" || video.status === "processing";
-  const isComplete = video.status === "completed";
-  const isFailed = video.status === "failed";
-  const outputUrl = video.processedUrl;
-  const isAssetMode = displayMode === "asset";
+}: VideoJobCardProps) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const active = isVideoJobActive(job);
+  const failed = job.status === "failed";
+  const outputUrl = job.status === "completed" ? job.processedUrl : null;
+
+  const status = active
+    ? job.status === "queued"
+      ? "Queued"
+      : activeLabel
+    : failed
+      ? "Failed"
+      : [detail, formatDate(job.createdAt)].filter(Boolean).join(" · ");
 
   return (
-    <div
-      className={`group relative aspect-video cursor-pointer overflow-hidden rounded-xl border bg-card transition-all ${
-        isAssetMode ? "" : "shadow-sm hover:shadow-md"
-      }`}
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      {isComplete && outputUrl ? (
-        <VideoThumbnail
-          videoUrl={getCdnUrl(outputUrl)}
-          alt={video.originalName}
-          seekTo={0.5}
-        />
-      ) : isInProgress ? (
-        <div
-          className={`flex size-full flex-col items-center justify-center gap-2 bg-card px-5 text-center ${
-            isAssetMode ? "" : "rounded-xl border border-dashed border-border"
-          }`}
+    <article className="flex flex-col overflow-hidden rounded-xl bg-muted">
+      {outputUrl ? (
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label={`Compare ${job.originalName}`}
+          className="relative block aspect-video w-full overflow-hidden bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
         >
-          <Spinner />
-          {!isAssetMode && (
-            <p className="line-clamp-1 text-xs font-medium text-muted-foreground">
-              {video.originalName}
-            </p>
-          )}
-          <span className="text-xs text-muted-foreground">
-            {STATUS_LABELS[video.status] ?? video.status}
-          </span>
-        </div>
-      ) : isFailed ? (
-        <div className="flex size-full flex-col items-center justify-center gap-2 px-5 text-center">
-          <Warning className="size-6 text-destructive/70" />
-          {!isAssetMode && (
-            <p className="line-clamp-1 text-xs font-medium text-muted-foreground">
-              {video.originalName}
-            </p>
-          )}
-          <p className="text-[11px] text-destructive/80">
-            {video.error || "Processing failed"}
-          </p>
-        </div>
+          <VideoThumbnail
+            videoUrl={getCdnUrl(outputUrl)}
+            alt={job.originalName}
+            seekTo={0.5}
+          />
+        </button>
       ) : (
-        <div className="flex size-full items-center justify-center">
-          <FileVideo className="size-8 text-muted-foreground/30" />
-        </div>
-      )}
-
-      {isFailed && onDelete && (
-        <DeleteFailedButton
-          onConfirm={() => onDelete(video.id)}
-          title="Delete video?"
-          description="This will permanently remove this failed video. This action cannot be undone."
-        />
-      )}
-
-      {/* Hover overlay for completed videos */}
-      {isAssetMode && hovered && isComplete && outputUrl && (
-        <div
-          className="absolute inset-x-0 top-2 z-10 flex justify-end gap-1.5 px-2"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <a
-            href={getCdnUrl(outputUrl, { download: true })}
-            download
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-md bg-background/85 p-1.5 text-foreground transition-colors hover:bg-background"
-          >
-            <DownloadSimple className="size-4" />
-          </a>
-          {onDelete && (
-            <AlertDialog>
-              <AlertDialogTrigger className="rounded-md bg-destructive p-1.5 text-destructive-foreground transition-opacity hover:opacity-90">
-                <Trash className="size-4" />
-              </AlertDialogTrigger>
-              <AlertDialogContent size="sm">
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete video?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will permanently remove this processed video. This
-                    action cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    variant="destructive"
-                    onClick={() => onDelete(video.id)}
-                  >
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+        <div className="flex aspect-video flex-col items-center justify-center gap-2 bg-muted px-4 text-center">
+          {active ? (
+            <>
+              <Spinner className="text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">{status}</span>
+            </>
+          ) : failed ? (
+            <>
+              <WarningCircle className="size-5 text-destructive" />
+              <p className="line-clamp-3 text-xs text-destructive">
+                {job.error || "Processing failed."}
+              </p>
+            </>
+          ) : (
+            <FileVideo className="size-6 text-muted-foreground" />
           )}
         </div>
       )}
 
-      {hovered && !isAssetMode && isComplete && outputUrl && (
-        <div className="absolute inset-0 flex flex-col justify-between bg-black/50 p-3">
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-medium text-success">
-              <CheckCircle className="size-3" weight="fill" />
-              Complete
-            </span>
-            <div className="flex gap-1.5">
-              <a
-                href={getCdnUrl(outputUrl, { download: true })}
-                download
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-md bg-black/40 p-1.5 text-white transition-colors hover:bg-black/60"
-              >
-                <DownloadSimple className="size-4" />
-              </a>
-              {onDelete && (
-                <AlertDialog>
-                  <AlertDialogTrigger className="rounded-md bg-black/40 p-1.5 text-white transition-colors hover:bg-destructive">
-                    <Trash className="size-4" />
-                  </AlertDialogTrigger>
-                  <AlertDialogContent size="sm">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete video?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will permanently remove this processed video. This
-                        action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        variant="destructive"
-                        onClick={() => onDelete(video.id)}
-                      >
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
-            </div>
+      <div className="flex flex-1 flex-col gap-3 p-3">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium" title={job.originalName}>
+              {job.originalName}
+            </p>
+            <p
+              className={
+                failed
+                  ? "truncate text-xs text-destructive"
+                  : "truncate text-xs text-muted-foreground"
+              }
+            >
+              {status}
+            </p>
           </div>
-          <p className="line-clamp-1 text-xs text-white/90">
-            {video.originalName}
-          </p>
+          {outputUrl ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="-mt-1 -mr-1"
+                    aria-label={`More actions for ${job.originalName}`}
+                  />
+                }
+              >
+                <DotsThree weight="bold" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem onClick={onOpen}>
+                  <ArrowsLeftRight />
+                  Compare
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => setConfirmOpen(true)}
+                >
+                  <Trash />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
         </div>
-      )}
+
+        {outputUrl ? (
+          <div className="mt-auto flex gap-2">
+            <ScheduleLink url={outputUrl} mediaType="video" className="flex-1" />
+            <a
+              href={getCdnUrl(outputUrl, { download: true })}
+              download
+              className={buttonVariants({ variant: "outline", size: "icon-sm" })}
+              aria-label={`Download ${job.originalName}`}
+            >
+              <DownloadSimple />
+            </a>
+          </div>
+        ) : failed ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-auto"
+            onClick={() => setConfirmOpen(true)}
+          >
+            <Trash />
+            Delete
+          </Button>
+        ) : null}
+      </div>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this video?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {job.originalName} will be removed from your results. This
+              can&apos;t be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                setConfirmOpen(false);
+                onDelete();
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </article>
+  );
+}
+
+export function VideoJobCardSkeleton() {
+  return (
+    <div className="overflow-hidden rounded-xl bg-muted">
+      <Skeleton className="aspect-video rounded-none" />
+      <div className="space-y-2 p-3">
+        <Skeleton className="h-4 w-2/3" />
+        <Skeleton className="h-3 w-1/3" />
+        <Skeleton className="h-8 w-full" />
+      </div>
     </div>
   );
 }

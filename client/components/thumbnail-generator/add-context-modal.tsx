@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { YoutubeLogo, FileDoc, FileArrowUp, SpinnerGap } from "@phosphor-icons/react";
+import { YoutubeLogo, FileDoc, FileArrowUp } from "@phosphor-icons/react";
 import {
   Dialog,
   DialogContent,
@@ -14,18 +14,17 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 import Image from "next/image";
 import { toast } from "sonner";
 import { uploadFileToStorage } from "@/lib/storage-client";
 
-// ─── types ────────────────────────────────────────────────────────────────────
 export interface ContextItem {
   id: string;
-  /** "image" is no longer accepted here; images go through userImageUrls */
   type: "youtube" | "document";
-  /** Short display label (truncated as needed) */
+  /** Short display label. */
   label: string;
-  /** YouTube URL, .txt body, or storage blob URL for PDF */
+  /** YouTube URL, .txt body, or the storage URL of a PDF. */
   content?: string;
   thumbnail?: string;
 }
@@ -50,7 +49,6 @@ function documentKind(file: File): "txt" | "pdf" | null {
   return null;
 }
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
 function extractYoutubeVideoId(url: string): string | null {
   const patterns = [
     /(?:youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/,
@@ -71,7 +69,6 @@ export function getYoutubeThumbnail(url: string): string | null {
   return `https://img.youtube.com/vi/${id}/mqdefault.jpg`;
 }
 
-// ─── component ────────────────────────────────────────────────────────────────
 interface AddContextModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -100,7 +97,7 @@ export function AddContextModal({
     if (!url) return;
     const id = extractYoutubeVideoId(url);
     if (!id) {
-      setYoutubeError("Not a valid YouTube URL.");
+      setYoutubeError("That isn't a YouTube video link.");
       return;
     }
     onAdd({
@@ -128,13 +125,13 @@ export function AddContextModal({
     e.target.value = "";
 
     if (!isSupportedDocument(file)) {
-      setDocError("Only .txt and .pdf files are supported.");
+      setDocError("Choose a .txt or .pdf file.");
       return;
     }
 
     const kind = documentKind(file);
     if (!kind) {
-      setDocError("Only .txt and .pdf files are supported.");
+      setDocError("Choose a .txt or .pdf file.");
       return;
     }
     setDocError(null);
@@ -166,7 +163,9 @@ export function AddContextModal({
 
       if (!result.success || !result.blobUrl) {
         setDocFile(null);
-        toast.error(result.error ?? `Failed to upload "${file.name}".`);
+        toast.error(
+          `Couldn't upload "${file.name}". ${result.error ?? "Try again."}`,
+        );
         return;
       }
 
@@ -179,7 +178,7 @@ export function AddContextModal({
       });
     } catch {
       setDocFile(null);
-      toast.error(`Failed to upload "${file.name}".`);
+      toast.error(`Couldn't upload "${file.name}". Try again.`);
     }
   };
 
@@ -207,10 +206,10 @@ export function AddContextModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Add Context</DialogTitle>
+          <DialogTitle>Add context</DialogTitle>
           <DialogDescription>
-            Provide topic context that guides thumbnail concept — a YouTube
-            video or a .txt / .pdf document.
+            Give the thumbnail a topic: a YouTube video, or a .txt or .pdf
+            document.
           </DialogDescription>
         </DialogHeader>
 
@@ -237,19 +236,18 @@ export function AddContextModal({
                   value={youtubeUrl}
                   onChange={(e) => handleYoutubeChange(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleCreateYoutube()}
-                  className={
-                    youtubeError
-                      ? "border-destructive focus-visible:ring-destructive/30"
-                      : ""
-                  }
+                  aria-invalid={!!youtubeError}
+                  aria-describedby={youtubeError ? "yt-url-error" : undefined}
                 />
                 {youtubeError && (
-                  <p className="text-xs text-destructive">{youtubeError}</p>
+                  <p id="yt-url-error" className="text-xs text-destructive">
+                    {youtubeError}
+                  </p>
                 )}
               </div>
 
               {youtubeThumbnail && !youtubeError && (
-                <div className="relative w-40 aspect-video overflow-hidden rounded-lg border">
+                <div className="relative w-40 aspect-video overflow-hidden rounded-xl">
                   <Image
                     src={youtubeThumbnail}
                     alt="YouTube thumbnail preview"
@@ -276,32 +274,30 @@ export function AddContextModal({
                 <button
                   type="button"
                   onClick={() => docInputRef.current?.click()}
-                  className="flex w-full flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border py-10 text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+                  className="flex w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed py-10 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                 >
-                  <div className="flex size-12 items-center justify-center rounded-xl bg-primary/10">
-                    <FileArrowUp className="size-6 text-primary" />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-medium">
-                      Click to upload a document
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      .txt or .pdf files only
-                    </p>
-                  </div>
+                  <span className="flex size-10 items-center justify-center rounded-lg bg-muted">
+                    <FileArrowUp className="size-5" />
+                  </span>
+                  <span className="text-center">
+                    <span className="block text-sm font-medium text-foreground">
+                      Choose a document
+                    </span>
+                    <span className="block text-xs">TXT or PDF</span>
+                  </span>
                 </button>
               ) : (
-                <div className="flex items-center gap-3 rounded-xl border bg-muted/40 px-4 py-3">
-                  <FileDoc className="size-6 shrink-0 text-primary" />
+                <div className="flex items-center gap-3 rounded-lg bg-muted px-4 py-3">
+                  <FileDoc className="size-5 shrink-0 text-muted-foreground" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">
                       {docFile.name}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {docFile.uploading ? (
-                        <span className="inline-flex items-center gap-1">
-                          <SpinnerGap className="size-3 animate-spin" />
-                          Uploading… {docFile.progress ?? 0}%
+                        <span className="inline-flex items-center gap-1 tabular-nums">
+                          <Spinner className="size-3" />
+                          Uploading {docFile.progress ?? 0}%
                         </span>
                       ) : docFile.kind === "txt" ? (
                         `${docFile.content.length.toLocaleString()} characters`
@@ -310,14 +306,14 @@ export function AddContextModal({
                       )}
                     </p>
                   </div>
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="xs"
                     onClick={() => setDocFile(null)}
                     disabled={docFile.uploading}
-                    className="text-xs text-muted-foreground underline hover:text-foreground disabled:opacity-50"
                   >
                     Remove
-                  </button>
+                  </Button>
                 </div>
               )}
 
@@ -334,7 +330,7 @@ export function AddContextModal({
               onClick={() => docInputRef.current?.click()}
               disabled={docFile?.uploading}
             >
-              {docFile ? "Change file" : "Browse…"}
+              {docFile ? "Change file" : "Choose file"}
             </Button>
           )}
           <Button onClick={addHandler} disabled={!canAdd}>

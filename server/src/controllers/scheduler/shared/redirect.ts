@@ -6,7 +6,7 @@ export function schedulerConnectionsRedirect(
   status: "success" | "error",
   error?: string,
 ) {
-  const base = `${CLIENT_REDIRECT_URI}/scheduler/connections?status=${status}&provider=${provider}`;
+  const base = `${CLIENT_REDIRECT_URI}/scheduler/accounts?status=${status}&provider=${provider}`;
   if (!error) {
     return base;
   }

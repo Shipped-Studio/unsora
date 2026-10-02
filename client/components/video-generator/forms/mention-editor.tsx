@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import { MusicNote } from "@phosphor-icons/react";
+import { cn } from "@/lib/utils";
 
 export interface MentionFile {
   id: string;
@@ -15,90 +16,137 @@ interface MentionEditorProps {
   editorId: string;
   value: string;
   placeholder: string;
+  label: string;
   disabled: boolean;
   files: MentionFile[];
   onChange: (text: string) => void;
   onSubmitShortcut: () => void;
 }
 
+const CHIP_CLASS =
+  "mx-0.5 inline-flex cursor-default select-none items-center gap-1 rounded-md bg-muted py-0.5 pr-1 pl-0.5 align-middle text-xs";
+
+/** Builds a mention chip with DOM APIs (no HTML strings). */
+function createChip(file: MentionFile, onRemove: (chip: HTMLElement) => void) {
+  const chip = document.createElement("span");
+  chip.contentEditable = "false";
+  chip.className = CHIP_CLASS;
+  chip.setAttribute("data-mention-id", file.id);
+
+  if (file.kind !== "audio") {
+    const media = document.createElement(file.kind === "video" ? "video" : "img");
+    media.className = "size-5 shrink-0 rounded-sm object-cover";
+    media.setAttribute("src", file.preview);
+    if (media instanceof HTMLVideoElement) {
+      media.muted = true;
+      media.preload = "metadata";
+    } else {
+      media.setAttribute("alt", "");
+    }
+    chip.appendChild(media);
+  }
+
+  const name = document.createElement("span");
+  name.className = "pointer-events-none max-w-28 truncate font-medium";
+  name.setAttribute("data-filename", file.label);
+  name.textContent = file.label;
+  chip.appendChild(name);
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className =
+    "flex size-4 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground";
+  remove.setAttribute("aria-label", `Remove ${file.label}`);
+  remove.textContent = "×";
+  remove.addEventListener("click", (event) => {
+    event.preventDefault();
+    onRemove(chip);
+  });
+  chip.appendChild(remove);
+
+  return chip;
+}
+
 /**
- * contentEditable prompt editor with "@" mention support: typing @ opens a
- * picker of uploaded files which are inserted as inline chips.
+ * contentEditable prompt with "@" mentions: typing @ lists the attached files
+ * and inserts the chosen one as an inline chip.
  */
 export function MentionEditor({
   editorId,
   value,
   placeholder,
+  label,
   disabled,
   files,
   onChange,
   onSubmitShortcut,
 }: MentionEditorProps) {
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
-
-  // Clear contentEditable when prompt is reset (e.g. after submit)
+  const [highlight, setHighlight] = useState(0);
+  const onChangeRef = useRef(onChange);
   useEffect(() => {
-    if (value === "") {
-      const editor = document.getElementById(editorId);
-      if (editor && editor.innerHTML !== "") {
-        editor.innerHTML = "";
-      }
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  const getEditor = useCallback(
+    () => document.getElementById(editorId),
+    [editorId],
+  );
+
+  // Seed a fresh editor with the shared prompt (e.g. after switching models).
+  const initialValue = useRef(value);
+  useEffect(() => {
+    const editor = getEditor();
+    if (editor && initialValue.current && editor.innerText.trim() === "") {
+      editor.textContent = initialValue.current;
     }
-  }, [value, editorId]);
+  }, [getEditor]);
 
-  // Sync chips when files change (remove stale chips, update labels)
+  // Clear the editor when the prompt is reset (e.g. after submit).
   useEffect(() => {
-    const editor = document.getElementById(editorId);
+    if (value !== "") return;
+    const editor = getEditor();
+    if (editor && editor.innerHTML !== "") editor.innerHTML = "";
+  }, [value, getEditor]);
+
+  // Keep chips in sync with the attachments: drop removed files, relabel.
+  useEffect(() => {
+    const editor = getEditor();
     if (!editor) return;
 
-    const chips = editor.querySelectorAll<HTMLElement>("[data-mention-id]");
     let changed = false;
+    editor
+      .querySelectorAll<HTMLElement>("[data-mention-id]")
+      .forEach((chip) => {
+        const file = files.find(
+          (f) => f.id === chip.getAttribute("data-mention-id"),
+        );
+        if (!file) {
+          chip.remove();
+          changed = true;
+          return;
+        }
+        const nameEl = chip.querySelector("[data-filename]");
+        if (nameEl && nameEl.getAttribute("data-filename") !== file.label) {
+          nameEl.setAttribute("data-filename", file.label);
+          nameEl.textContent = file.label;
+          changed = true;
+        }
+      });
 
-    chips.forEach((chip) => {
-      const id = chip.getAttribute("data-mention-id");
-      const file = files.find((f) => f.id === id);
-      if (!file) {
-        chip.remove();
-        changed = true;
-        return;
-      }
-      const labelEl = chip.querySelector("[data-filename]");
-      if (labelEl && labelEl.getAttribute("data-filename") !== file.label) {
-        labelEl.setAttribute("data-filename", file.label);
-        labelEl.textContent = file.label;
-        changed = true;
-      }
-    });
-
-    if (changed) onChange(editor.innerText);
-  }, [files, editorId, onChange]);
+    if (changed) onChangeRef.current(editor.innerText);
+  }, [files, getEditor]);
 
   const insertChip = useCallback(
     (file: MentionFile) => {
-      const editor = document.getElementById(editorId);
+      const editor = getEditor();
       if (!editor) return;
       editor.focus();
 
-      const chip = document.createElement("span");
-      chip.contentEditable = "false";
-      chip.className =
-        "inline-flex items-center gap-1.5 rounded-md bg-muted border border-border pl-1 pr-2 py-0.5 mx-1 align-middle select-none shadow-sm cursor-default";
-      chip.setAttribute("data-mention-id", file.id);
-      chip.innerHTML = `
-        <span class="relative flex h-5 w-5 rounded overflow-hidden bg-muted shrink-0">
-          ${
-            file.kind === "video"
-              ? `<video src="${file.preview}" class="h-full w-full object-cover" muted preload="metadata"></video>`
-              : file.kind === "image"
-                ? `<img src="${file.preview}" class="h-full w-full object-cover" />`
-                : `<span class="h-full w-full flex items-center justify-center text-[9px] text-muted-foreground">🎵</span>`
-          }
-        </span>
-        <span class="text-[11px] font-medium text-foreground max-w-[100px] truncate leading-none pointer-events-none" data-filename="${file.label}">${file.label}</span>
-        <span class="h-3.5 w-3.5 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive cursor-pointer pointer-events-auto" onclick="this.parentNode.remove()">
-          <svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        </span>
-      `;
+      const chip = createChip(file, (el) => {
+        el.remove();
+        onChangeRef.current(editor.innerText);
+      });
 
       const selection = window.getSelection();
       if (
@@ -111,7 +159,7 @@ export function MentionEditor({
         range.insertNode(chip);
         range.setStartAfter(chip);
         range.setEndAfter(chip);
-        const space = document.createTextNode(" ");
+        const space = document.createTextNode(" ");
         range.insertNode(space);
         range.setStartAfter(space);
         range.setEndAfter(space);
@@ -119,208 +167,217 @@ export function MentionEditor({
         selection.addRange(range);
       } else {
         editor.appendChild(chip);
-        editor.appendChild(document.createTextNode(" "));
+        editor.appendChild(document.createTextNode(" "));
       }
 
-      onChange(editor.innerText);
+      onChangeRef.current(editor.innerText);
     },
-    [editorId, onChange],
+    [getEditor],
   );
 
-  const handleMentionSelect = useCallback(
+  const selectMention = useCallback(
     (file: MentionFile) => {
-      const editor = document.getElementById(editorId);
-      if (editor) {
-        const selection = window.getSelection();
-        if (selection && selection.rangeCount > 0) {
-          const range = selection.getRangeAt(0);
-          const textNode = range.startContainer;
-          if (textNode.nodeType === Node.TEXT_NODE) {
-            const textContent = textNode.textContent || "";
-            const caretPos = range.startOffset;
-            const lastAt = textContent.lastIndexOf("@", caretPos - 1);
-            if (lastAt !== -1) {
-              range.setStart(textNode, lastAt);
-              range.setEnd(textNode, caretPos);
-              range.deleteContents();
-            }
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        const node = range.startContainer;
+        if (node.nodeType === Node.TEXT_NODE) {
+          const text = node.textContent || "";
+          const caret = range.startOffset;
+          const at = text.lastIndexOf("@", caret - 1);
+          if (at !== -1) {
+            range.setStart(node, at);
+            range.setEnd(node, caret);
+            range.deleteContents();
           }
         }
       }
       insertChip(file);
       setMentionQuery(null);
     },
-    [editorId, insertChip],
+    [insertChip],
   );
 
-  const filteredFiles =
+  const matches =
     mentionQuery !== null
       ? files.filter((f) =>
           f.label.toLowerCase().includes(mentionQuery.toLowerCase()),
         )
       : [];
+  const listId = `${editorId}-mentions`;
 
   return (
     <div className="relative">
-      {/* Mention suggestions popup */}
       {mentionQuery !== null && (
-        <div className="absolute bottom-full left-0 mb-2 w-60 max-h-[200px] overflow-y-auto rounded-lg border border-border bg-popover shadow-xl z-50 p-1">
-          <div className="text-[10px] font-semibold text-muted-foreground px-2 py-1.5 border-b border-border/50 mb-1 uppercase tracking-wider">
-            Reference Media
-          </div>
-          {filteredFiles.length > 0 ? (
-            filteredFiles.map((file) => (
-              <button
-                key={file.id}
-                className="w-full flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-accent cursor-pointer transition-colors text-left"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  handleMentionSelect(file);
-                }}
-              >
-                <div className="h-6 w-6 rounded overflow-hidden bg-muted shrink-0 relative">
-                  {file.kind === "audio" ? (
-                    <div className="h-full w-full flex items-center justify-center bg-muted">
-                      <MusicNote className="size-3 text-muted-foreground" />
-                    </div>
-                  ) : file.kind === "video" ? (
-                    <video
-                      src={file.preview}
-                      muted
-                      preload="metadata"
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <Image
-                      src={file.preview}
-                      alt=""
-                      fill
-                      unoptimized
-                      className="object-cover"
-                    />
+        <div className="absolute bottom-full left-3 z-50 mb-2 max-h-52 w-60 overflow-y-auto rounded-md bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10">
+          <p className="px-2 py-1.5 text-xs text-muted-foreground">
+            Attached files
+          </p>
+          {matches.length > 0 ? (
+            <ul id={listId} role="listbox" aria-label="Attached files">
+              {matches.map((file, i) => (
+                <li
+                  key={file.id}
+                  role="option"
+                  aria-selected={i === highlight}
+                  className={cn(
+                    "flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent",
+                    i === highlight && "bg-accent",
                   )}
-                </div>
-                <span className="truncate text-xs">{file.label}</span>
-              </button>
-            ))
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    selectMention(file);
+                  }}
+                >
+                  <span className="relative flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-muted">
+                    {file.kind === "audio" ? (
+                      <MusicNote className="size-3.5 text-muted-foreground" />
+                    ) : file.kind === "video" ? (
+                      <video
+                        src={file.preview}
+                        muted
+                        preload="metadata"
+                        className="size-full object-cover"
+                      />
+                    ) : (
+                      <Image
+                        src={file.preview}
+                        alt=""
+                        fill
+                        sizes="24px"
+                        unoptimized
+                        className="object-cover"
+                      />
+                    )}
+                  </span>
+                  <span className="truncate text-xs">{file.label}</span>
+                </li>
+              ))}
+            </ul>
           ) : (
-            <div className="px-2 py-3 text-center text-xs text-muted-foreground">
-              No media matching &ldquo;{mentionQuery}&rdquo;
-            </div>
+            <p className="px-2 py-3 text-center text-xs text-muted-foreground">
+              {files.length === 0
+                ? "Attach files first, then mention them with @."
+                : `No files match "${mentionQuery}".`}
+            </p>
           )}
         </div>
       )}
 
       <div
-        className="cursor-text"
-        onClick={() => document.getElementById(editorId)?.focus()}
-      >
-        <div
-          id={editorId}
-          contentEditable={!disabled}
-          suppressContentEditableWarning
-          className="outline-none text-sm leading-relaxed text-foreground whitespace-pre-wrap wrap-break-word empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/70 min-h-[60px] max-h-[200px] overflow-y-auto"
-          data-placeholder={placeholder}
-          onInput={(e) => {
-            const target = e.currentTarget;
-            onChange(target.innerText);
-
-            const selection = window.getSelection();
-            if (selection && selection.rangeCount > 0) {
-              const range = selection.getRangeAt(0);
-              const textNode = range.startContainer;
-              if (textNode.nodeType === Node.TEXT_NODE) {
-                const textContent = textNode.textContent || "";
-                const caretPos = range.startOffset;
-                const lastAt = textContent.lastIndexOf("@", caretPos - 1);
-                if (lastAt !== -1) {
-                  const query = textContent.substring(lastAt + 1, caretPos);
-                  setMentionQuery(query.includes(" ") ? null : query);
-                } else {
-                  setMentionQuery(null);
-                }
-              }
-            }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && mentionQuery !== null) e.preventDefault();
-            if (e.key === "Escape") setMentionQuery(null);
-            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-              e.preventDefault();
-              onSubmitShortcut();
-              return;
-            }
-
-            if (e.key === "Backspace") {
-              const selection = window.getSelection();
-              if (
-                selection &&
-                selection.rangeCount > 0 &&
-                selection.isCollapsed
-              ) {
-                const range = selection.getRangeAt(0);
-                let nodeToRemove: Node | null = null;
-
-                if (
-                  range.startContainer.nodeType === Node.TEXT_NODE &&
-                  range.startOffset === 0
-                ) {
-                  const prev = range.startContainer.previousSibling;
-                  if (
-                    prev &&
-                    prev.nodeType === Node.ELEMENT_NODE &&
-                    (prev as Element).hasAttribute("data-mention-id")
-                  ) {
-                    nodeToRemove = prev;
-                  }
-                } else if (
-                  range.startContainer.nodeType === Node.ELEMENT_NODE &&
-                  range.startOffset > 0
-                ) {
-                  const child =
-                    range.startContainer.childNodes[range.startOffset - 1];
-                  if (
-                    child &&
-                    child.nodeType === Node.ELEMENT_NODE &&
-                    (child as Element).hasAttribute("data-mention-id")
-                  ) {
-                    nodeToRemove = child;
-                  }
-                }
-
-                if (nodeToRemove) {
-                  e.preventDefault();
-                  nodeToRemove.parentNode?.removeChild(nodeToRemove);
-                  onChange(e.currentTarget.innerText);
-                }
-              }
-            }
-          }}
-          onBlur={() => setTimeout(() => setMentionQuery(null), 150)}
-          onPaste={(e) => {
-            // Let the parent handle pasted files (e.g. images from clipboard)
-            if (
-              Array.from(e.clipboardData.items).some((item) =>
-                item.type.startsWith("image/"),
-              )
-            ) {
-              return;
-            }
+        id={editorId}
+        role="textbox"
+        aria-multiline
+        aria-label={label}
+        aria-placeholder={placeholder}
+        aria-autocomplete="list"
+        aria-controls={mentionQuery !== null ? listId : undefined}
+        aria-disabled={disabled}
+        tabIndex={disabled ? -1 : 0}
+        contentEditable={!disabled}
+        suppressContentEditableWarning
+        data-placeholder={placeholder}
+        className="block max-h-52 min-h-20 w-full overflow-y-auto px-4 py-3 text-sm leading-relaxed wrap-break-word whitespace-pre-wrap text-foreground outline-none empty:before:text-muted-foreground empty:before:content-[attr(data-placeholder)] aria-disabled:opacity-50"
+        onInput={(e) => {
+          onChange(e.currentTarget.innerText);
+          const selection = window.getSelection();
+          if (!selection || selection.rangeCount === 0) return;
+          const range = selection.getRangeAt(0);
+          const node = range.startContainer;
+          if (node.nodeType !== Node.TEXT_NODE) {
+            setMentionQuery(null);
+            return;
+          }
+          const text = node.textContent || "";
+          const caret = range.startOffset;
+          const at = text.lastIndexOf("@", caret - 1);
+          if (at === -1) {
+            setMentionQuery(null);
+            return;
+          }
+          const query = text.substring(at + 1, caret);
+          setMentionQuery(query.includes(" ") ? null : query);
+          setHighlight(0);
+        }}
+        onKeyDown={(e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
             e.preventDefault();
-            const text = e.clipboardData.getData("text/plain");
-            const selection = window.getSelection();
-            if (selection && selection.rangeCount > 0) {
-              const range = selection.getRangeAt(0);
-              range.deleteContents();
-              range.insertNode(document.createTextNode(text));
-              range.collapse(false);
-              selection.removeAllRanges();
-              selection.addRange(range);
+            onSubmitShortcut();
+            return;
+          }
+          if (mentionQuery !== null) {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setMentionQuery(null);
+              return;
             }
-            onChange(e.currentTarget.innerText);
-          }}
-        />
-      </div>
+            if (e.key === "ArrowDown" && matches.length > 0) {
+              e.preventDefault();
+              setHighlight((h) => (h + 1) % matches.length);
+              return;
+            }
+            if (e.key === "ArrowUp" && matches.length > 0) {
+              e.preventDefault();
+              setHighlight((h) => (h - 1 + matches.length) % matches.length);
+              return;
+            }
+            if (e.key === "Enter" || e.key === "Tab") {
+              e.preventDefault();
+              const file = matches[highlight];
+              if (file) selectMention(file);
+              else setMentionQuery(null);
+              return;
+            }
+          }
+
+          if (e.key === "Backspace") {
+            const selection = window.getSelection();
+            if (!selection || selection.rangeCount === 0 || !selection.isCollapsed)
+              return;
+            const range = selection.getRangeAt(0);
+            let chip: Node | null = null;
+            if (
+              range.startContainer.nodeType === Node.TEXT_NODE &&
+              range.startOffset === 0
+            ) {
+              chip = range.startContainer.previousSibling;
+            } else if (
+              range.startContainer.nodeType === Node.ELEMENT_NODE &&
+              range.startOffset > 0
+            ) {
+              chip = range.startContainer.childNodes[range.startOffset - 1];
+            }
+            if (
+              chip &&
+              chip.nodeType === Node.ELEMENT_NODE &&
+              (chip as Element).hasAttribute("data-mention-id")
+            ) {
+              e.preventDefault();
+              chip.parentNode?.removeChild(chip);
+              onChange(e.currentTarget.innerText);
+            }
+          }
+        }}
+        onBlur={() => setTimeout(() => setMentionQuery(null), 150)}
+        onPaste={(e) => {
+          // Pasted files bubble up to the composer, which attaches them.
+          if (Array.from(e.clipboardData.items).some((item) => item.kind === "file")) {
+            return;
+          }
+          e.preventDefault();
+          const text = e.clipboardData.getData("text/plain");
+          const selection = window.getSelection();
+          if (selection && selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            range.deleteContents();
+            range.insertNode(document.createTextNode(text));
+            range.collapse(false);
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+          onChange(e.currentTarget.innerText);
+        }}
+      />
     </div>
   );
 }

@@ -2,27 +2,27 @@
 
 import { Fragment } from "react";
 import Image from "next/image";
-import { ArrowRight, X, SpinnerGap } from "@phosphor-icons/react";
+import { ArrowRight, MusicNote, UploadSimple, X } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import type { UploadField, Attachment } from "./attachments";
 
 interface MediaSlotsProps {
   fields: UploadField[];
   attachments: Attachment[];
-  /** Draw an arrow between single-file slots (start → end frame flows). */
+  /** Draw an arrow between single-file slots (start to end frame flows). */
   showArrows?: boolean;
+  /** Opens the library for a field. */
   onPick: (field: UploadField) => void;
   onRemove: (id: string) => void;
+  /** Opens the device file picker. Adds an Upload row when set. */
+  onUpload?: () => void;
 }
 
 /**
- * Visual upload panel for the "+" button: single-file fields render as
- * framed slots (e.g. Start → End), multi-file fields as a References row.
+ * Panel behind the composer's "Add media" button: single-file fields render
+ * as framed slots (e.g. Start then End), multi-file fields as a list.
  */
 export function MediaSlots({
   fields,
@@ -30,18 +30,33 @@ export function MediaSlots({
   showArrows = false,
   onPick,
   onRemove,
+  onUpload,
 }: MediaSlotsProps) {
   const slotFields = fields.filter((f) => f.max === 1);
-  const refFields = fields.filter((f) => f.max > 1);
+  const listFields = fields.filter((f) => f.max > 1);
 
   return (
-    <div className={cn(slotFields.length > 2 ? "w-auto max-w-96" : "w-72")}>
+    <div
+      className={cn(
+        "max-w-[calc(100vw-2rem)]",
+        slotFields.length > 2 ? "w-96" : "w-72",
+      )}
+    >
+      <p className="px-4 pt-3 text-xs text-muted-foreground">
+        {onUpload
+          ? "Pick from your files or upload new ones."
+          : "Pick from your files."}
+      </p>
+
       {slotFields.length > 0 && (
-        <div className="flex flex-wrap items-start justify-center gap-3 px-4 py-5">
+        <div className="flex flex-wrap items-start justify-center gap-3 px-4 py-4">
           {slotFields.map((field, i) => (
             <Fragment key={field.key}>
               {showArrows && i > 0 && (
-                <ArrowRight className="mt-6 size-4 shrink-0 text-muted-foreground/50" />
+                <ArrowRight
+                  aria-hidden
+                  className="mt-6 size-4 shrink-0 text-muted-foreground"
+                />
               )}
               <SlotBox
                 field={field}
@@ -55,43 +70,45 @@ export function MediaSlots({
         </div>
       )}
 
-      {refFields.length > 0 && (
+      {listFields.length > 0 && (
         <div
           className={cn(
-            "flex items-center justify-between gap-4 px-4 py-3",
+            "space-y-0.5 p-2",
             slotFields.length > 0 && "border-t",
           )}
         >
-          <span className="text-sm font-medium">References</span>
-          <div className="flex items-center gap-1">
-            {refFields.map((field) => {
-              const count = attachments.filter(
-                (a) => a.fieldKey === field.key,
-              ).length;
-              return (
-                <Tooltip key={field.key}>
-                  <TooltipTrigger>
-                    <button
-                      onClick={() => onPick(field)}
-                      disabled={count >= field.max}
-                      className="relative flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
-                      aria-label={`Add ${field.label}`}
-                    >
-                      <field.icon className="size-[18px]" />
-                      {count > 0 && (
-                        <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
-                          {count}
-                        </span>
-                      )}
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    {field.label} ({count}/{field.max})
-                  </TooltipContent>
-                </Tooltip>
-              );
-            })}
-          </div>
+          {listFields.map((field) => {
+            const count = attachments.filter(
+              (a) => a.fieldKey === field.key && a.status !== "error",
+            ).length;
+            return (
+              <button
+                key={field.key}
+                type="button"
+                onClick={() => onPick(field)}
+                disabled={count >= field.max}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-secondary disabled:pointer-events-none disabled:opacity-50"
+              >
+                <field.icon className="size-4 shrink-0 text-muted-foreground" />
+                <span className="flex-1 text-left">{field.label}</span>
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {count}/{field.max}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {onUpload && (
+        <div className="flex items-center justify-between gap-3 border-t px-4 py-2.5">
+          <span className="text-xs text-muted-foreground">
+            You can also drop or paste files.
+          </span>
+          <Button type="button" variant="outline" size="xs" onClick={onUpload}>
+            <UploadSimple />
+            Upload
+          </Button>
         </div>
       )}
     </div>
@@ -114,42 +131,59 @@ function SlotBox({
   return (
     <div className="flex w-20 flex-col items-center gap-1.5">
       {attachment ? (
-        <div className="group relative size-16 overflow-hidden rounded-xl border">
-          <Image
-            src={attachment.objectUrl}
-            alt={attachment.fileName}
-            fill
-            unoptimized
-            className="object-cover"
-          />
+        <div className="group relative size-16 overflow-hidden rounded-xl bg-muted">
+          {attachment.kind === "image" && (
+            <Image
+              src={attachment.objectUrl}
+              alt={attachment.fileName}
+              fill
+              sizes="64px"
+              unoptimized
+              className="object-cover"
+            />
+          )}
+          {attachment.kind === "video" && (
+            <video
+              src={attachment.objectUrl}
+              muted
+              playsInline
+              preload="metadata"
+              className="absolute inset-0 size-full object-cover"
+            />
+          )}
+          {attachment.kind === "audio" && (
+            <div className="flex size-full items-center justify-center">
+              <MusicNote className="size-5 text-muted-foreground" />
+            </div>
+          )}
           {attachment.status === "uploading" && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-              <SpinnerGap className="size-4 animate-spin text-white" />
+            <div className="absolute inset-0 flex items-center justify-center bg-background/60">
+              <Spinner />
             </div>
           )}
           <button
+            type="button"
             onClick={() => onRemove(attachment.id)}
-            className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
-            aria-label={`Remove ${field.label}`}
+            aria-label={`Remove ${field.label.toLowerCase()}`}
+            className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full border bg-background text-foreground transition-opacity focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100"
           >
-            <X className="size-4 text-white" weight="bold" />
+            <X className="size-3" weight="bold" />
           </button>
         </div>
       ) : (
         <button
+          type="button"
           onClick={() => onPick(field)}
-          className="flex size-16 items-center justify-center rounded-xl border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
-          aria-label={`Add ${field.label}`}
+          aria-label={`Add ${field.label.toLowerCase()}`}
+          className="flex size-16 items-center justify-center rounded-xl border border-dashed text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
         >
           <field.icon className="size-5" />
         </button>
       )}
-      <span className="text-center text-xs font-medium leading-tight">
+      <span className="text-center text-xs leading-tight">
         {field.label}
         {optional && (
-          <span className="ml-1 text-[10px] font-normal text-muted-foreground">
-            optional
-          </span>
+          <span className="block text-muted-foreground">Optional</span>
         )}
       </span>
     </div>

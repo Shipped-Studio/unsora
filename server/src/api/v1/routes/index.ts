@@ -369,7 +369,7 @@ router.post(
   "/posts/:id/retry",
   ...auth,
   requirePaidPlan,
-  postController.retryPost,
+  appPostController.retryPost.bind(appPostController),
 );
 router.delete(
   "/posts/:id",

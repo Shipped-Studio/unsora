@@ -1,198 +1,207 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { toast } from "sonner";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useSubtitleApi } from "@/hooks/subtitle/use-subtitle-api";
+import {
+  useSubtitleApi,
+  type ExportRequest,
+} from "@/hooks/subtitle/use-subtitle-api";
+import { subtitleQueryKeys } from "@/hooks/subtitle/use-subtitle-queries";
 import {
   useSetCreditBalance,
   userUsageQueryKeys,
 } from "@/hooks/use-user-usage";
-import type { EditorSettings } from "@/remotion/types";
 
-type ExportStatus = "idle" | "queued" | "processing" | "completed" | "failed";
+export type ExportJobStatus =
+  | "idle"
+  | "queued"
+  | "processing"
+  | "completed"
+  | "failed";
 
-export const useExportJob = () => {
-  const { createExport, getExportJobStatus } = useSubtitleApi();
-  const setCreditBalance = useSetCreditBalance();
+interface ExportJobState {
+  status: ExportJobStatus;
+  progress: number;
+  videoUrl: string | null;
+  error: string | null;
+  creditsUsed: number | null;
+}
+
+const IDLE: ExportJobState = {
+  status: "idle",
+  progress: 0,
+  videoUrl: null,
+  error: null,
+  creditsUsed: null,
+};
+
+const EXPORT_FPS = 30;
+const POLL_MS = 2000;
+const TIMEOUT_MS = 30 * 60 * 1000;
+/** Consecutive status checks that may fail before we give up. */
+const MAX_POLL_FAILURES = 5;
+
+/**
+ * Queues one render and follows it until it finishes. Starting a new export
+ * or calling `reset` stops following the previous one; the render itself
+ * keeps going on the server.
+ */
+export function useExportJob({
+  onSettled,
+}: {
+  /** Called when the followed render completes or fails. */
+  onSettled?: (status: "completed" | "failed") => void;
+} = {}) {
+  const api = useSubtitleApi();
   const queryClient = useQueryClient();
-  const refreshCreditBalance = () => {
-    queryClient.invalidateQueries({ queryKey: userUsageQueryKeys.usage() });
-  };
+  const setCreditBalance = useSetCreditBalance();
+  const [job, setJob] = useState<ExportJobState>(IDLE);
 
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportTaskId, setExportTaskId] = useState<string | null>(null);
-  const [exportProgress, setExportProgress] = useState(0);
-  const [exportStatus, setExportStatus] = useState<ExportStatus>("idle");
-  const [exportedVideoUrl, setExportedVideoUrl] = useState<string | null>(null);
-
-  const exportStatusRef = useRef<ExportStatus>("idle");
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Each export gets a run number; late responses from an older run are ignored.
+  const runRef = useRef(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const updateExportStatus = (status: ExportStatus) => {
-    exportStatusRef.current = status;
-    setExportStatus(status);
-  };
-
-  const clearExportTimers = () => {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-    }
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-  };
+  const onSettledRef = useRef(onSettled);
 
   useEffect(() => {
-    return () => {
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
+    onSettledRef.current = onSettled;
+  }, [onSettled]);
+
+  const stopTimers = useCallback(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    intervalRef.current = null;
+    timeoutRef.current = null;
   }, []);
 
-  const pollForExportUpdates = async (
-    taskId: string,
-    onComplete?: () => void
-  ) => {
-    clearExportTimers();
-    pollIntervalRef.current = setInterval(async () => {
-      try {
-        const result = await getExportJobStatus(taskId);
+  useEffect(() => {
+    const runs = runRef;
+    return () => {
+      runs.current += 1;
+      stopTimers();
+    };
+  }, [stopTimers]);
 
-        if (result.success && result.data) {
-          const { progress, status, result: jobResult } = result.data;
-
-          setExportProgress(progress || 0);
-          updateExportStatus(status);
-
-          if (
-            status === "completed" &&
-            jobResult?.success &&
-            jobResult.videoUrl
-          ) {
-            setExportedVideoUrl(jobResult.videoUrl);
-            setIsExporting(false);
-            toast.success("Video exported successfully!");
-
-            if (onComplete) {
-              await onComplete();
-            }
-
-            clearExportTimers();
-          } else if (status === "failed") {
-            setIsExporting(false);
-            toast.error(jobResult?.error || "Export job failed");
-            // The worker refunds credits on permanent failure — refresh the
-            // sidebar so the user sees the credits returned.
-            refreshCreditBalance();
-            clearExportTimers();
-          }
-        }
-      } catch (error) {
-        console.error("Export polling error:", error);
-        clearExportTimers();
-        setIsExporting(false);
-        updateExportStatus("failed");
-        toast.error("Failed to check export status");
-      }
-    }, 2000);
-
-    timeoutRef.current = setTimeout(() => {
-      clearExportTimers();
-      if (exportStatusRef.current === "processing") {
-        setIsExporting(false);
-        updateExportStatus("failed");
-        toast.error("Export timed out. Please try again.");
-      }
-    }, 1800000);
-  };
-
-  const startExport = async (
-    transcriptionId: string,
-    videoUrl: string,
-    subtitleChunks: any[],
-    settings: EditorSettings,
-    duration: number,
-    width: number,
-    height: number,
-    onComplete?: () => void
-  ) => {
-    setIsExporting(true);
-    updateExportStatus("queued");
-    setExportProgress(0);
-    setExportedVideoUrl(null);
-
-    try {
-      toast.info("Queueing video export job...");
-
-      const result = await createExport({
-        transcriptionId,
-        videoUrl,
-        subtitleChunks,
-        style: settings,
-        duration,
-        fps: 30,
-        width,
-        height,
+  const settle = useCallback(
+    (
+      run: number,
+      next: Partial<ExportJobState> & { status: "completed" | "failed" },
+    ) => {
+      if (run !== runRef.current) return;
+      stopTimers();
+      setJob((prev) => ({ ...prev, ...next }));
+      void queryClient.invalidateQueries({
+        queryKey: subtitleQueryKeys.exports(),
       });
+      if (next.status === "failed") {
+        // The worker refunds credits when a render fails for good.
+        void queryClient.invalidateQueries({
+          queryKey: userUsageQueryKeys.usage(),
+        });
+      }
+      onSettledRef.current?.(next.status);
+    },
+    [queryClient, stopTimers],
+  );
+
+  const startExport = useCallback(
+    async (request: Omit<ExportRequest, "fps">): Promise<boolean> => {
+      stopTimers();
+      const run = ++runRef.current;
+      setJob({ ...IDLE, status: "queued" });
+
+      const result = await api.createExport({ ...request, fps: EXPORT_FPS });
+      if (run !== runRef.current) return false;
 
       if (!result.success || !result.data?.taskId) {
-        // 402 (insufficient credits) and other validation errors land here.
-        // The server already echoes a friendly message in `result.error`.
         if (typeof result.data?.creditsAvailable === "number") {
           setCreditBalance(result.data.creditsAvailable);
         }
-        throw new Error(result.error || "Failed to queue export job");
+        setJob({
+          ...IDLE,
+          status: "failed",
+          error: result.error || "The export couldn't be queued. Try again.",
+        });
+        return false;
       }
 
-      // Reflect the deduction in the sidebar immediately — no need to wait for
-      // the next /api/user/usage refresh.
-      if (typeof result.data.creditsRemaining === "number") {
-        setCreditBalance(result.data.creditsRemaining);
+      const { taskId, creditsUsed, creditsRemaining } = result.data;
+      if (typeof creditsRemaining === "number") {
+        setCreditBalance(creditsRemaining);
       }
+      setJob((prev) => ({
+        ...prev,
+        status: "processing",
+        creditsUsed: creditsUsed ?? null,
+      }));
+      void queryClient.invalidateQueries({
+        queryKey: subtitleQueryKeys.exports(),
+      });
 
-      const taskId = result.data.taskId;
-      setExportTaskId(taskId);
-      updateExportStatus("processing");
+      let failures = 0;
+      intervalRef.current = setInterval(async () => {
+        const status = await api.getExportJobStatus(taskId);
+        if (run !== runRef.current) return;
 
-      const usedSuffix =
-        typeof result.data.creditsUsed === "number"
-          ? ` (${result.data.creditsUsed} credits charged)`
-          : "";
-      toast.success(
-        `Export job queued! Processing will begin shortly...${usedSuffix}`
-      );
+        if (!status.success || !status.data) {
+          failures += 1;
+          if (failures >= MAX_POLL_FAILURES) {
+            settle(run, {
+              status: "failed",
+              error:
+                "Couldn't check on the export. Look in Exports in a few minutes.",
+            });
+          }
+          return;
+        }
+        failures = 0;
 
-      pollForExportUpdates(taskId, onComplete);
-    } catch (error) {
-      console.error("Export error:", error);
-      toast.error(
-        error instanceof Error ? error.message : "Failed to queue export job"
-      );
-      setIsExporting(false);
-      updateExportStatus("failed");
-    }
-  };
+        const { progress, result: jobResult, failedReason } = status.data;
+        if (status.data.status === "completed") {
+          if (jobResult?.success && jobResult.videoUrl) {
+            settle(run, {
+              status: "completed",
+              progress: 100,
+              videoUrl: jobResult.videoUrl,
+            });
+          } else {
+            settle(run, {
+              status: "failed",
+              error: jobResult?.error || "The render finished without a video.",
+            });
+          }
+        } else if (status.data.status === "failed") {
+          settle(run, {
+            status: "failed",
+            error: jobResult?.error || failedReason || "The render failed.",
+          });
+        } else {
+          setJob((prev) => ({ ...prev, progress: progress || 0 }));
+        }
+      }, POLL_MS);
 
-  const resetExportState = () => {
-    clearExportTimers();
-    setIsExporting(false);
-    setExportTaskId(null);
-    setExportProgress(0);
-    updateExportStatus("idle");
-    setExportedVideoUrl(null);
-  };
+      timeoutRef.current = setTimeout(() => {
+        settle(run, {
+          status: "failed",
+          error: "The export is taking too long. Look in Exports later.",
+        });
+      }, TIMEOUT_MS);
+
+      return true;
+    },
+    [api, queryClient, setCreditBalance, settle, stopTimers],
+  );
+
+  const reset = useCallback(() => {
+    runRef.current += 1;
+    stopTimers();
+    setJob(IDLE);
+  }, [stopTimers]);
 
   return {
-    isExporting,
-    exportTaskId,
-    exportProgress,
-    exportStatus,
-    exportedVideoUrl,
+    ...job,
+    isExporting: job.status === "queued" || job.status === "processing",
     startExport,
-    resetExportState,
+    reset,
   };
-};
+}

@@ -1972,8 +1972,9 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
       title: "Publish Post Now",
       description:
         "Publish a DRAFT or SCHEDULED post to its accounts right now instead of waiting for " +
-        "its schedule. Requires paid plan. Returns per-account results; if some accounts " +
-        "fail, use retry_post.",
+        "its schedule. Requires paid plan. Publishing runs in the background: this returns " +
+        "status PUBLISHING straight away. Call get_post after a minute or two to see each " +
+        "account's result; if some accounts fail, use retry_post.",
       inputSchema: {
         postId: z.string(),
       },
@@ -2077,7 +2078,7 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
     {
       title: "Retry Post",
       description:
-        "Retry a FAILED or PARTIALLY_PUBLISHED post. Re-attempts only the accounts that failed; already-published accounts are never re-posted.",
+        "Retry a FAILED or PARTIALLY_PUBLISHED post. Re-attempts only the accounts that failed; already-published accounts are never re-posted. Runs in the background: call get_post after a minute or two for the outcome.",
       inputSchema: {
         postId: z.string(),
       },

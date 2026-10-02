@@ -35,7 +35,9 @@ export function useThumbnailGeneration(options?: {
     new Map(),
   );
   const onCompleteRef = useRef(options?.onComplete);
-  onCompleteRef.current = options?.onComplete;
+  useEffect(() => {
+    onCompleteRef.current = options?.onComplete;
+  });
 
   const stopPolling = useCallback((generationId: string) => {
     const timer = pollTimers.current.get(generationId);
@@ -77,7 +79,7 @@ export function useThumbnailGeneration(options?: {
           if (gen.status === "COMPLETED" || gen.status === "FAILED") {
             stopPolling(generationId);
             if (gen.status === "COMPLETED") {
-              toast.success("Thumbnail generation complete!");
+              toast.success("Thumbnail ready");
               onCompleteRef.current?.(generationId);
               setTimeout(() => {
                 setActiveGenerations((prev) =>
@@ -86,12 +88,14 @@ export function useThumbnailGeneration(options?: {
               }, AUTO_DISMISS_DELAY_MS);
             } else {
               toast.error(
-                `Generation failed: ${gen.error || "Unknown error"}`,
+                gen.error
+                  ? `Couldn't generate the thumbnail. ${gen.error}`
+                  : "Couldn't generate the thumbnail. Try again.",
               );
             }
           }
         } catch {
-          // network blip — keep polling
+          // Network blip: keep polling.
         }
       }, POLL_INTERVAL_MS);
 

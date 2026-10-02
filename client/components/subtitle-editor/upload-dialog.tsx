@@ -3,41 +3,44 @@
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
-import { Spinner } from "@/components/ui/spinner";
+import { LoadingState } from "@/components/shared/states";
 import { UploadArea } from "@/components/subtitle-editor/upload-area";
 
-interface UploadDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onVideoUploaded: (url: string, file: File) => void;
-  isCreating?: boolean;
-}
-
+/** Uploads a video and creates a subtitle project from it. */
 export function UploadDialog({
   open,
   onOpenChange,
   onVideoUploaded,
   isCreating = false,
-}: UploadDialogProps) {
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onVideoUploaded: (url: string, file: File) => void;
+  isCreating?: boolean;
+}) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!isCreating) onOpenChange(next);
+      }}
+    >
+      <DialogContent className="sm:max-w-lg" showCloseButton={!isCreating}>
         <DialogHeader>
-          <DialogTitle>Upload Video</DialogTitle>
+          <DialogTitle>New project</DialogTitle>
           <DialogDescription>
-            Upload your video to generate and configure subtitles.
+            Upload a video to transcribe and style its subtitles.
           </DialogDescription>
         </DialogHeader>
-
         {isCreating ? (
-          <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed p-12 text-sm text-muted-foreground">
-            <Spinner className="size-4" />
-            Setting up your project...
-          </div>
+          <LoadingState
+            label="Creating project"
+            className="rounded-xl border border-dashed"
+          />
         ) : (
           <UploadArea onVideoUploaded={onVideoUploaded} />
         )}

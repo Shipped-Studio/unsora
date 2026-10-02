@@ -1,10 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { DownloadSimple, Trash, Warning, ImageSquare, CheckCircle } from "@phosphor-icons/react";
-import Image from "next/image";
-import { getCdnUrl } from "@/lib/video-utils";
-import { Spinner } from "@/components/ui/spinner";
+import {
+  ArrowsLeftRight,
+  DotsThree,
+  DownloadSimple,
+  ImageSquare,
+  Trash,
+  WarningCircle,
+} from "@phosphor-icons/react";
+import { ScheduleLink } from "@/components/generator/tool-layout";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,226 +19,205 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-
-const cdnLoader = ({ src }: { src: string }) => src;
-
-export interface UpscaleCardData {
-  id: string;
-  status: string;
-  originalName?: string;
-  inputUrl?: string | null;
-  outputUrl?: string | null;
-  error?: string | null;
-}
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  isImageUpscaleActive,
+  type ImageUpscale,
+} from "@/hooks/use-image-upscales-query";
+import { getCdnUrl } from "@/lib/video-utils";
 
 interface UpscaleCardProps {
-  job: UpscaleCardData;
-  onDelete?: (id: string) => void;
-  onClick?: () => void;
-  displayMode?: "default" | "asset";
+  job: ImageUpscale;
+  name: string;
+  onOpen: () => void;
+  onDelete: () => void;
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  submitting: "Submitting…",
-  QUEUED: "Queued",
-  PROCESSING: "Processing…",
-};
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
 
-export function UpscaleCard({
-  job,
-  onDelete,
-  onClick,
-  displayMode = "default",
-}: UpscaleCardProps) {
-  const [hovered, setHovered] = useState(false);
-  const isInProgress =
-    job.status === "submitting" ||
-    job.status === "QUEUED" ||
-    job.status === "PROCESSING";
-  const isComplete = job.status === "COMPLETED";
-  const isFailed = job.status === "FAILED";
-  const outputUrl = job.outputUrl;
-  const inputUrl = job.inputUrl;
-  const displayUrl = isComplete ? outputUrl : inputUrl;
-  const isAssetMode = displayMode === "asset";
+export function UpscaleCard({ job, name, onOpen, onDelete }: UpscaleCardProps) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const active = isImageUpscaleActive(job);
+  const failed = job.status === "FAILED";
+  const outputUrl = job.status === "COMPLETED" ? job.outputUrl : null;
+
+  const status = active
+    ? job.status === "QUEUED"
+      ? "Queued"
+      : "Upscaling"
+    : failed
+      ? "Failed"
+      : formatDate(job.createdAt);
 
   return (
-    <div
-      className={`group relative aspect-square overflow-hidden rounded-xl border bg-card transition-all cursor-pointer ${
-        isAssetMode ? "" : "shadow-sm hover:shadow-md"
-      }`}
-      onClick={() => !isInProgress && onClick?.()}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      {/* Image display */}
-      {displayUrl ? (
-        <Image
-          loader={cdnLoader}
-          src={getCdnUrl(displayUrl)}
-          alt={job.originalName || "Image"}
-          fill
-          sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
-          className="object-cover"
-        />
+    <article className="flex flex-col overflow-hidden rounded-xl bg-muted">
+      {outputUrl ? (
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label={`Compare ${name}`}
+          className="relative block aspect-square w-full overflow-hidden bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
+        >
+          <img
+            src={getCdnUrl(outputUrl)}
+            alt={name}
+            loading="lazy"
+            className="size-full object-cover"
+          />
+        </button>
       ) : (
-        <div className="flex size-full items-center justify-center">
-          <ImageSquare className="size-8 text-muted-foreground/30" />
+        <div className="relative flex aspect-square flex-col items-center justify-center gap-2 overflow-hidden bg-muted px-4 text-center">
+          {active && job.inputUrl ? (
+            <img
+              src={getCdnUrl(job.inputUrl)}
+              alt=""
+              className="absolute inset-0 size-full object-cover opacity-30"
+            />
+          ) : null}
+          {active ? (
+            <>
+              <Spinner className="relative text-muted-foreground" />
+              <span className="relative text-xs text-muted-foreground">
+                {status}
+              </span>
+            </>
+          ) : failed ? (
+            <>
+              <WarningCircle className="size-5 text-destructive" />
+              <p className="line-clamp-3 text-xs text-destructive">
+                {job.error || "Upscaling failed."}
+              </p>
+            </>
+          ) : (
+            <ImageSquare className="size-6 text-muted-foreground" />
+          )}
         </div>
       )}
 
-      {/* In-progress overlay */}
-      {isInProgress && (
-        <div
-          className={`absolute inset-0 flex flex-col items-center justify-center gap-2 px-5 text-center ${
-            isAssetMode ? "bg-card" : "bg-black/60"
-          }`}
-        >
-          <Spinner className={isAssetMode ? "" : "text-white"} />
-          {!isAssetMode && job.originalName && (
-            <p className="line-clamp-1 text-xs font-medium text-white/80">
-              {job.originalName}
+      <div className="flex flex-1 flex-col gap-3 p-3">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium" title={name}>
+              {name}
             </p>
-          )}
-          <span className={isAssetMode ? "text-xs text-muted-foreground" : "rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-medium text-white"}>
-            {STATUS_LABELS[job.status] ?? job.status}
-          </span>
-        </div>
-      )}
-
-      {/* Failed overlay */}
-      {isFailed && (
-        <div className={`absolute inset-0 flex flex-col items-center justify-center gap-2 px-5 text-center ${isAssetMode ? "bg-card" : "bg-black/60"}`}>
-          <Warning className={`size-6 ${isAssetMode ? "text-destructive/70" : "text-destructive"}`} />
-          <p className={`line-clamp-2 text-xs ${isAssetMode ? "text-destructive/80" : "text-white/80"}`}>
-            {job.error || "Upscaling failed"}
-          </p>
-          {!isAssetMode && onDelete && (
-            <AlertDialog>
-              <AlertDialogTrigger
-                className="mt-1 rounded-md bg-white/15 px-3 py-1 text-[11px] font-medium text-white transition-colors hover:bg-destructive"
-                onClick={(e) => e.stopPropagation()}
-              >
-                Delete
-              </AlertDialogTrigger>
-              <AlertDialogContent size="sm">
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete job?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will permanently remove this upscale job. This action
-                    cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    variant="destructive"
-                    onClick={() => onDelete(job.id)}
-                  >
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-        </div>
-      )}
-
-      {isAssetMode && hovered && isComplete && outputUrl && (
-        <div
-          className="absolute inset-x-0 top-2 z-10 flex justify-end gap-1.5 px-2"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <a
-            href={getCdnUrl(outputUrl, { download: true })}
-            download
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-md bg-background/85 p-1.5 text-foreground transition-colors hover:bg-background"
-          >
-            <DownloadSimple className="size-4" />
-          </a>
-          {onDelete && (
-            <AlertDialog>
-              <AlertDialogTrigger className="rounded-md bg-destructive p-1.5 text-destructive-foreground transition-opacity hover:opacity-90">
-                <Trash className="size-4" />
-              </AlertDialogTrigger>
-              <AlertDialogContent size="sm">
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete image?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will permanently remove this upscaled image. This
-                    action cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    variant="destructive"
-                    onClick={() => onDelete(job.id)}
-                  >
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-        </div>
-      )}
-
-      {/* Hover overlay for completed */}
-      {!isAssetMode && hovered && isComplete && outputUrl && (
-        <div
-          className="absolute inset-0 flex flex-col justify-between bg-black/50 p-3"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-medium text-success">
-              <CheckCircle className="size-3" weight="fill" />
-              Upscaled
-            </span>
-            <div className="flex gap-1.5">
-              <a
-                href={getCdnUrl(outputUrl, { download: true })}
-                download
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-md bg-black/40 p-1.5 text-white transition-colors hover:bg-black/60"
-              >
-                <DownloadSimple className="size-4" />
-              </a>
-              {onDelete && (
-                <AlertDialog>
-                  <AlertDialogTrigger className="rounded-md bg-black/40 p-1.5 text-white transition-colors hover:bg-destructive">
-                    <Trash className="size-4" />
-                  </AlertDialogTrigger>
-                  <AlertDialogContent size="sm">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete image?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will permanently remove this upscaled image. This
-                        action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        variant="destructive"
-                        onClick={() => onDelete(job.id)}
-                      >
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
-            </div>
+            <p
+              className={
+                failed
+                  ? "truncate text-xs text-destructive"
+                  : "truncate text-xs text-muted-foreground"
+              }
+            >
+              {status}
+            </p>
           </div>
-          <p className="line-clamp-1 text-xs text-white/90">{job.originalName}</p>
+          {outputUrl ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="-mt-1 -mr-1"
+                    aria-label={`More actions for ${name}`}
+                  />
+                }
+              >
+                <DotsThree weight="bold" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem onClick={onOpen}>
+                  <ArrowsLeftRight />
+                  Compare
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => setConfirmOpen(true)}
+                >
+                  <Trash />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
         </div>
-      )}
+
+        {outputUrl ? (
+          <div className="mt-auto flex gap-2">
+            <ScheduleLink url={outputUrl} mediaType="image" className="flex-1" />
+            <a
+              href={getCdnUrl(outputUrl, { download: true })}
+              download
+              className={buttonVariants({ variant: "outline", size: "icon-sm" })}
+              aria-label={`Download ${name}`}
+            >
+              <DownloadSimple />
+            </a>
+          </div>
+        ) : failed ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-auto"
+            onClick={() => setConfirmOpen(true)}
+          >
+            <Trash />
+            Delete
+          </Button>
+        ) : null}
+      </div>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this image?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The upscaled image will be removed from your results. This
+              can&apos;t be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                setConfirmOpen(false);
+                onDelete();
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </article>
+  );
+}
+
+export function UpscaleCardSkeleton() {
+  return (
+    <div className="overflow-hidden rounded-xl bg-muted">
+      <Skeleton className="aspect-square rounded-none" />
+      <div className="space-y-2 p-3">
+        <Skeleton className="h-4 w-2/3" />
+        <Skeleton className="h-3 w-1/3" />
+        <Skeleton className="h-8 w-full" />
+      </div>
     </div>
   );
 }

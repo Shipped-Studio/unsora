@@ -13,8 +13,11 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
-  rules: {
-    "@next/next/no-img-element": "off",
+  {
+    rules: {
+      // User media comes from arbitrary CDNs, so plain <img> is intentional.
+      "@next/next/no-img-element": "off",
+    },
   },
 ]);
 

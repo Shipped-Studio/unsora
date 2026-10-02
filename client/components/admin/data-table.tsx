@@ -1,18 +1,27 @@
 "use client";
 
-import { cn } from "@/lib/utils";
-import { CaretLeft, CaretRight } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableCell,
+  TableHead,
+  TableRow,
+} from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 
-/** Horizontally-scrollable table shell (the page body never scrolls sideways). */
-export function TableShell({ children }: { children: ReactNode }) {
+/** Bordered card around a `Table`. The table scrolls sideways on its own. */
+export function TableShell({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] border-collapse text-sm">
-          {children}
-        </table>
-      </div>
+    <div className={cn("overflow-hidden rounded-xl bg-muted", className)}>
+      <Table className="min-w-160">{children}</Table>
     </div>
   );
 }
@@ -25,92 +34,97 @@ export function Th({
   className?: string;
 }) {
   return (
-    <th
-      className={cn(
-        "border-b border-border px-4 py-2.5 text-left text-xs font-medium text-muted-foreground",
-        className,
-      )}
-    >
+    <TableHead className={cn("px-4 text-xs text-muted-foreground", className)}>
       {children}
-    </th>
+    </TableHead>
   );
 }
 
 export function Td({
   children,
   className,
+  colSpan,
 }: {
   children?: ReactNode;
   className?: string;
+  colSpan?: number;
 }) {
   return (
-    <td className={cn("px-4 py-3 align-middle", className)}>{children}</td>
-  );
-}
-
-export function Tr({
-  children,
-  className,
-  onClick,
-}: {
-  children: ReactNode;
-  className?: string;
-  onClick?: () => void;
-}) {
-  return (
-    <tr
-      onClick={onClick}
-      className={cn(
-        "border-b border-border/60 last:border-0 transition-colors",
-        onClick && "cursor-pointer hover:bg-muted/50",
-        className,
-      )}
-    >
+    <TableCell colSpan={colSpan} className={cn("px-4 py-2.5", className)}>
       {children}
-    </tr>
+    </TableCell>
   );
 }
 
-/** Prev / next pager with page context. */
+/** Placeholder rows shaped like the table they stand in for. */
+export function SkeletonRows({ rows = 8, cols }: { rows?: number; cols: number }) {
+  return (
+    <>
+      {Array.from({ length: rows }).map((_, r) => (
+        <TableRow key={r} className="hover:bg-transparent">
+          {Array.from({ length: cols }).map((__, c) => (
+            <Td key={c}>
+              <Skeleton className={cn("h-4", c === 0 ? "w-40" : "w-16")} />
+            </Td>
+          ))}
+        </TableRow>
+      ))}
+    </>
+  );
+}
+
+/** A single full-width row for "nothing matches" inside a table body. */
+export function EmptyRow({ cols, children }: { cols: number; children: ReactNode }) {
+  return (
+    <TableRow className="hover:bg-transparent">
+      <Td colSpan={cols} className="py-10 text-center text-sm text-muted-foreground">
+        {children}
+      </Td>
+    </TableRow>
+  );
+}
+
+/** Previous / next pager with page context. */
 export function Pager({
   page,
   totalPages,
   total,
   onPage,
+  disabled,
   className,
 }: {
   page: number;
   totalPages: number;
   total?: number;
   onPage: (p: number) => void;
+  disabled?: boolean;
   className?: string;
 }) {
   return (
     <div
-      className={cn(
-        "mt-3 flex items-center justify-between gap-3 text-sm",
-        className,
-      )}
+      className={cn("flex items-center justify-between gap-3", className)}
     >
-      <span className="text-xs text-muted-foreground">
-        Page {page} of {totalPages}
-        {typeof total === "number" && ` · ${total.toLocaleString()} total`}
+      <span className="text-xs text-muted-foreground tabular-nums">
+        Page {page} of {Math.max(totalPages, 1)}
+        {typeof total === "number" ? ` · ${total.toLocaleString()} total` : ""}
       </span>
-      <div className="flex items-center gap-1.5">
-        <button
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => onPage(page - 1)}
-          disabled={page <= 1}
-          className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
+          disabled={disabled || page <= 1}
         >
-          <CaretLeft className="size-4" />
-        </button>
-        <button
+          Previous
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => onPage(page + 1)}
-          disabled={page >= totalPages}
-          className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
+          disabled={disabled || page >= totalPages}
         >
-          <CaretRight className="size-4" />
-        </button>
+          Next
+        </Button>
       </div>
     </div>
   );

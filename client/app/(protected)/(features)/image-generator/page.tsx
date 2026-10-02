@@ -1,260 +1,196 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useInView } from "react-intersection-observer";
-import { ImagePromptForm } from "@/components/image-generator/prompt-form";
-import {
-  GenerationCard,
-  type GenerationCardData,
-} from "@/components/image-generator/generation-card";
-import {
-  ImageDetailDialog,
-  type ImageDetailData,
-} from "@/components/image-generator/image-detail-dialog";
-import { useImageGeneration } from "@/hooks/use-image-generation";
-import { useAuthFetch } from "@/hooks/use-auth-fetch";
+import { useCallback, useMemo, useState } from "react";
 import { ImageSquare } from "@phosphor-icons/react";
-import { Spinner } from "@/components/ui/spinner";
-import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "sonner";
+import { ToolPage } from "@/components/generator/tool-layout";
+import { ToolResults } from "@/components/generator/tool-results";
+import {
+  MediaResultCard,
+  isPending,
+  type MediaResult,
+} from "@/components/generator/media-result-card";
+import {
+  MediaResultDialog,
+  detailRows,
+  formatCredits,
+} from "@/components/generator/media-result-dialog";
+import {
+  ImagePromptForm,
+  type ImageGenerationSubmitParams,
+} from "@/components/image-generator/prompt-form";
+import {
+  formatResolution,
+  imageModelLabel,
+} from "@/components/image-generator/model-configs";
+import { useImageGeneration } from "@/hooks/use-image-generation";
+import {
+  useDeleteFromHistory,
+  useGenerationHistory,
+  useRefreshHistory,
+  startedRecently,
+} from "@/hooks/use-generation-history";
 
-interface AssetRef {
-  id: string;
-  url: string;
-}
+const TOOL = "image";
+const PATH = "/api/image-generations";
 
-interface ImageGeneration {
+interface ImageRecord {
   id: string;
   status: string;
   prompt: string;
   model: string;
-  ratio: string;
-  resolution: string;
-  params?: Record<string, string> | null;
-  outputAsset?: AssetRef | null;
-  thumbnailAsset?: AssetRef | null;
+  ratio?: string | null;
+  resolution?: string | null;
+  outputAsset?: { url: string } | null;
+  thumbnailAsset?: { url: string } | null;
   error?: string | null;
+  creditsUsed?: number | null;
+  createdAt: string;
+}
+
+interface ImageListResponse {
+  generations?: ImageRecord[];
+  pagination?: { hasNextPage?: boolean };
+}
+
+interface ImageItem extends MediaResult {
+  model: string;
+  ratio?: string | null;
+  resolution?: string | null;
+  credits?: number | null;
   createdAt: string;
 }
 
 export default function ImageGeneratorPage() {
-  const { authFetch } = useAuthFetch();
-  const [generations, setGenerations] = useState<ImageGeneration[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [hasMore, setHasMore] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [selectedGeneration, setSelectedGeneration] =
-    useState<ImageDetailData | null>(null);
-  const pageRef = useRef(1);
-  const fetchingRef = useRef(false);
-
-  const fetchGenerations = useCallback(
-    async (pageNum = 1, append = false) => {
-      try {
-        const res = await authFetch(
-          `/api/image-generations/all?page=${pageNum}&limit=20`,
-        );
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.success) {
-          setGenerations((prev) =>
-            append ? [...prev, ...data.generations] : data.generations,
-          );
-          setHasMore(data.pagination.hasNextPage);
-          pageRef.current = pageNum;
-        }
-      } catch {
-        // silent
-      } finally {
-        setLoading(false);
-      }
+  const history = useGenerationHistory<ImageRecord>({
+    tool: TOOL,
+    path: `${PATH}/all`,
+    parse: (body) => {
+      const data = body as ImageListResponse;
+      return {
+        items: data.generations ?? [],
+        hasNextPage: !!data.pagination?.hasNextPage,
+      };
     },
-    [authFetch],
-  );
-
+    isInProgress: (g) => isPending(g.status) && startedRecently(g.createdAt),
+  });
+  const refreshHistory = useRefreshHistory(TOOL);
+  const deleteImage = useDeleteFromHistory({
+    tool: TOOL,
+    path: PATH,
+    noun: "image",
+  });
   const { activeGenerations, submitGeneration, dismissGeneration } =
-    useImageGeneration({
-      onComplete: () => {
-        fetchGenerations(1, false);
-      },
-    });
-
-  useEffect(() => {
-    fetchGenerations();
-  }, [fetchGenerations]);
+    useImageGeneration({ onComplete: () => void refreshHistory() });
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const handleSubmit = useCallback(
-    async (params: {
-      prompt: string;
-      model: string;
-      ratio: string;
-      resolution?: string;
-      quality?: string;
-      nsfwChecker?: boolean;
-      images?: string[];
-      count: number;
-    }) => {
-      const { count, ...rest } = params;
+    async ({ count, ...params }: ImageGenerationSubmitParams) => {
       for (let i = 0; i < count; i++) {
-        await submitGeneration(rest);
+        await submitGeneration(params);
       }
-      return null;
     },
     [submitGeneration],
   );
 
-  const handleDelete = useCallback(
-    async (generationId: string) => {
-      try {
-        const res = await authFetch(`/api/image-generations/${generationId}`, {
-          method: "DELETE",
-        });
-        if (res.ok) {
-          setGenerations((prev) => prev.filter((g) => g.id !== generationId));
-          toast.success("Image deleted");
-        }
-      } catch {
-        toast.error("Failed to delete image");
-      }
-    },
-    [authFetch],
-  );
+  const items = useMemo<ImageItem[]>(() => {
+    const historyIds = new Set(history.items.map((g) => g.id));
+    const activeById = new Map(activeGenerations.map((g) => [g.id, g]));
 
-  const loadMore = useCallback(() => {
-    if (fetchingRef.current || !hasMore) return;
-    fetchingRef.current = true;
-    setLoadingMore(true);
-    const next = pageRef.current + 1;
-    fetchGenerations(next, true).finally(() => {
-      setLoadingMore(false);
-      fetchingRef.current = false;
-    });
-  }, [hasMore, fetchGenerations]);
+    const fromActive = activeGenerations
+      .filter((g) => !historyIds.has(g.id))
+      .map<ImageItem>((g) => ({
+        id: g.id,
+        status: g.status,
+        prompt: g.prompt,
+        mediaType: "image",
+        url: g.outputAsset?.url ?? null,
+        thumbnailUrl: g.thumbnailAsset?.url ?? null,
+        error: g.error ?? null,
+        local: g.id.startsWith("temp-"),
+        model: g.model,
+        ratio: g.ratio,
+        createdAt: g.createdAt,
+      }));
 
-  const { ref: sentinelRef } = useInView({
-    rootMargin: "200px",
-    skip: loading || loadingMore || !hasMore,
-    onChange: (inView) => {
-      if (inView) loadMore();
-    },
-  });
-
-  // Active generations that haven't landed in the fetched list yet
-  const activeIds = new Set(activeGenerations.map((g) => g.id));
-  const fetchedIds = new Set(generations.map((g) => g.id));
-  const pendingActive = activeGenerations.filter(
-    (g) => !fetchedIds.has(g.id) && g.status !== "COMPLETED",
-  );
-
-  // Merge: active first, then fetched — single flat list
-  const allCards: GenerationCardData[] = [
-    ...pendingActive.map((g) => ({
-      id: g.id,
-      status: g.status,
-      prompt: g.prompt,
-      outputUrl: g.outputAsset?.url ?? null,
-      thumbnailUrl: g.thumbnailAsset?.url ?? null,
-      error: g.error,
-    })),
-    ...generations.map((g) => {
-      const active = activeIds.has(g.id)
-        ? activeGenerations.find((a) => a.id === g.id)
-        : undefined;
+    const fromHistory = history.items.map<ImageItem>((g) => {
+      const active = activeById.get(g.id);
       return {
         id: g.id,
         status: active?.status ?? g.status,
         prompt: g.prompt,
-        outputUrl: active?.outputAsset?.url ?? g.outputAsset?.url ?? null,
-        thumbnailUrl: active?.thumbnailAsset?.url ?? g.thumbnailAsset?.url ?? null,
-        error: active?.error ?? g.error,
+        mediaType: "image",
+        url: active?.outputAsset?.url ?? g.outputAsset?.url ?? null,
+        thumbnailUrl:
+          active?.thumbnailAsset?.url ?? g.thumbnailAsset?.url ?? null,
+        error: active?.error ?? g.error ?? null,
+        model: g.model,
+        ratio: g.ratio,
+        resolution: g.resolution,
+        credits: g.creditsUsed,
+        createdAt: g.createdAt,
       };
-    }),
-  ];
+    });
 
-  const isEmpty = allCards.length === 0;
+    return [...fromActive, ...fromHistory];
+  }, [activeGenerations, history.items]);
+
+  const selected = items.find((item) => item.id === selectedId) ?? null;
+
+  const handleDelete = (id: string) => {
+    dismissGeneration(id);
+    deleteImage.mutate(id);
+  };
 
   return (
-    <>
-      <div className="flex-1 overflow-auto">
-        <div className="p-3 pb-44 sm:p-5 sm:pb-52">
-          {loading ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {Array.from({ length: 12 }).map((_, i) => (
-                <Skeleton key={i} className="aspect-square" />
-              ))}
-            </div>
-          ) : isEmpty ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
-              <ImageSquare
-                className="size-12 text-muted-foreground/40"
-                weight="thin"
-              />
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  No images yet
-                </p>
-                <p className="text-xs text-muted-foreground/70">
-                  Describe an image below to get started
-                </p>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                {allCards.map((card) => {
-                  const full = generations.find((g) => g.id === card.id);
-                  return (
-                    <GenerationCard
-                      key={card.id}
-                      generation={card}
-                      displayMode="asset"
-                      onDelete={handleDelete}
-                      onDismiss={dismissGeneration}
-                      onClick={() => {
-                        if (full) {
-                          setSelectedGeneration({
-                            ...card,
-                            model: full.model,
-                            type: "BASIC",
-                            ratio: full.ratio,
-                            resolution: full.resolution,
-                            params: full.params,
-                            createdAt: full.createdAt,
-                          });
-                        }
-                      }}
-                    />
-                  );
-                })}
-              </div>
-              {hasMore && (
-                <div
-                  ref={sentinelRef}
-                  className="flex justify-center py-6"
-                >
-                  {loadingMore && (
-                    <Spinner className="size-5 text-muted-foreground" />
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      <ImageDetailDialog
-        generation={selectedGeneration}
-        open={selectedGeneration !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelectedGeneration(null);
+    <ToolPage dock={<ImagePromptForm onSubmit={handleSubmit} />}>
+      <ToolResults
+        items={items}
+        getKey={(item) => item.id}
+        history={history}
+        shape="square"
+        aspectClassName="aspect-square"
+        plural="images"
+        empty={{
+          icon: ImageSquare,
+          title: "No images yet",
+          description:
+            "Describe an image below. Finished images show up here and in Files.",
         }}
-        onDelete={(id) => {
-          handleDelete(id);
-          setSelectedGeneration(null);
-        }}
+        renderItem={(item) => (
+          <MediaResultCard
+            result={item}
+            noun="image"
+            onOpen={() => setSelectedId(item.id)}
+            onDelete={handleDelete}
+            onDismiss={dismissGeneration}
+          />
+        )}
       />
 
-      <ImagePromptForm onSubmit={handleSubmit} />
-    </>
+      <MediaResultDialog
+        result={selected}
+        noun="image"
+        title="Image"
+        createdAt={selected?.createdAt}
+        details={
+          selected
+            ? detailRows([
+                { label: "Model", value: imageModelLabel(selected.model) },
+                { label: "Aspect ratio", value: selected.ratio },
+                {
+                  label: "Resolution",
+                  value: formatResolution(selected.resolution),
+                },
+                { label: "Credits", value: formatCredits(selected.credits) },
+              ])
+            : []
+        }
+        open={selected !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedId(null);
+        }}
+        onDelete={handleDelete}
+      />
+    </ToolPage>
   );
 }

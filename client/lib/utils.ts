@@ -5,10 +5,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/** Shared elevation for popovers, dropdowns, selects, and modals. */
-export const overlaySurfaceClass =
-  "border border-border bg-surface-elevated shadow-2xl shadow-black/10 ring-1 ring-foreground/10 dark:border-white/10 dark:shadow-[0_12px_40px_rgba(0,0,0,0.55)] dark:ring-white/10";
-
 export function getDurationOptions(min = 1, max = 25) {
   return Array.from({ length: max - min + 1 }, (_, i) => {
     const s = min + i;

@@ -1,35 +1,47 @@
 "use client";
 
-import {
-  ExportCard,
-  ExportsEmptyState,
-} from "@/components/subtitle-editor/export-card";
+import Link from "next/link";
+import { FilmSlate } from "@phosphor-icons/react";
+import { EmptyState } from "@/components/shared/states";
+import { EditorSection } from "@/components/subtitle-editor/editor-fields";
+import { ExportCard } from "@/components/subtitle-editor/export-card";
 import type { VideoExportItem } from "@/remotion/types";
 
-interface ExportsTabProps {
+export function ExportsTab({
+  exports,
+  onDelete,
+}: {
   exports: VideoExportItem[];
-  /** Request deletion — the parent shows a confirmation dialog. */
-  onDelete: (id: string) => void;
-}
+  onDelete: (item: VideoExportItem) => void;
+}) {
+  if (exports.length === 0) {
+    return (
+      <EmptyState
+        icon={FilmSlate}
+        title="No exports yet"
+        description="Export this project to render the video with its subtitles."
+      />
+    );
+  }
 
-export function ExportsTab({ exports, onDelete }: ExportsTabProps) {
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-semibold">
-        Exported Videos
-        <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-          ({exports.length})
-        </span>
-      </h3>
-      {exports.length === 0 ? (
-        <ExportsEmptyState />
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {exports.map((exp) => (
-            <ExportCard key={exp.id} item={exp} onDelete={onDelete} />
-          ))}
-        </div>
-      )}
-    </div>
+    <EditorSection
+      title="Exports"
+      description={`${exports.length} ${exports.length === 1 ? "video" : "videos"} rendered from this project.`}
+      actions={
+        <Link
+          href="/subtitle-editor/exports"
+          className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        >
+          All exports
+        </Link>
+      }
+    >
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {exports.map((item) => (
+          <ExportCard key={item.id} item={item} onDelete={onDelete} />
+        ))}
+      </div>
+    </EditorSection>
   );
 }

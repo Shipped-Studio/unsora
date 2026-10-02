@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { getSignedUploadUrl, uploadToSignedUrl } from "@/lib/storage-client";
 import { toast } from "sonner";
 
@@ -26,6 +26,18 @@ export interface ManagedImage {
 export function useImageManager(maxFiles: number = 20) {
   const [images, setImages] = useState<ManagedImage[]>([]);
 
+  // Revoke preview URLs when the form unmounts.
+  const imagesRef = useRef<ManagedImage[]>([]);
+  useEffect(() => {
+    imagesRef.current = images;
+  }, [images]);
+  useEffect(
+    () => () => {
+      imagesRef.current.forEach((img) => URL.revokeObjectURL(img.previewUrl));
+    },
+    [],
+  );
+
   const uploadImageFile = useCallback(async (imageFile: ManagedImage) => {
     setImages((prev) =>
       prev.map((img) =>
@@ -41,7 +53,7 @@ export function useImageManager(maxFiles: number = 20) {
         imageFile.file.type,
       );
       if (!signed.success || !signed.uploadUrl) {
-        throw new Error(signed.error || "Failed to generate upload URL");
+        throw new Error(signed.error || "Upload failed");
       }
 
       const result = await uploadToSignedUrl(
@@ -83,7 +95,7 @@ export function useImageManager(maxFiles: number = 20) {
             : img,
         ),
       );
-      toast.error(`Failed to upload ${imageFile.name}: ${message}`);
+      toast.error(`Couldn't upload ${imageFile.name}. ${message}`);
     }
   }, []);
 
@@ -92,7 +104,7 @@ export function useImageManager(maxFiles: number = 20) {
       const fileArray = Array.from(files);
 
       if (images.length + fileArray.length > maxFiles) {
-        toast.error(`You can only upload up to ${maxFiles} images at once.`);
+        toast.error(`You can add up to ${maxFiles} images at a time.`);
         return;
       }
 
@@ -102,14 +114,12 @@ export function useImageManager(maxFiles: number = 20) {
 
       for (const file of fileArray) {
         if (!ACCEPTED_MIME_TYPES.includes(file.type)) {
-          errors.push(`${file.name}: Unsupported format (JPEG, PNG, WebP only)`);
+          errors.push(`${file.name}: use a JPEG, PNG or WebP image.`);
           continue;
         }
 
         if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-          errors.push(
-            `${file.name}: File too large (max ${MAX_FILE_SIZE_MB} MB)`,
-          );
+          errors.push(`${file.name}: larger than ${MAX_FILE_SIZE_MB} MB.`);
           continue;
         }
 
@@ -132,9 +142,8 @@ export function useImageManager(maxFiles: number = 20) {
       if (duplicates.length > 0) {
         toast.warning(
           duplicates.length === 1
-            ? `"${duplicates[0]}" is already in your queue.`
-            : `${duplicates.length} duplicate(s) skipped.`,
-          { duration: 4000 },
+            ? `${duplicates[0]} is already added.`
+            : `Skipped ${duplicates.length} images that are already added.`,
         );
       }
 

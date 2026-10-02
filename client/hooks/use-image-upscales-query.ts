@@ -1,117 +1,99 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+"use client";
+
+import { toast } from "sonner";
 import { useAuthFetch } from "./use-auth-fetch";
+import { usePagedList, usePollIds } from "./use-paged-list";
 
-interface AssetRelation {
-  id: string;
-  url: string;
-  name: string;
-  mimeType: string;
-  type: string;
-}
-
-export interface ImageUpscaleRecord {
+export interface ImageUpscale {
   id: string;
   status: string;
-  inputAsset?: AssetRelation | null;
-  outputAsset?: AssetRelation | null;
-  thumbnailAsset?: AssetRelation | null;
-  error?: string | null;
-  originalName?: string;
+  inputUrl: string | null;
+  outputUrl: string | null;
+  error: string | null;
   createdAt: string;
 }
 
-export interface ImageUpscalePaginationInfo {
-  currentPage: number;
-  totalPages: number;
-  totalCount: number;
-  limit: number;
-  hasNextPage: boolean;
-  hasPreviousPage: boolean;
+interface RawImageUpscale {
+  id: string;
+  status?: string;
+  inputAsset?: { url: string } | null;
+  outputAsset?: { url: string } | null;
+  error?: string | null;
+  createdAt?: string;
 }
 
-interface ImageUpscalesResponse {
-  success: boolean;
-  jobs: ImageUpscaleRecord[];
-  pagination: ImageUpscalePaginationInfo;
-  error?: string;
-}
-
-interface DeleteResponse {
-  success: boolean;
-  message: string;
-  error?: string;
-}
+const POLL_INTERVAL_MS = 4_000;
 
 export const imageUpscaleQueryKeys = {
   all: ["image-upscales"] as const,
-  lists: () => [...imageUpscaleQueryKeys.all, "list"] as const,
-  list: (page: number, limit: number) =>
-    [...imageUpscaleQueryKeys.lists(), { page, limit }] as const,
+  list: () => [...imageUpscaleQueryKeys.all, "list"] as const,
 };
 
-export function useImageUpscales(page: number = 1, limit: number = 12) {
-  const { authFetch } = useAuthFetch();
-
-  return useQuery({
-    queryKey: imageUpscaleQueryKeys.list(page, limit),
-    queryFn: async (): Promise<ImageUpscalesResponse> => {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: limit.toString(),
-      });
-
-      const response = await authFetch(`/api/image-upscaler/all?${params}`);
-      const data: ImageUpscalesResponse = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Failed to fetch upscaled images");
-      }
-
-      return data;
-    },
-    staleTime: 30 * 1000,
-    gcTime: 5 * 60 * 1000,
-  });
+export function isImageUpscaleActive(job: Pick<ImageUpscale, "status">) {
+  return job.status === "QUEUED" || job.status === "PROCESSING";
 }
 
-export function useDeleteImageUpscale() {
-  const { authFetch } = useAuthFetch();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (jobId: string): Promise<DeleteResponse> => {
-      const response = await authFetch(`/api/image-upscaler/${jobId}`, {
-        method: "DELETE",
-      });
-      const data: DeleteResponse = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to delete upscale");
-      }
-
-      return data;
-    },
-    onSuccess: (_data, jobId) => {
-      queryClient.invalidateQueries({
-        queryKey: imageUpscaleQueryKeys.lists(),
-      });
-
-      queryClient.setQueriesData(
-        { queryKey: imageUpscaleQueryKeys.lists() },
-        (oldData: ImageUpscalesResponse | undefined) => {
-          if (!oldData) return oldData;
-          return {
-            ...oldData,
-            jobs: oldData.jobs.filter((j) => j.id !== jobId),
-            pagination: {
-              ...oldData.pagination,
-              totalCount: Math.max(0, oldData.pagination.totalCount - 1),
-            },
-          };
-        },
-      );
-    },
-  });
+function normalize(raw: RawImageUpscale): ImageUpscale {
+  return {
+    id: raw.id,
+    status: raw.status ?? "QUEUED",
+    inputUrl: raw.inputAsset?.url ?? null,
+    outputUrl: raw.outputAsset?.url ?? null,
+    error: raw.error ?? null,
+    createdAt: raw.createdAt ?? new Date().toISOString(),
+  };
 }
 
-export type { ImageUpscalesResponse };
+/** Upscale history with live status for queued and running jobs. */
+export function useImageUpscales() {
+  const { authFetch } = useAuthFetch();
+
+  const list = usePagedList<
+    ImageUpscale,
+    { jobs?: RawImageUpscale[]; pagination?: { hasNextPage?: boolean } }
+  >({
+    queryKey: imageUpscaleQueryKeys.list(),
+    path: (page) => `/api/image-upscaler/all?page=${page}&limit=20`,
+    select: (body) => ({
+      items: (body.jobs ?? []).map(normalize),
+      hasNextPage: body.pagination?.hasNextPage,
+    }),
+    loadError: "Couldn't load your upscaled images. Try again.",
+    remove: {
+      path: (id) => `/api/image-upscaler/${id}`,
+      success: "Image deleted",
+      error: "Couldn't delete the image. Try again.",
+    },
+  });
+
+  const { items, patchItem } = list;
+
+  usePollIds(
+    items.filter(isImageUpscaleActive).map((job) => job.id),
+    async (id) => {
+      const res = await authFetch(`/api/image-upscaler/refresh/${id}`);
+      if (!res.ok) return;
+      const body = await res.json();
+      const raw = body?.job as RawImageUpscale | undefined;
+      if (!raw?.status) return;
+
+      patchItem(id, {
+        status: raw.status,
+        error: raw.error ?? null,
+        ...(raw.outputAsset?.url ? { outputUrl: raw.outputAsset.url } : {}),
+      });
+      if (raw.status === "COMPLETED") {
+        toast.success("Image upscaled");
+      } else if (raw.status === "FAILED") {
+        toast.error(
+          raw.error
+            ? `Couldn't upscale the image. ${raw.error}`
+            : "Couldn't upscale the image. Try again.",
+        );
+      }
+    },
+    POLL_INTERVAL_MS,
+  );
+
+  return list;
+}

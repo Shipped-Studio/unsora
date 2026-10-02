@@ -1,225 +1,140 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { Plus, DownloadSimple } from "@phosphor-icons/react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-
-import { Button } from "@/components/ui/button";
-import { useSubtitleApi } from "@/hooks/subtitle/use-subtitle-api";
+import { DownloadSimple, Plus, Subtitles } from "@phosphor-icons/react";
+import { PageBody, PageHeader } from "@/components/layout/page-header";
+import { EmptyState, ErrorState } from "@/components/shared/states";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { DeleteDialog } from "@/components/subtitle-editor/delete-dialog";
+import { failureMessage } from "@/components/subtitle-editor/format";
+import {
+  ListPagination,
+  usePageParam,
+} from "@/components/subtitle-editor/list-pagination";
 import {
   ProjectsGrid,
   ProjectsGridSkeleton,
 } from "@/components/subtitle-editor/projects-grid";
-import { ProjectsEmptyState } from "@/components/subtitle-editor/projects-empty-state";
-import {
-  ProjectsPagination,
-  type PaginationMeta,
-} from "@/components/subtitle-editor/projects-pagination";
-import { DeleteProjectDialog } from "@/components/subtitle-editor/delete-project-dialog";
 import { UploadDialog } from "@/components/subtitle-editor/upload-dialog";
-import type { TranscriptionListItem } from "@/components/subtitle-editor/project-card";
+import { useCreateProject } from "@/hooks/subtitle/use-create-project";
+import type { TranscriptionListItem } from "@/hooks/subtitle/use-subtitle-api";
+import {
+  SUBTITLE_PAGE_SIZE,
+  useDeleteSubtitleProject,
+  useSubtitleProjects,
+} from "@/hooks/subtitle/use-subtitle-queries";
 
-const PAGE_SIZE = 12;
+export default function SubtitleProjectsPage() {
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const { createProject, isCreating } = useCreateProject();
+  const openUpload = () => setUploadOpen(true);
 
-export default function SubtitleEditorIndexPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="space-y-6 p-4 sm:p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                Subtitle Editor
-              </h1>
-              <p className="mt-1 text-sm text-muted-foreground sm:text-base">
-                All your subtitle projects in one place.
-              </p>
-            </div>
-          </div>
-          <ProjectsGridSkeleton count={PAGE_SIZE} />
-        </div>
-      }
-    >
-      <SubtitleEditorIndex />
-    </Suspense>
+    <>
+      <PageHeader
+        actions={
+          <>
+            <Link
+              href="/subtitle-editor/exports"
+              className={buttonVariants({ variant: "outline" })}
+            >
+              <DownloadSimple />
+              Exports
+            </Link>
+            <Button onClick={openUpload}>
+              <Plus />
+              New project
+            </Button>
+          </>
+        }
+      />
+      <PageBody>
+        <Suspense fallback={<ProjectsGridSkeleton count={SUBTITLE_PAGE_SIZE} />}>
+          <ProjectsList onNewProject={openUpload} />
+        </Suspense>
+      </PageBody>
+      <UploadDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        onVideoUploaded={createProject}
+        isCreating={isCreating}
+      />
+    </>
   );
 }
 
-function SubtitleEditorIndex() {
-  const { getUserTranscriptions, deleteTranscription, createTranscription } =
-    useSubtitleApi();
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+function ProjectsList({ onNewProject }: { onNewProject: () => void }) {
+  const page = usePageParam();
+  const { data, isPending, isError, error, refetch, isPlaceholderData } =
+    useSubtitleProjects(page);
+  const deleteProject = useDeleteSubtitleProject();
+  const [pendingDelete, setPendingDelete] =
+    useState<TranscriptionListItem | null>(null);
 
-  const page = useMemo(() => {
-    const raw = parseInt(searchParams.get("page") ?? "1", 10);
-    return Number.isFinite(raw) && raw >= 1 ? raw : 1;
-  }, [searchParams]);
-
-  const [items, setItems] = useState<TranscriptionListItem[]>([]);
-  const [pagination, setPagination] = useState<PaginationMeta | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [uploadOpen, setUploadOpen] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-
-  const handleVideoUploaded = useCallback(
-    async (blobUrl: string, file: File) => {
-      setIsCreating(true);
-      try {
-        const result = await createTranscription({
-          videoUrl: blobUrl,
-          filename: file.name,
-        });
-        if (!result.success || !result.data?.id) {
-          throw new Error(result.error || "Failed to create project");
-        }
-        router.push(`/subtitle-editor/${result.data.id}`);
-      } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : "Failed to create project",
-        );
-        setIsCreating(false);
-        setUploadOpen(false);
-      }
-    },
-    // createTranscription identity changes every render; safe to omit.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [router],
-  );
-
-  const goToPage = useCallback(
-    (target: number) => {
-      const params = new URLSearchParams(searchParams.toString());
-      if (target <= 1) {
-        params.delete("page");
-      } else {
-        params.set("page", String(target));
-      }
-      const qs = params.toString();
-      router.push(qs ? `${pathname}?${qs}` : pathname);
-    },
-    [router, pathname, searchParams],
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setIsLoading(true);
-      try {
-        const result = await getUserTranscriptions(page, PAGE_SIZE);
-        if (cancelled) return;
-        if (result.success && Array.isArray(result.data)) {
-          setItems(result.data as TranscriptionListItem[]);
-          if (result.pagination) {
-            setPagination(result.pagination as PaginationMeta);
-          }
-        } else if (!result.success) {
-          toast.error(result.error || "Failed to load projects");
-        }
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // useSubtitleApi returns new function references on every render, so we
-    // intentionally only depend on `page` here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
-
-  const handleConfirmDelete = useCallback(async () => {
-    if (!pendingDeleteId) return;
-    setIsDeleting(true);
-    try {
-      const result = await deleteTranscription(pendingDeleteId);
-      if (result.success) {
-        setItems((prev) => prev.filter((p) => p.id !== pendingDeleteId));
-        setPagination((prev) =>
-          prev
-            ? { ...prev, totalCount: Math.max(0, prev.totalCount - 1) }
-            : prev,
-        );
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+    deleteProject.mutate(pendingDelete.id, {
+      onSuccess: () => {
+        setPendingDelete(null);
         toast.success("Project deleted");
-        setPendingDeleteId(null);
-      } else {
-        toast.error(result.error || "Failed to delete project");
-      }
-    } finally {
-      setIsDeleting(false);
-    }
-    // deleteTranscription identity changes every render; safe to omit.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingDeleteId]);
+      },
+      onError: (err) => toast.error(failureMessage("delete the project", err)),
+    });
+  };
 
-  const totalPages = pagination?.totalPages ?? 1;
+  if (isPending) {
+    return <ProjectsGridSkeleton count={SUBTITLE_PAGE_SIZE} />;
+  }
+
+  if (isError && !data) {
+    return (
+      <ErrorState
+        title="Couldn't load your projects"
+        description={error.message}
+        onRetry={() => void refetch()}
+      />
+    );
+  }
+
+  const items = data?.items ?? [];
+  const totalPages = data?.pagination?.totalPages ?? 1;
+
+  if (items.length === 0) {
+    return page > 1 ? (
+      <EmptyState
+        icon={Subtitles}
+        title="Nothing on this page"
+        description="This page is past the end of your projects."
+        action={{ label: "Go to first page", href: "/subtitle-editor" }}
+      />
+    ) : (
+      <EmptyState
+        icon={Subtitles}
+        title="No subtitle projects yet"
+        description="Upload a video to transcribe it and style its subtitles."
+        action={{ label: "New project", onClick: onNewProject }}
+      />
+    );
+  }
 
   return (
-    <div className="space-y-6 p-4 sm:p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Subtitle Editor</h1>
-          <p className="mt-1 text-sm text-muted-foreground sm:text-base">
-            All your subtitle projects in one place.
-          </p>
-        </div>
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:self-start">
-          <Button
-            variant="outline"
-            className="w-full sm:w-auto"
-            render={<Link href="/subtitle-editor/exports" />}
-          >
-            <DownloadSimple className="size-4" />
-            Exports
-          </Button>
-          <Button
-            className="w-full sm:w-auto"
-            onClick={() => setUploadOpen(true)}
-          >
-            <Plus className="size-4" />
-            New Project
-          </Button>
-        </div>
+    <div className="space-y-6">
+      <div
+        aria-busy={isPlaceholderData}
+        className={isPlaceholderData ? "opacity-70 transition-opacity" : undefined}
+      >
+        <ProjectsGrid projects={items} onDelete={setPendingDelete} />
       </div>
-
-      {isLoading ? (
-        <ProjectsGridSkeleton count={PAGE_SIZE} />
-      ) : items.length === 0 ? (
-        <ProjectsEmptyState onNewProject={() => setUploadOpen(true)} />
-      ) : (
-        <ProjectsGrid projects={items} onDelete={setPendingDeleteId} />
-      )}
-
-      {!isLoading && (
-        <ProjectsPagination
-          page={page}
-          totalPages={totalPages}
-          onPageChange={goToPage}
-        />
-      )}
-
-      <UploadDialog
-        open={uploadOpen}
-        onOpenChange={(open) => {
-          if (isCreating) return;
-          setUploadOpen(open);
-        }}
-        onVideoUploaded={handleVideoUploaded}
-        isCreating={isCreating}
-      />
-
-      <DeleteProjectDialog
-        open={pendingDeleteId !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingDeleteId(null);
-        }}
-        onConfirm={handleConfirmDelete}
-        isDeleting={isDeleting}
+      <ListPagination page={page} totalPages={totalPages} />
+      <DeleteDialog
+        open={pendingDelete !== null}
+        title="Delete this project?"
+        description="The project and all of its exports are deleted for good."
+        isDeleting={deleteProject.isPending}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
       />
     </div>
   );

@@ -1,338 +1,109 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useInView } from "react-intersection-observer";
-import { SubtitleRemoverForm } from "@/components/subtitle-remover/upload-form";
-import { VideoCard } from "@/components/subtitle-remover/video-card";
-import { VideoDetailDialog } from "@/components/subtitle-remover/video-detail-dialog";
-import { useAuthFetch } from "@/hooks/use-auth-fetch";
-import { ArrowsClockwise, FileVideo } from "@phosphor-icons/react";
-import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
+import { useState } from "react";
+import { Eraser } from "@phosphor-icons/react";
 import { toast } from "sonner";
-import { Skeleton } from "@/components/ui/skeleton";
-
-interface AssetRef {
-  id: string;
-  url: string;
-}
-
-interface ProcessedVideo {
-  id: string;
-  originalName: string;
-  originalAsset?: AssetRef | null;
-  processedAsset?: AssetRef | null;
-  status: string;
-  error?: string | null;
-  createdAt: string;
-}
-
-const POLL_INTERVAL = 5_000;
+import { ToolEmpty, ToolPage } from "@/components/generator/tool-layout";
+import { ErrorState } from "@/components/shared/states";
+import {
+  SubtitleRemoverForm,
+  type SubtitleRemovalInput,
+} from "@/components/subtitle-remover/upload-form";
+import {
+  VideoJobCard,
+  VideoJobCardSkeleton,
+} from "@/components/subtitle-remover/video-card";
+import { VideoCompareDialog } from "@/components/subtitle-remover/video-detail-dialog";
+import { Spinner } from "@/components/ui/spinner";
+import { useAuthFetch } from "@/hooks/use-auth-fetch";
+import { useVideoJobs, type VideoJob } from "@/hooks/use-video-jobs";
 
 export default function SubtitleRemoverPage() {
   const { authFetch } = useAuthFetch();
-  const [results, setResults] = useState<ProcessedVideo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const pageRef = useRef(1);
-  const fetchingRef = useRef(false);
-  const pollTimers = useRef<Map<string, ReturnType<typeof setInterval>>>(
-    new Map(),
-  );
+  const jobs = useVideoJobs("subtitle-removal");
+  const { hasNextPage, isFetchingNextPage, loadMoreSentinel } = jobs;
+  const [selected, setSelected] = useState<VideoJob | null>(null);
 
-  const stopPolling = useCallback((videoId: string) => {
-    const timer = pollTimers.current.get(videoId);
-    if (timer) {
-      clearInterval(timer);
-      pollTimers.current.delete(videoId);
+  async function handleSubmit(videos: SubtitleRemovalInput[]) {
+    try {
+      const res = await authFetch("/api/videos/create-process", {
+        method: "POST",
+        body: JSON.stringify({ videos, operations: ["watermark_removal"] }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !body?.success) {
+        toast.error(
+          body?.error || "Couldn't start subtitle removal. Try again.",
+        );
+        return false;
+      }
+      await jobs.invalidate();
+      return true;
+    } catch {
+      toast.error("Couldn't reach the server. Check your connection and try again.");
+      return false;
     }
-  }, []);
-
-  const startPolling = useCallback(
-    (videoId: string) => {
-      if (pollTimers.current.has(videoId)) return;
-
-      const timer = setInterval(async () => {
-        try {
-          const res = await authFetch(`/api/videos/refresh/${videoId}`);
-          if (!res.ok) return;
-          const data = await res.json();
-          if (!data.success || !data.video) return;
-
-          const video = data.video as ProcessedVideo;
-          setResults((prev) =>
-            prev.map((v) => (v.id === videoId ? { ...v, ...video } : v)),
-          );
-
-          if (video.status === "completed" || video.status === "failed") {
-            stopPolling(videoId);
-            if (video.status === "completed") {
-              toast.success(`${video.originalName} processed!`);
-            } else {
-              toast.error(
-                `${video.originalName} failed: ${video.error || "Unknown error"}`,
-              );
-            }
-          }
-        } catch {
-          // keep polling on network errors
-        }
-      }, POLL_INTERVAL);
-
-      pollTimers.current.set(videoId, timer);
-    },
-    [authFetch, stopPolling],
-  );
-
-  const fetchVideos = useCallback(
-    async (pageNum = 1, append = false) => {
-      try {
-        const res = await authFetch(
-          `/api/videos/all?page=${pageNum}&limit=20&operation=WATERMARK_REMOVAL`,
-        );
-        if (!res.ok) throw new Error("Failed to load");
-        const data = await res.json();
-        if (data.success && data.videos) {
-          const videos = data.videos as ProcessedVideo[];
-          setResults((prev) => (append ? [...prev, ...videos] : videos));
-          setHasMore(data.pagination?.hasNextPage ?? false);
-          pageRef.current = pageNum;
-
-          videos.forEach((v) => {
-            if (v.status === "queued" || v.status === "processing") {
-              startPolling(v.id);
-            }
-          });
-        }
-      } catch {
-        if (!append) setResults([]);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [authFetch, startPolling],
-  );
-
-  const handleRefresh = useCallback(() => {
-    setLoading(true);
-    fetchVideos(1, false);
-  }, [fetchVideos]);
-
-  useEffect(() => {
-    fetchVideos();
-  }, [fetchVideos]);
-
-  useEffect(() => {
-    const timers = pollTimers.current;
-    return () => {
-      timers.forEach((timer) => clearInterval(timer));
-    };
-  }, []);
-
-  const handleSubmit = useCallback(
-    async (
-      videos: {
-        videoUrl: string;
-        originalName: string;
-        method: string;
-        durationSeconds: number;
-      }[],
-    ) => {
-      setSubmitting(true);
-      try {
-        const res = await authFetch("/api/videos/create-process", {
-          method: "POST",
-          body: JSON.stringify({
-            videos,
-            operations: ["watermark_removal"],
-          }),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok || !data.success) {
-          toast.error(data.error || "Failed to start processing");
-          return;
-        }
-
-        toast.success(data.message);
-
-        // Fetch the newly created records so we can track them
-        const listRes = await authFetch(
-          `/api/videos/all?page=1&limit=${videos.length}&operation=WATERMARK_REMOVAL`,
-        );
-        const listData = await listRes.json();
-
-        if (listData.success && listData.videos) {
-          const newVideos = listData.videos as ProcessedVideo[];
-          setResults((prev) => {
-            const existingIds = new Set(prev.map((v) => v.id));
-            const fresh = newVideos.filter((v) => !existingIds.has(v.id));
-            return [...fresh, ...prev];
-          });
-
-          newVideos.forEach((v) => {
-            if (v.status === "queued" || v.status === "processing") {
-              startPolling(v.id);
-            }
-          });
-        }
-        pageRef.current = 1;
-      } catch {
-        toast.error("Network error — please try again");
-      } finally {
-        setSubmitting(false);
-      }
-    },
-    [authFetch, startPolling],
-  );
-
-  const loadMore = useCallback(() => {
-    if (fetchingRef.current || !hasMore) return;
-    fetchingRef.current = true;
-    setLoadingMore(true);
-    const next = pageRef.current + 1;
-    fetchVideos(next, true).finally(() => {
-      setLoadingMore(false);
-      fetchingRef.current = false;
-    });
-  }, [hasMore, fetchVideos]);
-
-  const { ref: sentinelRef } = useInView({
-    rootMargin: "200px",
-    skip: loading || loadingMore || !hasMore,
-    onChange: (inView) => {
-      if (inView) loadMore();
-    },
-  });
-
-  const handleDelete = useCallback(
-    async (videoId: string) => {
-      try {
-        const res = await authFetch(`/api/videos/${videoId}`, {
-          method: "DELETE",
-        });
-        if (res.ok) {
-          setResults((prev) => prev.filter((v) => v.id !== videoId));
-          stopPolling(videoId);
-          toast.success("Video deleted");
-        }
-      } catch {
-        toast.error("Failed to delete video");
-      }
-    },
-    [authFetch, stopPolling],
-  );
-
-  const [selectedVideo, setSelectedVideo] = useState<ProcessedVideo | null>(
-    null,
-  );
-
-  const isEmpty = results.length === 0;
+  }
 
   return (
-    <div className="flex flex-1 flex-col lg:flex-row lg:max-h-[calc(100vh-64px)]">
-      <SubtitleRemoverForm onSubmit={handleSubmit} isSubmitting={submitting} />
+    <ToolPage className="p-0 sm:p-0 lg:flex lg:items-start">
+      <aside className="border-b lg:sticky lg:top-14 lg:h-[calc(100svh-3.5rem)] lg:w-95 lg:shrink-0 lg:border-r lg:border-b-0">
+        <SubtitleRemoverForm onSubmit={handleSubmit} />
+      </aside>
 
-      {/* Results panel */}
-      <div className="flex flex-1 flex-col lg:overflow-hidden">
-        <div className="flex bg-card items-center justify-between border-b px-3 py-3 sm:px-5">
-          <h2 className="text-sm font-semibold">Results</h2>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={loading}
-            className="gap-1.5 text-xs"
-          >
-            <ArrowsClockwise className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
-            {loading ? "Loading…" : "Refresh"}
-          </Button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-5">
-          {loading ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className="aspect-video rounded-xl" />
+      <section
+        aria-label="Results"
+        className="@container min-w-0 flex-1 px-3 py-4 sm:px-6 sm:py-6"
+      >
+        {jobs.isLoading ? (
+          <div className="grid grid-cols-1 gap-3 @lg:grid-cols-2 @4xl:grid-cols-3 @7xl:grid-cols-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <VideoJobCardSkeleton key={i} />
+            ))}
+          </div>
+        ) : jobs.isError ? (
+          <ErrorState
+            title="Couldn't load your videos"
+            description={jobs.error?.message}
+            onRetry={() => void jobs.refetch()}
+          />
+        ) : jobs.items.length === 0 ? (
+          <ToolEmpty
+            icon={Eraser}
+            title="No videos yet"
+            description="Upload a video with burned-in subtitles to get a clean copy."
+          />
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-3 @lg:grid-cols-2 @4xl:grid-cols-3 @7xl:grid-cols-4">
+              {jobs.items.map((job) => (
+                <VideoJobCard
+                  key={job.id}
+                  job={job}
+                  activeLabel="Removing subtitles"
+                  onOpen={() => setSelected(job)}
+                  onDelete={() => void jobs.deleteItem(job.id)}
+                />
               ))}
             </div>
-          ) : isEmpty ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
-              <div className="flex size-14 items-center justify-center rounded-2xl bg-muted">
-                <FileVideo className="size-7 text-muted-foreground/50" />
+            {hasNextPage ? (
+              <div ref={loadMoreSentinel} className="flex justify-center py-6">
+                {isFetchingNextPage ? (
+                  <Spinner className="text-muted-foreground" />
+                ) : null}
               </div>
-              <div>
-                <p className="text-sm font-semibold text-muted-foreground">
-                  No output yet
-                </p>
-                <p className="mt-1 max-w-[260px] text-xs text-muted-foreground/70">
-                  Upload videos and hit Remove Subtitles — your results will
-                  appear here
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefresh}
-                className="mt-2 gap-1.5"
-              >
-                <ArrowsClockwise className="size-3.5" />
-                Load previous results
-              </Button>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {results.map((video) => (
-                  <VideoCard
-                    key={video.id}
-                    video={{
-                      id: video.id,
-                      originalName: video.originalName,
-                      originalUrl: video.originalAsset?.url ?? "",
-                      processedUrl: video.processedAsset?.url ?? null,
-                      status: video.status,
-                      error: video.error,
-                    }}
-                    displayMode="asset"
-                    onDelete={handleDelete}
-                    onClick={() => setSelectedVideo(video)}
-                  />
-                ))}
-              </div>
-              {hasMore && (
-                <div ref={sentinelRef} className="flex justify-center py-6">
-                  {loadingMore && (
-                    <Spinner className="size-5 text-muted-foreground" />
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
+            ) : null}
+          </>
+        )}
+      </section>
 
-      <VideoDetailDialog
-        video={selectedVideo ? {
-          id: selectedVideo.id,
-          originalName: selectedVideo.originalName,
-          originalUrl: selectedVideo.originalAsset?.url ?? "",
-          processedUrl: selectedVideo.processedAsset?.url ?? null,
-          status: selectedVideo.status,
-          error: selectedVideo.error,
-          createdAt: selectedVideo.createdAt,
-        } : null}
-        open={selectedVideo !== null}
+      <VideoCompareDialog
+        job={selected}
+        processedLabel="Subtitles removed"
         onOpenChange={(open) => {
-          if (!open) setSelectedVideo(null);
-        }}
-        onDelete={(id) => {
-          handleDelete(id);
-          setSelectedVideo(null);
+          if (!open) setSelected(null);
         }}
       />
-    </div>
+    </ToolPage>
   );
 }

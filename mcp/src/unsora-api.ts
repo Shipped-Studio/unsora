@@ -32,6 +32,8 @@ export class UnsoraApi {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.apiKey}`,
       Accept: "application/json",
+      // Lets the API record posts created from an agent as "MCP".
+      "X-Unsora-Client": "mcp",
     };
 
     let body: string | undefined;

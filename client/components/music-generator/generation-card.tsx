@@ -1,18 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import {
+  DotsThree,
   DownloadSimple,
-  Trash,
-  Warning,
-  MusicNotes,
-  X,
-  Play,
   Pause,
+  Play,
+  Trash,
+  WarningCircle,
+  X,
 } from "@phosphor-icons/react";
-import { getCdnUrl } from "@/lib/video-utils";
-import { useMusicPlayer } from "@/contexts/music-player-context";
 import { SyncedLyrics } from "@/components/music-generator/synced-lyrics";
-import { parseLyricLines } from "@/lib/music-lyrics";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,11 +20,21 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
+import { useMusicPlayer } from "@/contexts/music-player-context";
+import { parseLyricLines } from "@/lib/music-lyrics";
+import { formatDownloadFilename, formatTrackLabel } from "@/lib/music-track";
 import { cn } from "@/lib/utils";
-import { formatDownloadFilename, formatTrackLabel, formatTrackTitle } from "@/lib/music-track";
+import { getCdnUrl } from "@/lib/video-utils";
 
 export interface MusicCardData {
   id: string;
@@ -43,15 +51,11 @@ export interface MusicCardData {
 
 interface MusicGenerationCardProps {
   generation: MusicCardData;
+  /** Deletes a saved song (asks first). */
   onDelete?: (id: string) => void;
+  /** Hides a song that's still starting or failed to start. */
   onDismiss?: (id: string) => void;
 }
-
-const STATUS_LABELS: Record<string, string> = {
-  submitting: "Submitting…",
-  QUEUED: "Queued",
-  PROCESSING: "Generating…",
-};
 
 const MODEL_LABELS: Record<string, string> = {
   auto: "Mureka V9",
@@ -62,11 +66,10 @@ const MODEL_LABELS: Record<string, string> = {
   "mureka-7.5": "Mureka V7.5",
 };
 
-function getPreviewLyric(lyrics: string): string | null {
-  const lines = parseLyricLines(lyrics).filter(
-    (line) => !/^\[[^\]]+\]$/.test(line),
+function firstLyricLine(lyrics: string): string | null {
+  return (
+    parseLyricLines(lyrics).find((line) => !/^\[[^\]]+\]$/.test(line)) ?? null
   );
-  return lines[0] ?? null;
 }
 
 export function MusicGenerationCard({
@@ -74,41 +77,52 @@ export function MusicGenerationCard({
   onDelete,
   onDismiss,
 }: MusicGenerationCardProps) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const { currentTrack, isPlaying, isBuffering, currentTime, duration, play, toggle } =
     useMusicPlayer();
 
-  const audioUrl = generation.outputUrl;
-  const isInProgress =
+  const audioUrl =
+    generation.status === "COMPLETED" ? generation.outputUrl : null;
+  const inProgress =
     generation.status === "submitting" ||
     generation.status === "QUEUED" ||
     generation.status === "PROCESSING";
-  const isFailed = generation.status === "FAILED";
-  const isCompleted = generation.status === "COMPLETED" && audioUrl;
+  const failed = generation.status === "FAILED";
+
   const modelLabel =
     MODEL_LABELS[generation.model ?? "auto"] ?? generation.model ?? "Mureka";
-  const title =
+  const trackLabel =
     generation.trackNumber != null && generation.trackNumber > 0
-      ? formatTrackTitle(generation.trackNumber, generation.songTitle)
-      : generation.songTitle || generation.prompt || "Untitled song";
-  const isCurrentTrack = currentTrack?.id === generation.id;
-  const isCurrentPlaying = isCurrentTrack && isPlaying;
-  const previewLyric = generation.lyrics
-    ? getPreviewLyric(generation.lyrics)
+      ? formatTrackLabel(generation.trackNumber)
+      : null;
+  const title =
+    generation.songTitle || trackLabel || generation.prompt || "Untitled song";
+  const isCurrent = currentTrack?.id === generation.id;
+  const lyricPreview = generation.lyrics
+    ? firstLyricLine(generation.lyrics)
     : null;
   const showSyncedLyrics =
-    isCompleted &&
-    isCurrentTrack &&
+    audioUrl &&
+    isCurrent &&
     generation.lyrics &&
     (isPlaying || currentTime > 0);
 
-  const handlePlayToggle = () => {
-    if (!audioUrl) return;
+  const status = inProgress
+    ? generation.status === "QUEUED"
+      ? "Queued"
+      : generation.status === "submitting"
+        ? "Starting"
+        : "Generating"
+    : failed
+      ? generation.error || "Generation failed."
+      : [trackLabel, modelLabel].filter(Boolean).join(" · ");
 
-    if (isCurrentTrack) {
+  function handlePlay() {
+    if (!audioUrl) return;
+    if (isCurrent) {
       toggle();
       return;
     }
-
     play({
       id: generation.id,
       title,
@@ -116,172 +130,175 @@ export function MusicGenerationCard({
       audioUrl,
       lyrics: generation.lyrics,
     });
-  };
+  }
 
   return (
-    <div
+    <article
       className={cn(
-        "group relative rounded-lg border bg-card transition-shadow hover:shadow-md",
-        isCurrentTrack && "border-primary/30 ring-1 ring-primary/20",
+        "flex items-start gap-3 rounded-xl bg-muted p-3",
+        isCurrent && "border-foreground/20",
       )}
     >
-      <div className="flex items-start gap-2.5 p-2.5 sm:gap-3 sm:p-3">
-        {isCompleted ? (
-          <button
-            type="button"
-            onClick={handlePlayToggle}
-            className="relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-gradient-to-br from-primary/30 via-primary/10 to-background text-primary sm:size-11"
-            aria-label={isCurrentPlaying ? "Pause song" : "Play song"}
-          >
-            <MusicNotes
-              className="absolute size-4 opacity-25 sm:size-5"
-              weight="duotone"
-            />
-            <span className="relative flex size-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
-              {isCurrentTrack && isBuffering ? (
-                <Spinner className="size-3.5" />
-              ) : isCurrentPlaying ? (
-                <Pause className="size-3.5" weight="fill" />
-              ) : (
-                <Play className="size-3.5 translate-x-px" weight="fill" />
-              )}
-            </span>
-          </button>
-        ) : isInProgress ? (
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-dashed border-border bg-card sm:size-11">
-            <Spinner className="size-4" />
-          </div>
-        ) : isFailed ? (
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-destructive/10 sm:size-11">
-            <Warning className="size-4 text-destructive/70" />
-          </div>
-        ) : (
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted/40 sm:size-11">
-            <MusicNotes className="size-4 text-muted-foreground/40" />
-          </div>
-        )}
-
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-foreground">
-                {title}
-              </p>
-              <p className="truncate text-[10px] text-muted-foreground sm:text-[11px]">
-                {isInProgress
-                  ? (STATUS_LABELS[generation.status] ?? generation.status)
-                  : isFailed
-                    ? generation.error || "Generation failed"
-                    : generation.trackNumber
-                      ? `${modelLabel} · #${generation.trackNumber}`
-                      : modelLabel}
-              </p>
-            </div>
-
-            <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-              {isCompleted && audioUrl && (
-                <a
-                  href={getCdnUrl(audioUrl, { download: true })}
-                  download={
-                    generation.trackNumber
-                      ? formatDownloadFilename(
-                          generation.trackNumber,
-                          generation.songTitle,
-                        )
-                      : undefined
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  aria-label="Download song"
-                >
-                  <DownloadSimple className="size-3.5" />
-                </a>
-              )}
-              {isCompleted && onDelete && (
-                <AlertDialog>
-                  <AlertDialogTrigger className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive">
-                    <Trash className="size-3.5" />
-                  </AlertDialogTrigger>
-                  <AlertDialogContent size="sm">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete song?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will permanently remove this generated song. This
-                        action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        variant="destructive"
-                        onClick={() => onDelete(generation.id)}
-                      >
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
-              {isFailed && onDelete && (
-                <AlertDialog>
-                  <AlertDialogTrigger
-                    className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                    aria-label="Delete failed song"
-                  >
-                    <X className="size-3.5" weight="bold" />
-                  </AlertDialogTrigger>
-                  <AlertDialogContent size="sm">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete song?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will permanently remove this failed song. This
-                        action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        variant="destructive"
-                        onClick={() => onDelete(generation.id)}
-                      >
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
-              {isInProgress && onDismiss && (
-                <button
-                  onClick={() => onDismiss(generation.id)}
-                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  aria-label="Dismiss"
-                >
-                  <X className="size-3.5" weight="bold" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {showSyncedLyrics ? (
-            <SyncedLyrics
-              lyrics={generation.lyrics}
-              currentTime={currentTime}
-              duration={duration}
-              isActive
-              variant="compact"
-              className="mt-1.5"
-            />
-          ) : previewLyric ? (
-            <p className="mt-1 line-clamp-1 text-[11px] leading-snug text-muted-foreground/65">
-              {previewLyric}
-            </p>
-          ) : isCompleted ? (
-            <p className="mt-1 text-[11px] italic text-muted-foreground/60">
-              Instrumental track
-            </p>
-          ) : null}
+      {audioUrl ? (
+        <Button
+          variant="secondary"
+          size="icon"
+          onClick={handlePlay}
+          aria-label={
+            isCurrent && isPlaying ? `Pause ${title}` : `Play ${title}`
+          }
+        >
+          {isCurrent && isBuffering ? (
+            <Spinner />
+          ) : isCurrent && isPlaying ? (
+            <Pause weight="fill" />
+          ) : (
+            <Play weight="fill" />
+          )}
+        </Button>
+      ) : (
+        <div
+          className={cn(
+            "flex size-9 shrink-0 items-center justify-center rounded-md",
+            failed ? "bg-destructive/10" : "bg-muted",
+          )}
+        >
+          {failed ? (
+            <WarningCircle className="size-4 text-destructive" />
+          ) : (
+            <Spinner className="text-muted-foreground" />
+          )}
         </div>
+      )}
+
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium" title={title}>
+          {title}
+        </p>
+        <p
+          className={cn(
+            "truncate text-xs",
+            failed ? "text-destructive" : "text-muted-foreground",
+          )}
+          title={failed ? (generation.error ?? undefined) : undefined}
+        >
+          {status}
+        </p>
+        {showSyncedLyrics ? (
+          <SyncedLyrics
+            lyrics={generation.lyrics}
+            currentTime={currentTime}
+            duration={duration}
+            isActive
+            variant="compact"
+            className="mt-2"
+          />
+        ) : audioUrl ? (
+          <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+            {lyricPreview ?? "Instrumental"}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1">
+        {audioUrl ? (
+          <a
+            href={getCdnUrl(audioUrl, {
+              download: generation.trackNumber
+                ? formatDownloadFilename(
+                    generation.trackNumber,
+                    generation.songTitle,
+                  )
+                : true,
+            })}
+            download
+            className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+            aria-label={`Download ${title}`}
+          >
+            <DownloadSimple />
+          </a>
+        ) : null}
+
+        {onDismiss && (inProgress || failed) ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => onDismiss(generation.id)}
+            aria-label={`Dismiss ${title}`}
+          >
+            <X />
+          </Button>
+        ) : onDelete && failed ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setConfirmOpen(true)}
+            aria-label={`Delete ${title}`}
+          >
+            <Trash />
+          </Button>
+        ) : onDelete && audioUrl ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`More actions for ${title}`}
+                />
+              }
+            >
+              <DotsThree weight="bold" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-36">
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => setConfirmOpen(true)}
+              >
+                <Trash />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
+      </div>
+
+      {onDelete ? (
+        <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <AlertDialogContent size="sm">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this song?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {title} will be removed from your songs. This can&apos;t be
+                undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={() => {
+                  setConfirmOpen(false);
+                  onDelete(generation.id);
+                }}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      ) : null}
+    </article>
+  );
+}
+
+export function AudioRowSkeleton() {
+  return (
+    <div className="flex items-center gap-3 rounded-xl bg-muted p-3">
+      <Skeleton className="size-9 rounded-md" />
+      <div className="flex-1 space-y-2">
+        <Skeleton className="h-4 w-1/2" />
+        <Skeleton className="h-3 w-1/3" />
       </div>
     </div>
   );

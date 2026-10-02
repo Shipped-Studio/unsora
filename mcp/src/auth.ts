@@ -2,12 +2,15 @@ import type { Request } from "express";
 
 /**
  * Accepts:
- * - Authorization: Bearer uns_live_...
- * - apiKey: uns_live_...          (Cursor mcp.json headers.apiKey)
- * - x-api-key: uns_live_...
+ * - Authorization: Bearer uns_...
+ * - apiKey: uns_...          (Cursor mcp.json headers.apiKey)
+ * - x-api-key: uns_...
+ *
+ * Current keys come from Unkey as `uns_<random>`; legacy keys are
+ * `uns_live_...` / `uns_test_...`. Clerk OAuth tokens never use this prefix.
  */
 export function isUnsoraApiKey(value: string): boolean {
-  return value.startsWith("uns_live_") || value.startsWith("uns_test_");
+  return value.startsWith("uns_");
 }
 
 /** Returns Unsora API key when present; null when request should use OAuth instead. */

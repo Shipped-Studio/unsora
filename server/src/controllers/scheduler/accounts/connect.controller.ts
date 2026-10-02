@@ -26,6 +26,49 @@ import {
 } from "../../../oauth/pinterest";
 import { getUserIdFromClerkId } from "../shared/user";
 
+const EXPIRING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Derives whether an account can still publish. There is no health column:
+ * the signals are the token expiry, whether a refresh token exists, and the
+ * last publish error (platform services end token failures with
+ * "Please reconnect your account.").
+ */
+function accountHealth(input: {
+  expiresAt: Date | null;
+  hasRefreshToken: boolean;
+  lastOutcome?: { published: boolean; error: string | null };
+}): { status: "ok" | "expiring" | "reconnect"; reason: string | null } {
+  const { expiresAt, hasRefreshToken, lastOutcome } = input;
+
+  if (
+    lastOutcome &&
+    !lastOutcome.published &&
+    lastOutcome.error &&
+    /reconnect|expired|revoked|invalid.{0,20}token/i.test(lastOutcome.error)
+  ) {
+    return { status: "reconnect", reason: lastOutcome.error };
+  }
+
+  if (expiresAt && !hasRefreshToken) {
+    const msLeft = expiresAt.getTime() - Date.now();
+    if (msLeft <= 0) {
+      return {
+        status: "reconnect",
+        reason: "Access expired. Reconnect to keep publishing.",
+      };
+    }
+    if (msLeft <= EXPIRING_WINDOW_MS) {
+      return {
+        status: "expiring",
+        reason: "Access expires soon. Reconnect to avoid failed posts.",
+      };
+    }
+  }
+
+  return { status: "ok", reason: null };
+}
+
 export class SchedulerAccountsController {
   getConnectedAccounts = async (req: Request, res: Response) => {
     try {
@@ -38,6 +81,7 @@ export class SchedulerAccountsController {
 
       const accounts = await prisma.socialAccount.findMany({
         where: { userId },
+        orderBy: { createdAt: "asc" },
         select: {
           id: true,
           provider: true,
@@ -46,10 +90,53 @@ export class SchedulerAccountsController {
           accountUsername: true,
           profilePicture: true,
           expiresAt: true,
+          refreshToken: true,
+          createdAt: true,
         },
       });
 
-      res.json({ success: true, data: accounts });
+      const ids = accounts.map((a) => a.id);
+      const [latestOutcomes, lastPublished] = await Promise.all([
+        // The most recent publish attempt per account that either succeeded
+        // or recorded an error.
+        prisma.postAccount.findMany({
+          where: {
+            accountId: { in: ids },
+            OR: [{ published: true }, { error: { not: null } }],
+          },
+          orderBy: { updatedAt: "desc" },
+          distinct: ["accountId"],
+          select: { accountId: true, published: true, error: true },
+        }),
+        prisma.postAccount.groupBy({
+          by: ["accountId"],
+          where: { accountId: { in: ids }, published: true },
+          _max: { publishedAt: true },
+        }),
+      ]);
+
+      const outcomeByAccount = new Map(
+        latestOutcomes.map((o) => [o.accountId, o]),
+      );
+      const publishedByAccount = new Map(
+        lastPublished.map((p) => [p.accountId, p._max.publishedAt]),
+      );
+
+      const data = accounts.map(({ refreshToken, ...account }) => {
+        const health = accountHealth({
+          expiresAt: account.expiresAt,
+          hasRefreshToken: Boolean(refreshToken),
+          lastOutcome: outcomeByAccount.get(account.id),
+        });
+        return {
+          ...account,
+          status: health.status,
+          statusReason: health.reason,
+          lastPublishedAt: publishedByAccount.get(account.id) ?? null,
+        };
+      });
+
+      res.json({ success: true, data });
     } catch (error) {
       console.error("Get connected accounts error:", error);
       res.status(500).json({

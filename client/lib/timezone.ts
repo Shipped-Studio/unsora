@@ -87,7 +87,8 @@ function getTimezoneOffsetMs(date: Date, timeZone: string): number {
     get("minute"),
     get("second"),
   );
-  return asUTC - date.getTime();
+  // Compare whole seconds; the parts above drop milliseconds.
+  return asUTC - Math.floor(date.getTime() / 1000) * 1000;
 }
 
 /**
@@ -147,7 +148,7 @@ export function toZonedNaive(utcDate: Date, timeZone: string): Date {
  * (optionally) the given instant.
  */
 export function getTimezoneOffsetLabel(timeZone: string, at: Date = new Date()): string {
-  const offsetMinutes = getTimezoneOffsetMs(at, timeZone) / 60000;
+  const offsetMinutes = Math.round(getTimezoneOffsetMs(at, timeZone) / 60000);
   const sign = offsetMinutes >= 0 ? "+" : "-";
   const abs = Math.abs(offsetMinutes);
   const hours = Math.floor(abs / 60);

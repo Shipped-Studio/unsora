@@ -1,20 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  GithubLogo,
-  Plus,
-  FilmSlate,
-  ArrowSquareOut,
-} from "@phosphor-icons/react";
-import { PageHeader } from "@/components/admin/page-header";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
+import { GithubLogo, Plus, PuzzlePiece, UploadSimple } from "@phosphor-icons/react";
+import { AdminPage } from "@/components/admin/admin-page";
+import { EmptyState, ErrorState } from "@/components/shared/states";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -23,15 +17,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import {
-  useAdminSkills,
   useAdminSkillMutations,
+  useAdminSkills,
 } from "@/hooks/admin/use-admin-skills";
 import { timeAgo } from "@/lib/admin-format";
 
 export default function AdminSkillsPage() {
   const router = useRouter();
-  const { data: skills, isLoading } = useAdminSkills();
+  const { data: skills, isLoading, error, refetch } = useAdminSkills();
   const { importGithub, create } = useAdminSkillMutations();
 
   const [importOpen, setImportOpen] = useState(false);
@@ -39,7 +37,9 @@ export default function AdminSkillsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
 
-  const handleImport = () => {
+  const handleImport = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!githubUrl) return;
     importGithub.mutate(githubUrl, {
       onSuccess: (skill) => {
         toast.success(`Imported ${skill.name}`);
@@ -47,11 +47,14 @@ export default function AdminSkillsPage() {
         setGithubUrl("");
         router.push(`/admin/skills/${skill.id}`);
       },
-      onError: (e) => toast.error(e.message),
+      onError: (e) =>
+        toast.error("Couldn't import the skill", { description: e.message }),
     });
   };
 
-  const handleCreate = () => {
+  const handleCreate = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!newName) return;
     create.mutate(
       { name: newName, sourceType: "UPLOAD" },
       {
@@ -60,139 +63,149 @@ export default function AdminSkillsPage() {
           setNewName("");
           router.push(`/admin/skills/${skill.id}`);
         },
-        onError: (e) => toast.error(e.message),
+        onError: (e) =>
+          toast.error("Couldn't create the skill", { description: e.message }),
       },
     );
   };
 
   return (
-    <div>
-      <PageHeader
-        title="Skills"
-        description="Agent skills shown on the landing site — import from GitHub or upload files, attach showcase media, publish."
-        actions={
-          <>
-            <Button variant="outline" onClick={() => setImportOpen(true)}>
-              <GithubLogo className="size-4" />
-              Import from GitHub
-            </Button>
-            <Button onClick={() => setCreateOpen(true)}>
-              <Plus className="size-4" />
-              New skill
-            </Button>
-          </>
-        }
-      />
-
-      {isLoading ? (
-        <div className="space-y-2">
+    <AdminPage
+      title="Skills"
+      description="Agent skills shown on the landing site"
+      actions={
+        <>
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <GithubLogo data-icon="inline-start" />
+            Import from GitHub
+          </Button>
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus data-icon="inline-start" />
+            New skill
+          </Button>
+        </>
+      }
+    >
+      {error && !skills ? (
+        <ErrorState
+          title="Couldn't load skills"
+          description={error.message}
+          onRetry={() => void refetch()}
+        />
+      ) : isLoading ? (
+        <div className="overflow-hidden rounded-xl bg-muted">
           {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 rounded-xl" />
+            <div key={i} className="space-y-2 border-b px-4 py-3 last:border-b-0">
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-3 w-72" />
+            </div>
           ))}
         </div>
       ) : !skills?.length ? (
-        <div className="flex h-48 flex-col items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm text-muted-foreground">
-          <FilmSlate className="size-6" />
-          No skills yet — import one from GitHub or create one.
-        </div>
+        <EmptyState
+          icon={PuzzlePiece}
+          title="No skills yet"
+          description="Import one from GitHub or create a draft and upload its files."
+          action={{ label: "New skill", onClick: () => setCreateOpen(true) }}
+          secondaryAction={{
+            label: "Import from GitHub",
+            onClick: () => setImportOpen(true),
+          }}
+        />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <ul className="overflow-hidden rounded-xl bg-muted">
           {skills.map((skill) => (
-            <Link
-              key={skill.id}
-              href={`/admin/skills/${skill.id}`}
-              className="flex items-center gap-4 border-b border-border px-4 py-3 transition-colors last:border-b-0 hover:bg-muted/40"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate font-medium text-foreground">
-                    {skill.name}
+            <li key={skill.id} className="border-b last:border-b-0">
+              <Link
+                href={`/admin/skills/${skill.id}`}
+                className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-muted/50"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate font-medium">{skill.name}</span>
+                    <Badge variant={skill.status === "PUBLISHED" ? "secondary" : "outline"}>
+                      {skill.status === "PUBLISHED" ? "Published" : "Draft"}
+                    </Badge>
+                  </div>
+                  <div className="mt-0.5 truncate text-sm text-muted-foreground">
+                    /skills/{skill.slug}
+                    {skill.tagline ? ` · ${skill.tagline}` : ""}
+                  </div>
+                </div>
+                <div className="hidden items-center gap-4 text-xs text-muted-foreground sm:flex">
+                  <span className="inline-flex items-center gap-1">
+                    {skill.sourceType === "GITHUB" ? (
+                      <GithubLogo className="size-3.5" />
+                    ) : (
+                      <UploadSimple className="size-3.5" />
+                    )}
+                    {skill.sourceType === "GITHUB" ? "GitHub" : "Upload"}
                   </span>
-                  <Badge
-                    variant={
-                      skill.status === "PUBLISHED" ? "default" : "secondary"
-                    }
-                  >
-                    {skill.status === "PUBLISHED" ? "Published" : "Draft"}
-                  </Badge>
+                  <span className="tabular-nums">{skill._count.media} media</span>
+                  <span className="tabular-nums">{timeAgo(skill.updatedAt)}</span>
                 </div>
-                <div className="mt-0.5 truncate text-sm text-muted-foreground">
-                  /skills/{skill.slug}
-                  {skill.tagline ? ` — ${skill.tagline}` : ""}
-                </div>
-              </div>
-              <div className="hidden items-center gap-4 text-xs text-muted-foreground sm:flex">
-                <span className="inline-flex items-center gap-1">
-                  {skill.sourceType === "GITHUB" ? (
-                    <GithubLogo className="size-3.5" />
-                  ) : (
-                    <ArrowSquareOut className="size-3.5" />
-                  )}
-                  {skill.sourceType === "GITHUB" ? "GitHub" : "Upload"}
-                </span>
-                <span className="tabular-nums">
-                  {skill._count.media} media
-                </span>
-                <span className="tabular-nums">
-                  {timeAgo(skill.updatedAt)}
-                </span>
-              </div>
-            </Link>
+              </Link>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
 
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Import skill from GitHub</DialogTitle>
-            <DialogDescription>
-              Paste a repo URL containing a SKILL.md — name and description
-              are read from its frontmatter and a draft is created.
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            placeholder="https://github.com/owner/skill-repo"
-            value={githubUrl}
-            onChange={(e) => setGithubUrl(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && githubUrl && handleImport()}
-          />
-          <DialogFooter>
-            <Button
-              onClick={handleImport}
-              disabled={!githubUrl || importGithub.isPending}
-            >
-              {importGithub.isPending ? "Importing…" : "Import"}
-            </Button>
-          </DialogFooter>
+          <form onSubmit={handleImport} className="grid gap-6">
+            <DialogHeader>
+              <DialogTitle>Import skill from GitHub</DialogTitle>
+              <DialogDescription>
+                Paste a repo URL that contains a SKILL.md. The name and
+                description come from its frontmatter and a draft is created.
+              </DialogDescription>
+            </DialogHeader>
+            <Field>
+              <FieldLabel htmlFor="github-url">Repository URL</FieldLabel>
+              <Input
+                id="github-url"
+                placeholder="https://github.com/owner/skill-repo"
+                value={githubUrl}
+                onChange={(e) => setGithubUrl(e.target.value)}
+              />
+            </Field>
+            <DialogFooter>
+              <Button type="submit" disabled={!githubUrl || importGithub.isPending}>
+                {importGithub.isPending ? <Spinner data-icon="inline-start" /> : null}
+                Import
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>New skill</DialogTitle>
-            <DialogDescription>
-              Creates an empty draft — upload the skill files and fill in the
-              page content in the editor.
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            placeholder="Skill name"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && newName && handleCreate()}
-          />
-          <DialogFooter>
-            <Button
-              onClick={handleCreate}
-              disabled={!newName || create.isPending}
-            >
-              {create.isPending ? "Creating…" : "Create draft"}
-            </Button>
-          </DialogFooter>
+          <form onSubmit={handleCreate} className="grid gap-6">
+            <DialogHeader>
+              <DialogTitle>New skill</DialogTitle>
+              <DialogDescription>
+                Creates an empty draft. Upload the skill files and write the
+                page content in the editor.
+              </DialogDescription>
+            </DialogHeader>
+            <Field>
+              <FieldLabel htmlFor="skill-name">Name</FieldLabel>
+              <Input
+                id="skill-name"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+              />
+            </Field>
+            <DialogFooter>
+              <Button type="submit" disabled={!newName || create.isPending}>
+                {create.isPending ? <Spinner data-icon="inline-start" /> : null}
+                Create draft
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </AdminPage>
   );
 }

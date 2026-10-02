@@ -6,18 +6,22 @@ import {
   FileText,
   WarningCircle,
 } from "@phosphor-icons/react";
+import { kindLabel } from "@/components/admin/charts";
+import { StatusBadge } from "@/components/admin/status-badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
-import { StatusBadge } from "@/components/admin/status-badge";
-import { kindLabel } from "@/components/admin/charts";
-import { useAdminTaskDetail } from "@/hooks/admin/use-admin-data";
 import type { TaskMedia } from "@/hooks/admin/types";
+import { useAdminTaskDetail } from "@/hooks/admin/use-admin-data";
 import { formatDateTime } from "@/lib/admin-format";
+import { cn } from "@/lib/utils";
 
 export interface TaskRef {
   kind: string;
@@ -25,9 +29,8 @@ export interface TaskRef {
 }
 
 /**
- * Views the real output of a single task (any feature). Opens when `task` is
- * set; fetches the normalised detail and renders the output/input media,
- * prompt, params and any error.
+ * The real output of one task (any feature): output and input media, the
+ * prompt, parameters and any error.
  */
 export function TaskOutputDialog({
   task,
@@ -42,98 +45,92 @@ export function TaskOutputDialog({
     !!task,
   );
 
+  const meta = data
+    ? [
+        formatDateTime(data.createdAt),
+        data.model,
+        data.credits ? `${data.credits} credits` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : null;
+
   return (
     <Dialog open={!!task} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-3">
             {task ? kindLabel(task.kind) : "Task"}
-            {data && <StatusBadge status={data.status} />}
+            {data ? <StatusBadge status={data.status} /> : null}
           </DialogTitle>
-          {data && (
-            <p className="text-xs text-muted-foreground">
-              {formatDateTime(data.createdAt)}
-              {data.model ? ` · ${data.model}` : ""}
-              {data.credits ? ` · ${data.credits} credits` : ""}
-            </p>
-          )}
+          <DialogDescription>
+            {meta ?? (error ? "Details unavailable" : "Loading task details")}
+          </DialogDescription>
         </DialogHeader>
 
-        {isLoading && (
+        {isLoading ? (
           <div className="flex h-40 items-center justify-center">
-            <Spinner className="size-6" />
+            <Spinner className="size-5 text-muted-foreground" />
           </div>
-        )}
+        ) : null}
 
-        {error && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-            Failed to load task. {(error as Error).message}
-          </div>
-        )}
+        {error ? (
+          <Alert variant="destructive">
+            <WarningCircle />
+            <AlertDescription>
+              Couldn&apos;t load this task. {error.message}
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
-        {data && (
+        {data ? (
           <div className="flex flex-col gap-4">
-            {/* Error state */}
-            {data.error && (
-              <div className="flex gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                <WarningCircle
-                  weight="fill"
-                  className="mt-0.5 size-4 shrink-0"
-                />
-                <span className="whitespace-pre-wrap break-words">
+            {data.error ? (
+              <Alert variant="destructive">
+                <WarningCircle />
+                <AlertDescription className="break-words whitespace-pre-wrap">
                   {data.error}
-                </span>
-              </div>
-            )}
+                </AlertDescription>
+              </Alert>
+            ) : null}
 
-            {/* Outputs */}
             {data.outputs.length > 0 ? (
               <div className="flex flex-col gap-3">
                 {data.outputs.map((m, i) => (
                   <MediaBlock key={i} media={m} primary />
                 ))}
               </div>
-            ) : (
-              !data.error && (
-                <div className="rounded-lg border border-border bg-muted/40 p-6 text-center text-sm text-muted-foreground">
-                  No output produced{" "}
-                  {data.status !== "COMPLETED"
-                    ? `(status: ${data.status.toLowerCase()})`
-                    : ""}
-                  .
-                </div>
-              )
-            )}
+            ) : !data.error ? (
+              <p className="rounded-lg bg-muted p-6 text-center text-sm text-muted-foreground">
+                No output
+                {data.status !== "COMPLETED"
+                  ? ` yet. Status: ${data.status.toLowerCase()}.`
+                  : "."}
+              </p>
+            ) : null}
 
-            {/* Prompt / text */}
-            {data.text && (
+            {data.text ? (
               <Section label="Prompt">
-                <p className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-muted/40 p-3 text-sm text-foreground">
+                <p className="max-h-40 overflow-y-auto rounded-lg bg-muted p-3 text-sm break-words whitespace-pre-wrap">
                   {data.text}
                 </p>
               </Section>
-            )}
+            ) : null}
 
-            {/* Meta */}
-            {data.meta.length > 0 && (
+            {data.meta.length > 0 ? (
               <Section label="Details">
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
                   {data.meta.map((kv) => (
-                    <div key={kv.label} className="flex flex-col">
-                      <span className="text-[11px] text-muted-foreground">
-                        {kv.label}
-                      </span>
-                      <span className="truncate text-sm text-foreground">
-                        {kv.value}
-                      </span>
+                    <div key={kv.label} className="min-w-0">
+                      <dt className="text-xs text-muted-foreground">{kv.label}</dt>
+                      <dd className="truncate text-sm">{kv.value}</dd>
                     </div>
                   ))}
-                </div>
+                </dl>
               </Section>
-            )}
+            ) : null}
 
-            {/* Inputs */}
-            {data.inputs.length > 0 && (
+            {data.inputs.length > 0 ? (
               <Section label="Inputs">
                 <div className="flex flex-wrap gap-2">
                   {data.inputs.map((m, i) => (
@@ -141,9 +138,9 @@ export function TaskOutputDialog({
                   ))}
                 </div>
               </Section>
-            )}
+            ) : null}
           </div>
-        )}
+        ) : null}
       </DialogContent>
     </Dialog>
   );
@@ -171,39 +168,34 @@ function MediaBlock({
   media: TaskMedia;
   primary?: boolean;
 }) {
-  const wrap = primary
-    ? "w-full"
-    : "w-28 shrink-0";
   return (
-    <div className={`flex flex-col gap-1 ${wrap}`}>
-      <div className="overflow-hidden rounded-lg border border-border bg-muted">
+    <div className={cn("flex flex-col gap-1", primary ? "w-full" : "w-28 shrink-0")}>
+      <div className="overflow-hidden rounded-xl bg-muted">
         <MediaPlayer media={media} primary={primary} />
       </div>
       <div className="flex items-center justify-between gap-1">
-        <span className="truncate text-[11px] text-muted-foreground">
-          {media.label}
-        </span>
-        {primary && (
+        <span className="truncate text-xs text-muted-foreground">{media.label}</span>
+        {primary ? (
           <div className="flex shrink-0 items-center gap-1">
             <a
               href={media.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-              title="Open"
+              aria-label="Open in a new tab"
+              className={buttonVariants({ variant: "ghost", size: "icon-xs" })}
             >
-              <ArrowSquareOut className="size-3.5" />
+              <ArrowSquareOut />
             </a>
             <a
               href={media.url}
               download
-              className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-              title="Download"
+              aria-label="Download"
+              className={buttonVariants({ variant: "ghost", size: "icon-xs" })}
             >
-              <DownloadSimple className="size-3.5" />
+              <DownloadSimple />
             </a>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -225,28 +217,21 @@ function MediaPlayer({
         controls={primary}
         muted={!primary}
         playsInline
-        className={`${box} bg-black object-contain`}
+        className={cn(box, "object-contain")}
       />
     );
   }
   if (media.type === "IMAGE") {
-    // eslint-disable-next-line @next/next/no-img-element
-    return (
-      <img
-        src={media.url}
-        alt={media.label}
-        className={`${box} object-contain`}
-      />
-    );
+    return <img src={media.url} alt={media.label} className={cn(box, "object-contain")} />;
   }
   if (media.type === "AUDIO") {
-    return (
-      <div className={`flex ${primary ? "p-3" : "size-28 items-center justify-center"}`}>
-        {primary ? (
-          <audio src={media.url} controls className="w-full" />
-        ) : (
-          <FileText className="size-8 text-muted-foreground" />
-        )}
+    return primary ? (
+      <div className="p-3">
+        <audio src={media.url} controls className="w-full" />
+      </div>
+    ) : (
+      <div className="flex size-28 items-center justify-center">
+        <FileText className="size-8 text-muted-foreground" />
       </div>
     );
   }
@@ -255,7 +240,8 @@ function MediaPlayer({
       href={media.url}
       target="_blank"
       rel="noopener noreferrer"
-      className={`flex ${box} items-center justify-center`}
+      aria-label={`Open ${media.label}`}
+      className={cn("flex items-center justify-center", box)}
     >
       <FileText className="size-8 text-muted-foreground" />
     </a>

@@ -19,6 +19,7 @@ const openApiDocument = {
     { name: "Music" },
     { name: "Voiceover" },
     { name: "Uploads" },
+    { name: "Scheduler" },
   ],
   components: {
     securitySchemes: {
@@ -904,6 +905,790 @@ const openApiDocument = {
         properties: {
           success: { type: "boolean" },
           data: { $ref: "#/components/schemas/ClippingJob" },
+        },
+        required: ["success", "data"],
+      },
+      PostAccountInput: {
+        type: "object",
+        properties: {
+          id: {
+            type: "string",
+            description:
+              "Connected account id from GET /accounts. Alias: accountId. Each account may appear once per post.",
+          },
+          customCaption: {
+            type: "string",
+            description: "Caption for this account only. Replaces caption.",
+          },
+          title: {
+            type: "string",
+            description:
+              "Video title, used by YouTube. Defaults to the first 100 characters of the caption.",
+          },
+        },
+        required: ["id"],
+      },
+      PostVideoMediaInput: {
+        type: "object",
+        description: "One video. Creates a VIDEO post.",
+        properties: {
+          type: {
+            type: "string",
+            enum: ["video"],
+            description: "Matched case-insensitively.",
+          },
+          url: {
+            type: "string",
+            format: "uri",
+            description:
+              "Public URL of the video file, for example the `url` returned by POST /uploads.",
+          },
+          cover_url: {
+            type: "string",
+            format: "uri",
+            description:
+              "Cover image URL. Added to the post as its THUMBNAIL media item and used as the Instagram Reel cover. Alias: coverUrl. Takes precedence over settings.instagram.cover_url.",
+          },
+          width: { type: "integer" },
+          height: { type: "integer" },
+          duration_sec: {
+            type: "number",
+            description:
+              "Duration in seconds. Aliases: duration_seconds, duration, durationSec, video_duration_sec.",
+          },
+          bytes: {
+            type: "integer",
+            description: "File size in bytes. Alias: size.",
+          },
+          mime_type: {
+            type: "string",
+            description: "MIME type, e.g. video/mp4. Aliases: mime, mimeType.",
+          },
+          metadata: {
+            type: "object",
+            additionalProperties: true,
+            description:
+              "Optional. May carry the duration, size and MIME type fields instead of the top level.",
+          },
+        },
+        required: ["type", "url"],
+      },
+      PostSlideshowMediaInput: {
+        type: "object",
+        description: "Images for a carousel or photo post. Creates a CAROUSEL post.",
+        properties: {
+          type: {
+            type: "string",
+            enum: ["slideshow"],
+            description: "Matched case-insensitively.",
+          },
+          urls: {
+            type: "array",
+            items: { type: "string", format: "uri" },
+            minItems: 1,
+            maxItems: 35,
+            description: "Image URLs in display order.",
+          },
+        },
+        required: ["type", "urls"],
+      },
+      PostMediaItemInput: {
+        type: "object",
+        description: "One media item in the array form of `media`.",
+        properties: {
+          type: {
+            type: "string",
+            enum: ["VIDEO", "IMAGE", "THUMBNAIL"],
+            description:
+              "THUMBNAIL is a video cover image (used as the Instagram Reel cover).",
+          },
+          url: { type: "string", format: "uri" },
+          order: {
+            type: "integer",
+            description: "Display order. Defaults to the array index.",
+          },
+          width: { type: "integer" },
+          height: { type: "integer" },
+          duration: { type: "number", description: "Duration in seconds." },
+          fileSize: { type: "integer", description: "File size in bytes." },
+          mimeType: { type: "string" },
+        },
+        required: ["type", "url"],
+      },
+      InstagramPostSettings: {
+        type: "object",
+        description: "Options applied to Instagram accounts.",
+        properties: {
+          cover_url: {
+            type: "string",
+            format: "uri",
+            description:
+              "Reel cover image URL for VIDEO posts. Alias: coverUrl. The image is added to the post as its THUMBNAIL media item. Ignored when the video already has a cover (media.cover_url or a THUMBNAIL item). Without a cover, Instagram uses the frame at 5 seconds.",
+          },
+        },
+      },
+      TikTokPostSettings: {
+        type: "object",
+        description:
+          "Options applied to TikTok accounts. The camelCase spelling of each key is also accepted (e.g. privacyLevel). Values of the wrong type are rejected with 400.",
+        properties: {
+          privacy_level: {
+            type: "string",
+            default: "PUBLIC_TO_EVERYONE",
+            description:
+              "Who can view the post: PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, FOLLOWER_OF_CREATOR or SELF_ONLY. Must be an option TikTok allows for the creator account.",
+          },
+          disable_comment: { type: "boolean", default: false },
+          disable_duet: {
+            type: "boolean",
+            default: false,
+            description: "Video posts only.",
+          },
+          disable_stitch: {
+            type: "boolean",
+            default: false,
+            description: "Video posts only.",
+          },
+          brand_content_toggle: {
+            type: "boolean",
+            description:
+              "Discloses a paid partnership promoting a third-party brand. Sent only when set.",
+          },
+          brand_organic_toggle: {
+            type: "boolean",
+            description:
+              "Discloses that the post promotes the creator's own business. Sent only when set.",
+          },
+          is_aigc: {
+            type: "boolean",
+            description: "Labels the post as AI-generated content. Sent only when set.",
+          },
+          auto_add_music: {
+            type: "boolean",
+            description:
+              "Photo posts only. Lets TikTok add background music. Sent only when set.",
+          },
+          post_mode: {
+            type: "string",
+            enum: ["DIRECT_POST", "MEDIA_UPLOAD"],
+            default: "DIRECT_POST",
+            description:
+              "Photo posts only. DIRECT_POST publishes the post. MEDIA_UPLOAD sends it to the creator's TikTok inbox to finish in the TikTok app.",
+          },
+          photo_cover_index: {
+            type: "integer",
+            minimum: 0,
+            default: 0,
+            description:
+              "Photo posts only. Zero-based index of the cover image, limited to the last image.",
+          },
+          video_cover_timestamp_ms: {
+            type: "integer",
+            default: 1000,
+            description:
+              "Video posts only. Frame used as the cover, in milliseconds from the start.",
+          },
+          music_usage_confirmation: {
+            type: "boolean",
+            description: "Stored with the account settings. Not sent to TikTok.",
+          },
+        },
+      },
+      YouTubePostSettings: {
+        type: "object",
+        description:
+          "Options applied to YouTube accounts (provider google). snake_case spellings are also accepted: privacy_status, category_id, made_for_kids.",
+        properties: {
+          privacyStatus: {
+            type: "string",
+            enum: ["public", "private", "unlisted"],
+            default: "public",
+          },
+          tags: {
+            type: "array",
+            items: { type: "string" },
+            description: "Video tags. Each tag must be a non-empty string.",
+          },
+          categoryId: {
+            type: "string",
+            default: "22",
+            description: "YouTube video category id. 22 is People & Blogs.",
+          },
+          madeForKids: { type: "boolean", default: false },
+        },
+      },
+      PinterestPostSettings: {
+        type: "object",
+        description: "Options applied to Pinterest accounts.",
+        properties: {
+          boardId: {
+            type: "string",
+            description:
+              "Board to pin to. Alias: board_id. Defaults to the account's first board.",
+          },
+        },
+      },
+      PostPlatformSettings: {
+        type: "object",
+        additionalProperties: false,
+        description:
+          "Per-platform options. Each account receives only the options for its own platform; accounts on other platforms ignore them. Any other key is rejected with 400.",
+        properties: {
+          instagram: { $ref: "#/components/schemas/InstagramPostSettings" },
+          tiktok: { $ref: "#/components/schemas/TikTokPostSettings" },
+          youtube: { $ref: "#/components/schemas/YouTubePostSettings" },
+          pinterest: { $ref: "#/components/schemas/PinterestPostSettings" },
+        },
+      },
+      CreatePostRequest: {
+        type: "object",
+        properties: {
+          caption: {
+            type: "string",
+            description:
+              "Post text, used for every account that has no customCaption. Must not be empty. Alias: mainCaption.",
+          },
+          accounts: {
+            type: "array",
+            minItems: 1,
+            maxItems: 10,
+            items: { $ref: "#/components/schemas/PostAccountInput" },
+            description:
+              "Accounts to publish to. Platforms can be mixed. Every account must belong to the caller.",
+          },
+          media: {
+            description:
+              "Omit or send null for a text post. Send a video object, a slideshow object, or an array of media items.",
+            oneOf: [
+              { $ref: "#/components/schemas/PostVideoMediaInput" },
+              { $ref: "#/components/schemas/PostSlideshowMediaInput" },
+              {
+                type: "array",
+                items: { $ref: "#/components/schemas/PostMediaItemInput" },
+              },
+              { type: "null" },
+            ],
+          },
+          type: {
+            type: "string",
+            enum: ["VIDEO", "IMAGE", "CAROUSEL", "TEXT"],
+            description:
+              "Overrides the post type inferred from media. Inferred type: no media is TEXT; a video object is VIDEO; a slideshow object is CAROUSEL; an array is CAROUSEL when it has more than one item, VIDEO when its single item is a VIDEO, otherwise IMAGE.",
+          },
+          scheduled_at: {
+            anyOf: [
+              { type: "string", format: "date-time" },
+              { type: "integer" },
+              { type: "null" },
+            ],
+            description:
+              "When to publish, as an ISO 8601 date-time with a UTC offset (Unix time in milliseconds is also accepted). Must be at least 2 minutes in the future. Omit, or send null or an empty string, to save a draft. Alias: scheduledFor.",
+          },
+          timezone: {
+            type: "string",
+            description:
+              "IANA time zone name, e.g. Europe/Berlin. Stored with the schedule for display; it does not change how scheduled_at is read.",
+          },
+          settings: { $ref: "#/components/schemas/PostPlatformSettings" },
+          instagram: {
+            $ref: "#/components/schemas/InstagramPostSettings",
+            description:
+              "Same as settings.instagram. Ignored when settings.instagram is present.",
+          },
+          tiktok: {
+            $ref: "#/components/schemas/TikTokPostSettings",
+            description:
+              "Same as settings.tiktok. Ignored when settings.tiktok is present.",
+          },
+          youtube: {
+            $ref: "#/components/schemas/YouTubePostSettings",
+            description:
+              "Same as settings.youtube. Ignored when settings.youtube is present.",
+          },
+          pinterest: {
+            $ref: "#/components/schemas/PinterestPostSettings",
+            description:
+              "Same as settings.pinterest. Ignored when settings.pinterest is present.",
+          },
+          external_id: {
+            type: "string",
+            description:
+              "Your own identifier for this request. With an API key and no Idempotency-Key header, its first 128 characters are used as the idempotency key. Not stored on the post.",
+          },
+        },
+        required: ["caption", "accounts"],
+      },
+      PostSummary: {
+        type: "object",
+        description:
+          "Short form of a post returned by POST /posts. Uses lowercase values; GET /posts/{id} returns the full record.",
+        properties: {
+          id: { type: "string" },
+          status: {
+            type: "string",
+            enum: [
+              "draft",
+              "scheduled",
+              "publishing",
+              "published",
+              "partially_published",
+              "failed",
+            ],
+          },
+          type: {
+            type: "string",
+            enum: ["video", "image", "slideshow", "text"],
+            description: "CAROUSEL posts are reported as slideshow.",
+          },
+          caption: { type: "string" },
+          scheduled_at: {
+            anyOf: [{ type: "string", format: "date-time" }, { type: "null" }],
+          },
+          accounts: {
+            type: "array",
+            items: { type: "string" },
+            description: "Account ids.",
+          },
+        },
+        required: ["id", "status", "type", "caption", "scheduled_at", "accounts"],
+      },
+      CreatePostResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean" },
+          message: {
+            type: "string",
+            description: '"Post scheduled" or "Post saved as draft".',
+          },
+          data: { $ref: "#/components/schemas/PostSummary" },
+        },
+        required: ["success", "message", "data"],
+      },
+      PostMediaAsset: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          userId: { type: "string" },
+          name: { type: "string" },
+          url: { type: "string", format: "uri" },
+          mimeType: { type: "string" },
+          type: {
+            type: "string",
+            enum: ["IMAGE", "VIDEO", "AUDIO", "DOCUMENT"],
+          },
+          source: {
+            type: "string",
+            enum: ["UPLOAD", "GENERATION", "PROCESSING", "EXPORT", "SYSTEM"],
+          },
+          fileSize: {
+            anyOf: [{ type: "string" }, { type: "null" }],
+            description: "Size in bytes, serialized as a string.",
+          },
+          width: { anyOf: [{ type: "integer" }, { type: "null" }] },
+          height: { anyOf: [{ type: "integer" }, { type: "null" }] },
+          duration: {
+            anyOf: [{ type: "number" }, { type: "null" }],
+            description: "Duration in seconds.",
+          },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+        required: ["id", "url", "mimeType", "type"],
+      },
+      PostMedia: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          postId: { type: "string" },
+          type: { type: "string", enum: ["VIDEO", "IMAGE", "THUMBNAIL"] },
+          order: { type: "integer" },
+          assetId: { type: "string" },
+          asset: { $ref: "#/components/schemas/PostMediaAsset" },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+        required: ["id", "postId", "type", "order", "assetId", "asset"],
+      },
+      PostAccount: {
+        type: "object",
+        description: "One account a post targets, with its publish result.",
+        properties: {
+          id: { type: "string" },
+          postId: { type: "string" },
+          accountId: { type: "string" },
+          customCaption: { anyOf: [{ type: "string" }, { type: "null" }] },
+          title: { anyOf: [{ type: "string" }, { type: "null" }] },
+          settings: {
+            anyOf: [
+              { type: "object", additionalProperties: true },
+              { type: "null" },
+            ],
+            description:
+              "Platform options stored for this account (the matching entry of PostPlatformSettings).",
+          },
+          published: { type: "boolean" },
+          publishedAt: {
+            anyOf: [{ type: "string", format: "date-time" }, { type: "null" }],
+          },
+          publishedPostId: {
+            anyOf: [{ type: "string" }, { type: "null" }],
+            description: "Post id on the platform.",
+          },
+          publishedUrl: {
+            anyOf: [{ type: "string" }, { type: "null" }],
+            description: "Public URL of the post on the platform.",
+          },
+          error: {
+            anyOf: [{ type: "string" }, { type: "null" }],
+            description: "Error from the last publish attempt for this account.",
+          },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+          account: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              provider: {
+                type: "string",
+                description:
+                  "google (YouTube), tiktok, instagram, facebook, threads, bluesky, pinterest or linkedin.",
+              },
+              accountName: { anyOf: [{ type: "string" }, { type: "null" }] },
+              accountUsername: { anyOf: [{ type: "string" }, { type: "null" }] },
+              profilePicture: { anyOf: [{ type: "string" }, { type: "null" }] },
+            },
+            required: ["id", "provider"],
+          },
+        },
+        required: ["id", "postId", "accountId", "published", "account"],
+      },
+      Post: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          userId: { type: "string" },
+          type: { type: "string", enum: ["VIDEO", "IMAGE", "CAROUSEL", "TEXT"] },
+          mainCaption: { type: "string" },
+          status: {
+            type: "string",
+            enum: [
+              "DRAFT",
+              "SCHEDULED",
+              "PUBLISHING",
+              "PUBLISHED",
+              "PARTIALLY_PUBLISHED",
+              "FAILED",
+            ],
+            description:
+              "PUBLISHED: every account published. PARTIALLY_PUBLISHED: at least one account published and at least one failed. FAILED: no account published.",
+          },
+          error: {
+            anyOf: [{ type: "string" }, { type: "null" }],
+            description: "Summary of the last publishing failure.",
+          },
+          scheduledFor: {
+            anyOf: [{ type: "string", format: "date-time" }, { type: "null" }],
+          },
+          scheduledTimezone: { anyOf: [{ type: "string" }, { type: "null" }] },
+          publishedAt: {
+            anyOf: [{ type: "string", format: "date-time" }, { type: "null" }],
+          },
+          source: {
+            type: "string",
+            enum: ["WEB", "API", "MCP"],
+            description:
+              "Where the post was created: the web app, the REST API, or the Unsora MCP server (requests with header X-Unsora-Client: mcp).",
+          },
+          apiKeyId: {
+            anyOf: [{ type: "string" }, { type: "null" }],
+            description:
+              "API key used to create the post. Null when it was created with a Clerk session or OAuth token.",
+          },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+          media: {
+            type: "array",
+            items: { $ref: "#/components/schemas/PostMedia" },
+            description: "Sorted by order.",
+          },
+          postAccounts: {
+            type: "array",
+            items: { $ref: "#/components/schemas/PostAccount" },
+          },
+        },
+        required: [
+          "id",
+          "type",
+          "mainCaption",
+          "status",
+          "scheduledFor",
+          "source",
+          "createdAt",
+          "media",
+          "postAccounts",
+        ],
+      },
+      PostResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean" },
+          message: { type: "string" },
+          data: { $ref: "#/components/schemas/Post" },
+        },
+        required: ["success", "data"],
+      },
+      PostListResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean" },
+          data: {
+            type: "object",
+            properties: {
+              posts: {
+                type: "array",
+                items: { $ref: "#/components/schemas/Post" },
+              },
+              pagination: {
+                type: "object",
+                properties: {
+                  page: { type: "integer" },
+                  limit: { type: "integer" },
+                  total: { type: "integer" },
+                  totalPages: { type: "integer" },
+                },
+                required: ["page", "limit", "total", "totalPages"],
+              },
+            },
+            required: ["posts", "pagination"],
+          },
+        },
+        required: ["success", "data"],
+      },
+      UpdatePostRequest: {
+        type: "object",
+        properties: {
+          mainCaption: {
+            type: "string",
+            minLength: 1,
+            description: "New caption. Must not be empty.",
+          },
+          scheduledFor: {
+            anyOf: [
+              { type: "string", format: "date-time" },
+              { type: "integer" },
+              { type: "null" },
+            ],
+            description:
+              "A date (ISO 8601 or Unix time in milliseconds) moves the post to SCHEDULED. null or an empty string clears the schedule; a SCHEDULED post returns to DRAFT.",
+          },
+          timezone: {
+            type: "string",
+            description:
+              "IANA time zone name stored with the schedule. Read only when scheduledFor is a date. Clearing the schedule also clears the time zone.",
+          },
+          accounts: {
+            type: "array",
+            minItems: 1,
+            description:
+              "Replaces the account list. Accounts that already published are kept unchanged. Listed accounts are updated or added, and unpublished accounts that are not listed are removed. Existing accounts keep their platform settings; added accounts have none.",
+            items: {
+              type: "object",
+              properties: {
+                accountId: {
+                  type: "string",
+                  description: "Connected account id from GET /accounts.",
+                },
+                customCaption: { anyOf: [{ type: "string" }, { type: "null" }] },
+                title: { anyOf: [{ type: "string" }, { type: "null" }] },
+              },
+              required: ["accountId"],
+            },
+          },
+        },
+      },
+      PublishPostResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean" },
+          message: {
+            type: "string",
+            description: '"Publishing started" or "Retry started".',
+          },
+          data: {
+            type: "object",
+            properties: {
+              postId: { type: "string" },
+              status: { type: "string", enum: ["PUBLISHING"] },
+              results: {
+                type: "array",
+                items: { type: "object", additionalProperties: true },
+                description:
+                  "Always empty. Per-account results are on the post (GET /posts/{id}).",
+              },
+            },
+            required: ["postId", "status", "results"],
+          },
+        },
+        required: ["success", "message", "data"],
+      },
+      PostMetrics: {
+        type: "object",
+        description:
+          "Cumulative counters. Metrics a platform does not expose are 0 (e.g. Bluesky views, TikTok saves, YouTube shares and saves). Facebook and LinkedIn likes count every reaction type. Pinterest views are impressions and shares are outbound clicks.",
+        properties: {
+          views: { type: "integer" },
+          likes: { type: "integer" },
+          comments: { type: "integer" },
+          shares: { type: "integer" },
+          saves: { type: "integer" },
+        },
+        required: ["views", "likes", "comments", "shares", "saves"],
+      },
+      AnalyticsSummaryResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean" },
+          data: {
+            type: "object",
+            properties: {
+              days: {
+                type: "integer",
+                description: "Window used, after clamping.",
+              },
+              totals: { $ref: "#/components/schemas/PostMetrics" },
+              postCount: {
+                type: "integer",
+                description:
+                  "Number of per-account posts published in the window.",
+              },
+              byPlatform: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    platform: { type: "string" },
+                    posts: { type: "integer" },
+                    views: { type: "integer" },
+                    likes: { type: "integer" },
+                    comments: { type: "integer" },
+                    shares: { type: "integer" },
+                    saves: { type: "integer" },
+                  },
+                  required: [
+                    "platform",
+                    "posts",
+                    "views",
+                    "likes",
+                    "comments",
+                    "shares",
+                    "saves",
+                  ],
+                },
+              },
+              timeseries: {
+                type: "array",
+                description:
+                  "One point per day from the start of the window to today. Each point sums every post's latest snapshot taken before the end of that day, so values are totals to date, not daily increments.",
+                items: {
+                  type: "object",
+                  properties: {
+                    date: {
+                      type: "string",
+                      format: "date",
+                      description: "YYYY-MM-DD.",
+                    },
+                    views: { type: "integer" },
+                    likes: { type: "integer" },
+                    comments: { type: "integer" },
+                    shares: { type: "integer" },
+                  },
+                  required: ["date", "views", "likes", "comments", "shares"],
+                },
+              },
+              posts: {
+                type: "array",
+                description:
+                  "One entry per account a post was published to, newest first.",
+                items: {
+                  type: "object",
+                  properties: {
+                    postAccountId: { type: "string" },
+                    platform: {
+                      type: "string",
+                      description: "Account provider. YouTube is google.",
+                    },
+                    accountUsername: {
+                      anyOf: [{ type: "string" }, { type: "null" }],
+                    },
+                    profilePicture: {
+                      anyOf: [{ type: "string" }, { type: "null" }],
+                    },
+                    caption: {
+                      type: "string",
+                      description:
+                        "The account's customCaption, or the post caption.",
+                    },
+                    postType: {
+                      type: "string",
+                      enum: ["VIDEO", "IMAGE", "CAROUSEL", "TEXT"],
+                    },
+                    publishedAt: {
+                      anyOf: [
+                        { type: "string", format: "date-time" },
+                        { type: "null" },
+                      ],
+                    },
+                    publishedUrl: {
+                      anyOf: [{ type: "string" }, { type: "null" }],
+                    },
+                    metrics: { $ref: "#/components/schemas/PostMetrics" },
+                    lastFetchedAt: {
+                      anyOf: [
+                        { type: "string", format: "date-time" },
+                        { type: "null" },
+                      ],
+                      description:
+                        "Time of the latest snapshot. Null when metrics have not been fetched yet; metrics are then 0.",
+                    },
+                  },
+                  required: [
+                    "postAccountId",
+                    "platform",
+                    "caption",
+                    "postType",
+                    "metrics",
+                    "lastFetchedAt",
+                  ],
+                },
+              },
+            },
+            required: [
+              "days",
+              "totals",
+              "postCount",
+              "byPlatform",
+              "timeseries",
+              "posts",
+            ],
+          },
+        },
+        required: ["success", "data"],
+      },
+      AnalyticsRefreshResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean" },
+          data: {
+            type: "object",
+            properties: {
+              refreshed: {
+                type: "integer",
+                description:
+                  "Number of per-account posts that received a new metrics snapshot.",
+              },
+            },
+            required: ["refreshed"],
+          },
         },
         required: ["success", "data"],
       },
@@ -2770,6 +3555,559 @@ const openApiDocument = {
           "200": { description: "Deleted" },
           "404": {
             description: "Not found",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/accounts": {
+      get: {
+        tags: ["Scheduler"],
+        summary: "List connected social accounts",
+        description:
+          "Returns the social accounts connected to the caller, sorted by account name. " +
+          "Use an account `id` in POST /posts. YouTube accounts have provider `google`.",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          "200": {
+            description: "Connected accounts",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ConnectedAccountsResponse",
+                },
+              },
+            },
+          },
+          "401": {
+            description: "Unauthorized",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/posts": {
+      post: {
+        tags: ["Scheduler"],
+        summary: "Create a scheduled post or draft",
+        description:
+          "Creates a post for 1 to 10 connected accounts. With `scheduled_at` the post is " +
+          "created as SCHEDULED and published at that time; a scheduler checks for due posts " +
+          "every minute. `scheduled_at` must be at least 2 minutes in the future. Without it " +
+          "the post is saved as a DRAFT, which can be published with POST /posts/{id}/publish. " +
+          "Per-platform options go in `settings` (or in top-level `instagram`, `tiktok`, " +
+          "`youtube` and `pinterest` objects); each account receives only the options for its " +
+          "own platform. " +
+          "Media, post type and account platforms are not cross-checked here. POST " +
+          "/posts/{id}/publish and /retry check them before starting; a scheduled post is " +
+          "published without that check and failures are recorded per account. " +
+          "Idempotency applies only to requests authenticated with an API key: send an " +
+          "`Idempotency-Key` header, or `external_id` in the body when the header is absent. " +
+          "The first 201 response is stored for 24 hours and returned again for the same key " +
+          "with header `Idempotent-Replayed: true`. The request body is not compared. Reusing " +
+          "a key with a different method or path returns 409 IDEMPOTENCY_CONFLICT. Requests " +
+          "made with a Clerk session or OAuth token are not deduplicated. " +
+          "The post records `source` API, or MCP when the request has header " +
+          "`X-Unsora-Client: mcp`, and the id of the API key used (`apiKeyId`). " +
+          "Requires an active paid plan.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "Idempotency-Key",
+            in: "header",
+            required: false,
+            description:
+              "Idempotency key, up to 128 characters. Used only with API keys. Longer keys are ignored.",
+            schema: { type: "string", maxLength: 128 },
+          },
+          {
+            name: "X-Unsora-Client",
+            in: "header",
+            required: false,
+            description:
+              "The Unsora MCP server sends `mcp`, which records the post source as MCP. Any other value, or no header, records API.",
+            schema: { type: "string" },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/CreatePostRequest" },
+            },
+          },
+        },
+        responses: {
+          "201": {
+            description: "Post created",
+            headers: {
+              "Idempotent-Replayed": {
+                description:
+                  "Present with value true when the response is a stored replay for a repeated idempotency key.",
+                schema: { type: "string", enum: ["true"] },
+              },
+            },
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/CreatePostResponse" },
+              },
+            },
+          },
+          "400": {
+            description:
+              "Invalid request body. `error` describes the first problem found (for example a missing caption, more than 10 accounts, scheduled_at less than 2 minutes ahead, or an unsupported settings key).",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "403": {
+            description:
+              "PLAN_REQUIRED: no active paid plan. UNKNOWN_ACCOUNTS: one or more accounts do not belong to the caller.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "409": {
+            description:
+              "IDEMPOTENCY_CONFLICT: the idempotency key was already used with a different method or path.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+      get: {
+        tags: ["Scheduler"],
+        summary: "List posts (paginated)",
+        description:
+          "Returns the caller's posts as full post records, newest first by creation time.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "status",
+            in: "query",
+            description: "Filter by one status.",
+            schema: {
+              type: "string",
+              enum: [
+                "DRAFT",
+                "SCHEDULED",
+                "PUBLISHING",
+                "PUBLISHED",
+                "PARTIALLY_PUBLISHED",
+                "FAILED",
+              ],
+            },
+          },
+          {
+            name: "type",
+            in: "query",
+            description: "Filter by post type.",
+            schema: {
+              type: "string",
+              enum: ["VIDEO", "IMAGE", "CAROUSEL", "TEXT"],
+            },
+          },
+          {
+            name: "page",
+            in: "query",
+            schema: { type: "integer", default: 1, minimum: 1 },
+          },
+          {
+            name: "limit",
+            in: "query",
+            schema: { type: "integer", default: 20, minimum: 1, maximum: 100 },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Paginated list",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/PostListResponse" },
+              },
+            },
+          },
+          "400": {
+            description:
+              "Invalid status, type, page or limit. Out-of-range values are rejected, not clamped.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/posts/analytics/summary": {
+      get: {
+        tags: ["Scheduler"],
+        summary: "Get post analytics summary",
+        description:
+          "Aggregates engagement metrics for posts published in the last `days` days, counted " +
+          "per account. Each post contributes its latest stored metrics snapshot. Snapshots are " +
+          "polled from the platforms every 6 hours for posts published in the last 90 days, and " +
+          "on demand with POST /posts/analytics/refresh.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "days",
+            in: "query",
+            description: "Window in days. Values outside 7–90 are clamped.",
+            schema: { type: "integer", default: 30, minimum: 7, maximum: 90 },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Analytics summary",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/AnalyticsSummaryResponse",
+                },
+              },
+            },
+          },
+          "401": {
+            description: "Unauthorized",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/posts/analytics/refresh": {
+      post: {
+        tags: ["Scheduler"],
+        summary: "Refresh post metrics from the platforms",
+        description:
+          "Polls the platforms for current metrics of the caller's posts published in the last " +
+          "90 days (YouTube, TikTok, Instagram, Facebook, Threads, Pinterest, LinkedIn, Bluesky) " +
+          "and stores a snapshot for each. The response is returned after polling finishes. " +
+          "Accounts whose platform request fails are skipped. Call GET " +
+          "/posts/analytics/summary afterwards for the updated figures.",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          "200": {
+            description: "Refresh finished",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/AnalyticsRefreshResponse",
+                },
+              },
+            },
+          },
+          "401": {
+            description: "Unauthorized",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/posts/{id}": {
+      get: {
+        tags: ["Scheduler"],
+        summary: "Get one post",
+        description:
+          "Returns the full post record. After publish or retry, poll this until `status` is " +
+          "PUBLISHED, PARTIALLY_PUBLISHED or FAILED. Per-account results are in `postAccounts` " +
+          "(`published`, `publishedUrl`, `error`).",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Post record",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/PostResponse" },
+              },
+            },
+          },
+          "404": {
+            description: "Post not found",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+      put: {
+        tags: ["Scheduler"],
+        summary: "Update a post",
+        description:
+          "Updates the caption, schedule or accounts of a post that is not PUBLISHED. Only the " +
+          "fields sent are changed. Media, post type and platform settings can't be changed " +
+          "here. The 2-minute minimum lead time of POST /posts is not enforced; a time in the " +
+          "past is picked up by the next scheduler run. Requires an active paid plan.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/UpdatePostRequest" },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: 'Updated. `message` is "Post updated successfully".',
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/PostResponse" },
+              },
+            },
+          },
+          "400": {
+            description:
+              "Invalid field, or the post is PUBLISHED and can't be edited.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "403": {
+            description:
+              "PLAN_REQUIRED: no active paid plan. Also returned without a code when an account does not belong to the caller.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "404": {
+            description: "Post not found",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "409": {
+            description: "The post is PUBLISHING. Try again after it finishes.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+      delete: {
+        tags: ["Scheduler"],
+        summary: "Delete a post",
+        description:
+          "Deletes the post and its per-account records. Content already published on a " +
+          "platform is not removed from that platform. Requires an active paid plan.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Deleted",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SuccessMessage" },
+              },
+            },
+          },
+          "403": {
+            description: "PLAN_REQUIRED: no active paid plan.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "404": {
+            description: "Post not found",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "409": {
+            description: "The post is PUBLISHING. Try again after it finishes.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/posts/{id}/publish": {
+      post: {
+        tags: ["Scheduler"],
+        summary: "Publish a post now",
+        description:
+          "Starts publishing to every account on the post that has not published yet and " +
+          "returns 202 right away with status PUBLISHING. Publishing runs in the background; " +
+          "poll GET /posts/{id} until `status` is PUBLISHED, PARTIALLY_PUBLISHED or FAILED. " +
+          "Accepts DRAFT, SCHEDULED, FAILED and PARTIALLY_PUBLISHED posts. " +
+          "Before starting, the post is checked. It needs at least one account. VIDEO needs " +
+          "exactly one video, IMAGE exactly one image, CAROUSEL at least one image, and TEXT " +
+          "no media and a non-empty caption; video and images can't be mixed (THUMBNAIL items " +
+          "are not counted). The platform of every unpublished account must support the post " +
+          "type: YouTube supports VIDEO; TikTok, Instagram and Pinterest support VIDEO, IMAGE " +
+          "and CAROUSEL; Facebook, Threads, Bluesky and LinkedIn support all four types. " +
+          "Requires an active paid plan.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+          },
+        ],
+        responses: {
+          "202": {
+            description: "Publishing started",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/PublishPostResponse" },
+              },
+            },
+          },
+          "400": {
+            description:
+              "The post can't be published. `code` is POST_PUBLISHED (the post, or every account on it, is already published), ACCOUNT_REQUIRED, MEDIA_REQUIRED, MEDIA_NOT_ALLOWED, MIXED_MEDIA, CAPTION_REQUIRED or UNSUPPORTED_FORMAT.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "403": {
+            description: "PLAN_REQUIRED: no active paid plan.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "404": {
+            description: "Post not found",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "409": {
+            description: "POST_PUBLISHING: the post is already publishing.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/posts/{id}/retry": {
+      post: {
+        tags: ["Scheduler"],
+        summary: "Retry the failed accounts of a post",
+        description:
+          "Publishes again to the accounts that have not published on a FAILED or " +
+          "PARTIALLY_PUBLISHED post. Accounts that already published are not posted again. " +
+          "Runs the same checks as POST /posts/{id}/publish and returns 202 with status " +
+          "PUBLISHING; poll GET /posts/{id} for the outcome. Requires an active paid plan.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+          },
+        ],
+        responses: {
+          "202": {
+            description: "Retry started",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/PublishPostResponse" },
+              },
+            },
+          },
+          "400": {
+            description:
+              "The post can't be retried. `code` is NOT_RETRYABLE (the post is DRAFT or SCHEDULED), POST_PUBLISHED, ACCOUNT_REQUIRED, MEDIA_REQUIRED, MEDIA_NOT_ALLOWED, MIXED_MEDIA, CAPTION_REQUIRED or UNSUPPORTED_FORMAT.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "403": {
+            description: "PLAN_REQUIRED: no active paid plan.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "404": {
+            description: "Post not found",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "409": {
+            description: "POST_PUBLISHING: the post is already publishing.",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ErrorResponse" },

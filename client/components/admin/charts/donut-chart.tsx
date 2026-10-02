@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { useChartTheme } from "./palette";
 
 export interface DonutSlice {
   label: string;
@@ -11,10 +10,9 @@ export interface DonutSlice {
 }
 
 /**
- * Donut for part-to-whole (e.g. task status split). A 2px surface gap
- * separates adjacent arcs; the center shows the total. Legend is always
- * present so identity is never color-alone; hovering a slice or legend row
- * highlights the pair.
+ * Donut for part-to-whole (e.g. task status split). The center shows the
+ * total; the legend is always present so identity is never color alone.
+ * Hovering a slice or legend row highlights the pair.
  */
 export function DonutChart({
   slices,
@@ -27,7 +25,6 @@ export function DonutChart({
   size?: number;
   className?: string;
 }) {
-  const theme = useChartTheme();
   const [active, setActive] = useState<number | null>(null);
   const total = slices.reduce((s, x) => s + x.value, 0);
 
@@ -61,9 +58,8 @@ export function DonutChart({
             cy={cy}
             r={r}
             fill="none"
-            stroke={theme.grid}
+            className="stroke-muted"
             strokeWidth={stroke}
-            opacity={0.4}
           />
           {total > 0 &&
             arcs.map((a) => (
@@ -73,7 +69,7 @@ export function DonutChart({
                 cy={cy}
                 r={r}
                 fill="none"
-                stroke={a.slice.color}
+                style={{ stroke: a.slice.color }}
                 strokeWidth={stroke}
                 strokeDasharray={a.dasharray}
                 strokeDashoffset={a.dashoffset}
@@ -86,7 +82,7 @@ export function DonutChart({
             ))}
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-semibold tabular-nums text-foreground">
+          <span className="text-2xl font-medium tabular-nums text-foreground">
             {(active !== null ? slices[active].value : total).toLocaleString()}
           </span>
           <span className="text-xs text-muted-foreground">
@@ -106,7 +102,7 @@ export function DonutChart({
               onMouseLeave={() => setActive(null)}
             >
               <span
-                className="size-2.5 shrink-0 rounded-[3px]"
+                className="size-2.5 shrink-0 rounded-xs"
                 style={{ backgroundColor: slice.color }}
               />
               <span className="flex-1 truncate text-xs text-foreground">

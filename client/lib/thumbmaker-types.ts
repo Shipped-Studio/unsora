@@ -22,3 +22,12 @@ export type ThumbmakerThumbnailsListResponse = {
     totalPages: number;
   };
 };
+
+export interface ThumbnailTemplate {
+  id: string;
+  src: string;
+  title: string;
+  creator: string;
+  tags: string[];
+  category: string;
+}

@@ -8,11 +8,6 @@ import {
 } from "@/components/generator/param-control";
 import type { UploadField } from "@/components/generator/attachments";
 
-export { parseDuration };
-export type { ParamConfig, ParamOption };
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
 export type ModelKey =
   | "seedance"
   | "seedance-fast"
@@ -47,7 +42,6 @@ export interface ModelConfig {
   provider: string;
   /** Provider logo path under /public. */
   icon: string;
-  badge?: "Popular" | "New";
   description: string;
   priceHint: string;
   placeholder: string;
@@ -62,8 +56,6 @@ export interface ModelConfig {
   ): number;
   buildSubmitParams(args: BuildSubmitArgs): VideoGenerationSubmitParams;
 }
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function tierCredits(
   tiers: [maxDuration: number, credits: number][],
@@ -89,8 +81,6 @@ export function getDefaultParams(config: ModelConfig): Record<string, string> {
     config.params.map((p) => [p.key, p.defaultValue]),
   );
 }
-
-// ─── Shared option sets ──────────────────────────────────────────────────────
 
 const STANDARD_ASPECTS: ParamOption[] = [
   { value: "16:9", label: "16:9" },
@@ -130,15 +120,15 @@ const SOUND_PARAM: ParamConfig = {
   defaultValue: "enabled",
 };
 
-// ─── Seedance ────────────────────────────────────────────────────────────────
+// Seedance
 
 const SEEDANCE_MODE: ParamConfig = {
   key: "mode",
   label: "Mode",
   type: "select",
   options: [
-    { value: "omni", label: "Omni Reference" },
-    { value: "first-last", label: "First & Last Frame" },
+    { value: "omni", label: "Omni reference" },
+    { value: "first-last", label: "First and last frame" },
   ],
   defaultValue: "omni",
 };
@@ -170,7 +160,7 @@ const SEEDANCE_UPLOADS: UploadFieldConfig[] = [
   },
   {
     key: "first_frame",
-    label: "First Frame",
+    label: "First frame",
     accept: "image/*",
     max: 1,
     icon: ImageSquare,
@@ -178,7 +168,7 @@ const SEEDANCE_UPLOADS: UploadFieldConfig[] = [
   },
   {
     key: "last_frame",
-    label: "Last Frame",
+    label: "Last frame",
     accept: "image/*",
     max: 1,
     icon: ImageSquare,
@@ -230,7 +220,7 @@ function seedanceConfig(
     icon: "/models/bytedance.svg",
     description,
     priceHint,
-    placeholder: `Describe the video you want to generate with ${label}... type @ to reference uploaded files`,
+    placeholder: "Describe the video. Type @ to reference attached files",
     supportsNegativePrompt: false,
     fileMentions: true,
     params: [
@@ -244,7 +234,7 @@ function seedanceConfig(
       },
       {
         key: "aspect-ratio",
-        label: "Aspect Ratio",
+        label: "Aspect ratio",
         type: "aspect",
         options: STANDARD_ASPECTS,
         defaultValue: "16:9",
@@ -261,13 +251,13 @@ function seedanceConfig(
   };
 }
 
-// ─── Kling ───────────────────────────────────────────────────────────────────
+// Kling
 
 const KLING_UPLOADS: UploadFieldConfig[] = [
   { key: "image", label: "Image", accept: "image/*", max: 1, icon: ImageSquare },
   {
     key: "end_image",
-    label: "End Image",
+    label: "End image",
     accept: "image/*",
     max: 1,
     icon: ImageSquare,
@@ -289,7 +279,7 @@ function klingConfig(
     icon: "/models/kling.svg",
     description,
     priceHint,
-    placeholder: `Describe the video you want to generate with ${label}...`,
+    placeholder: "Describe the video",
     supportsNegativePrompt: true,
     params: [
       {
@@ -301,7 +291,7 @@ function klingConfig(
       },
       {
         key: "aspect-ratio",
-        label: "Aspect Ratio",
+        label: "Aspect ratio",
         type: "aspect",
         options: STANDARD_ASPECTS,
         defaultValue: "16:9",
@@ -331,7 +321,7 @@ function klingConfig(
   };
 }
 
-// ─── Veo ─────────────────────────────────────────────────────────────────────
+// Veo
 
 // Veo credits come from the repriced credit schedule, keyed by duration and
 // whether audio is on. Keep in sync with the server's credits() in
@@ -340,7 +330,7 @@ function klingConfig(
 const VEO_FRAME_UPLOADS: UploadFieldConfig[] = [
   {
     key: "first_frame",
-    label: "First Frame",
+    label: "First frame",
     accept: "image/*",
     max: 1,
     icon: ImageSquare,
@@ -348,7 +338,7 @@ const VEO_FRAME_UPLOADS: UploadFieldConfig[] = [
   },
   {
     key: "last_frame",
-    label: "Last Frame",
+    label: "Last frame",
     accept: "image/*",
     max: 1,
     icon: ImageSquare,
@@ -405,10 +395,10 @@ function veoConfig(
   withReferenceMode: boolean,
 ): ModelConfig {
   const modeOptions: ParamOption[] = [
-    { value: "TEXT_2_VIDEO", label: "Text to Video" },
-    { value: "FIRST_AND_LAST_FRAMES_2_VIDEO", label: "First & Last Frame" },
+    { value: "TEXT_2_VIDEO", label: "Text to video" },
+    { value: "FIRST_AND_LAST_FRAMES_2_VIDEO", label: "First and last frame" },
     ...(withReferenceMode
-      ? [{ value: "REFERENCE_2_VIDEO", label: "Reference to Video" }]
+      ? [{ value: "REFERENCE_2_VIDEO", label: "Reference to video" }]
       : []),
   ];
 
@@ -419,7 +409,7 @@ function veoConfig(
     icon: "/models/google.svg",
     description,
     priceHint,
-    placeholder: `Describe the video you want to generate with ${label}...`,
+    placeholder: "Describe the video",
     supportsNegativePrompt: false,
     params: [
       {
@@ -438,7 +428,7 @@ function veoConfig(
       },
       {
         key: "aspect-ratio",
-        label: "Aspect Ratio",
+        label: "Aspect ratio",
         type: "aspect",
         options: VEO_ASPECTS,
         defaultValue: "16:9",
@@ -461,7 +451,7 @@ function veoConfig(
   };
 }
 
-// ─── Sora ────────────────────────────────────────────────────────────────────
+// Sora
 
 function soraConfig(
   key: ModelKey,
@@ -478,7 +468,7 @@ function soraConfig(
     icon: "/models/openai.svg",
     description,
     priceHint,
-    placeholder: `Describe the video you want to generate with ${label}...`,
+    placeholder: "Describe the video",
     supportsNegativePrompt: false,
     params: [
       {
@@ -490,7 +480,7 @@ function soraConfig(
       },
       {
         key: "aspect-ratio",
-        label: "Aspect Ratio",
+        label: "Aspect ratio",
         type: "aspect",
         options: aspects,
         defaultValue: "16:9",
@@ -521,46 +511,38 @@ function soraConfig(
   };
 }
 
-// ─── Registry ────────────────────────────────────────────────────────────────
-
 export const MODEL_CONFIGS: Record<ModelKey, ModelConfig> = {
-  seedance: {
-    ...seedanceConfig(
-      "seedance",
-      "Seedance 2.0",
-      "High-quality dance and motion generation with omni reference support",
-      "from 64 credits",
-      "720p",
-      [[5, 64], [10, 127], [15, 190]],
-      [[5, 64], [10, 127], [15, 190]],
-    ),
-    badge: "New",
-  },
+  seedance: seedanceConfig(
+    "seedance",
+    "Seedance 2.0",
+    "Motion-heavy video with image, video and audio references",
+    "from 64 credits",
+    "720p",
+    [[5, 64], [10, 127], [15, 190]],
+    [[5, 64], [10, 127], [15, 190]],
+  ),
   "seedance-fast": seedanceConfig(
     "seedance-fast",
     "Seedance 2.0 Fast",
-    "Faster Seedance generation with reduced latency",
+    "Faster Seedance with lower latency",
     "from 37 credits",
     "720p",
     [[5, 37], [10, 74], [15, 111]],
     [[5, 37], [10, 74], [15, 111]],
   ),
-  "seedance-mini": {
-    ...seedanceConfig(
-      "seedance-mini",
-      "Seedance 2.0 Mini",
-      "Most affordable Seedance for high-volume generation",
-      "from 32 credits",
-      "720p",
-      [[5, 32], [10, 64], [15, 95]],
-      [[5, 32], [10, 64], [15, 95]],
-    ),
-    badge: "New",
-  },
+  "seedance-mini": seedanceConfig(
+    "seedance-mini",
+    "Seedance 2.0 Mini",
+    "Lowest-cost Seedance for high volume",
+    "from 32 credits",
+    "720p",
+    [[5, 32], [10, 64], [15, 95]],
+    [[5, 32], [10, 64], [15, 95]],
+  ),
   "kling-standard": klingConfig(
     "kling-standard",
     "Kling 3.0 Standard",
-    "Versatile video generation with broad aspect ratio support",
+    "General-purpose video with wide aspect ratio support",
     "from 74 credits",
     [[5, 74], [10, 148], [15, 222]],
     [[5, 74], [10, 148], [15, 222]],
@@ -568,27 +550,24 @@ export const MODEL_CONFIGS: Record<ModelKey, ModelConfig> = {
   "kling-pro": klingConfig(
     "kling-pro",
     "Kling 3.0 Pro",
-    "Extended duration and 4K output with pro-grade quality",
+    "Higher quality Kling output",
     "from 74 credits",
     [[5, 74], [10, 148], [15, 222]],
     [[5, 74], [10, 148], [15, 222]],
   ),
-  veo: {
-    ...veoConfig(
-      "veo",
-      "Veo 3.1",
-      "Google's flagship video model with highest fidelity",
-      "from 43 credits",
-      [[4, 85], [6, 127], [8, 169]],
-      [[4, 43], [6, 64], [8, 85]],
-      true,
-    ),
-    badge: "Popular",
-  },
+  veo: veoConfig(
+    "veo",
+    "Veo 3.1",
+    "Google's highest fidelity video model",
+    "from 43 credits",
+    [[4, 85], [6, 127], [8, 169]],
+    [[4, 43], [6, 64], [8, 85]],
+    true,
+  ),
   "veo-fast": veoConfig(
     "veo-fast",
     "Veo 3.1 Fast",
-    "Cost-efficient Veo 3.1 with strong visual results",
+    "Lower-cost Veo 3.1",
     "from 22 credits",
     [[4, 33], [6, 49], [8, 65]],
     [[4, 22], [6, 33], [8, 43]],
@@ -597,7 +576,7 @@ export const MODEL_CONFIGS: Record<ModelKey, ModelConfig> = {
   "veo-lite": veoConfig(
     "veo-lite",
     "Veo 3.1 Lite",
-    "Most cost-effective Veo 3.1 for high-volume generation",
+    "Veo 3.1 for high volume",
     "from 64 credits",
     [[4, 64], [6, 95], [8, 127]],
     [[4, 64], [6, 95], [8, 127]],
@@ -608,11 +587,9 @@ export const MODEL_CONFIGS: Record<ModelKey, ModelConfig> = {
     label: "Gemini Omni Flash",
     provider: "Google",
     icon: "/models/google.svg",
-    badge: "New",
     description: "Fast short-form video with native synchronized audio",
     priceHint: "from 37 credits",
-    placeholder:
-      "Describe the scene, motion, pacing, and audio you want Gemini Omni Flash to generate...",
+    placeholder: "Describe the scene, motion and sound",
     supportsNegativePrompt: false,
     params: [
       {
@@ -624,7 +601,7 @@ export const MODEL_CONFIGS: Record<ModelKey, ModelConfig> = {
       },
       {
         key: "aspect-ratio",
-        label: "Aspect Ratio",
+        label: "Aspect ratio",
         type: "aspect",
         options: VEO_ASPECTS,
         defaultValue: "16:9",
@@ -668,7 +645,7 @@ export const MODEL_CONFIGS: Record<ModelKey, ModelConfig> = {
   "sora-2": soraConfig(
     "sora-2",
     "Sora 2",
-    "OpenAI's video model with cinematic generation capabilities",
+    "OpenAI video model",
     "from 22 credits",
     [
       { value: "16:9", label: "16:9" },
@@ -679,7 +656,7 @@ export const MODEL_CONFIGS: Record<ModelKey, ModelConfig> = {
   "sora-2-pro": soraConfig(
     "sora-2-pro",
     "Sora 2 Pro",
-    "Enhanced Sora with higher fidelity and 4K output",
+    "Higher fidelity Sora",
     "from 64 credits",
     [
       { value: "16:9", label: "16:9" },
@@ -692,3 +669,31 @@ export const MODEL_CONFIGS: Record<ModelKey, ModelConfig> = {
 };
 
 export const MODEL_KEYS = Object.keys(MODEL_CONFIGS) as ModelKey[];
+
+/** Stored model names (history rows) mapped to display labels. */
+const STORED_MODEL_LABELS: Record<string, string> = {
+  "seedance_2.0": "Seedance 2.0",
+  seedance_2_0: "Seedance 2.0",
+  "seedance_2.0_fast": "Seedance 2.0 Fast",
+  seedance_2_0_fast: "Seedance 2.0 Fast",
+  "seedance_2.0_mini": "Seedance 2.0 Mini",
+  kling_v3_std: "Kling 3.0 Standard",
+  kling_v3_pro: "Kling 3.0 Pro",
+  veo3_1: "Veo 3.1",
+  veo3_1_fast: "Veo 3.1 Fast",
+  veo3_1_lite: "Veo 3.1 Lite",
+  "veo_3.1": "Veo 3.1",
+  gemini_omni_flash: "Gemini Omni Flash",
+  sora_2: "Sora 2",
+  sora_2_pro: "Sora 2 Pro",
+  "wan_2.6": "Wan 2.6",
+  wan: "Wan 2.6",
+};
+
+export function videoModelLabel(model: string): string {
+  return (
+    MODEL_CONFIGS[model as ModelKey]?.label ??
+    STORED_MODEL_LABELS[model] ??
+    model
+  );
+}

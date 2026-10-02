@@ -1,16 +1,16 @@
 "use client";
 
-import Image from "next/image";
+import { useState } from "react";
 import {
+  ArrowSquareOut,
+  DotsThree,
   DownloadSimple,
   FilmStrip,
-  Play,
-  TrendUp,
   Trash,
-  Warning,
+  TrendUp,
+  WarningCircle,
 } from "@phosphor-icons/react";
-import { Spinner } from "@/components/ui/spinner";
-import { VideoThumbnail } from "@/components/ui/video-thumbnail";
+import { ScheduleLink } from "@/components/generator/tool-layout";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,186 +20,228 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { cn } from "@/lib/utils";
-import { getCdnUrl } from "@/lib/video-utils";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Spinner } from "@/components/ui/spinner";
+import { VideoThumbnail } from "@/components/ui/video-thumbnail";
+import {
+  buildSourceTimestampUrl,
   getClipThumbnailUrl,
   getClipVideoUrl,
   type AIClippingClip,
 } from "@/hooks/use-ai-clippings";
-import { clipAspectClass, normalizeClipScore } from "./clip-ratio";
-
-const cdnLoader = ({ src }: { src: string }) => src;
+import { cn } from "@/lib/utils";
+import { getCdnUrl } from "@/lib/video-utils";
+import {
+  clipAspectClass,
+  formatClipTime,
+  normalizeClipScore,
+} from "./clip-ratio";
 
 interface AIClippingClipCardProps {
   clip: AIClippingClip;
   ratio?: string | null;
-  jobProcessing?: boolean;
-  onPlay?: () => void;
-  onDelete?: () => void;
+  sourceUrl?: string | null;
+  /** The job is still running, so an empty clip is being prepared. */
+  jobActive: boolean;
+  onOpen: () => void;
+  onDelete: () => void;
 }
 
-function formatTimestamp(seconds?: number | null) {
-  if (seconds == null || Number.isNaN(seconds)) return null;
-  const total = Math.max(0, Math.round(seconds));
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-function scoreBadgeClass(score: number) {
-  if (score >= 80) return "bg-success text-success-foreground";
-  if (score >= 60) return "bg-warning text-warning-foreground";
-  return "bg-background/90 text-foreground";
+export function clipTitle(clip: AIClippingClip) {
+  return clip.title || `Clip ${clip.order + 1}`;
 }
 
 export function AIClippingClipCard({
   clip,
   ratio,
-  jobProcessing = false,
-  onPlay,
+  sourceUrl,
+  jobActive,
+  onOpen,
   onDelete,
 }: AIClippingClipCardProps) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const title = clipTitle(clip);
   const thumbnailUrl = getClipThumbnailUrl(clip);
   const videoUrl = getClipVideoUrl(clip);
   const score = normalizeClipScore(clip.metadata?.score);
-  const duration = formatTimestamp(clip.duration);
-  const startTime = formatTimestamp(clip.startTime);
-  const isFailed = clip.status === "FAILED";
-  const isLoading = jobProcessing && !thumbnailUrl && !videoUrl && !isFailed;
-  const canOpen = Boolean(
-    onPlay && (videoUrl || thumbnailUrl || clip.metadata?.desc),
-  );
+  const duration = formatClipTime(clip.duration);
+  const start = formatClipTime(clip.startTime);
+  const failed = clip.status === "FAILED";
+  const preparing = jobActive && !thumbnailUrl && !videoUrl && !failed;
+  const hasPreview = Boolean(thumbnailUrl || videoUrl);
+  const momentUrl = buildSourceTimestampUrl(sourceUrl, clip.startTime);
+
+  const meta = preparing
+    ? "Preparing"
+    : failed
+      ? "Failed"
+      : [duration, start ? `from ${start}` : null].filter(Boolean).join(" · ");
 
   return (
-    <div className="group overflow-hidden rounded-xl border bg-card shadow-sm transition-shadow hover:shadow-md">
-      <button
-        type="button"
-        disabled={!canOpen}
-        onClick={() => onPlay?.()}
-        className={cn(
-          "relative block w-full bg-card",
-          clipAspectClass(ratio),
-          canOpen ? "cursor-pointer" : "cursor-default",
-        )}
-      >
-        {thumbnailUrl ? (
-          <Image
-            loader={cdnLoader}
-            src={getCdnUrl(thumbnailUrl)}
-            alt={clip.title || `Clip ${clip.order + 1}`}
-            fill
-            sizes="(max-width: 640px) 50vw, 25vw"
-            className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-          />
-        ) : videoUrl ? (
-          <VideoThumbnail
-            videoUrl={getCdnUrl(videoUrl)}
-            alt={clip.title || `Clip ${clip.order + 1}`}
-          />
-        ) : isLoading ? (
-          <div className="flex size-full flex-col items-center justify-center gap-2">
-            <Spinner className="size-5 text-muted-foreground" />
-            <span className="text-[11px] text-muted-foreground">
-              Detecting clip…
-            </span>
-          </div>
-        ) : isFailed ? (
-          <div className="flex size-full flex-col items-center justify-center gap-2 px-3 text-center">
-            <Warning className="size-5 text-destructive/70" />
-            <span className="text-[11px] text-destructive/80">
-              {clip.error || "Clip failed"}
-            </span>
-          </div>
-        ) : (
-          <div className="flex size-full items-center justify-center">
-            <FilmStrip className="size-8 text-muted-foreground/30" />
-          </div>
-        )}
-
-        {canOpen && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/35">
-            <span className="flex size-11 items-center justify-center rounded-full bg-background/90 text-foreground opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
-              <Play className="size-5" weight="fill" />
-            </span>
-          </div>
-        )}
-
-        {score != null && (
-          <span
-            className={cn(
-              "absolute left-2 top-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold shadow-sm",
-              scoreBadgeClass(score),
-            )}
-            title="Virality score"
-          >
-            <TrendUp className="size-3" weight="bold" />
-            {score}
-          </span>
-        )}
-
-        {duration && (
-          <span className="absolute bottom-2 right-2 rounded-md bg-black/75 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-white">
-            {duration}
-          </span>
-        )}
-
-        <div
-          className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100"
-          onClick={(e) => e.stopPropagation()}
+    <article className="flex flex-col overflow-hidden rounded-xl bg-muted">
+      {hasPreview ? (
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label={`Open ${title}`}
+          className={cn(
+            "relative block w-full overflow-hidden bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset",
+            clipAspectClass(ratio),
+          )}
         >
-          {videoUrl && (
+          {thumbnailUrl ? (
+            <img
+              src={getCdnUrl(thumbnailUrl)}
+              alt={title}
+              loading="lazy"
+              className="size-full object-cover"
+            />
+          ) : (
+            <VideoThumbnail videoUrl={getCdnUrl(videoUrl!)} alt={title} />
+          )}
+          {score != null ? (
+            <Badge
+              variant="secondary"
+              className="absolute top-2 left-2 tabular-nums"
+              title="Virality score"
+            >
+              <TrendUp />
+              {score}
+            </Badge>
+          ) : null}
+          {duration ? (
+            <Badge
+              variant="secondary"
+              className="absolute right-2 bottom-2 tabular-nums"
+            >
+              {duration}
+            </Badge>
+          ) : null}
+        </button>
+      ) : (
+        <div
+          className={cn(
+            "flex flex-col items-center justify-center gap-2 bg-muted px-3 text-center",
+            clipAspectClass(ratio),
+          )}
+        >
+          {preparing ? (
+            <>
+              <Spinner className="text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Preparing</span>
+            </>
+          ) : failed ? (
+            <>
+              <WarningCircle className="size-5 text-destructive" />
+              <p className="line-clamp-3 text-xs text-destructive">
+                {clip.error || "This clip failed."}
+              </p>
+            </>
+          ) : (
+            <FilmStrip className="size-6 text-muted-foreground" />
+          )}
+        </div>
+      )}
+
+      <div className="flex flex-1 flex-col gap-3 p-3">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="line-clamp-2 text-sm font-medium" title={title}>
+              {title}
+            </p>
+            <p
+              className={cn(
+                "truncate text-xs tabular-nums",
+                failed ? "text-destructive" : "text-muted-foreground",
+              )}
+            >
+              {meta}
+            </p>
+          </div>
+          {!preparing ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="-mt-1 -mr-1"
+                    aria-label={`More actions for ${title}`}
+                  />
+                }
+              >
+                <DotsThree weight="bold" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                {momentUrl ? (
+                  <DropdownMenuItem
+                    render={
+                      <a href={momentUrl} target="_blank" rel="noopener noreferrer" />
+                    }
+                  >
+                    <ArrowSquareOut />
+                    Open in source video
+                  </DropdownMenuItem>
+                ) : null}
+                {momentUrl ? <DropdownMenuSeparator /> : null}
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => setConfirmOpen(true)}
+                >
+                  <Trash />
+                  Delete clip
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
+        </div>
+
+        {videoUrl ? (
+          <div className="mt-auto flex gap-2">
+            <ScheduleLink url={videoUrl} mediaType="video" className="flex-1" />
             <a
               href={getCdnUrl(videoUrl, { download: true })}
               download
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-md bg-background/90 p-1.5 text-foreground transition-colors hover:bg-background"
-              aria-label="Download clip"
+              className={buttonVariants({ variant: "outline", size: "icon-sm" })}
+              aria-label={`Download ${title}`}
             >
-              <DownloadSimple className="size-4" />
+              <DownloadSimple />
             </a>
-          )}
-          {onDelete && (
-            <AlertDialog>
-              <AlertDialogTrigger
-                className="rounded-md bg-background/90 p-1.5 text-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                aria-label="Delete clip"
-              >
-                <Trash className="size-4" />
-              </AlertDialogTrigger>
-              <AlertDialogContent size="sm">
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete this clip?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This removes &ldquo;{clip.title || `Clip ${clip.order + 1}`}
-                    &rdquo; from the job. This action cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction variant="destructive" onClick={onDelete}>
-                    Delete clip
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-        </div>
-      </button>
-
-      <div className="space-y-0.5 p-2.5">
-        <p className="line-clamp-2 text-xs font-medium leading-snug text-foreground">
-          {clip.title || `Clip ${clip.order + 1}`}
-        </p>
-        {startTime && (
-          <p className="text-[11px] text-muted-foreground">
-            From {startTime} in source
-          </p>
-        )}
+          </div>
+        ) : null}
       </div>
-    </div>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this clip?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {title} will be removed from this job. This can&apos;t be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                setConfirmOpen(false);
+                onDelete();
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </article>
   );
 }

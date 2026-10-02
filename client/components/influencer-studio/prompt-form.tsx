@@ -2,19 +2,28 @@
 
 import { useState, useCallback } from "react";
 import { GenerateButton } from "@/components/ui/generate-button";
-import { ShineBorder } from "@/components/ui/shine-border";
 import {
   ParamControl,
   CountSelect,
   type ParamConfig,
 } from "@/components/generator/param-control";
-import { BOTTOM_PROMPT_DOCK_CLASS } from "@/lib/layout-classes";
+import {
+  ComposerCard,
+  ComposerDock,
+  ComposerFooter,
+  ComposerPrompt,
+  ComposerToolbar,
+} from "@/components/generator/prompt-composer";
 
-// ─── Params ──────────────────────────────────────────────────────────────────
+/**
+ * Influencer photos are GPT Image 2 at 2K. Keep in sync with CREDIT_COST in
+ * server/src/controllers/influencer-studio.controller.ts.
+ */
+export const INFLUENCER_CREDITS_PER_IMAGE = 4;
 
-const aspectRatioParam: ParamConfig = {
+export const aspectRatioParam: ParamConfig = {
   key: "aspect_ratio",
-  label: "Aspect Ratio",
+  label: "Aspect ratio",
   type: "aspect",
   defaultValue: "9:16",
   options: [
@@ -26,7 +35,7 @@ const aspectRatioParam: ParamConfig = {
   ],
 };
 
-const styleParam: ParamConfig = {
+export const styleParam: ParamConfig = {
   key: "style_mode",
   label: "Style",
   type: "select",
@@ -34,34 +43,34 @@ const styleParam: ParamConfig = {
   options: [
     { value: "auto", label: "Auto" },
     { value: "ugc", label: "UGC" },
-    { value: "casual_daylight", label: "Casual Daylight" },
-    { value: "cozy_indoor", label: "Cozy Indoor" },
-    { value: "low_light_intimate", label: "Low Light Intimate" },
-    { value: "raw_flash", label: "Raw Flash" },
-    { value: "golden_hour", label: "Golden Hour" },
-    { value: "moody_night", label: "Moody Night" },
-    { value: "car_selfie", label: "Car Selfie" },
-    { value: "mirror_selfie", label: "Mirror Selfie" },
-    { value: "luxury_influencer", label: "Luxury Influencer" },
-    { value: "cinematic", label: "Cinematic" },
-    { value: "travel_content", label: "Travel Content" },
-    { value: "beauty_closeup", label: "Beauty Closeup" },
-    { value: "party_night_out", label: "Party Night Out" },
+    { value: "casual_daylight", label: "Casual daylight" },
+    { value: "cozy_indoor", label: "Cozy indoor" },
+    { value: "low_light_intimate", label: "Low light" },
+    { value: "raw_flash", label: "Raw flash" },
+    { value: "golden_hour", label: "Golden hour" },
+    { value: "moody_night", label: "Moody night" },
+    { value: "car_selfie", label: "Car selfie" },
+    { value: "mirror_selfie", label: "Mirror selfie" },
+    { value: "luxury_influencer", label: "Luxury" },
+    { value: "cinematic", label: "Film look" },
+    { value: "travel_content", label: "Travel" },
+    { value: "beauty_closeup", label: "Beauty close-up" },
+    { value: "party_night_out", label: "Night out" },
   ],
 };
 
-const cameraAngleParam: ParamConfig = {
+export const cameraAngleParam: ParamConfig = {
   key: "camera_angle",
-  label: "Camera Angle",
+  label: "Camera angle",
   type: "select",
   defaultValue: "auto",
   options: [
     { value: "auto", label: "Auto" },
     { value: "pov", label: "POV" },
     { value: "portrait", label: "Portrait" },
-    { value: "full-body", label: "Full Body" },
-    { value: "close-up", label: "Close Up" },
-    { value: "side-profile", label: "Side Profile" },
+    { value: "full-body", label: "Full body" },
+    { value: "close-up", label: "Close-up" },
+    { value: "side-profile", label: "Side profile" },
   ],
 };
 
@@ -73,20 +82,18 @@ const ageParam: ParamConfig = {
   options: [
     { value: "auto", label: "Auto" },
     ...Array.from({ length: 53 }, (_, i) => {
-      const age = 18 + i;
-      return { value: String(age), label: String(age) };
+      const age = String(18 + i);
+      return { value: age, label: age };
     }),
   ],
 };
 
-const allParams: ParamConfig[] = [
+const PARAMS: ParamConfig[] = [
   aspectRatioParam,
   styleParam,
   cameraAngleParam,
   ageParam,
 ];
-
-// ─── Component ───────────────────────────────────────────────────────────────
 
 export interface InfluencerSubmitPayload {
   prompt: string;
@@ -104,102 +111,79 @@ export function InfluencerPromptForm({
 }) {
   const [prompt, setPrompt] = useState("");
   const [count, setCount] = useState(2);
-  const [paramValues, setParamValues] = useState<Record<string, string>>({});
+  const [values, setValues] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
-  const getParam = useCallback(
-    (param: ParamConfig) => paramValues[param.key] ?? param.defaultValue,
-    [paramValues],
+  const get = useCallback(
+    (param: ParamConfig) => values[param.key] ?? param.defaultValue,
+    [values],
   );
-
-  const setParam = useCallback((key: string, value: string) => {
-    setParamValues((prev) => ({ ...prev, [key]: value }));
-  }, []);
 
   const canSubmit = !!prompt.trim() && !submitting;
 
   const handleSubmit = useCallback(async () => {
     if (!canSubmit) return;
 
-    const isSet = (val: string) => val && val !== "auto";
-    const styleMode = getParam(styleParam);
-    const cameraAngle = getParam(cameraAngleParam);
-    const age = getParam(ageParam);
+    const chosen = (value: string) => (value && value !== "auto" ? value : undefined);
+    const age = chosen(get(ageParam));
 
     setSubmitting(true);
     try {
-      await onSubmit({
+      const ids = await onSubmit({
         prompt: prompt.trim(),
-        aspectRatio: getParam(aspectRatioParam),
-        cameraAngle: isSet(cameraAngle) ? cameraAngle : undefined,
-        styleMode: isSet(styleMode) ? styleMode : undefined,
-        age: isSet(age) ? Number(age) : undefined,
+        aspectRatio: get(aspectRatioParam),
+        cameraAngle: chosen(get(cameraAngleParam)),
+        styleMode: chosen(get(styleParam)),
+        age: age ? Number(age) : undefined,
         count,
       });
-      setPrompt("");
+      if (ids) setPrompt("");
     } finally {
       setSubmitting(false);
     }
-  }, [canSubmit, getParam, onSubmit, prompt, count]);
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      void handleSubmit();
-    }
-  };
+  }, [canSubmit, get, onSubmit, prompt, count]);
 
   return (
-    <div className={BOTTOM_PROMPT_DOCK_CLASS}>
-      <div className="w-full max-w-[768px] rounded-2xl border bg-background/95 shadow-2xl shadow-black/5 backdrop-blur-md pointer-events-auto">
-        <ShineBorder shineColor={["#A07CFE", "#FE8FB5", "#FFBE7B"]} />
-
-        {/* Settings toolbar */}
-        <div className="flex flex-wrap items-center gap-0.5 px-3 pt-2.5 pb-1">
-          {allParams.map((param) => (
+    <ComposerDock>
+      <ComposerCard>
+        <ComposerToolbar>
+          {PARAMS.map((param) => (
             <ParamControl
               key={param.key}
               param={param}
-              value={getParam(param)}
+              value={get(param)}
               disabled={submitting}
-              onChange={(v) => setParam(param.key, v)}
+              onChange={(v) => setValues((prev) => ({ ...prev, [param.key]: v }))}
             />
           ))}
-
           <CountSelect
             value={count}
-            noun="image"
+            noun="photo"
             disabled={submitting}
             onChange={setCount}
           />
-        </div>
+        </ComposerToolbar>
 
-        {/* Prompt */}
-        <div className="px-4 pt-1">
-          <textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Describe the influencer you want to create..."
-            rows={3}
-            disabled={submitting}
-            aria-label="Influencer prompt"
-            className="w-full resize-none bg-transparent text-sm leading-relaxed placeholder:text-muted-foreground/70 focus:outline-none disabled:opacity-50 max-h-[200px]"
-          />
-        </div>
+        <ComposerPrompt
+          value={prompt}
+          onChange={setPrompt}
+          onSubmit={() => void handleSubmit()}
+          placeholder="Describe the person"
+          label="Influencer prompt"
+          disabled={submitting}
+        />
 
-        {/* Action row */}
-        <div className="flex items-center gap-2 px-3 pb-3 pt-1">
-          <div className="ml-auto flex shrink-0 items-center">
+        <ComposerFooter
+          end={
             <GenerateButton
-              credits={count * 10}
+              credits={count * INFLUENCER_CREDITS_PER_IMAGE}
               disabled={!canSubmit}
               submitting={submitting}
               onClick={handleSubmit}
             />
-          </div>
-        </div>
-      </div>
-    </div>
+          }
+        />
+      </ComposerCard>
+    </ComposerDock>
   );
 }

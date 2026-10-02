@@ -57,7 +57,7 @@ function getPlaybackErrorMessage(error: unknown): string {
       return "Playback was interrupted. Tap play to continue.";
     }
   }
-  return "Could not play this track. Check your connection and try again.";
+  return "Couldn't play this track. Check your connection and try again.";
 }
 
 export function MusicPlayerProvider({ children }: { children: ReactNode }) {
@@ -202,7 +202,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
     const onError = () => {
       setIsPlaying(false);
       setIsBuffering(false);
-      setPlaybackError("Audio failed to load. Try another track or refresh.");
+      setPlaybackError("Couldn't load this track. Try again or pick another one.");
     };
 
     audio.addEventListener("timeupdate", onTimeUpdate);
@@ -339,8 +339,4 @@ export function useMusicPlayer() {
     throw new Error("useMusicPlayer must be used within MusicPlayerProvider");
   }
   return context;
-}
-
-export function useMusicPlayerOptional() {
-  return useContext(MusicPlayerContext);
 }

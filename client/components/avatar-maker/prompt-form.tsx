@@ -1,20 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import {
-  SmileyWink,
-  SquaresFour,
-  Heart,
-  CheckCircle,
-  MagnifyingGlass,
-  UploadSimple,
-  Microphone,
-  Waveform,
   Check,
   Info,
+  Microphone,
+  SquaresFour,
+  UploadSimple,
+  Waveform,
 } from "@phosphor-icons/react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { GenerateButton } from "@/components/ui/generate-button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -22,121 +34,60 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
-import { BOTTOM_PROMPT_DOCK_CLASS } from "@/lib/layout-classes";
-import { getSignedUploadUrl, uploadToSignedUrl } from "@/lib/storage-client";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { toast } from "sonner";
+import { Textarea } from "@/components/ui/textarea";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { VoiceSelector } from "@/components/voice-generator/voice-selector";
 import {
   AVATAR_MAX_AUDIO_SECONDS,
-  AVATAR_PHOTO_TIPS,
   AVATAR_RECOMMENDED_SECONDS,
   estimateSpeechSeconds,
 } from "@/lib/avatar-speech";
+import { BOTTOM_PROMPT_DOCK_CLASS } from "@/lib/layout-classes";
+import { getSignedUploadUrl, uploadToSignedUrl } from "@/lib/storage-client";
+import { cn } from "@/lib/utils";
 
-interface UploadedPortrait {
-  id: string;
-  storageUrl: string;
-  previewUrl: string;
-  name: string;
-}
+const CREDITS = 10;
 
-function PortraitThumb({
-  src,
-  alt,
-  selected,
-  onClick,
-  badge,
-  unoptimized,
-}: {
-  src: string;
-  alt: string;
-  selected: boolean;
-  onClick: () => void;
-  badge?: string;
-  unoptimized?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "relative size-20 shrink-0 overflow-hidden rounded-2xl ring-2 ring-offset-2 ring-offset-background transition-all",
-        selected ? "ring-primary" : "ring-transparent hover:ring-border",
-      )}
-    >
-      {unoptimized ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt={alt} className="size-full object-cover" />
-      ) : (
-        <Image
-          src={src}
-          alt={alt}
-          width={80}
-          height={80}
-          className="size-full object-cover"
-        />
-      )}
-      {badge && (
-        <span className="absolute inset-x-0 bottom-0 bg-primary/90 px-1 py-0.5 text-center text-[8px] font-semibold text-primary-foreground">
-          {badge}
-        </span>
-      )}
-    </button>
-  );
-}
-
-const presetAvatars = [
-  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80",
-  "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?auto=format&fit=crop&w=400&q=80",
-  "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=400&q=80",
+const PHOTO_TIPS = [
+  "Crop to face and shoulders, with hands out of frame.",
+  "Face the camera with a neutral expression or a soft smile.",
+  "Use a plain background and even lighting.",
+  "Skip glasses and busy scenes. Simple photos look more natural.",
 ];
 
-const libraryAvatars = [
-  { id: 1, src: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=400&q=80", category: "creative" },
-  { id: 2, src: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80", category: "professional" },
-  { id: 3, src: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=400&q=80", category: "casual" },
-  { id: 4, src: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80", category: "professional" },
-  { id: 5, src: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=400&q=80", category: "casual" },
-  { id: 6, src: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80", category: "creative" },
-  { id: 7, src: "https://images.unsplash.com/photo-1552058544-f2b08422138a?auto=format&fit=crop&w=400&q=80", category: "professional" },
-  { id: 8, src: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=400&q=80", category: "casual" },
-  { id: 9, src: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80", category: "professional" },
-  { id: 10, src: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80", category: "creative" },
-  { id: 11, src: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?auto=format&fit=crop&w=400&q=80", category: "casual" },
-  { id: 12, src: "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=400&q=80", category: "creative" },
-];
+const unsplash = (id: string) =>
+  `https://images.unsplash.com/${id}?auto=format&fit=crop&w=400&q=80`;
 
-const filterChips = [
-  "All",
-  "Favorite",
-  "Professional",
-  "Creative",
-  "Casual",
-] as const;
+/** Stock portraits. The first three are shown in the dock. */
+const PORTRAITS = [
+  unsplash("photo-1534528741775-53994a69daeb"),
+  unsplash("photo-1529626455594-4ff0802cfb7e"),
+  unsplash("photo-1580489944761-15a19d654956"),
+  unsplash("photo-1531746020798-e6953c6e8e04"),
+  unsplash("photo-1573496359142-b8d87734a5a2"),
+  unsplash("photo-1531123897727-8f129e1688ce"),
+  unsplash("photo-1507003211169-0a1dd7228f2d"),
+  unsplash("photo-1506794778202-cad84cf45f1d"),
+  unsplash("photo-1544005313-94ddf0286df2"),
+  unsplash("photo-1552058544-f2b08422138a"),
+  unsplash("photo-1494790108377-be9c29b29330"),
+  unsplash("photo-1500648767791-00dcc994a43e"),
+];
 
 const EMOTIONS = [
-  { value: "happy", label: "Happy" },
   { value: "neutral", label: "Neutral" },
+  { value: "happy", label: "Happy" },
   { value: "sad", label: "Sad" },
   { value: "angry", label: "Angry" },
   { value: "surprised", label: "Surprised" },
   { value: "excited", label: "Excited" },
-] as const;
+];
+
+const RESOLUTIONS = [
+  { value: "480p", label: "480p" },
+  { value: "720p", label: "720p" },
+];
 
 export interface AvatarGenerationPayload {
   transcript?: string;
@@ -147,373 +98,350 @@ export interface AvatarGenerationPayload {
   voice_id: string;
 }
 
-interface AvatarPromptFormProps {
-  onSubmit: (payload: AvatarGenerationPayload) => Promise<void>;
-  isSubmitting?: boolean;
+interface UploadedPortrait {
+  id: string;
+  storageUrl: string;
+  previewUrl: string;
+  name: string;
+}
+
+async function uploadFile(file: File) {
+  const signed = await getSignedUploadUrl(file.name, file.type);
+  if (!signed.success || !signed.uploadUrl) {
+    throw new Error(signed.error || "Upload failed.");
+  }
+  const result = await uploadToSignedUrl(file, signed);
+  if (!result.success || !result.blobUrl) {
+    throw new Error(result.error || "Upload failed.");
+  }
+  return result.blobUrl;
+}
+
+function PortraitButton({
+  src,
+  label,
+  selected,
+  onClick,
+  local,
+}: {
+  src: string;
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+  /** Local blob previews can't go through the image optimizer. */
+  local?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={selected}
+      className={cn(
+        "relative size-16 shrink-0 overflow-hidden rounded-xl bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+        selected && "ring-2 ring-foreground ring-offset-2 ring-offset-card",
+      )}
+    >
+      {local ? (
+        <img src={src} alt="" className="size-full object-cover" />
+      ) : (
+        <Image src={src} alt="" width={64} height={64} className="size-full object-cover" />
+      )}
+      {selected ? (
+        <span className="absolute right-1 bottom-1 flex size-4 items-center justify-center rounded-full bg-foreground text-background">
+          <Check weight="bold" className="size-2.5" />
+        </span>
+      ) : null}
+    </button>
+  );
 }
 
 export function AvatarPromptForm({
   onSubmit,
-  isSubmitting = false,
-}: AvatarPromptFormProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [browseOpen, setBrowseOpen] = useState(false);
-  const [selectedImageUrl, setSelectedImageUrl] = useState<string>(
-    libraryAvatars[1].src,
-  );
-  const [favorites, setFavorites] = useState<Set<number>>(new Set([2]));
-  const [activeFilter, setActiveFilter] = useState<string>("All");
-  const [search, setSearch] = useState("");
+}: {
+  onSubmit: (payload: AvatarGenerationPayload) => Promise<void>;
+}) {
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string>(PORTRAITS[0]);
+  const [uploadedPortraits, setUploadedPortraits] = useState<
+    UploadedPortrait[]
+  >([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [mode, setMode] = useState<"script" | "upload">("script");
   const [transcript, setTranscript] = useState("");
-  const [emotion, setEmotion] = useState("neutral");
-  const [resolution, setResolution] = useState<"480p" | "720p">("480p");
-  const [voiceId, setVoiceId] = useState("Friendly_Person");
-  const [uploading, setUploading] = useState(false);
-  const [audioMode, setAudioMode] = useState<"script" | "upload">("script");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioName, setAudioName] = useState<string | null>(null);
   const [uploadingAudio, setUploadingAudio] = useState(false);
-  const [uploadedPortraits, setUploadedPortraits] = useState<UploadedPortrait[]>(
+  const [emotion, setEmotion] = useState("neutral");
+  const [resolution, setResolution] = useState("480p");
+  const [voiceId, setVoiceId] = useState("Friendly_Person");
+  const [submitting, setSubmitting] = useState(false);
+
+  // Revoke local previews on unmount.
+  const portraitsRef = useRef(uploadedPortraits);
+  useEffect(() => {
+    portraitsRef.current = uploadedPortraits;
+  }, [uploadedPortraits]);
+  useEffect(
+    () => () => {
+      portraitsRef.current.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+    },
     [],
   );
-  const [uploadedAudioName, setUploadedAudioName] = useState<string | null>(null);
-  const audioInputRef = useRef<HTMLInputElement>(null);
 
-  const portraitsRef = useRef(uploadedPortraits);
-  portraitsRef.current = uploadedPortraits;
+  const speechSeconds = estimateSpeechSeconds(transcript);
+  const speechTooLong = speechSeconds > AVATAR_MAX_AUDIO_SECONDS;
+  const uploading = uploadingImage || uploadingAudio;
 
-  useEffect(() => {
-    return () => {
-      portraitsRef.current.forEach((p) => URL.revokeObjectURL(p.previewUrl));
-    };
-  }, []);
+  const canSubmit =
+    !submitting &&
+    !uploading &&
+    imageUrl.length > 0 &&
+    (mode === "upload"
+      ? Boolean(audioUrl)
+      : transcript.trim().length > 0 && !speechTooLong);
 
-  const toggleFavorite = (id: number) => {
-    setFavorites((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
+  const inLibrary = PORTRAITS.includes(imageUrl);
+  const dockPortraits = PORTRAITS.slice(0, 3);
+  // Keep a library pick visible in the dock.
+  if (inLibrary && !dockPortraits.includes(imageUrl)) {
+    dockPortraits.unshift(imageUrl);
+  }
 
-  const filteredAvatars = libraryAvatars.filter((avatar) => {
-    if (activeFilter === "Favorite") return favorites.has(avatar.id);
-    if (["Professional", "Creative", "Casual"].includes(activeFilter)) {
-      return avatar.category === activeFilter.toLowerCase();
-    }
-    return true;
-  });
-
-  const handleUpload = useCallback(async (file: File) => {
+  async function handleImageUpload(file: File) {
     if (!file.type.startsWith("image/")) {
-      toast.error("Please upload a portrait image");
+      toast.error("Choose a JPEG, PNG or WebP portrait.");
       return;
     }
-
-    setUploading(true);
+    setUploadingImage(true);
     try {
-      const signed = await getSignedUploadUrl(file.name, file.type);
-      if (!signed.success || !signed.uploadUrl) {
-        throw new Error(signed.error || "Failed to get upload URL");
-      }
-      const result = await uploadToSignedUrl(file, signed);
-      if (!result.success || !result.blobUrl) {
-        throw new Error(result.error || "Upload failed");
-      }
-      const previewUrl = URL.createObjectURL(file);
+      const url = await uploadFile(file);
       const portrait: UploadedPortrait = {
         id: crypto.randomUUID(),
-        storageUrl: result.blobUrl,
-        previewUrl,
+        storageUrl: url,
+        previewUrl: URL.createObjectURL(file),
         name: file.name,
       };
-      setUploadedPortraits((prev) => [portrait, ...prev].slice(0, 6));
-      setSelectedImageUrl(result.blobUrl);
-      toast.success("Portrait uploaded — selected for lip-sync");
+      setUploadedPortraits((prev) => {
+        const next = [portrait, ...prev];
+        next.slice(6).forEach((p) => URL.revokeObjectURL(p.previewUrl));
+        return next.slice(0, 6);
+      });
+      setImageUrl(url);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Upload failed");
+      toast.error(
+        `Couldn't upload ${file.name}. ${err instanceof Error ? err.message : "Try again."}`,
+      );
     } finally {
-      setUploading(false);
+      setUploadingImage(false);
     }
-  }, []);
+  }
 
-  const handleAudioUpload = useCallback(async (file: File) => {
-    const isAudio =
-      file.type.startsWith("audio/") || file.type.startsWith("video/");
-    if (!isAudio) {
-      toast.error("Upload an audio or video file");
+  async function handleAudioUpload(file: File) {
+    if (!file.type.startsWith("audio/") && !file.type.startsWith("video/")) {
+      toast.error("Choose an audio or video file, like MP3, WAV or MP4.");
       return;
     }
     setUploadingAudio(true);
     try {
-      const signed = await getSignedUploadUrl(file.name, file.type);
-      if (!signed.success || !signed.uploadUrl) {
-        throw new Error(signed.error || "Failed to get upload URL");
-      }
-      const result = await uploadToSignedUrl(file, signed);
-      if (!result.success || !result.blobUrl) {
-        throw new Error(result.error || "Upload failed");
-      }
-      setAudioUrl(result.blobUrl);
-      setUploadedAudioName(file.name);
-      toast.success("Audio uploaded — avatar will lip-sync to this file");
+      const url = await uploadFile(file);
+      setAudioUrl(url);
+      setAudioName(file.name);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Upload failed");
+      toast.error(
+        `Couldn't upload ${file.name}. ${err instanceof Error ? err.message : "Try again."}`,
+      );
     } finally {
       setUploadingAudio(false);
     }
-  }, []);
+  }
 
-  const speechSeconds = estimateSpeechSeconds(transcript);
-  const speechTooLong = speechSeconds > AVATAR_MAX_AUDIO_SECONDS;
-
-  const canSubmit =
-    !isSubmitting &&
-    !uploading &&
-    !uploadingAudio &&
-    selectedImageUrl.length > 0 &&
-    (audioMode === "upload"
-      ? Boolean(audioUrl)
-      : transcript.trim().length > 0 && !speechTooLong);
-
-  const handleGenerate = useCallback(async () => {
+  async function handleGenerate() {
     if (!canSubmit) return;
     const base = {
-      image_url: selectedImageUrl,
+      image_url: imageUrl,
       emotion: emotion === "excited" ? "happy" : emotion,
       resolution,
       voice_id: voiceId,
     };
-    if (audioMode === "upload" && audioUrl) {
-      await onSubmit({ ...base, audio_url: audioUrl });
-    } else {
-      await onSubmit({ ...base, transcript: transcript.trim() });
+    setSubmitting(true);
+    try {
+      if (mode === "upload" && audioUrl) {
+        await onSubmit({ ...base, audio_url: audioUrl });
+      } else {
+        await onSubmit({ ...base, transcript: transcript.trim() });
+      }
+    } finally {
+      setSubmitting(false);
     }
-  }, [
-    canSubmit,
-    transcript,
-    selectedImageUrl,
-    emotion,
-    voiceId,
-    resolution,
-    audioMode,
-    audioUrl,
-    onSubmit,
-  ]);
+  }
 
   return (
     <>
       <div className={BOTTOM_PROMPT_DOCK_CLASS}>
-        <div className="pointer-events-auto w-full max-w-[680px] rounded-2xl border bg-background/95 shadow-2xl shadow-black/5 backdrop-blur-md">
-          <div className="flex items-center justify-between px-4 pt-3 pb-1">
-            <span className="text-[10px] font-medium text-muted-foreground">
-              Portrait
-            </span>
-            <Tooltip>
-              <TooltipTrigger
+        <div className="pointer-events-auto w-full max-w-3xl rounded-xl border border-border/70 bg-card shadow-lg shadow-foreground/5">
+          <div className="space-y-2 px-4 pt-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium">Portrait</span>
+              <Popover>
+                <PopoverTrigger
+                  render={<Button type="button" variant="ghost" size="xs" />}
+                >
+                  <Info />
+                  Photo tips
+                </PopoverTrigger>
+                <PopoverContent side="top" align="end" className="w-72">
+                  <PopoverHeader>
+                    <PopoverTitle>What works best</PopoverTitle>
+                  </PopoverHeader>
+                  <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+                    {PHOTO_TIPS.map((tip) => (
+                      <li key={tip}>{tip}</li>
+                    ))}
+                  </ul>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="no-scrollbar -mx-1 flex items-center gap-2 overflow-x-auto px-1 py-1">
+              <button
                 type="button"
-                className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                onClick={() => imageInputRef.current?.click()}
+                disabled={uploadingImage || submitting}
+                className="flex size-16 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-dashed text-muted-foreground transition-colors outline-none hover:bg-muted/50 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
               >
-                <Info className="size-3.5" weight="fill" />
-                Photo tips
-              </TooltipTrigger>
-              <TooltipContent
-                side="top"
-                align="end"
-                className="max-w-[260px] flex-col items-start gap-1.5 px-3 py-2.5 text-left"
-              >
-                <p className="font-semibold">Best results with your photo</p>
-                <ul className="space-y-1 text-[11px] leading-snug opacity-90">
-                  {AVATAR_PHOTO_TIPS.map((tip) => (
-                    <li key={tip}>• {tip}</li>
-                  ))}
-                </ul>
-              </TooltipContent>
-            </Tooltip>
-          </div>
+                {uploadingImage ? <Spinner /> : <UploadSimple className="size-4" />}
+                <span className="text-xs">
+                  {uploadingImage ? "Uploading" : "Upload"}
+                </span>
+              </button>
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void handleImageUpload(file);
+                  e.target.value = "";
+                }}
+              />
 
-          <div className="flex items-center gap-2 px-4 pb-1">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className={cn(
-                "flex size-20 shrink-0 flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed transition-colors",
-                uploading
-                  ? "border-primary/40 bg-primary/5 text-primary"
-                  : "border-primary/50 bg-primary/10 text-primary hover:border-primary hover:bg-primary/15",
-              )}
-            >
-              {uploading ? (
-                <Spinner className="size-5" />
-              ) : (
-                <UploadSimple className="size-5" weight="bold" />
-              )}
-              <span className="text-[10px] font-semibold leading-none">
-                {uploading ? "Uploading…" : "Your photo"}
-              </span>
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void handleUpload(file);
-                e.target.value = "";
-              }}
-            />
-
-            <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto scrollbar-none">
               {uploadedPortraits.map((portrait) => (
-                <PortraitThumb
+                <PortraitButton
                   key={portrait.id}
                   src={portrait.previewUrl}
-                  alt={portrait.name}
-                  selected={selectedImageUrl === portrait.storageUrl}
-                  onClick={() => setSelectedImageUrl(portrait.storageUrl)}
-                  badge="Yours"
-                  unoptimized
+                  label={`Use ${portrait.name}`}
+                  selected={imageUrl === portrait.storageUrl}
+                  onClick={() => setImageUrl(portrait.storageUrl)}
+                  local
                 />
               ))}
 
-              {presetAvatars.map((src, i) => (
-                <PortraitThumb
-                  key={i}
+              {dockPortraits.map((src) => (
+                <PortraitButton
+                  key={src}
                   src={src}
-                  alt={`Sample avatar ${i + 1}`}
-                  selected={selectedImageUrl === src}
-                  onClick={() => setSelectedImageUrl(src)}
+                  label={`Use stock portrait ${PORTRAITS.indexOf(src) + 1}`}
+                  selected={imageUrl === src}
+                  onClick={() => setImageUrl(src)}
                 />
               ))}
-            </div>
 
-            <button
-              type="button"
-              onClick={() => setBrowseOpen(true)}
-              className="flex size-20 shrink-0 flex-col items-center justify-center gap-1.5 rounded-2xl border border-border bg-muted/50 text-foreground transition-colors hover:bg-muted"
-            >
-              <SquaresFour className="size-5" weight="fill" />
-              <span className="text-[10px] font-semibold leading-none">
-                Library
-              </span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setLibraryOpen(true)}
+                className="flex size-16 shrink-0 flex-col items-center justify-center gap-1 rounded-lg bg-muted text-muted-foreground transition-colors outline-none hover:bg-muted/50 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <SquaresFour className="size-4" />
+                <span className="text-xs">More</span>
+              </button>
+            </div>
           </div>
 
-          <div className="px-4 pt-3">
-            <div className="mb-2 flex gap-1 rounded-xl border bg-muted/40 p-1">
-              <button
-                type="button"
-                onClick={() => setAudioMode("script")}
-                className={cn(
-                  "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] font-medium transition-colors",
-                  audioMode === "script"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <Microphone className="size-3.5" weight="fill" />
-                Script + AI voice
-              </button>
-              <button
-                type="button"
-                onClick={() => setAudioMode("upload")}
-                className={cn(
-                  "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] font-medium transition-colors",
-                  audioMode === "upload"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <Waveform className="size-3.5" weight="fill" />
+          <div className="space-y-2 px-4 pt-3">
+            <ToggleGroup
+              value={[mode]}
+              onValueChange={(value) => {
+                const next = value[0];
+                if (next === "script" || next === "upload") setMode(next);
+              }}
+              variant="outline"
+              size="sm"
+              spacing={0}
+              aria-label="Audio source"
+            >
+              <ToggleGroupItem value="script">
+                <Microphone />
+                Script
+              </ToggleGroupItem>
+              <ToggleGroupItem value="upload">
+                <Waveform />
                 My recording
-              </button>
-            </div>
+              </ToggleGroupItem>
+            </ToggleGroup>
 
-            {audioMode === "script" ? (
-              <>
-                <p className="mb-2 text-[10px] text-muted-foreground">
-                  Type what the avatar should say — we generate speech with your
-                  selected voice, then lip-sync the video. Use short sentences
-                  and <strong className="font-medium text-foreground">Neutral</strong>{" "}
-                  mood for the most natural look (≤{AVATAR_RECOMMENDED_SECONDS}s
-                  recommended).
-                </p>
-                <textarea
-                  placeholder="Enter the script your avatar will speak…"
-                  rows={4}
+            {mode === "script" ? (
+              <div className="space-y-1.5">
+                <Textarea
+                  aria-label="Script"
+                  placeholder="What should the avatar say?"
+                  rows={3}
                   value={transcript}
                   onChange={(e) => setTranscript(e.target.value)}
-                  disabled={isSubmitting}
-                  className="w-full resize-none rounded-lg border bg-muted/20 px-3 py-2 text-sm leading-relaxed placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-primary/40"
+                  disabled={submitting}
+                  className="field-sizing-fixed resize-none text-sm"
                 />
-                {transcript.trim().length > 0 && (
+                {transcript.trim().length > 0 ? (
                   <p
                     className={cn(
-                      "mt-1.5 text-[10px]",
+                      "text-xs tabular-nums",
                       speechTooLong
-                        ? "font-medium text-destructive"
+                        ? "text-destructive"
                         : speechSeconds > AVATAR_RECOMMENDED_SECONDS
                           ? "text-warning"
                           : "text-muted-foreground",
                     )}
                   >
-                    ~{speechSeconds}s speech
                     {speechTooLong
-                      ? ` — shorten to ${AVATAR_MAX_AUDIO_SECONDS}s or less for best lip-sync`
+                      ? `About ${speechSeconds} seconds of speech. Keep it under ${AVATAR_MAX_AUDIO_SECONDS} seconds.`
                       : speechSeconds > AVATAR_RECOMMENDED_SECONDS
-                        ? " — shorter scripts look less robotic"
-                        : " — good length"}
+                        ? `About ${speechSeconds} seconds of speech. Shorter scripts look more natural.`
+                        : `About ${speechSeconds} seconds of speech.`}
                   </p>
-                )}
-              </>
+                ) : null}
+              </div>
             ) : (
-              <>
-                <p className="mb-2 text-[10px] text-muted-foreground">
-                  Upload audio you already recorded (podcast clip, voice memo,
-                  etc.). The avatar lip-syncs to your file — no AI voice
-                  generation.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => audioInputRef.current?.click()}
-                  disabled={uploadingAudio || isSubmitting}
-                  className={cn(
-                    "flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-7 transition-colors",
-                    audioUrl
-                      ? "border-primary/50 bg-primary/5 text-foreground"
-                      : "border-primary/40 bg-primary/5 text-primary hover:border-primary hover:bg-primary/10",
-                  )}
-                >
+              <button
+                type="button"
+                onClick={() => audioInputRef.current?.click()}
+                disabled={uploadingAudio || submitting}
+                className="flex w-full items-center gap-3 rounded-xl border border-dashed px-3 py-3 text-left transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                   {uploadingAudio ? (
-                    <>
-                      <Spinner className="size-5" />
-                      <span className="text-xs font-medium">Uploading…</span>
-                    </>
+                    <Spinner />
                   ) : audioUrl ? (
-                    <>
-                      <Check className="size-6 text-primary" weight="bold" />
-                      <span className="text-xs font-semibold">
-                        {uploadedAudioName ?? "Audio ready"}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        Tap to replace
-                      </span>
-                    </>
+                    <Check />
                   ) : (
-                    <>
-                      <Waveform className="size-6" weight="duotone" />
-                      <span className="text-xs font-semibold">
-                        Upload audio or video
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        MP3, WAV, M4A, or MP4
-                      </span>
-                    </>
+                    <UploadSimple />
                   )}
-                </button>
-              </>
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium">
+                    {uploadingAudio
+                      ? "Uploading"
+                      : (audioName ?? "Upload audio or video")}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {audioUrl
+                      ? "Click to replace. The avatar lip-syncs to this file."
+                      : "MP3, WAV, M4A or MP4"}
+                  </span>
+                </span>
+              </button>
             )}
             <input
               ref={audioInputRef}
@@ -528,36 +456,40 @@ export function AvatarPromptForm({
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 border-t px-3 py-2.5">
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t px-3 py-2.5">
             <Select
+              items={RESOLUTIONS}
               value={resolution}
-              onValueChange={(v) => v && setResolution(v as "480p" | "720p")}
-              disabled={isSubmitting}
+              onValueChange={(v) => v && setResolution(v)}
+              disabled={submitting}
             >
-              <SelectTrigger className="w-[110px]">
+              <SelectTrigger size="sm" aria-label="Resolution">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="480p">480p · softer</SelectItem>
-                <SelectItem value="720p">720p · sharp</SelectItem>
+                {RESOLUTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
-            {audioMode === "script" && (
+            {mode === "script" ? (
               <>
                 <Select
+                  items={EMOTIONS}
                   value={emotion}
                   onValueChange={(v) => v && setEmotion(v)}
-                  disabled={isSubmitting}
+                  disabled={submitting}
                 >
-                  <SelectTrigger>
-                    <SmileyWink className="size-3.5" weight="fill" />
+                  <SelectTrigger size="sm" aria-label="Emotion">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {EMOTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
+                    {EMOTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -566,150 +498,66 @@ export function AvatarPromptForm({
                 <VoiceSelector
                   value={voiceId}
                   onChange={setVoiceId}
-                  disabled={isSubmitting}
+                  disabled={submitting}
                   compact
-                  showCloneButton
                 />
               </>
-            )}
+            ) : null}
 
-            {audioMode === "upload" && (
-              <p className="text-[10px] text-muted-foreground">
-                Voice comes from your uploaded file — pick a portrait above, then
-                generate.
-              </p>
-            )}
-
-            <div className="ml-auto flex items-center gap-1.5">
-              <GenerateButton
-                credits={10}
-                disabled={!canSubmit}
-                onClick={handleGenerate}
-                submitting={isSubmitting}
-                submitState={uploading ? "uploading" : undefined}
-                label="Generate avatar"
-              />
-            </div>
+            <GenerateButton
+              label="Generate"
+              credits={CREDITS}
+              disabled={!canSubmit}
+              submitting={submitting}
+              submitState={uploading ? "uploading" : undefined}
+              onClick={handleGenerate}
+              className="ml-auto"
+            />
           </div>
         </div>
       </div>
 
-      <Dialog open={browseOpen} onOpenChange={setBrowseOpen}>
-        <DialogContent className="flex max-h-[85vh] w-[95vw] flex-col overflow-hidden sm:max-w-2xl">
+      <Dialog open={libraryOpen} onOpenChange={setLibraryOpen}>
+        <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-semibold">
-              Avatar library
-            </DialogTitle>
+            <DialogTitle>Stock portraits</DialogTitle>
             <DialogDescription>
-              {libraryAvatars.length} portraits available
+              Pick a portrait, or upload your own photo from the composer.
             </DialogDescription>
           </DialogHeader>
-
-          <div className="relative">
-            <MagnifyingGlass className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search avatars…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-10 pl-9 text-sm"
-            />
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {filterChips.map((chip) => {
-              const isActive = activeFilter === chip;
-              const label =
-                chip === "Favorite" ? `Favorite(${favorites.size})` : chip;
-              return (
-                <button
-                  key={chip}
-                  type="button"
-                  onClick={() => setActiveFilter(chip)}
-                  className={cn(
-                    "inline-flex h-7 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
-                    isActive
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-background text-foreground hover:bg-muted",
-                  )}
-                >
-                  {chip === "Favorite" && (
-                    <Heart
-                      className="size-3"
-                      weight={isActive ? "fill" : "regular"}
-                    />
-                  )}
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="-mx-4 flex-1 overflow-y-auto px-4 pb-2">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {filteredAvatars.map((avatar) => {
-                const isSelected = selectedImageUrl === avatar.src;
-                const isFav = favorites.has(avatar.id);
+          <div className="-mx-6 overflow-y-auto px-6 pb-1">
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+              {PORTRAITS.map((src, index) => {
+                const selected = imageUrl === src;
                 return (
-                  <div
-                    key={avatar.id}
+                  <button
+                    key={src}
+                    type="button"
+                    onClick={() => {
+                      setImageUrl(src);
+                      setLibraryOpen(false);
+                    }}
+                    aria-label={`Use stock portrait ${index + 1}`}
+                    aria-pressed={selected}
                     className={cn(
-                      "group relative overflow-hidden rounded-xl border-2 transition-colors",
-                      isSelected
-                        ? "border-primary"
-                        : "border-transparent hover:border-border",
+                      "relative aspect-3/4 overflow-hidden rounded-xl bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                      selected &&
+                        "ring-2 ring-foreground ring-offset-2 ring-offset-popover",
                     )}
                   >
-                    <div className="relative aspect-3/4 overflow-hidden rounded-lg">
-                      <Image
-                        src={avatar.src}
-                        alt={`Avatar ${avatar.id}`}
-                        fill
-                        className="object-cover"
-                      />
-
-                      <div className="absolute top-2 left-2 right-2 flex items-start justify-between">
-                        {isSelected ? (
-                          <CheckCircle
-                            className="size-5 text-primary"
-                            weight="fill"
-                          />
-                        ) : (
-                          <span />
-                        )}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleFavorite(avatar.id);
-                          }}
-                          className="rounded-full bg-background/60 p-1 backdrop-blur-sm transition-colors hover:bg-background/80"
-                        >
-                          <Heart
-                            className={cn(
-                              "size-4",
-                              isFav
-                                ? "text-red-500"
-                                : "text-muted-foreground",
-                            )}
-                            weight={isFav ? "fill" : "regular"}
-                          />
-                        </button>
-                      </div>
-
-                      <div className="absolute inset-x-0 bottom-0 p-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedImageUrl(avatar.src);
-                            setBrowseOpen(false);
-                          }}
-                          className="w-full rounded-lg bg-background/80 py-1.5 text-xs font-medium backdrop-blur-sm transition-colors hover:bg-background"
-                        >
-                          Select Avatar
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                    <Image
+                      src={src}
+                      alt=""
+                      fill
+                      sizes="(min-width: 640px) 160px, 30vw"
+                      className="object-cover"
+                    />
+                    {selected ? (
+                      <span className="absolute right-2 bottom-2 flex size-5 items-center justify-center rounded-full bg-foreground text-background">
+                        <Check weight="bold" className="size-3" />
+                      </span>
+                    ) : null}
+                  </button>
                 );
               })}
             </div>

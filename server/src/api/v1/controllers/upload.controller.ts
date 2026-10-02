@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { ImportError, safeGet } from "../../../lib/remote-import";
 import { AssetType } from "@prisma/client";
 import prisma from "../../../lib/db";
 import {
@@ -125,26 +126,43 @@ export class PublicUploadController {
         if (typeof url !== "string" || !/^https?:\/\//i.test(url)) {
           return sendError(res, 400, "url must be an http(s) URL");
         }
-        const response = await fetch(url, { redirect: "follow" });
-        if (!response.ok) {
-          return sendError(
-            res,
-            400,
-            `Could not fetch url (HTTP ${response.status})`,
-          );
+        // Same SSRF guard as the in-app importer: public hosts only, every
+        // redirect re-checked, and the socket pinned to the checked address.
+        let remote: Awaited<ReturnType<typeof safeGet>>["res"];
+        try {
+          ({ res: remote } = await safeGet(url, {
+            signal: AbortSignal.timeout(120_000),
+          }));
+        } catch (error) {
+          if (error instanceof ImportError) {
+            return sendError(res, 400, error.message);
+          }
+          throw error;
         }
-        const declared = Number(response.headers.get("content-length") ?? 0);
+        const status = remote.statusCode ?? 0;
+        if (status < 200 || status >= 300) {
+          remote.resume();
+          return sendError(res, 400, `Could not fetch url (HTTP ${status})`);
+        }
+        const declared = Number(remote.headers["content-length"] ?? 0);
         if (declared > MAX_IMPORT_BYTES) {
+          remote.destroy();
           return sendError(res, 400, "File exceeds the 200MB import limit");
         }
-        const arrayBuffer = await response.arrayBuffer();
-        if (arrayBuffer.byteLength > MAX_IMPORT_BYTES) {
-          return sendError(res, 400, "File exceeds the 200MB import limit");
+        const chunks: Buffer[] = [];
+        let total = 0;
+        for await (const chunk of remote) {
+          total += (chunk as Buffer).length;
+          if (total > MAX_IMPORT_BYTES) {
+            remote.destroy();
+            return sendError(res, 400, "File exceeds the 200MB import limit");
+          }
+          chunks.push(chunk as Buffer);
         }
-        buffer = Buffer.from(arrayBuffer);
+        buffer = Buffer.concat(chunks);
         mime =
           (typeof contentType === "string" && contentType.trim()) ||
-          response.headers.get("content-type")?.split(";")[0]?.trim() ||
+          String(remote.headers["content-type"] ?? "").split(";")[0]?.trim() ||
           "application/octet-stream";
         name =
           (typeof fileName === "string" && fileName.trim()) ||

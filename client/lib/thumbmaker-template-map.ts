@@ -1,4 +1,4 @@
-import type { ThumbnailTemplate } from "@/fake";
+import type { ThumbnailTemplate } from "@/lib/thumbmaker-types";
 
 export type ThumbnailTemplateJson = {
   id: string;

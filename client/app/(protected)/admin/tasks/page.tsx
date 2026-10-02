@@ -1,21 +1,30 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { MagnifyingGlass, Eye } from "@phosphor-icons/react";
-import { PageHeader } from "@/components/admin/page-header";
-import { TableShell, Th, Td, Tr, Pager } from "@/components/admin/data-table";
+import Link from "next/link";
+import { MagnifyingGlass } from "@phosphor-icons/react";
+import { AdminPage } from "@/components/admin/admin-page";
+import { KIND_LABELS, kindLabel } from "@/components/admin/charts";
+import {
+  EmptyRow,
+  Pager,
+  SkeletonRows,
+  TableShell,
+  Td,
+  Th,
+} from "@/components/admin/data-table";
 import { StatusBadge } from "@/components/admin/status-badge";
-import { kindLabel, KIND_LABELS } from "@/components/admin/charts";
 import {
   TaskOutputDialog,
   type TaskRef,
 } from "@/components/admin/task-output-dialog";
-import { useAdminTasks, type TasksQuery } from "@/hooks/admin/use-admin-data";
-import { useDebounce } from "@/hooks/use-debounce";
-import { timeAgo } from "@/lib/admin-format";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/shared/states";
+import { Button } from "@/components/ui/button";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import {
   Select,
   SelectContent,
@@ -23,12 +32,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { TableBody, TableHeader, TableRow } from "@/components/ui/table";
+import { useAdminTasks, type TasksQuery } from "@/hooks/admin/use-admin-data";
+import { useDebounce } from "@/hooks/use-debounce";
+import { timeAgo } from "@/lib/admin-format";
 import { cn } from "@/lib/utils";
 
-const STATUSES = ["all", "COMPLETED", "PROCESSING", "QUEUED", "FAILED"];
+const COLS = 8;
+
+const KIND_ITEMS = [
+  { value: "all", label: "All features" },
+  ...Object.entries(KIND_LABELS).map(([value, label]) => ({ value, label })),
+];
+
+const STATUS_ITEMS = [
+  { value: "all", label: "All statuses" },
+  { value: "COMPLETED", label: "Completed" },
+  { value: "PROCESSING", label: "Processing" },
+  { value: "QUEUED", label: "Queued" },
+  { value: "FAILED", label: "Failed" },
+];
 
 export default function AdminTasksPage() {
-  const router = useRouter();
   const [page, setPage] = useState(1);
   const [kind, setKind] = useState("all");
   const [status, setStatus] = useState("all");
@@ -43,7 +68,7 @@ export default function AdminTasksPage() {
     status: status === "all" ? "" : status,
     search,
   };
-  const { data, isLoading, isFetching } = useAdminTasks(query);
+  const { data, isLoading, isFetching, error, refetch } = useAdminTasks(query);
 
   const reset = (fn: () => void) => {
     fn();
@@ -51,56 +76,69 @@ export default function AdminTasksPage() {
   };
 
   return (
-    <div>
-      <PageHeader
-        title="Tasks"
-        description="Every generation across every feature, newest first."
-      />
-
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-        <div className="relative flex-1 sm:max-w-xs">
-          <MagnifyingGlass className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
+    <AdminPage
+      title="Tasks"
+      description="Every generation across every feature, newest first"
+    >
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <InputGroup className="sm:max-w-xs">
+          <InputGroupInput
             value={searchInput}
             onChange={(e) => reset(() => setSearchInput(e.target.value))}
-            placeholder="Search by email…"
-            className="pl-9"
+            placeholder="Search by email"
+            aria-label="Search by email"
           />
-        </div>
-        <Select value={kind} onValueChange={(v) => reset(() => setKind(v ?? "all"))}>
-          <SelectTrigger className="w-full sm:w-[190px]">
-            <SelectValue placeholder="Feature" />
+          <InputGroupAddon>
+            <MagnifyingGlass />
+          </InputGroupAddon>
+        </InputGroup>
+        <Select
+          value={kind}
+          items={KIND_ITEMS}
+          onValueChange={(v) => reset(() => setKind((v as string | null) ?? "all"))}
+        >
+          <SelectTrigger className="w-full sm:w-48">
+            <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All features</SelectItem>
-            {Object.entries(KIND_LABELS).map(([k, label]) => (
-              <SelectItem key={k} value={k}>
-                {label}
+            {KIND_ITEMS.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <Select value={status} onValueChange={(v) => reset(() => setStatus(v ?? "all"))}>
-          <SelectTrigger className="w-full sm:w-[150px]">
-            <SelectValue placeholder="Status" />
+        <Select
+          value={status}
+          items={STATUS_ITEMS}
+          onValueChange={(v) =>
+            reset(() => setStatus((v as string | null) ?? "all"))
+          }
+        >
+          <SelectTrigger className="w-full sm:w-40">
+            <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {STATUSES.map((s) => (
-              <SelectItem key={s} value={s} className="capitalize">
-                {s === "all" ? "All statuses" : s.toLowerCase()}
+            {STATUS_ITEMS.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-96 rounded-xl" />
+      {error && !data ? (
+        <ErrorState
+          title="Couldn't load tasks"
+          description={error.message}
+          onRetry={() => void refetch()}
+        />
       ) : (
-        <div className={cn(isFetching && "opacity-60 transition-opacity")}>
+        <div className={cn("space-y-3", isFetching && !isLoading && "opacity-60 transition-opacity")}>
           <TableShell>
-            <thead>
-              <tr>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
                 <Th>Feature</Th>
                 <Th>User</Th>
                 <Th>Status</Th>
@@ -109,82 +147,67 @@ export default function AdminTasksPage() {
                 <Th className="text-right">Credits</Th>
                 <Th>When</Th>
                 <Th className="text-right">Output</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {data?.tasks.map((t) => (
-                <Tr
-                  key={`${t.kind}-${t.id}`}
-                  onClick={() => setSelected({ kind: t.kind, id: t.id })}
-                >
-                  <Td className="whitespace-nowrap font-medium">
-                    {kindLabel(t.kind)}
-                  </Td>
-                  <Td className="max-w-[180px] truncate">
-                    {t.userId ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(`/admin/users/${t.userId}`);
-                        }}
-                        className="truncate text-muted-foreground hover:text-foreground hover:underline"
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading || !data ? (
+                <SkeletonRows cols={COLS} />
+              ) : data.tasks.length === 0 ? (
+                <EmptyRow cols={COLS}>No tasks match these filters.</EmptyRow>
+              ) : (
+                data.tasks.map((t) => (
+                  <TableRow key={`${t.kind}-${t.id}`}>
+                    <Td className="font-medium">{kindLabel(t.kind)}</Td>
+                    <Td className="max-w-48 truncate">
+                      {t.userId ? (
+                        <Link
+                          href={`/admin/users/${t.userId}`}
+                          className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                        >
+                          {t.userEmail || t.userId}
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground">None</span>
+                      )}
+                    </Td>
+                    <Td>
+                      <StatusBadge status={t.status} />
+                    </Td>
+                    <Td className="max-w-36 truncate text-xs text-muted-foreground">
+                      {t.model || ""}
+                    </Td>
+                    <Td className="max-w-72 truncate text-muted-foreground">
+                      {t.label || ""}
+                    </Td>
+                    <Td className="text-right tabular-nums">{t.credits}</Td>
+                    <Td className="text-muted-foreground">{timeAgo(t.createdAt)}</Td>
+                    <Td className="text-right">
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        onClick={() => setSelected({ kind: t.kind, id: t.id })}
                       >
-                        {t.userEmail || t.userId}
-                      </button>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </Td>
-                  <Td>
-                    <StatusBadge status={t.status} />
-                  </Td>
-                  <Td className="max-w-[140px] truncate text-xs text-muted-foreground">
-                    {t.model || "—"}
-                  </Td>
-                  <Td className="max-w-[280px] truncate text-muted-foreground">
-                    {t.label || "—"}
-                  </Td>
-                  <Td className="text-right tabular-nums">{t.credits}</Td>
-                  <Td className="whitespace-nowrap text-muted-foreground">
-                    {timeAgo(t.createdAt)}
-                  </Td>
-                  <Td className="text-right">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelected({ kind: t.kind, id: t.id });
-                      }}
-                      className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted"
-                    >
-                      <Eye className="size-3.5" /> View
-                    </button>
-                  </Td>
-                </Tr>
-              ))}
-              {data?.tasks.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={8}
-                    className="px-4 py-10 text-center text-sm text-muted-foreground"
-                  >
-                    No tasks match these filters.
-                  </td>
-                </tr>
+                        View
+                      </Button>
+                    </Td>
+                  </TableRow>
+                ))
               )}
-            </tbody>
+            </TableBody>
           </TableShell>
-          {data && (
+          {data ? (
             <Pager
               page={data.pagination.page}
               totalPages={data.pagination.totalPages}
               total={data.pagination.total}
               onPage={setPage}
+              disabled={isFetching}
             />
-          )}
+          ) : null}
         </div>
       )}
 
       <TaskOutputDialog task={selected} onClose={() => setSelected(null)} />
-    </div>
+    </AdminPage>
   );
 }

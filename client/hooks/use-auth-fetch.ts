@@ -24,8 +24,12 @@ export function useAuthFetch() {
         { ...options, headers },
       );
       if (response.status === 403) {
-        const responseData = await response.json();
-        if (responseData.limitReached && !hasPromptedRef.current) {
+        // Clone so callers can still read the body themselves.
+        const responseData = await response
+          .clone()
+          .json()
+          .catch(() => null);
+        if (responseData?.limitReached && !hasPromptedRef.current) {
           hasPromptedRef.current = true;
           toast.error(
             "You have reached your monthly limit. Please upgrade your subscription to continue.",

@@ -24,7 +24,7 @@ export interface SubtitleStylePreset {
 export const SUBTITLE_PRESETS: SubtitleStylePreset[] = [
   {
     id: "gradient-box-focus",
-    name: "Gradient Box",
+    name: "Gradient box",
     fontFamily: "montserrat",
     fontSize: 17,
     fontWeight: 800,
@@ -38,7 +38,7 @@ export const SUBTITLE_PRESETS: SubtitleStylePreset[] = [
   },
   {
     id: "red-box-focus",
-    name: "Red Box Focus",
+    name: "Red box focus",
     fontFamily: "montserrat",
     fontSize: 17,
     fontWeight: 800,
@@ -52,7 +52,7 @@ export const SUBTITLE_PRESETS: SubtitleStylePreset[] = [
   },
   {
     id: "thick-white-stroke",
-    name: "Thick White Stroke",
+    name: "Thick white stroke",
     fontFamily: "bangers",
     fontSize: 17,
     fontWeight: 800,
@@ -65,7 +65,7 @@ export const SUBTITLE_PRESETS: SubtitleStylePreset[] = [
   },
   {
     id: "bold-green-highlight",
-    name: "Bold Green",
+    name: "Bold green",
     fontFamily: "bebas",
     fontSize: 17,
     fontWeight: 800,
@@ -78,7 +78,7 @@ export const SUBTITLE_PRESETS: SubtitleStylePreset[] = [
   },
   {
     id: "beast-purple",
-    name: "Beast Purple",
+    name: "Beast purple",
     fontFamily: "russo",
     fontSize: 17,
     fontWeight: 800,
@@ -92,7 +92,7 @@ export const SUBTITLE_PRESETS: SubtitleStylePreset[] = [
   },
   {
     id: "italic-yellow-highlight",
-    name: "Italic Yellow",
+    name: "Italic yellow",
     fontFamily: "playfair",
     fontSize: 17,
     fontWeight: 700,
@@ -105,7 +105,7 @@ export const SUBTITLE_PRESETS: SubtitleStylePreset[] = [
   },
   {
     id: "neon-glow",
-    name: "Neon Glow",
+    name: "Neon glow",
     fontFamily: "orbitron",
     fontSize: 16,
     fontWeight: 700,
@@ -117,7 +117,7 @@ export const SUBTITLE_PRESETS: SubtitleStylePreset[] = [
   },
   {
     id: "sunset-pop",
-    name: "Sunset Pop",
+    name: "Sunset pop",
     fontFamily: "poppins",
     fontSize: 17,
     fontWeight: 800,
@@ -129,7 +129,7 @@ export const SUBTITLE_PRESETS: SubtitleStylePreset[] = [
   },
   {
     id: "retro-wave",
-    name: "Retro Wave",
+    name: "Retro wave",
     fontFamily: "righteous",
     fontSize: 17,
     fontWeight: 700,
@@ -141,7 +141,7 @@ export const SUBTITLE_PRESETS: SubtitleStylePreset[] = [
   },
   {
     id: "gold-luxe",
-    name: "Gold Luxe",
+    name: "Gold luxe",
     fontFamily: "playfair",
     fontSize: 17,
     fontWeight: 700,
@@ -152,7 +152,7 @@ export const SUBTITLE_PRESETS: SubtitleStylePreset[] = [
   },
   {
     id: "rainbow-highlight",
-    name: "Rainbow Highlight",
+    name: "Rainbow highlight",
     fontFamily: "montserrat",
     fontSize: 17,
     fontWeight: 800,
@@ -164,7 +164,7 @@ export const SUBTITLE_PRESETS: SubtitleStylePreset[] = [
   },
   {
     id: "bold-blue-stroke",
-    name: "Bold Blue Stroke",
+    name: "Bold blue stroke",
     fontFamily: "oswald",
     fontSize: 17,
     fontWeight: 800,
@@ -176,7 +176,7 @@ export const SUBTITLE_PRESETS: SubtitleStylePreset[] = [
   },
   {
     id: "red-stroke-bold",
-    name: "Red Stroke",
+    name: "Red stroke",
     fontFamily: "oswald",
     fontSize: 17,
     fontWeight: 800,
@@ -188,7 +188,7 @@ export const SUBTITLE_PRESETS: SubtitleStylePreset[] = [
   },
   {
     id: "hand-marker",
-    name: "Hand Marker",
+    name: "Hand marker",
     fontFamily: "permanent-marker",
     fontSize: 17,
     fontWeight: 400,
@@ -200,7 +200,7 @@ export const SUBTITLE_PRESETS: SubtitleStylePreset[] = [
   },
   {
     id: "mint-fresh",
-    name: "Mint Fresh",
+    name: "Mint fresh",
     fontFamily: "fredoka",
     fontSize: 17,
     fontWeight: 600,
@@ -214,7 +214,7 @@ export const SUBTITLE_PRESETS: SubtitleStylePreset[] = [
   },
   {
     id: "outlined-white",
-    name: "Outlined White",
+    name: "Outlined white",
     fontFamily: "inter",
     fontSize: 17,
     fontWeight: 500,
@@ -226,7 +226,7 @@ export const SUBTITLE_PRESETS: SubtitleStylePreset[] = [
   },
   {
     id: "bold-simple",
-    name: "Bold Simple",
+    name: "Bold simple",
     fontFamily: "roboto",
     fontSize: 17,
     fontWeight: 700,
@@ -249,7 +249,7 @@ export const SUBTITLE_PRESETS: SubtitleStylePreset[] = [
   },
   {
     id: "pill-background",
-    name: "Pill Background",
+    name: "Pill background",
     fontFamily: "lato",
     fontSize: 17,
     fontWeight: 500,
@@ -261,119 +261,131 @@ export const SUBTITLE_PRESETS: SubtitleStylePreset[] = [
   },
 ];
 
-interface StylePresetsGridProps {
-  selectedPreset: string | null;
-  onSelectPreset: (preset: SubtitleStylePreset) => void;
+const PREVIEW_FONT_SIZE = 16;
+
+function strokeStyle(preset: SubtitleStylePreset): React.CSSProperties {
+  return preset.strokeColor && preset.strokeWidth
+    ? {
+        WebkitTextStroke: `${preset.strokeWidth}px ${preset.strokeColor}`,
+        paintOrder: "stroke fill",
+      }
+    : {};
 }
 
-const PREVIEW_FONT_SIZE = 18;
+/** Paints a colour value that may be a CSS gradient onto text. */
+function textFill(color: string | undefined): React.CSSProperties {
+  if (!color) return {};
+  return color.startsWith("linear-gradient")
+    ? {
+        backgroundImage: color,
+        WebkitBackgroundClip: "text",
+        backgroundClip: "text",
+        color: "transparent",
+      }
+    : { color };
+}
 
 function PresetPreview({ preset }: { preset: SubtitleStylePreset }) {
-  const mainWord =
-    preset.textTransform === "uppercase" ? "THE QUICK" : "The quick";
-  const highlightWord =
-    preset.textTransform === "uppercase" ? "BROWN" : "brown";
-
-  const isGradientColor = preset.color.startsWith("linear-gradient");
-
+  const upper = preset.textTransform === "uppercase";
   const baseStyle: React.CSSProperties = {
     fontFamily: getFontFamily(preset.fontFamily),
     fontSize: PREVIEW_FONT_SIZE,
     fontWeight: preset.fontWeight,
     fontStyle: preset.fontStyle,
     textTransform: preset.textTransform,
-    letterSpacing: preset.textTransform === "uppercase" ? "0.05em" : undefined,
+    letterSpacing: upper ? "0.05em" : undefined,
+    textShadow: preset.shadow,
+    ...strokeStyle(preset),
   };
 
-  const textStyle: React.CSSProperties = {
+  const wordStyle: React.CSSProperties = {
     ...baseStyle,
-    color: isGradientColor ? "transparent" : preset.color,
-    WebkitTextStroke:
-      preset.strokeColor && preset.strokeWidth
-        ? `${preset.strokeWidth}px ${preset.strokeColor}`
-        : undefined,
-    paintOrder: preset.strokeColor ? "stroke fill" : undefined,
-    textShadow: preset.shadow,
-    ...(isGradientColor && {
-      backgroundImage: preset.color,
-      WebkitBackgroundClip: "text",
-      backgroundClip: "text",
-    }),
+    ...textFill(preset.color),
   };
 
   const highlightStyle: React.CSSProperties = {
     ...baseStyle,
-    color: preset.highlightColor?.startsWith("linear-gradient")
-      ? "transparent"
-      : preset.highlightColor ||
-        (isGradientColor ? "transparent" : preset.color),
-    WebkitTextStroke:
-      preset.strokeColor && preset.strokeWidth
-        ? `${preset.strokeWidth}px ${preset.strokeColor}`
-        : undefined,
-    paintOrder: preset.strokeColor ? "stroke fill" : undefined,
-    textShadow: preset.shadow,
-    ...(preset.highlightColor?.startsWith("linear-gradient") && {
-      backgroundImage: preset.highlightColor,
-      WebkitBackgroundClip: "text",
-      backgroundClip: "text",
-    }),
-    ...(isGradientColor &&
-      !preset.highlightColor && {
-        backgroundImage: preset.color,
-        WebkitBackgroundClip: "text",
-        backgroundClip: "text",
-      }),
-    ...(preset.highlightBgColor && {
-      ...(preset.highlightBgColor.startsWith("linear-gradient")
-        ? { backgroundImage: preset.highlightBgColor }
-        : { backgroundColor: preset.highlightBgColor }),
-      padding: "0.06em 0.24em",
-      borderRadius: "0.18em",
-    }),
+    ...textFill(preset.highlightColor ?? preset.color),
+    ...(preset.highlightBgColor
+      ? {
+          ...(preset.highlightBgColor.startsWith("linear-gradient")
+            ? { backgroundImage: preset.highlightBgColor }
+            : { backgroundColor: preset.highlightBgColor }),
+          padding: "0.06em 0.24em",
+          borderRadius: "0.18em",
+        }
+      : {}),
   };
 
+  const words = (
+    <>
+      <span style={wordStyle}>{upper ? "THE QUICK" : "The quick"} </span>
+      <span style={highlightStyle}>{upper ? "BROWN" : "brown"}</span>
+    </>
+  );
+
   return (
-    <div className="flex w-full items-center justify-center whitespace-nowrap text-center leading-tight">
+    <span aria-hidden className="whitespace-nowrap leading-tight">
       {preset.backgroundColor ? (
         <span
           className="inline-block rounded-md"
           style={{
-            ...textStyle,
             backgroundColor: preset.backgroundColor,
             padding: `2px ${preset.backgroundPadding ?? 4}px`,
           }}
         >
-          {mainWord} <span style={highlightStyle}>{highlightWord}</span>
+          {words}
         </span>
       ) : (
-        <span>
-          <span style={textStyle}>{mainWord} </span>
-          <span style={highlightStyle}>{highlightWord}</span>
-        </span>
+        words
       )}
-    </div>
+    </span>
   );
 }
 
 export function StylePresetsGrid({
-  selectedPreset,
+  selectedPresetId,
   onSelectPreset,
-}: StylePresetsGridProps) {
+}: {
+  selectedPresetId: string;
+  onSelectPreset: (preset: SubtitleStylePreset) => void;
+}) {
   return (
-    <div className="grid grid-cols-3 gap-2.5">
-      {SUBTITLE_PRESETS.map((preset) => (
-        <button
-          key={preset.id}
-          onClick={() => onSelectPreset(preset)}
-          className={cn(
-            "flex h-[80px] items-center justify-center overflow-hidden rounded-xl bg-slate-700 px-3 transition-all hover:ring-2 hover:ring-primary/40",
-            selectedPreset === preset.id && "ring-2 ring-primary bg-slate-600",
-          )}
-        >
-          <PresetPreview preset={preset} />
-        </button>
-      ))}
+    <div
+      role="group"
+      aria-label="Subtitle presets"
+      className="grid grid-cols-2 gap-3 sm:grid-cols-3"
+    >
+      {SUBTITLE_PRESETS.map((preset) => {
+        const selected = preset.id === selectedPresetId;
+        return (
+          <button
+            key={preset.id}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onSelectPreset(preset)}
+            className="group/preset flex min-w-0 flex-col gap-1.5 rounded-lg text-left outline-none"
+          >
+            <span
+              className={cn(
+                "flex h-20 w-full items-center justify-center overflow-hidden rounded-lg bg-media px-3 ring-offset-2 ring-offset-background transition-shadow group-hover/preset:ring-2 group-hover/preset:ring-foreground/20 group-focus-visible/preset:ring-3 group-focus-visible/preset:ring-ring/50",
+                selected &&
+                  "ring-2 ring-foreground group-hover/preset:ring-foreground",
+              )}
+            >
+              <PresetPreview preset={preset} />
+            </span>
+            <span
+              className={cn(
+                "truncate px-0.5 text-xs",
+                selected ? "font-medium text-foreground" : "text-muted-foreground",
+              )}
+            >
+              {preset.name}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }

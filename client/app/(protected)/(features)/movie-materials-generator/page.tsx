@@ -1,242 +1,203 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useInView } from "react-intersection-observer";
-import { MoviePromptForm } from "@/components/movie-materials-generator/prompt-form";
+import { useCallback, useMemo, useState } from "react";
+import { FilmSlate } from "@phosphor-icons/react";
+import { ToolPage } from "@/components/generator/tool-layout";
+import { ToolResults } from "@/components/generator/tool-results";
 import {
-  GenerationCard,
-  type GenerationCardData,
-} from "@/components/image-generator/generation-card";
+  MediaResultCard,
+  isPending,
+  type MediaResult,
+} from "@/components/generator/media-result-card";
 import {
-  ImageDetailDialog,
-  type ImageDetailData,
-} from "@/components/image-generator/image-detail-dialog";
+  MediaResultDialog,
+  detailRows,
+  formatCredits,
+} from "@/components/generator/media-result-dialog";
+import {
+  MoviePromptForm,
+  type MovieMaterialsSubmitPayload,
+} from "@/components/movie-materials-generator/prompt-form";
+import {
+  modeLabel,
+  paramDetails,
+} from "@/components/movie-materials-generator/modes";
 import { useMovieMaterials } from "@/hooks/use-movie-materials";
-import { useAuthFetch } from "@/hooks/use-auth-fetch";
-import { FilmStrip } from "@phosphor-icons/react";
-import { Spinner } from "@/components/ui/spinner";
-import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "sonner";
+import {
+  useDeleteFromHistory,
+  useGenerationHistory,
+  useRefreshHistory,
+  startedRecently,
+} from "@/hooks/use-generation-history";
 
-interface MovieMaterialGeneration {
+const TOOL = "movie-materials";
+const PATH = "/api/movie-materials";
+
+interface MovieMaterialRecord {
   id: string;
   status: string;
   prompt: string;
-  model?: string;
-  mode?: string;
-  ratio: string;
-  resolution?: string;
-  params?: Record<string, string> | null;
-  outputAsset?: { id: string; url: string } | null;
-  thumbnailAsset?: { id: string; url: string } | null;
+  mode?: string | null;
+  ratio?: string | null;
+  resolution?: string | null;
+  params?: Record<string, unknown> | null;
+  outputAsset?: { url: string } | null;
+  thumbnailAsset?: { url: string } | null;
   error?: string | null;
+  creditsUsed?: number | null;
+  createdAt: string;
+}
+
+interface MovieMaterialListResponse {
+  generations?: MovieMaterialRecord[];
+  pagination?: { hasNextPage?: boolean };
+}
+
+interface MovieMaterialItem extends MediaResult {
+  mode?: string | null;
+  ratio?: string | null;
+  resolution?: string | null;
+  params?: Record<string, unknown> | null;
+  credits?: number | null;
   createdAt: string;
 }
 
 export default function MovieMaterialsGeneratorPage() {
-  const { authFetch } = useAuthFetch();
-  const [generations, setGenerations] = useState<MovieMaterialGeneration[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [hasMore, setHasMore] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [selectedGeneration, setSelectedGeneration] =
-    useState<ImageDetailData | null>(null);
-  const pageRef = useRef(1);
-  const fetchingRef = useRef(false);
-
-  const fetchGenerations = useCallback(
-    async (pageNum = 1, append = false) => {
-      try {
-        const res = await authFetch(
-          `/api/movie-materials/all?page=${pageNum}&limit=20`,
-        );
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.success) {
-          setGenerations((prev) =>
-            append ? [...prev, ...data.generations] : data.generations,
-          );
-          setHasMore(data.pagination.hasNextPage);
-          pageRef.current = pageNum;
-        }
-      } catch {
-        // silent
-      } finally {
-        setLoading(false);
-      }
+  const history = useGenerationHistory<MovieMaterialRecord>({
+    tool: TOOL,
+    path: `${PATH}/all`,
+    parse: (body) => {
+      const data = body as MovieMaterialListResponse;
+      return {
+        items: data.generations ?? [],
+        hasNextPage: !!data.pagination?.hasNextPage,
+      };
     },
-    [authFetch],
-  );
-
+    isInProgress: (g) => isPending(g.status) && startedRecently(g.createdAt),
+  });
+  const refreshHistory = useRefreshHistory(TOOL);
+  const deleteImage = useDeleteFromHistory({
+    tool: TOOL,
+    path: PATH,
+    noun: "image",
+  });
   const { activeGenerations, submit, dismiss } = useMovieMaterials({
-    onComplete: () => {
-      fetchGenerations(1, false);
-    },
+    onComplete: () => void refreshHistory(),
   });
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchGenerations();
-  }, [fetchGenerations]);
-
-  const handleDelete = useCallback(
-    async (generationId: string) => {
-      try {
-        const res = await authFetch(`/api/movie-materials/${generationId}`, {
-          method: "DELETE",
-        });
-        if (res.ok) {
-          setGenerations((prev) => prev.filter((g) => g.id !== generationId));
-          toast.success("Image deleted");
-        }
-      } catch {
-        toast.error("Failed to delete image");
+  const handleSubmit = useCallback(
+    async ({ count, ...payload }: MovieMaterialsSubmitPayload) => {
+      for (let i = 0; i < count; i++) {
+        await submit(payload);
       }
     },
-    [authFetch],
+    [submit],
   );
 
-  const loadMore = useCallback(() => {
-    if (fetchingRef.current || !hasMore) return;
-    fetchingRef.current = true;
-    setLoadingMore(true);
-    const next = pageRef.current + 1;
-    fetchGenerations(next, true).finally(() => {
-      setLoadingMore(false);
-      fetchingRef.current = false;
-    });
-  }, [hasMore, fetchGenerations]);
+  const items = useMemo<MovieMaterialItem[]>(() => {
+    const historyIds = new Set(history.items.map((g) => g.id));
+    const activeById = new Map(activeGenerations.map((g) => [g.id, g]));
 
-  const { ref: sentinelRef } = useInView({
-    rootMargin: "200px",
-    skip: loading || loadingMore || !hasMore,
-    onChange: (inView) => {
-      if (inView) loadMore();
-    },
-  });
+    const fromActive = activeGenerations
+      .filter((g) => !historyIds.has(g.id))
+      .map<MovieMaterialItem>((g) => ({
+        id: g.id,
+        status: g.status,
+        prompt: g.prompt,
+        mediaType: "image",
+        url: g.outputAsset?.url ?? null,
+        thumbnailUrl: g.thumbnailAsset?.url ?? null,
+        error: g.error ?? null,
+        local: g.id.startsWith("temp-"),
+        mode: g.mode,
+        createdAt: g.createdAt,
+      }));
 
-  const activeIds = new Set(activeGenerations.map((g) => g.id));
-  const fetchedIds = new Set(generations.map((g) => g.id));
-  const pendingActive = activeGenerations.filter(
-    (g) => !fetchedIds.has(g.id) && g.status !== "COMPLETED",
-  );
-
-  const allCards: GenerationCardData[] = [
-    ...pendingActive.map((g) => ({
-      id: g.id,
-      status: g.status,
-      prompt: g.prompt,
-      outputUrl: g.outputAsset?.url ?? null,
-      thumbnailUrl: g.thumbnailAsset?.url ?? null,
-      error: g.error,
-    })),
-    ...generations.map((g) => {
-      const active = activeIds.has(g.id)
-        ? activeGenerations.find((a) => a.id === g.id)
-        : undefined;
+    const fromHistory = history.items.map<MovieMaterialItem>((g) => {
+      const active = activeById.get(g.id);
       return {
         id: g.id,
         status: active?.status ?? g.status,
         prompt: g.prompt,
-        outputUrl: active?.outputAsset?.url ?? g.outputAsset?.url ?? null,
-        thumbnailUrl: active?.thumbnailAsset?.url ?? g.thumbnailAsset?.url ?? null,
-        error: active?.error ?? g.error,
+        mediaType: "image",
+        url: active?.outputAsset?.url ?? g.outputAsset?.url ?? null,
+        thumbnailUrl:
+          active?.thumbnailAsset?.url ?? g.thumbnailAsset?.url ?? null,
+        error: active?.error ?? g.error ?? null,
+        mode: g.mode,
+        ratio: g.ratio,
+        resolution: g.resolution,
+        params: g.params,
+        credits: g.creditsUsed,
+        createdAt: g.createdAt,
       };
-    }),
-  ];
+    });
 
-  const isEmpty = allCards.length === 0;
+    return [...fromActive, ...fromHistory];
+  }, [activeGenerations, history.items]);
+
+  const selected = items.find((item) => item.id === selectedId) ?? null;
+
+  const handleDelete = (id: string) => {
+    dismiss(id);
+    deleteImage.mutate(id);
+  };
 
   return (
-    <>
-      <div className="flex-1 overflow-auto">
-        <div className="p-3 pb-44 sm:p-5 sm:pb-52">
-          {loading ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {Array.from({ length: 15 }).map((_, i) => (
-                <Skeleton key={i} className="aspect-square" />
-              ))}
-            </div>
-          ) : isEmpty ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
-              <FilmStrip
-                className="size-12 text-muted-foreground/40"
-                weight="thin"
-              />
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  No movie materials yet
-                </p>
-                <p className="text-xs text-muted-foreground/70">
-                  Describe your movie material below to get started
-                </p>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                {allCards.map((card) => {
-                  const full = generations.find((g) => g.id === card.id);
-                  return (
-                    <GenerationCard
-                      key={card.id}
-                      generation={card}
-                      displayMode="asset"
-                      onDelete={handleDelete}
-                      onDismiss={dismiss}
-                      onClick={() => {
-                        if (full) {
-                          setSelectedGeneration({
-                            ...card,
-                            model: full.model,
-                            type: "MOVIE_MATERIALS",
-                            mode: full.mode,
-                            ratio: full.ratio,
-                            resolution: full.resolution,
-                            params: full.params,
-                            createdAt: full.createdAt,
-                          });
-                        }
-                      }}
-                    />
-                  );
-                })}
-              </div>
-              {hasMore && (
-                <div
-                  ref={sentinelRef}
-                  className="flex justify-center py-6"
-                >
-                  {loadingMore && (
-                    <Spinner className="size-5 text-muted-foreground" />
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
+    <ToolPage dock={<MoviePromptForm onSubmit={handleSubmit} />}>
+      <ToolResults
+        items={items}
+        getKey={(item) => item.id}
+        history={history}
+        shape="square"
+        aspectClassName="aspect-square"
+        plural="images"
+        empty={{
+          icon: FilmSlate,
+          title: "No movie materials yet",
+          description:
+            "Pick a mode below, like a character face or a shot board, and describe it.",
+        }}
+        renderItem={(item) => (
+          <MediaResultCard
+            result={item}
+            noun="image"
+            onOpen={() => setSelectedId(item.id)}
+            onDelete={handleDelete}
+            onDismiss={dismiss}
+          />
+        )}
+      />
 
-      <ImageDetailDialog
-        generation={selectedGeneration}
-        open={selectedGeneration !== null}
+      <MediaResultDialog
+        result={selected}
+        noun="image"
+        title={modeLabel(selected?.mode) ?? "Movie material"}
+        createdAt={selected?.createdAt}
+        details={
+          selected
+            ? detailRows([
+                {
+                  label: "Aspect ratio",
+                  value:
+                    selected.ratio === "auto" ? "Auto" : selected.ratio,
+                },
+                {
+                  label: "Resolution",
+                  value: selected.resolution?.toUpperCase(),
+                },
+                ...paramDetails(selected.mode, selected.params),
+                { label: "Credits", value: formatCredits(selected.credits) },
+              ])
+            : []
+        }
+        open={selected !== null}
         onOpenChange={(open) => {
-          if (!open) setSelectedGeneration(null);
+          if (!open) setSelectedId(null);
         }}
-        onDelete={(id) => {
-          handleDelete(id);
-          setSelectedGeneration(null);
-        }}
+        onDelete={handleDelete}
       />
-
-      <MoviePromptForm
-        onSubmit={async (payload) => {
-          const { count, ...rest } = payload;
-          for (let i = 0; i < count; i++) {
-            await submit(rest);
-          }
-          return null;
-        }}
-      />
-    </>
+    </ToolPage>
   );
 }

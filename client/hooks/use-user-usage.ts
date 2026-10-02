@@ -26,7 +26,17 @@ interface UserUsage {
     stripeCurrentPeriodEnd: string | null;
   };
   credits: number;
+  preferences?: {
+    /** IANA zone the user picked; null until they set one. */
+    timezone: string | null;
+    /** 0 = Sunday, 1 = Monday. */
+    weekStartsOn: number;
+  };
+  limits?: { socialAccounts: number };
+  counts?: { socialAccounts: number };
 }
+
+export type { UserUsage };
 
 export const userUsageQueryKeys = {
   all: ["user-usage"] as const,
@@ -66,8 +76,10 @@ export function useUserUsage(options: UseUserUsageOptions = {}) {
       return data.data;
     },
     enabled: !!isSignedIn,
-    staleTime: 60 * 1000, // 1 minute
-    gcTime: 5 * 60 * 1000, // 5 minutes
+    // Credits also change from agents calling the API, so refresh on focus.
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
     refetchInterval: pollIntervalMs && pollIntervalMs > 0 ? pollIntervalMs : false,
     refetchIntervalInBackground: false,
   });

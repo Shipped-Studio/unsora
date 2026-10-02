@@ -3,6 +3,8 @@ import prisma from "../lib/db";
 import { getCreditBalance, listActiveGrants } from "../lib/credits";
 import { clerkClient } from "@clerk/express";
 import { userIsAdmin } from "../lib/is-admin";
+import { planLimits } from "../lib/limit";
+import { isValidTimeZone } from "./schedule.controller";
 
 export class UserController {
   async getUsageDetails(req: Request, res: Response) {
@@ -21,6 +23,8 @@ export class UserController {
           status: true,
           isCancelled: true,
           stripeCurrentPeriodEnd: true,
+          timezone: true,
+          weekStartsOn: true,
         },
       });
 
@@ -28,7 +32,11 @@ export class UserController {
         return res.status(404).json({ success: false, error: "User not found" });
       }
 
-      const credits = await getCreditBalance(user.id);
+      const [credits, socialAccountCount] = await Promise.all([
+        getCreditBalance(user.id),
+        prisma.socialAccount.count({ where: { userId: user.id } }),
+      ]);
+      const planKey = (user.plan ?? "free").toLowerCase() as keyof typeof planLimits;
 
       res.json({
         success: true,
@@ -54,6 +62,16 @@ export class UserController {
           // Kept named `credits` for client backward-compat. Sourced live
           // from the CreditGrant table — there is no cached counter.
           credits,
+          preferences: {
+            timezone: user.timezone,
+            weekStartsOn: user.weekStartsOn,
+          },
+          limits: {
+            socialAccounts: planLimits[planKey]?.socialAccounts ?? 0,
+          },
+          counts: {
+            socialAccounts: socialAccountCount,
+          },
         },
       });
     } catch (error) {
@@ -62,6 +80,109 @@ export class UserController {
         success: false,
         error: "Failed to fetch usage details",
       });
+    }
+  }
+
+  /** GET ?page&limit — the user's credit ledger, newest first. */
+  async getCreditTransactions(req: Request, res: Response) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { clerkId: req.auth.userId },
+        select: { id: true },
+      });
+      if (!user) {
+        return res.status(404).json({ success: false, error: "User not found" });
+      }
+
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 25));
+      const where = { userId: user.id };
+
+      const [rows, total] = await Promise.all([
+        prisma.creditTransaction.findMany({
+          where,
+          orderBy: { createdAt: "desc" },
+          skip: (page - 1) * limit,
+          take: limit,
+          select: {
+            id: true,
+            type: true,
+            amount: true,
+            reason: true,
+            createdAt: true,
+            apiKey: { select: { name: true, keyPrefix: true } },
+          },
+        }),
+        prisma.creditTransaction.count({ where }),
+      ]);
+
+      res.json({
+        success: true,
+        data: {
+          transactions: rows.map((row) => ({
+            id: row.id,
+            type: row.type,
+            amount: row.amount,
+            label: creditReasonLabel(row.type, row.reason),
+            source: row.apiKey ? "api" : "web",
+            apiKeyName: row.apiKey?.name ?? null,
+            createdAt: row.createdAt,
+          })),
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.max(1, Math.ceil(total / limit)),
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Credit transactions fetch error:", error);
+      res
+        .status(500)
+        .json({ success: false, error: "Failed to load credit history" });
+    }
+  }
+
+  /** PATCH { timezone?, weekStartsOn? } */
+  async updatePreferences(req: Request, res: Response) {
+    try {
+      const { timezone, weekStartsOn } = req.body as {
+        timezone?: string | null;
+        weekStartsOn?: number;
+      };
+
+      const data: { timezone?: string | null; weekStartsOn?: number } = {};
+      if (timezone !== undefined) {
+        if (timezone !== null && !isValidTimeZone(timezone)) {
+          return res
+            .status(400)
+            .json({ success: false, error: "Unknown timezone." });
+        }
+        data.timezone = timezone;
+      }
+      if (weekStartsOn !== undefined) {
+        if (weekStartsOn !== 0 && weekStartsOn !== 1) {
+          return res.status(400).json({
+            success: false,
+            error: "Weeks can start on Sunday (0) or Monday (1).",
+          });
+        }
+        data.weekStartsOn = weekStartsOn;
+      }
+
+      const user = await prisma.user.update({
+        where: { clerkId: req.auth.userId },
+        data,
+        select: { timezone: true, weekStartsOn: true },
+      });
+
+      res.json({ success: true, data: user });
+    } catch (error) {
+      console.error("Update preferences error:", error);
+      res
+        .status(500)
+        .json({ success: false, error: "Failed to save preferences" });
     }
   }
 
@@ -241,4 +362,45 @@ export class UserController {
       });
     }
   }
+}
+
+const CREDIT_REASON_LABELS: Record<string, string> = {
+  "ai.clipping": "Clips",
+  "avatar.generation": "Talking avatar",
+  "image.generation": "Image",
+  "image.upscale": "Image upscale",
+  "influencer.studio": "AI influencer",
+  "movie.materials": "Movie materials",
+  "music.generation": "Music",
+  "thumbnail.generation": "Thumbnail",
+  "video.export.subtitle": "Subtitle export",
+  "video.generation": "Video",
+  "video.generation.kling": "Video",
+  "video.generation.motion-control": "Motion control",
+  "video.generation.seedance": "Video",
+  "video.processing": "Subtitle removal",
+  "video.upscale": "Video upscale",
+  "voice.clone": "Voice clone",
+  "voice.conversion": "Voice change",
+  "voice.generation": "Voiceover",
+  subscription_update: "Plan credits",
+  "welcome:auto-grant": "Welcome credits",
+};
+
+/** Readable ledger label, e.g. "Video" or "Refund: Image". */
+function creditReasonLabel(type: string, reason: string): string {
+  const base =
+    CREDIT_REASON_LABELS[reason] ??
+    (reason.startsWith("admin:")
+      ? "Adjustment"
+      : reason.startsWith("fraud:")
+        ? "Reversal"
+        : reason
+            .replace(/[._:-]+/g, " ")
+            .replace(/^\w/, (c) => c.toUpperCase()));
+
+  if (type === "REFUND") return `Refund: ${base}`;
+  if (type === "EXPIRY") return "Expired credits";
+  if (type === "GRANT" && !CREDIT_REASON_LABELS[reason]) return "Credits added";
+  return base;
 }

@@ -1,18 +1,19 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Info, Microphone, UploadSimple } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { GenerateButton } from "@/components/ui/generate-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { GenerateButton } from "@/components/ui/generate-button";
 import {
   Popover,
   PopoverContent,
@@ -21,6 +22,8 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
 import {
   VOICE_CLONE_RECORDING_TIPS,
   VOICE_CLONE_SAMPLE_SCRIPT,
@@ -65,18 +68,16 @@ export function VoiceCloneDialog({
     name.trim().length > 0 &&
     Boolean(sampleUrl);
 
-  const reset = useCallback(() => {
+  function reset() {
     setName("");
     setDescription("");
     setSampleUrl(null);
     setSampleFileName(null);
-  }, []);
+  }
 
-  const handleUpload = useCallback(async (file: File) => {
-    const isAudio =
-      file.type.startsWith("audio/") || file.type.startsWith("video/");
-    if (!isAudio) {
-      toast.error("Upload an audio or video sample (MP3, WAV, M4A, etc.)");
+  async function handleUpload(file: File) {
+    if (!file.type.startsWith("audio/") && !file.type.startsWith("video/")) {
+      toast.error("Choose an audio or video file, like MP3, WAV or M4A.");
       return;
     }
 
@@ -84,23 +85,24 @@ export function VoiceCloneDialog({
     try {
       const signed = await getSignedUploadUrl(file.name, file.type);
       if (!signed.success || !signed.uploadUrl) {
-        throw new Error(signed.error || "Failed to get upload URL");
+        throw new Error(signed.error || "Upload failed.");
       }
       const result = await uploadToSignedUrl(file, signed);
       if (!result.success || !result.blobUrl) {
-        throw new Error(result.error || "Upload failed");
+        throw new Error(result.error || "Upload failed.");
       }
       setSampleUrl(result.blobUrl);
       setSampleFileName(file.name);
-      toast.success("Sample uploaded");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Upload failed");
+      toast.error(
+        `Couldn't upload the sample. ${err instanceof Error ? err.message : "Try again."}`,
+      );
     } finally {
       setUploading(false);
     }
-  }, []);
+  }
 
-  const handleSubmit = useCallback(async () => {
+  async function handleSubmit() {
     if (!canSubmit || !sampleUrl) return;
     setSubmitting(true);
     try {
@@ -112,19 +114,15 @@ export function VoiceCloneDialog({
       reset();
       onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Clone failed");
+      toast.error(
+        err instanceof Error && err.message
+          ? err.message
+          : "Couldn't clone the voice. Try again.",
+      );
     } finally {
       setSubmitting(false);
     }
-  }, [
-    canSubmit,
-    sampleUrl,
-    onCreate,
-    name,
-    description,
-    reset,
-    onOpenChange,
-  ]);
+  }
 
   return (
     <Dialog
@@ -136,16 +134,15 @@ export function VoiceCloneDialog({
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Clone your voice</DialogTitle>
+          <DialogTitle>Clone a voice</DialogTitle>
           <DialogDescription>
-            Upload 30 seconds to 2 minutes of clear speech. Powered by ElevenLabs
-            Instant Voice Cloning.
+            Upload 30 seconds to 2 minutes of clear speech from one speaker.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="clone-name">Voice name</Label>
+            <Label htmlFor="clone-name">Name</Label>
             <Input
               id="clone-name"
               value={name}
@@ -156,7 +153,12 @@ export function VoiceCloneDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="clone-description">Description (optional)</Label>
+            <Label htmlFor="clone-description">
+              Description
+              <span className="font-normal text-muted-foreground">
+                Optional
+              </span>
+            </Label>
             <Textarea
               id="clone-description"
               value={description}
@@ -169,27 +171,22 @@ export function VoiceCloneDialog({
 
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <Label>Audio sample</Label>
+              <Label htmlFor="clone-sample">Sample</Label>
               <Popover>
-                <PopoverTrigger>
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-                    aria-label="View sample script for voice cloning"
-                  >
-                    <Info className="size-3.5" weight="fill" />
-                    Sample script
-                  </button>
+                <PopoverTrigger
+                  render={<Button type="button" variant="ghost" size="xs" />}
+                >
+                  <Info />
+                  What to read
                 </PopoverTrigger>
                 <PopoverContent
                   align="end"
-                  side="left"
-                  className="w-[min(100vw-2rem,22rem)] max-h-80 overflow-y-auto"
+                  className="max-h-80 w-[min(100vw-2rem,22rem)] overflow-y-auto"
                 >
                   <PopoverHeader>
-                    <PopoverTitle>Sample script to read</PopoverTitle>
+                    <PopoverTitle>Script to read</PopoverTitle>
                     <PopoverDescription>
-                      Read this aloud while recording for the best clone quality.
+                      Read this aloud in a quiet room.
                     </PopoverDescription>
                   </PopoverHeader>
                   <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">
@@ -197,33 +194,39 @@ export function VoiceCloneDialog({
                       <li key={tip}>{tip}</li>
                     ))}
                   </ul>
-                  <p className="whitespace-pre-wrap rounded-lg bg-muted/60 p-3 text-xs leading-relaxed text-foreground">
+                  <p className="rounded-md bg-muted p-3 text-xs leading-relaxed whitespace-pre-wrap">
                     {VOICE_CLONE_SAMPLE_SCRIPT}
                   </p>
                 </PopoverContent>
               </Popover>
             </div>
             <button
+              id="clone-sample"
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading || submitting || atLimit}
-              className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border px-4 py-6 text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+              className="flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed px-4 py-6 text-center transition-colors outline-none hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
             >
               {uploading ? (
-                <span className="text-sm">Uploading…</span>
+                <>
+                  <Spinner className="text-muted-foreground" />
+                  <span className="text-sm">Uploading</span>
+                </>
               ) : sampleFileName ? (
                 <>
-                  <Microphone className="size-5 text-primary" weight="duotone" />
-                  <span className="text-sm font-medium text-foreground">
-                    {sampleFileName}
+                  <Microphone className="size-5 text-muted-foreground" />
+                  <span className="text-sm font-medium">{sampleFileName}</span>
+                  <span className="text-xs text-muted-foreground">
+                    Click to replace
                   </span>
-                  <span className="text-xs">Tap to replace</span>
                 </>
               ) : (
                 <>
-                  <UploadSimple className="size-5" />
-                  <span className="text-sm">Upload audio sample</span>
-                  <span className="text-xs">MP3, WAV, M4A, or short video</span>
+                  <UploadSimple className="size-5 text-muted-foreground" />
+                  <span className="text-sm font-medium">Upload a sample</span>
+                  <span className="text-xs text-muted-foreground">
+                    MP3, WAV, M4A or a short video
+                  </span>
                 </>
               )}
             </button>
@@ -240,22 +243,25 @@ export function VoiceCloneDialog({
             />
           </div>
 
-          {atLimit && (
+          {atLimit ? (
             <p className="text-xs text-destructive">
-              You&apos;ve reached the limit of {maxClones} cloned voices. Delete
-              one to add another.
+              You have {maxClones} cloned voices, the maximum. Delete one to add
+              another.
             </p>
-          )}
-
-          <GenerateButton
-            disabled={!canSubmit}
-            onClick={handleSubmit}
-            submitting={submitting}
-            credits={cloneCreditCost}
-            label="Create voice clone"
-            className="w-full"
-          />
+          ) : null}
         </div>
+
+        <DialogFooter>
+          <GenerateButton
+            label="Clone voice"
+            credits={cloneCreditCost}
+            disabled={!canSubmit}
+            submitting={submitting}
+            submitState={uploading ? "uploading" : undefined}
+            onClick={handleSubmit}
+            className="w-full sm:w-auto"
+          />
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

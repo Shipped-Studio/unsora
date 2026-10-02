@@ -1,7 +1,7 @@
 "use client";
 
-import { AssetsBrowserDialog } from "@/components/files/assets-browser-dialog";
-import type { UnifiedAsset } from "@/hooks/use-all-assets";
+import { LibraryPickerDialog } from "@/components/files/library-picker-dialog";
+import type { LibraryItem } from "@/hooks/use-library";
 import { kindFromAccept, type UploadField } from "./attachments";
 
 interface LibraryPickerProps {
@@ -9,11 +9,11 @@ interface LibraryPickerProps {
   field: UploadField | null;
   /** Current attachment count per field key, used for the multi-select cap. */
   fileCounts: Record<string, number>;
-  onSelect: (field: UploadField, assets: UnifiedAsset[]) => void;
+  onSelect: (field: UploadField, items: LibraryItem[]) => void;
   onClose: () => void;
 }
 
-/** Media library dialog bound to a single upload slot. */
+/** Library picker bound to a single upload slot of a Create tool. */
 export function LibraryPicker({
   field,
   fileCounts,
@@ -22,23 +22,18 @@ export function LibraryPicker({
 }: LibraryPickerProps) {
   if (!field) return null;
 
-  const kind = kindFromAccept(field.accept);
+  const remaining = field.max - (fileCounts[field.key] ?? 0);
 
   return (
-    <AssetsBrowserDialog
+    <LibraryPickerDialog
       open
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
-      mediaTypeFilter={kind}
-      initialTab={
-        kind === "image" ? "image" : kind === "video" ? "video" : "uploaded"
-      }
-      multiple={field.max - (fileCounts[field.key] ?? 0) > 1}
-      onSelectMultiple={(assets) => {
-        onSelect(field, assets);
-        onClose();
-      }}
+      mediaType={kindFromAccept(field.accept)}
+      multiple={remaining > 1}
+      max={Math.max(1, remaining)}
+      onSelect={(items) => onSelect(field, items)}
     />
   );
 }

@@ -12,7 +12,7 @@ export function deriveSongTitleFromLyrics(
     line.replace(/^\[|\]$/g, "").trim().toLowerCase();
 
   const trimToTitle = (text: string, maxLen = 52) => {
-    let title = text
+    const title = text
       .replace(/^["'""]|["'""]$/g, "")
       .replace(/\s+/g, " ")
       .trim();

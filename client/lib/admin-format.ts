@@ -9,9 +9,9 @@ export function compactNumber(n: number): string {
 }
 
 export function formatDate(input: string | Date | null | undefined): string {
-  if (!input) return "—";
+  if (!input) return "";
   const d = typeof input === "string" ? new Date(input) : input;
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleDateString(undefined, {
     year: "numeric",
     month: "short",
@@ -20,9 +20,9 @@ export function formatDate(input: string | Date | null | undefined): string {
 }
 
 export function formatDateTime(input: string | Date | null | undefined): string {
-  if (!input) return "—";
+  if (!input) return "";
   const d = typeof input === "string" ? new Date(input) : input;
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleString(undefined, {
     month: "short",
     day: "numeric",
@@ -33,7 +33,7 @@ export function formatDateTime(input: string | Date | null | undefined): string 
 
 /** "3h ago", "2d ago", etc. */
 export function timeAgo(input: string | Date | null | undefined): string {
-  if (!input) return "—";
+  if (!input) return "";
   const d = typeof input === "string" ? new Date(input) : input;
   const secs = Math.floor((Date.now() - d.getTime()) / 1000);
   if (secs < 60) return "just now";

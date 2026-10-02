@@ -27,6 +27,11 @@ export interface ActiveVoiceGeneration {
 const POLL_INTERVAL_MS = 3_000;
 const AUTO_DISMISS_DELAY_MS = 2_000;
 
+export const voiceGenerationQueryKeys = {
+  all: ["voice-generations"] as const,
+  list: () => [...voiceGenerationQueryKeys.all, "list"] as const,
+};
+
 export function useVoiceGeneration(options?: {
   onComplete?: (id: string) => void;
 }) {
@@ -38,7 +43,9 @@ export function useVoiceGeneration(options?: {
     new Map(),
   );
   const onCompleteRef = useRef(options?.onComplete);
-  onCompleteRef.current = options?.onComplete;
+  useEffect(() => {
+    onCompleteRef.current = options?.onComplete;
+  });
   const tempIdCounter = useRef(0);
 
   const stopPolling = useCallback((generationId: string) => {
@@ -79,7 +86,7 @@ export function useVoiceGeneration(options?: {
           if (gen.status === "COMPLETED" || gen.status === "FAILED") {
             stopPolling(generationId);
             if (gen.status === "COMPLETED") {
-              toast.success("Voice generation complete!");
+              toast.success("Voiceover ready");
               onCompleteRef.current?.(generationId);
               setTimeout(() => {
                 setActiveGenerations((prev) =>
@@ -88,12 +95,14 @@ export function useVoiceGeneration(options?: {
               }, AUTO_DISMISS_DELAY_MS);
             } else {
               toast.error(
-                `Generation failed: ${gen.error || "Unknown error"}`,
+                gen.error
+                  ? `Couldn't generate the voiceover. ${gen.error}`
+                  : "Couldn't generate the voiceover. Try again.",
               );
             }
           }
         } catch {
-          // keep polling
+          // A dropped poll is retried on the next tick.
         }
       }, POLL_INTERVAL_MS);
 
@@ -135,7 +144,8 @@ export function useVoiceGeneration(options?: {
         const data = await res.json();
 
         if (!res.ok || !data.success) {
-          const errorMsg = data.error || "Failed to start generation";
+          const errorMsg =
+            data.error || "Couldn't start the voiceover. Try again.";
           setActiveGenerations((prev) =>
             prev.map((g) =>
               g.id === tempId
@@ -166,11 +176,17 @@ export function useVoiceGeneration(options?: {
         setActiveGenerations((prev) =>
           prev.map((g) =>
             g.id === tempId
-              ? { ...g, status: "FAILED" as const, error: "Network error" }
+              ? {
+                  ...g,
+                  status: "FAILED" as const,
+                  error: "Couldn't reach the server.",
+                }
               : g,
           ),
         );
-        toast.error("Network error — please try again");
+        toast.error(
+          "Couldn't reach the server. Check your connection and try again.",
+        );
         return null;
       }
     },

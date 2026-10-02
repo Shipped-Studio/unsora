@@ -4,8 +4,9 @@ export { BarList, type BarItem } from "./bar-list";
 export { DonutChart, type DonutSlice } from "./donut-chart";
 export { AreaChart, type AreaSeries } from "./area-chart";
 export {
-  useChartTheme,
+  MAX_SERIES,
+  chartColor,
+  statusColor,
   kindLabel,
   KIND_LABELS,
-  type ChartTheme,
 } from "./palette";

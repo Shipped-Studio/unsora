@@ -1,226 +1,242 @@
 "use client";
 
-import { useRef, useCallback } from "react";
-import { ImageSquare, X } from "@phosphor-icons/react";
+import { useRef, useState } from "react";
+import { UploadSimple, WarningCircle, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+  FieldTitle,
+} from "@/components/ui/field";
 import { GenerateButton } from "@/components/ui/generate-button";
-import { useImageManager } from "@/hooks/use-image-manager";
-import { cn } from "@/lib/utils";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Spinner } from "@/components/ui/spinner";
-import Image from "next/image";
-import { useState } from "react";
+import { useImageManager, type ManagedImage } from "@/hooks/use-image-manager";
 
 const MAX_FILES = 20;
 const ACCEPTED_TYPES = "image/jpeg,image/jpg,image/png,image/webp";
 
-const RESOLUTION_OPTIONS = [
+const RESOLUTIONS = [
   { value: "2k", label: "2K", credits: 2 },
   { value: "4k", label: "4K", credits: 3 },
   { value: "8k", label: "8K", credits: 5 },
-];
+] as const;
 
-const cdnLoader = ({ src }: { src: string }) => src;
+type Resolution = (typeof RESOLUTIONS)[number]["value"];
 
-export interface BulkImageSubmitItem {
+export interface ImageUpscaleInput {
   imageUrl: string;
   originalName: string;
-  resolution: string;
+  resolution: Resolution;
 }
 
-interface UploadFormProps {
-  onSubmit: (items: BulkImageSubmitItem[]) => void;
-  isSubmitting?: boolean;
-}
-
-export function ImageUpscalerForm({ onSubmit, isSubmitting }: UploadFormProps) {
+export function ImageUpscalerForm({
+  onSubmit,
+}: {
+  /** Resolves true when every image was queued; the form is then cleared. */
+  onSubmit: (items: ImageUpscaleInput[]) => Promise<boolean>;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const dropRef = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [resolution, setResolution] = useState<Resolution>("4k");
   const { images, handleFiles, removeImage, clearAll } =
     useImageManager(MAX_FILES);
-  const [resolution, setResolution] = useState("4k");
 
-  const selectedResolution = RESOLUTION_OPTIONS.find(
-    (r) => r.value === resolution,
-  )!;
-  const allUploaded =
-    images.length > 0 && images.every((img) => img.uploadStatus === "completed");
-  const hasUploading = images.some((img) => img.uploadStatus === "uploading");
-  const canSubmit = allUploaded && !isSubmitting && !hasUploading;
-  const totalCredits = images.length * selectedResolution.credits;
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      dropRef.current?.classList.remove("border-primary", "bg-primary/5");
-      if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
-    },
-    [handleFiles],
+  const selected = RESOLUTIONS.find((r) => r.value === resolution)!;
+  const ready = images.filter((img) => img.uploadStatus === "completed");
+  const uploading = images.some(
+    (img) => img.uploadStatus === "uploading" || img.uploadStatus === "pending",
   );
+  const canSubmit =
+    ready.length > 0 && ready.length === images.length && !submitting;
+  const isFull = images.length >= MAX_FILES;
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    dropRef.current?.classList.add("border-primary", "bg-primary/5");
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    dropRef.current?.classList.remove("border-primary", "bg-primary/5");
-  }, []);
-
-  const handleSubmit = useCallback(() => {
+  async function handleSubmit() {
     if (!canSubmit) return;
-    const payload = images
-      .filter((img) => img.blobUrl)
-      .map((img) => ({
-        imageUrl: img.blobUrl!,
-        originalName: img.name,
-        resolution,
-      }));
-    onSubmit(payload);
-    clearAll();
-  }, [canSubmit, images, resolution, onSubmit, clearAll]);
+    setSubmitting(true);
+    try {
+      const ok = await onSubmit(
+        ready
+          .filter((img) => img.blobUrl)
+          .map((img) => ({
+            imageUrl: img.blobUrl!,
+            originalName: img.name,
+            resolution,
+          })),
+      );
+      if (ok) clearAll();
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
-    <div className="flex w-full flex-col border-b bg-card p-4 sm:p-5 lg:w-[420px] lg:shrink-0 lg:max-h-[calc(100vh-64px)] lg:border-b-0 lg:border-r">
-      {/* Drop zone */}
-      <div
-        ref={dropRef}
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        className={cn(
-          "mb-5 rounded-xl border border-dashed border-border p-6 transition-colors",
-          images.length >= MAX_FILES && "pointer-events-none opacity-50",
-        )}
-      >
-        <div className="flex flex-col items-center gap-2 text-center">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-muted">
-            <ImageSquare className="size-5 text-muted-foreground" />
+    <div className="flex flex-col lg:h-full">
+      <div className="flex-1 space-y-6 p-4 sm:p-5 lg:overflow-y-auto">
+        <section className="space-y-3">
+          <div className="flex h-6 items-center justify-between gap-2">
+            <h2 className="text-sm font-medium">Images</h2>
+            {images.length > 0 ? (
+              <Button variant="ghost" size="xs" onClick={clearAll}>
+                Clear all
+              </Button>
+            ) : null}
           </div>
-          <p className="text-sm font-semibold">
-            Drop images here, or click to browse
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Up to {MAX_FILES} files &middot; JPEG, PNG, WebP &middot; Max 20 MB
-          </p>
-          <p className="text-[10px] text-muted-foreground/70">
-            {images.length}/{MAX_FILES} added
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-1 gap-1.5 rounded-full text-xs"
+
+          <button
+            type="button"
+            disabled={isFull || submitting}
             onClick={() => inputRef.current?.click()}
+            onDragOver={(event) => {
+              event.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(event) => {
+              event.preventDefault();
+              setDragging(false);
+              if (event.dataTransfer.files.length > 0) {
+                void handleFiles(event.dataTransfer.files);
+              }
+            }}
+            data-dragging={dragging || undefined}
+            className="flex w-full flex-col items-center gap-1.5 rounded-xl border border-dashed px-4 py-6 text-center transition-colors outline-none hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-dragging:border-foreground/30 data-dragging:bg-muted"
           >
-            Browse
-          </Button>
+            <UploadSimple className="mb-1 size-5 text-muted-foreground" />
+            <span className="text-sm font-medium">
+              Drop images or click to browse
+            </span>
+            <span className="text-xs text-muted-foreground">
+              JPEG, PNG or WebP, up to 20 MB each
+            </span>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {images.length} of {MAX_FILES} added
+            </span>
+          </button>
           <input
             ref={inputRef}
             type="file"
             accept={ACCEPTED_TYPES}
             multiple
             className="hidden"
-            onChange={(e) => {
-              if (e.target.files) handleFiles(e.target.files);
-              e.target.value = "";
+            onChange={(event) => {
+              if (event.target.files) void handleFiles(event.target.files);
+              event.target.value = "";
             }}
           />
-        </div>
+
+          {images.length > 0 ? (
+            <ul className="grid grid-cols-4 gap-2">
+              {images.map((img) => (
+                <QueuedImage
+                  key={img.id}
+                  image={img}
+                  onRemove={() => removeImage(img.id)}
+                />
+              ))}
+            </ul>
+          ) : null}
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-sm font-medium">Output resolution</h2>
+          <RadioGroup
+            value={resolution}
+            onValueChange={(value) => setResolution(value as Resolution)}
+            className="grid-cols-3 gap-2"
+          >
+            {RESOLUTIONS.map((option) => (
+              <FieldLabel
+                key={option.value}
+                htmlFor={`resolution-${option.value}`}
+              >
+                <Field orientation="horizontal" className="gap-2">
+                  <FieldContent>
+                    <FieldTitle>{option.label}</FieldTitle>
+                    <FieldDescription className="text-xs tabular-nums">
+                      {option.credits} credits
+                    </FieldDescription>
+                  </FieldContent>
+                  <RadioGroupItem
+                    value={option.value}
+                    id={`resolution-${option.value}`}
+                  />
+                </Field>
+              </FieldLabel>
+            ))}
+          </RadioGroup>
+        </section>
       </div>
 
-      {/* Image list */}
-      {images.length > 0 && (
-        <div className="mb-5 flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">
-              {images.length} image{images.length !== 1 && "s"}
-            </span>
-            <button
-              onClick={clearAll}
-              className="text-xs text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Clear all
-            </button>
-          </div>
-
-          <div className="grid max-h-[280px] grid-cols-5 gap-1.5 overflow-y-auto">
-            {images.map((img) => (
-              <div
-                key={img.id}
-                className="group relative aspect-square overflow-hidden rounded-md bg-secondary"
-              >
-                <Image
-                  loader={cdnLoader}
-                  src={img.previewUrl}
-                  alt={img.name}
-                  fill
-                  sizes="20vw"
-                  className="object-cover"
-                />
-                {img.uploadStatus === "uploading" && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                    <span className="text-[10px] font-bold text-white">
-                      {img.uploadProgress}%
-                    </span>
-                  </div>
-                )}
-                {img.uploadStatus === "pending" && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                    <Spinner className="size-3 text-white" />
-                  </div>
-                )}
-                <button
-                  onClick={() => removeImage(img.id)}
-                  className="absolute right-0.5 top-0.5 flex size-4 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity group-hover:opacity-100"
-                >
-                  <X className="size-2.5" weight="bold" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Resolution + Submit */}
-      <div className="mt-auto flex flex-col gap-3">
-        <div>
-          <label className="mb-2 block text-sm font-semibold">
-            Output Resolution
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {RESOLUTION_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setResolution(opt.value)}
-                className={cn(
-                  "flex flex-col items-center gap-0.5 rounded-xl border py-3 text-center transition-colors",
-                  resolution === opt.value
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-foreground/20",
-                )}
-              >
-                <span className="text-sm font-bold">{opt.label}</span>
-                <span className="text-[10px] text-muted-foreground">
-                  {opt.credits} cr. each
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-
+      <div className="border-t p-4 sm:p-5">
         <GenerateButton
-          credits={totalCredits > 0 ? totalCredits : undefined}
-          disabled={!canSubmit}
-          onClick={handleSubmit}
-          submitting={isSubmitting}
-          label={
-            images.length > 1
-              ? `Upscale ${images.length} Images`
-              : "Upscale Image"
+          label={images.length > 1 ? `Upscale ${images.length} images` : "Upscale"}
+          credits={
+            images.length > 0 ? images.length * selected.credits : undefined
           }
+          disabled={!canSubmit}
+          submitting={submitting}
+          submitState={uploading ? "uploading" : undefined}
+          onClick={handleSubmit}
           className="w-full"
         />
       </div>
     </div>
+  );
+}
+
+function QueuedImage({
+  image,
+  onRemove,
+}: {
+  image: ManagedImage;
+  onRemove: () => void;
+}) {
+  const failed = image.uploadStatus === "failed";
+  const busy =
+    image.uploadStatus === "uploading" || image.uploadStatus === "pending";
+
+  return (
+    <li
+      className="relative aspect-square overflow-hidden rounded-md bg-muted"
+      title={failed ? image.uploadError : image.name}
+    >
+      <img
+        src={image.previewUrl}
+        alt={image.name}
+        className="size-full object-cover"
+      />
+
+      {busy ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/70 text-xs font-medium tabular-nums">
+          {image.uploadStatus === "uploading" ? (
+            `${image.uploadProgress}%`
+          ) : (
+            <Spinner className="size-3.5" />
+          )}
+        </div>
+      ) : null}
+
+      {failed ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80">
+          <WarningCircle className="size-5 text-destructive" />
+          <span className="sr-only">Upload failed</span>
+        </div>
+      ) : null}
+
+      <Button
+        type="button"
+        variant="secondary"
+        size="icon-xs"
+        className="absolute top-1 right-1"
+        aria-label={`Remove ${image.name}`}
+        onClick={onRemove}
+      >
+        <X />
+      </Button>
+    </li>
   );
 }

@@ -54,10 +54,9 @@ export function useVoiceClones() {
     queryKey: voiceClonesQueryKey,
     queryFn: async (): Promise<VoiceCatalog> => {
       const res = await authFetch("/api/voice-clones/all");
-      if (!res.ok) throw new Error("Failed to load voices");
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.error || "Failed to load voices");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || "Couldn't load voices. Try again.");
       }
       return {
         presets: data.presets ?? [],
@@ -83,12 +82,12 @@ export function useVoiceClones() {
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to create voice clone");
+        throw new Error(data.error || "Couldn't clone the voice. Try again.");
       }
       return data.clone as VoiceClone;
     },
     onSuccess: (clone, params) => {
-      toast.success(`Voice "${params.name}" cloned successfully`);
+      toast.success(`Cloned ${params.name}`);
       queryClient.setQueryData<VoiceCatalog>(voiceClonesQueryKey, (prev) => {
         const base = prev ?? DEFAULT_CATALOG;
         if (base.clones.some((c) => c.id === clone.id)) return base;
@@ -105,11 +104,20 @@ export function useVoiceClones() {
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to delete voice clone");
+        throw new Error(
+          data.error || "Couldn't delete the cloned voice. Try again.",
+        );
       }
     },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error && error.message
+          ? error.message
+          : "Couldn't delete the cloned voice. Try again.",
+      );
+    },
     onSuccess: (_data, cloneId) => {
-      toast.success("Voice clone deleted");
+      toast.success("Cloned voice deleted");
       queryClient.setQueryData<VoiceCatalog>(voiceClonesQueryKey, (prev) => {
         if (!prev) return prev;
         return {
@@ -126,6 +134,7 @@ export function useVoiceClones() {
   return {
     catalog: query.data ?? DEFAULT_CATALOG,
     loading: query.isLoading,
+    isError: query.isError,
     refresh,
     createClone: createMutation.mutateAsync,
     deleteClone: deleteMutation.mutateAsync,

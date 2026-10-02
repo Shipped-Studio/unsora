@@ -13,12 +13,9 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
-
-// ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface ParamOption {
   value: string;
@@ -26,11 +23,11 @@ export interface ParamOption {
 }
 
 /**
- * How a parameter is rendered in the toolbar:
- * - "select"   → dropdown (e.g. generation mode, style)
- * - "duration" → popover with a slider, trigger shows "10s"
- * - "aspect"   → dropdown of aspect ratios
- * - "toggle"   → on/off button; options[0] is "on", options[1] is "off"
+ * How a parameter renders in the composer toolbar:
+ * - "select":   dropdown (generation mode, style)
+ * - "duration": popover with a slider; the trigger shows "10s"
+ * - "aspect":   dropdown of aspect ratios
+ * - "toggle":   checkbox; options[0] is on, options[1] is off
  */
 export type ParamType = "select" | "duration" | "aspect" | "toggle";
 
@@ -40,17 +37,15 @@ export interface ParamConfig {
   type: ParamType;
   options: ParamOption[];
   defaultValue: string;
-  /** When true, the trigger shows only the value (no "Label: " prefix). */
+  /** Show only the value on the trigger, without the "Label: " prefix. */
   hideLabel?: boolean;
 }
 
 export const GHOST_TRIGGER_CLASS =
-  "h-8 text-xs gap-1 px-2 font-normal text-muted-foreground hover:text-foreground";
-
-// ─── Duration slider ─────────────────────────────────────────────────────────
+  "h-8 gap-1 px-2 text-xs font-normal text-muted-foreground hover:text-foreground";
 
 export function parseDuration(value: string): number {
-  return parseInt(value.replace("s", ""));
+  return parseInt(value.replace("s", ""), 10);
 }
 
 function computeSliderStep(values: number[]): number {
@@ -80,11 +75,14 @@ export function DurationSlider({
   const currentNum = parseDuration(value);
 
   return (
-    <div className="space-y-2">
-      <span className="text-xs font-medium text-muted-foreground">
-        Duration {currentNum}s
-      </span>
-      <div className="flex items-center gap-3 mt-2">
+    <div className="space-y-3">
+      <p className="text-sm font-medium">
+        Duration{" "}
+        <span className="font-normal tabular-nums text-muted-foreground">
+          {currentNum}s
+        </span>
+      </p>
+      <div className="flex items-center gap-3">
         <span className="text-xs tabular-nums text-muted-foreground">
           {minVal}s
         </span>
@@ -107,7 +105,42 @@ export function DurationSlider({
   );
 }
 
-// ─── Toolbar param control ───────────────────────────────────────────────────
+function OptionSelect({
+  param,
+  value,
+  display,
+  disabled,
+  onChange,
+}: {
+  param: ParamConfig;
+  value: string;
+  display: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Select
+      value={value}
+      onValueChange={(v) => v != null && onChange(v)}
+      disabled={disabled}
+    >
+      <SelectTrigger
+        variant="ghost"
+        aria-label={param.label}
+        className={GHOST_TRIGGER_CLASS}
+      >
+        <span className="truncate">{display}</span>
+      </SelectTrigger>
+      <SelectContent>
+        {param.options.map((opt) => (
+          <SelectItem key={opt.value} value={opt.value} className="text-xs">
+            {opt.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 export function ParamControl({
   param,
@@ -120,53 +153,55 @@ export function ParamControl({
   disabled: boolean;
   onChange: (value: string) => void;
 }) {
+  const valueLabel =
+    param.options.find((o) => o.value === value)?.label ?? value;
+
   switch (param.type) {
-    case "select": {
-      const valueLabel =
-        param.options.find((o) => o.value === value)?.label ?? value;
-      // Bare "Auto" is ambiguous when several selects sit side by side
-      const display =
-        value === "auto" ? `${param.label}: ${valueLabel}` : valueLabel;
+    case "select":
       return (
-        <Select
+        <OptionSelect
+          param={param}
           value={value}
-          onValueChange={(v) => v != null && onChange(v)}
+          // A bare "Auto" is ambiguous when several selects sit side by side.
+          display={
+            value === "auto" ? `${param.label}: ${valueLabel}` : valueLabel
+          }
           disabled={disabled}
-        >
-          <SelectTrigger variant="ghost" className={GHOST_TRIGGER_CLASS}>
-            <span className="truncate">{display}</span>
-          </SelectTrigger>
-          <SelectContent>
-            {param.options.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          onChange={onChange}
+        />
       );
-    }
+
+    case "aspect":
+      return (
+        <OptionSelect
+          param={param}
+          value={value}
+          display={
+            param.hideLabel ? valueLabel : `${param.label}: ${valueLabel}`
+          }
+          disabled={disabled}
+          onChange={onChange}
+        />
+      );
 
     case "duration":
       return (
         <Popover>
-          <PopoverTrigger>
-            <Button
-              variant="ghost"
-              disabled={disabled}
-              className={GHOST_TRIGGER_CLASS}
-            >
-              <Timer className="size-3.5" />
-              {parseDuration(value)}s
-              <CaretDown className="size-3 text-muted-foreground" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent
-            className="w-72"
-            side="top"
-            align="start"
-            sideOffset={8}
+          <PopoverTrigger
+            render={
+              <Button
+                variant="ghost"
+                disabled={disabled}
+                aria-label={`Duration: ${parseDuration(value)} seconds`}
+                className={GHOST_TRIGGER_CLASS}
+              />
+            }
           >
+            <Timer className="size-3.5" />
+            <span className="tabular-nums">{parseDuration(value)}s</span>
+            <CaretDown className="size-3" />
+          </PopoverTrigger>
+          <PopoverContent className="w-72" side="top" align="start" sideOffset={8}>
             <DurationSlider
               options={param.options}
               value={value}
@@ -176,40 +211,15 @@ export function ParamControl({
         </Popover>
       );
 
-    case "aspect": {
-      const valueLabel =
-        param.options.find((o) => o.value === value)?.label ?? value;
-      return (
-        <Select
-          value={value}
-          onValueChange={(v) => v != null && onChange(v)}
-          disabled={disabled}
-        >
-          <SelectTrigger variant="ghost" className={GHOST_TRIGGER_CLASS}>
-            <span className="truncate">
-              {param.hideLabel ? valueLabel : `${param.label}: ${valueLabel}`}
-            </span>
-          </SelectTrigger>
-          <SelectContent>
-            {param.options.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      );
-    }
-
     case "toggle": {
       const [onOpt, offOpt] = param.options;
       const isOn = value === onOpt.value;
       return (
         <label
           className={cn(
-            "group/field flex cursor-pointer items-center gap-2 px-2 text-xs font-medium transition-colors",
-            disabled && "cursor-not-allowed opacity-50",
-            isOn ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+            "flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-xs transition-colors hover:bg-secondary",
+            disabled && "pointer-events-none opacity-50",
+            isOn ? "text-foreground" : "text-muted-foreground",
           )}
         >
           <Checkbox
@@ -226,8 +236,7 @@ export function ParamControl({
   }
 }
 
-// ─── Count select ────────────────────────────────────────────────────────────
-
+/** "1 video", "2 videos"... Number of outputs per submit. */
 export function CountSelect({
   value,
   max = 10,
@@ -241,20 +250,24 @@ export function CountSelect({
   disabled: boolean;
   onChange: (value: number) => void;
 }) {
+  const label = (n: number) => `${n} ${noun}${n === 1 ? "" : "s"}`;
   return (
     <Select
       value={String(value)}
       onValueChange={(v) => v != null && onChange(Number(v))}
       disabled={disabled}
     >
-      <SelectTrigger variant="ghost" className={GHOST_TRIGGER_CLASS}>
-        <SelectValue />
+      <SelectTrigger
+        variant="ghost"
+        aria-label="Number of results"
+        className={GHOST_TRIGGER_CLASS}
+      >
+        <span className="tabular-nums">{label(value)}</span>
       </SelectTrigger>
       <SelectContent>
         {Array.from({ length: max }, (_, i) => i + 1).map((n) => (
           <SelectItem key={n} value={String(n)} className="text-xs">
-            {n} {noun}
-            {n > 1 ? "s" : ""}
+            {label(n)}
           </SelectItem>
         ))}
       </SelectContent>

@@ -70,9 +70,7 @@ export function SyncedLyrics({
 
   if (lines.length === 0) {
     return (
-      <p className="text-xs text-muted-foreground/70 italic">
-        No lyrics for this track
-      </p>
+      <p className="text-xs text-muted-foreground">No lyrics for this track</p>
     );
   }
 
@@ -105,21 +103,18 @@ export function SyncedLyrics({
                 lineRefs.current[index] = el;
               }}
               className={cn(
-                "origin-left transition-all duration-300",
+                "transition-colors duration-300",
                 line.isSection
-                  ? "text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70"
-                  : variant === "overlay"
-                    ? "text-xs leading-relaxed"
-                    : variant === "compact"
-                      ? "text-[11px] leading-snug"
-                      : "text-sm leading-relaxed",
-                isCurrent
-                  ? "scale-[1.02] font-semibold text-foreground"
-                  : distance === 1
-                    ? "text-foreground/70"
-                    : distance === 2
+                  ? "text-xs text-muted-foreground"
+                  : variant === "card"
+                    ? "text-sm leading-relaxed"
+                    : "text-xs leading-relaxed",
+                !line.isSection &&
+                  (isCurrent
+                    ? "font-medium text-foreground"
+                    : distance === 1
                       ? "text-muted-foreground"
-                      : "text-muted-foreground/45",
+                      : "text-muted-foreground"),
               )}
             >
               {line.text}

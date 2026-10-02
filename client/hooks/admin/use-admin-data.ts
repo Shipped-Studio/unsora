@@ -20,8 +20,13 @@ import type {
 
 /** Whether the signed-in user may access /admin (server-computed flag). */
 export function useIsAdmin() {
-  const { usage, loading } = useUserUsage();
-  return { isAdmin: usage?.user?.isAdmin === true, loading };
+  const { usage, loading, error } = useUserUsage();
+  // The usage query waits for Clerk; count that wait as loading so the gate
+  // doesn't flash "access required" first.
+  return {
+    isAdmin: usage?.user?.isAdmin === true,
+    loading: loading || (!usage && !error),
+  };
 }
 
 /** Shared fetcher: throws on non-ok / { success:false }. */

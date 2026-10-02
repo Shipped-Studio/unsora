@@ -1,154 +1,121 @@
 "use client";
 
 import { useState } from "react";
+import { AdminPage } from "@/components/admin/admin-page";
+import { RangeSelect } from "@/components/admin/range-select";
 import {
-  Users,
-  Lightning,
-  Sparkle,
-  CheckCircle,
-  XCircle,
-  ShareNetwork,
-  Stack,
-  UserPlus,
-} from "@phosphor-icons/react";
-import { PageHeader, RangeSelect } from "@/components/admin/page-header";
-import {
-  ChartCard,
-  StatTile,
-  BarList,
-  DonutChart,
   AreaChart,
-  useChartTheme,
+  BarList,
+  ChartCard,
+  DonutChart,
+  StatTile,
   kindLabel,
+  statusColor,
 } from "@/components/admin/charts";
+import { ErrorState } from "@/components/shared/states";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAdminOverview } from "@/hooks/admin/use-admin-data";
 import { compactNumber, titleCase } from "@/lib/admin-format";
-import { Skeleton } from "@/components/ui/skeleton";
 
 export default function AdminOverviewPage() {
   const [days, setDays] = useState(30);
-  const { data, isLoading, error } = useAdminOverview(days);
-  const theme = useChartTheme();
+  const { data, isLoading, error, refetch } = useAdminOverview(days);
 
   return (
-    <div>
-      <PageHeader
-        title="Overview"
-        description="Everything happening across Unsora at a glance."
-        actions={<RangeSelect value={days} onChange={setDays} />}
-      />
-
-      {error && (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-          Failed to load overview. {(error as Error).message}
-        </div>
-      )}
-
-      {isLoading || !data ? (
+    <AdminPage
+      isRoot
+      title="Admin"
+      description="Activity across Unsora"
+      actions={<RangeSelect value={days} onChange={setDays} />}
+    >
+      {error && !data ? (
+        <ErrorState
+          title="Couldn't load the overview"
+          description={error.message}
+          onRetry={() => void refetch()}
+        />
+      ) : isLoading || !data ? (
         <LoadingGrid />
       ) : (
         <div className="flex flex-col gap-4">
-          {/* KPI row */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatTile
               label="Total users"
               value={data.kpis.totalUsers.toLocaleString()}
               hint={`${data.kpis.newUsers7d.toLocaleString()} new this week`}
-              icon={Users}
               spark={data.series.newUsers.map((d) => d.count)}
             />
             <StatTile
               label="Paid users"
               value={data.kpis.paidUsers.toLocaleString()}
               hint={`${data.kpis.activeUsers.toLocaleString()} active subscriptions`}
-              icon={Lightning}
-              accent="good"
             />
             <StatTile
               label="Tasks (all time)"
               value={compactNumber(data.kpis.totalTasks)}
-              hint={`${data.kpis.tasks24h.toLocaleString()} in last 24h`}
-              icon={Stack}
+              hint={`${data.kpis.tasks24h.toLocaleString()} in the last 24h`}
               spark={data.series.tasks.map((d) => d.count)}
             />
             <StatTile
               label="Credits consumed"
               value={compactNumber(data.kpis.creditsConsumed)}
-              hint={`over the selected range`}
-              icon={Sparkle}
-              accent="warning"
+              hint={`In the last ${days} days`}
               spark={data.series.credits.map((d) => d.count)}
             />
             <StatTile
               label="New users"
               value={data.kpis.newUsers30d.toLocaleString()}
-              hint={`in the last ${days} days`}
-              icon={UserPlus}
+              hint={`In the last ${days} days`}
             />
             <StatTile
               label="Completed"
               value={compactNumber(data.kpis.completedTasks)}
-              hint="successful generations"
-              icon={CheckCircle}
-              accent="good"
+              hint="Successful generations"
             />
             <StatTile
               label="Failed"
               value={compactNumber(data.kpis.failedTasks)}
-              hint="need attention"
-              icon={XCircle}
-              accent="critical"
+              hint="Generations that errored"
             />
             <StatTile
               label="Connected accounts"
               value={data.kpis.connectedAccounts.toLocaleString()}
-              hint="social integrations"
-              icon={ShareNetwork}
+              hint="Social integrations"
             />
           </div>
 
-          {/* Time series */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <ChartCard
               title="Tasks per day"
-              description={`Generations across all features · last ${days} days`}
+              description={`Generations across all features, last ${days} days`}
             >
               <AreaChart
                 data={data.series.tasks}
-                series={[
-                  { key: "count", label: "Tasks", color: theme.sequential },
-                ]}
+                series={[{ key: "count", label: "Tasks", color: "var(--chart-1)" }]}
               />
             </ChartCard>
             <ChartCard
-              title="New sign-ups per day"
-              description={`New accounts · last ${days} days`}
+              title="Sign-ups per day"
+              description={`New accounts, last ${days} days`}
             >
               <AreaChart
                 data={data.series.newUsers}
-                series={[
-                  { key: "count", label: "Sign-ups", color: theme.cat(1) },
-                ]}
+                series={[{ key: "count", label: "Sign-ups", color: "var(--chart-2)" }]}
               />
             </ChartCard>
           </div>
 
-          {/* Distributions */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <ChartCard title="Task status" className="lg:col-span-1">
+            <ChartCard title="Task status">
               <DonutChart
                 slices={data.taskStatus.map((s) => ({
-                  label: titleCase(s.status),
+                  label: titleCase(s.status.toLowerCase()),
                   value: s.count,
-                  color: theme.statusColor(s.status),
+                  color: statusColor(s.status),
                 }))}
               />
             </ChartCard>
-            <ChartCard
-              title="Feature usage"
-              description="Tasks by feature"
-              className="lg:col-span-1"
-            >
+            <ChartCard title="Feature usage" description="Tasks by feature">
               <BarList
                 items={data.kindCounts.map((k) => ({
                   label: kindLabel(k.kind),
@@ -159,13 +126,11 @@ export default function AdminOverviewPage() {
             <ChartCard
               title="Connected platforms"
               description="Linked social accounts"
-              className="lg:col-span-1"
             >
               <BarList
-                items={data.providers.map((p, i) => ({
+                items={data.providers.map((p) => ({
                   label: titleCase(p.provider),
                   value: p.count,
-                  color: theme.cat(i),
                 }))}
                 emptyLabel="No connected accounts yet"
               />
@@ -173,7 +138,7 @@ export default function AdminOverviewPage() {
           </div>
         </div>
       )}
-    </div>
+    </AdminPage>
   );
 }
 
@@ -182,12 +147,12 @@ function LoadingGrid() {
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {Array.from({ length: 8 }).map((_, i) => (
-          <Skeleton key={i} className="h-[104px] rounded-xl" />
+          <Skeleton key={i} className="h-26 rounded-xl" />
         ))}
       </div>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Skeleton className="h-[300px] rounded-xl" />
-        <Skeleton className="h-[300px] rounded-xl" />
+        <Skeleton className="h-75 rounded-xl" />
+        <Skeleton className="h-75 rounded-xl" />
       </div>
     </div>
   );

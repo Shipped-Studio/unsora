@@ -1,42 +1,38 @@
 "use client";
 
-import { X } from "@phosphor-icons/react";
 import Image from "next/image";
-import type { ThumbnailTemplate } from "@/fake";
+import { X } from "@phosphor-icons/react";
+import type { ThumbnailTemplate } from "@/lib/thumbmaker-types";
 
-interface TemplateStripProps {
-  templates: ThumbnailTemplate[];
-  onRemove: (id: string) => void;
-}
-
-export function TemplateStrip({ templates, onRemove }: TemplateStripProps) {
-  if (templates.length === 0) return null;
-
-  const isExternal = (src: string) =>
-    src.startsWith("http") && !src.includes("unsplash.com");
-
+/** The chosen template, shown above the composer. */
+export function TemplateStrip({
+  template,
+  onRemove,
+}: {
+  template: ThumbnailTemplate;
+  onRemove: () => void;
+}) {
   return (
-    <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-      {templates.map((t) => (
-        <div
-          key={t.id}
-          className="group relative shrink-0 w-28 aspect-video overflow-hidden rounded-lg border shadow-sm"
+    <div className="flex shrink-0 flex-col gap-1">
+      <div className="group relative aspect-video w-28 overflow-hidden rounded-xl bg-muted">
+        <Image
+          src={template.src}
+          alt={template.title}
+          fill
+          sizes="112px"
+          unoptimized
+          className="object-cover"
+        />
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label="Remove template"
+          className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full border bg-background text-foreground transition-opacity focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100"
         >
-          <Image
-            src={t.src}
-            alt={t.title}
-            fill
-            className="object-cover"
-            unoptimized={isExternal(t.src)}
-          />
-          <button
-            onClick={() => onRemove(t.id)}
-            className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-background/80 text-foreground opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100"
-          >
-            <X className="size-3" weight="bold" />
-          </button>
-        </div>
-      ))}
+          <X className="size-3" weight="bold" />
+        </button>
+      </div>
+      <span className="text-xs text-muted-foreground">Template</span>
     </div>
   );
 }

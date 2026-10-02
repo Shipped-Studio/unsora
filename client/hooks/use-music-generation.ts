@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAuthFetch } from "./use-auth-fetch";
 import { toast } from "sonner";
-import { formatTrackLabel, deriveSongTitleFromLyrics } from "@/lib/music-track";
+import { deriveSongTitleFromLyrics } from "@/lib/music-track";
 
 export type MusicGenerationStatus =
   | "idle"
@@ -29,6 +29,11 @@ export interface ActiveMusicGeneration {
 const POLL_INTERVAL_MS = 4_000;
 const AUTO_DISMISS_DELAY_MS = 2_000;
 
+export const musicGenerationQueryKeys = {
+  all: ["music-generations"] as const,
+  list: () => [...musicGenerationQueryKeys.all, "list"] as const,
+};
+
 export function useMusicGeneration(options?: {
   onComplete?: (id: string) => void;
 }) {
@@ -40,7 +45,9 @@ export function useMusicGeneration(options?: {
     new Map(),
   );
   const onCompleteRef = useRef(options?.onComplete);
-  onCompleteRef.current = options?.onComplete;
+  useEffect(() => {
+    onCompleteRef.current = options?.onComplete;
+  });
   const tempIdCounter = useRef(0);
 
   const stopPolling = useCallback((generationId: string) => {
@@ -83,12 +90,9 @@ export function useMusicGeneration(options?: {
           if (gen.status === "COMPLETED" || gen.status === "FAILED") {
             stopPolling(generationId);
             if (gen.status === "COMPLETED") {
-              const label =
-                gen.trackNumber != null && gen.trackNumber > 0
-                  ? formatTrackLabel(gen.trackNumber)
-                  : "Track";
-              const name = gen.songTitle ? `${label} — ${gen.songTitle}` : label;
-              toast.success(`${name} is ready!`);
+              toast.success(
+                gen.songTitle ? `${gen.songTitle} is ready` : "Song ready",
+              );
               onCompleteRef.current?.(generationId);
               setTimeout(() => {
                 setActiveGenerations((prev) =>
@@ -97,12 +101,14 @@ export function useMusicGeneration(options?: {
               }, AUTO_DISMISS_DELAY_MS);
             } else {
               toast.error(
-                `Generation failed: ${gen.error || "Unknown error"}`,
+                gen.error
+                  ? `Couldn't generate the song. ${gen.error}`
+                  : "Couldn't generate the song. Try again.",
               );
             }
           }
         } catch {
-          // network blip — keep polling
+          // A dropped poll is retried on the next tick.
         }
       }, POLL_INTERVAL_MS);
 
@@ -145,7 +151,8 @@ export function useMusicGeneration(options?: {
         const data = await res.json();
 
         if (!res.ok || !data.success) {
-          const errorMsg = data.error || "Failed to start generation";
+          const errorMsg =
+            data.error || "Couldn't start the song. Try again.";
           setActiveGenerations((prev) =>
             prev.map((g) =>
               g.id === tempId
@@ -178,11 +185,17 @@ export function useMusicGeneration(options?: {
         setActiveGenerations((prev) =>
           prev.map((g) =>
             g.id === tempId
-              ? { ...g, status: "FAILED" as const, error: "Network error" }
+              ? {
+                  ...g,
+                  status: "FAILED" as const,
+                  error: "Couldn't reach the server.",
+                }
               : g,
           ),
         );
-        toast.error("Network error — please try again");
+        toast.error(
+          "Couldn't reach the server. Check your connection and try again.",
+        );
         return null;
       }
     },

@@ -271,6 +271,7 @@ export class ThumbnailController {
         jobId: g.taskId,
         status: g.status,
         error: g.error,
+        creditsUsed: g.creditsUsed,
         completedAt:
           g.status === "COMPLETED" ? g.updatedAt.toISOString() : null,
         createdAt: g.createdAt.toISOString(),

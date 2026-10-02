@@ -174,7 +174,9 @@ export class TikTokService {
   ): Promise<PublishResult> {
     const settings = readStoredTikTokSettings(accountSettings ?? undefined);
 
-    if (postType === "CAROUSEL") {
+    // TikTok photo mode takes 1 to 35 images, so a single photo is published
+    // the same way as a carousel.
+    if (postType === "CAROUSEL" || postType === "IMAGE") {
       return this.publishPhotoPost(media, account, caption, settings);
     }
 

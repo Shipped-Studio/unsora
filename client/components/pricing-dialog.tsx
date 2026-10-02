@@ -1,178 +1,205 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Lightning } from "@phosphor-icons/react";
-import { Spinner } from "@/components/ui/spinner";
+import { Check } from "@phosphor-icons/react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
+import { EmptyState, ErrorState } from "@/components/shared/states";
+import {
+  formatUsd,
+  intervalLabel,
+  planCreditsLabel,
+} from "@/components/billing/format";
+import { redirectToStripe } from "@/components/billing/redirect-to-stripe";
 import { PLAN_PRESENTATION } from "@/constant";
 import { useAuthFetch } from "@/hooks/use-auth-fetch";
-import { useUserUsage } from "@/hooks/use-user-usage";
 import { useSubscriptionPlans } from "@/hooks/use-subscription-plans";
+import { useUserUsage } from "@/hooks/use-user-usage";
+import { cn } from "@/lib/utils";
 
 interface PricingDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
+function gridCols(count: number) {
+  return count >= 4 ? "md:grid-cols-2 lg:grid-cols-4" : "md:grid-cols-3";
+}
+
 export function PricingDialog({ open, onOpenChange }: PricingDialogProps) {
-  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
   const { authFetch } = useAuthFetch();
   const { usage } = useUserUsage();
-  const { plans, loading: plansLoading } = useSubscriptionPlans();
+  const { plans, loading, error, refetch } = useSubscriptionPlans();
 
-  const currentPlan = usage?.user?.plan?.toLowerCase() ?? "free";
-  const isPaid = usage?.user?.isActive === true;
+  const currentKey = (usage?.user.plan ?? "free").toLowerCase();
+  const isPaid = usage?.user.isActive === true && currentKey !== "free";
+  const currentPrice =
+    plans?.find((p) => p.key === currentKey)?.priceUsd ?? 0;
 
-  const handleSelectPlan = async (planKey: string) => {
-    setLoadingPlan(planKey);
-    try {
-      // Subscribed users go through the plan-switch flow (old subscription
-      // cancelled on payment, remaining credits carried over); free users
-      // through the regular first-purchase checkout.
-      const endpoint = isPaid
-        ? "/api/stripe/upgrade-plan"
-        : "/api/stripe/create-checkout-session";
-      const response = await authFetch(endpoint, {
+  const handleSelect = async (planKey: string) => {
+    setPendingKey(planKey);
+    // Subscribers switch plans (old subscription cancelled once the new one
+    // is paid, plan credits carried over); everyone else starts a checkout.
+    const endpoint = isPaid
+      ? "/api/stripe/upgrade-plan"
+      : "/api/stripe/create-checkout-session";
+    const redirecting = await redirectToStripe(
+      authFetch(endpoint, {
         method: "POST",
         body: JSON.stringify({ key: planKey }),
-      });
-
-      const data = await response.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        setLoadingPlan(null);
-      }
-    } catch {
-      setLoadingPlan(null);
-    }
+      }),
+      "Couldn't start checkout",
+    );
+    if (!redirecting) setPendingKey(null);
   };
+
+  const count = plans?.length ?? 3;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-6xl max-h-[90dvh] p-0 gap-0 overflow-hidden flex flex-col">
-        <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
-          <DialogTitle className="text-xl font-semibold">
-            Upgrade your plan
-          </DialogTitle>
+      <DialogContent
+        className={cn(
+          "flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0",
+          count >= 4 ? "sm:max-w-6xl" : "sm:max-w-4xl",
+        )}
+      >
+        <DialogHeader className="border-b p-6 pr-12">
+          <DialogTitle>{isPaid ? "Change plan" : "Choose a plan"}</DialogTitle>
           <DialogDescription>
             {isPaid
-              ? "Choose your new plan. Your current subscription will be cancelled, unused plan credits carry over, and top-up credits stay as they are."
-              : "Choose the plan that works best for you."}
+              ? "Your current subscription ends once the new plan is paid. Unused plan credits carry over and top-up credits stay as they are."
+              : "Plans renew automatically. You can cancel any time from Billing."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="overflow-y-auto overscroll-contain p-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {plansLoading && !plans
-            ? Array.from({ length: 3 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="h-96 animate-pulse rounded-xl border border-border bg-muted/40"
-                />
-              ))
-            : (plans ?? []).map((plan) => {
-                const key = plan.key;
-                const presentation = PLAN_PRESENTATION[key];
-                const features = presentation?.features ?? [];
-                const isPopular = plan.isPopular === true;
-                const isBestValue = presentation?.isBestValue === true;
-                const isCurrent = currentPlan === key;
+        <div className="overflow-y-auto overscroll-contain p-6">
+          {loading ? (
+            <div className={cn("grid grid-cols-1 gap-3", gridCols(3))}>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Card key={i} size="sm">
+                  <CardHeader>
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-4 w-40" />
+                  </CardHeader>
+                  <CardContent className="gap-2">
+                    <Skeleton className="h-8 w-20" />
+                    <Skeleton className="h-4 w-36" />
+                    <Skeleton className="mt-3 h-20 w-full" />
+                  </CardContent>
+                  <CardFooter>
+                    <Skeleton className="h-9 w-full" />
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
+          ) : error ? (
+            <ErrorState
+              title="Couldn't load plans"
+              description={error}
+              onRetry={() => void refetch()}
+            />
+          ) : !plans?.length ? (
+            <EmptyState
+              title="No plans available"
+              description="Plans are being updated. Check back in a few minutes."
+            />
+          ) : (
+            <div className={cn("grid grid-cols-1 gap-3", gridCols(plans.length))}>
+              {plans.map((plan) => {
+                const isCurrent = isPaid && plan.key === currentKey;
+                const per = intervalLabel(plan.interval);
+                const features = PLAN_PRESENTATION[plan.key]?.features ?? [];
+                const label = !isPaid
+                  ? `Choose ${plan.name}`
+                  : plan.priceUsd > currentPrice
+                    ? `Upgrade to ${plan.name}`
+                    : `Switch to ${plan.name}`;
 
                 return (
-                  <div
-                    key={key}
-                className={cn(
-                  "relative flex flex-col rounded-xl border p-5 transition-all",
-                  isPopular
-                    ? "border-primary ring-1 ring-primary"
-                    : "border-border",
-                  isCurrent && "bg-muted/40",
-                )}
-              >
-                {isPopular && (
-                  <Badge className="absolute -top-2.5 left-1/2 -translate-x-1/2">
-                    Most Popular
-                  </Badge>
-                )}
-                {isBestValue && (
-                  <Badge
-                    variant="outline"
-                    className="absolute -top-2.5 left-1/2 -translate-x-1/2 border-primary bg-background text-primary"
+                  <Card
+                    key={plan.key}
+                    size="sm"
+                    className={cn(isCurrent && "ring-foreground/30")}
                   >
-                    Best Value
-                  </Badge>
-                )}
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between gap-2">
+                        {plan.name}
+                        {isCurrent ? (
+                          <Badge variant="secondary">Current plan</Badge>
+                        ) : null}
+                      </CardTitle>
+                      {plan.description ? (
+                        <CardDescription>{plan.description}</CardDescription>
+                      ) : null}
+                    </CardHeader>
 
-                <div className="mb-4">
-                  <h3 className="text-sm font-semibold">{plan.name}</h3>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {plan.description}
-                  </p>
-                </div>
-
-                <div className="mb-4 flex items-baseline gap-1">
-                  <span className="text-3xl font-bold">${plan.priceUsd}</span>
-                  <span className="text-sm text-muted-foreground">/mo</span>
-                </div>
-
-                <div className="mb-1 text-xs font-medium text-muted-foreground">
-                  {plan.credits.toLocaleString()} credits/month
-                </div>
-
-                <ul className="mb-5 mt-3 flex flex-col gap-2">
-                  {features.map((feature) => (
-                    <li
-                      key={feature}
-                      className="flex items-start gap-2 text-xs text-foreground/80"
-                    >
-                      <Check
-                        weight="bold"
-                        className="mt-0.5 size-3.5 shrink-0 text-primary"
-                      />
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="mt-auto">
-                  {isCurrent ? (
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      size="sm"
-                      disabled
-                    >
-                      Current Plan
-                    </Button>
-                  ) : (
-                    <Button
-                      className="w-full"
-                      disabled={loadingPlan !== null}
-                      onClick={() => handleSelectPlan(key)}
-                    >
-                      {loadingPlan === key ? (
-                        <Spinner />
-                      ) : (
+                    <CardContent className="flex-1 gap-0">
+                      <p className="text-3xl font-medium tabular-nums">
+                        {formatUsd(plan.priceUsd)}
+                        {per ? (
+                          <span className="text-sm font-normal text-muted-foreground">
+                            {" "}
+                            / {per}
+                          </span>
+                        ) : null}
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {planCreditsLabel(plan.credits, plan.interval)}
+                      </p>
+                      {features.length ? (
                         <>
-                          <Lightning weight="fill" className="size-3.5" />
-                          Get {plan.name}
+                          <Separator className="my-4" />
+                          <ul className="space-y-2">
+                            {features.map((feature) => (
+                              <li key={feature} className="flex gap-2">
+                                <Check className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                                <span>{feature}</span>
+                              </li>
+                            ))}
+                          </ul>
                         </>
-                      )}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                      ) : null}
+                    </CardContent>
+
+                    {isCurrent ? null : (
+                      <CardFooter>
+                        <Button
+                          className="w-full"
+                          variant={plan.isPopular ? "default" : "outline"}
+                          disabled={pendingKey !== null}
+                          onClick={() => void handleSelect(plan.key)}
+                        >
+                          {pendingKey === plan.key ? (
+                            <Spinner data-icon="inline-start" />
+                          ) : null}
+                          {label}
+                        </Button>
+                      </CardFooter>
+                    )}
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

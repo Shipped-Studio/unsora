@@ -1,7 +1,5 @@
-"use client";
-
 import { ManageTemplatesPage } from "@/components/thumbnail-generator/manage-templates-page";
 
-export default function ThumbMakerTemplatesPage() {
+export default function ThumbnailTemplatesPage() {
   return <ManageTemplatesPage />;
 }

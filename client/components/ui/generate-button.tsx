@@ -1,13 +1,8 @@
 "use client";
 
-import { Lightning } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 interface GenerateButtonProps {
   credits?: number;
@@ -19,6 +14,7 @@ interface GenerateButtonProps {
   className?: string;
 }
 
+/** The primary action on every tool composer: label plus the credit cost. */
 export function GenerateButton({
   credits,
   disabled,
@@ -29,45 +25,30 @@ export function GenerateButton({
   className,
 }: GenerateButtonProps) {
   const isUploading = submitState === "uploading";
-  const isSubmitting =
+  const isBusy =
     submitting || (submitState !== undefined && submitState !== "idle");
 
-  const button = (
+  return (
     <Button
-      disabled={disabled || isSubmitting}
+      disabled={disabled || isBusy}
       onClick={onClick}
-      variant="brand"
-      className={className}
+      className={cn("min-w-28", className)}
     >
-      {isSubmitting ? (
+      {isBusy ? (
         <>
           <Spinner />
-          {isUploading ? "Uploading..." : "Generating..."}
+          {isUploading ? "Uploading" : "Starting"}
         </>
       ) : (
         <>
           {label}
-          {credits !== undefined && (
-            <span className="ml-1.5 flex items-center gap-1 text-[10px]">
-              {credits} <Lightning className="size-3" />
+          {credits !== undefined ? (
+            <span className="font-normal tabular-nums opacity-70">
+              {credits} {credits === 1 ? "credit" : "credits"}
             </span>
-          )}
+          ) : null}
         </>
       )}
     </Button>
   );
-
-  if (credits !== undefined && !isSubmitting) {
-    return (
-      <Tooltip>
-        <TooltipTrigger>{button}</TooltipTrigger>
-        <TooltipContent>
-          <Lightning className="size-3" weight="fill" />
-          Costs {credits} credits
-        </TooltipContent>
-      </Tooltip>
-    );
-  }
-
-  return button;
 }

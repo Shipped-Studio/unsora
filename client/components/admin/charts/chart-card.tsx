@@ -1,6 +1,4 @@
-"use client";
-
-import { cn } from "@/lib/utils";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ReactNode } from "react";
 
 export function ChartCard({
@@ -17,30 +15,17 @@ export function ChartCard({
   children: ReactNode;
 }) {
   return (
-    <div
-      className={cn(
-        "flex flex-col rounded-xl border border-border bg-card p-4 sm:p-5",
-        className,
-      )}
-    >
-      {(title || action) && (
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            {title && (
-              <h3 className="truncate text-sm font-semibold text-foreground">
-                {title}
-              </h3>
-            )}
-            {description && (
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {description}
-              </p>
-            )}
-          </div>
-          {action && <div className="shrink-0">{action}</div>}
-        </div>
-      )}
-      {children}
-    </div>
+    <Card size="sm" className={className}>
+      {title || action ? (
+        <CardHeader>
+          {title ? <CardTitle className="truncate">{title}</CardTitle> : null}
+          {description ? (
+            <CardDescription className="text-xs">{description}</CardDescription>
+          ) : null}
+          {action ? <CardAction>{action}</CardAction> : null}
+        </CardHeader>
+      ) : null}
+      <CardContent className="flex-1">{children}</CardContent>
+    </Card>
   );
 }

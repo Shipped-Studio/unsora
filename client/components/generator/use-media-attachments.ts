@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { uploadFileToStorage } from "@/lib/storage-client";
 import { getCdnUrl } from "@/lib/video-utils";
 import { useAuthFetch } from "@/hooks/use-auth-fetch";
-import { assetQueryKeys, type UnifiedAsset } from "@/hooks/use-all-assets";
+import { assetQueryKeys } from "@/hooks/use-all-assets";
 import {
   kindFromAccept,
   validateFile,
@@ -14,16 +14,33 @@ import {
   type UploadField,
 } from "./attachments";
 
+/**
+ * A file picked from the library. Structural so it accepts both the legacy
+ * asset shape (`outputUrl`) and library items (`url`).
+ */
+export interface PickedLibraryFile {
+  mediaType: string;
+  url?: string | null;
+  outputUrl?: string | null;
+  name?: string | null;
+  label?: string | null;
+  prompt?: string | null;
+}
+
 function assetTypeFromMime(mime: string): "IMAGE" | "VIDEO" | "AUDIO" {
   if (mime.startsWith("video/")) return "VIDEO";
   if (mime.startsWith("audio/")) return "AUDIO";
   return "IMAGE";
 }
 
+function plural(count: number, noun: string) {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
 /**
  * Attachment state for a generator form: eager storage uploads with progress,
- * asset-library selections, drag/drop routing, and library registration so
- * every upload is reusable from anywhere.
+ * library selections, drag/drop routing, and library registration so every
+ * upload is reusable from anywhere.
  */
 export function useMediaAttachments(fields: UploadField[]) {
   const { authFetch } = useAuthFetch();
@@ -32,9 +49,11 @@ export function useMediaAttachments(fields: UploadField[]) {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [libraryField, setLibraryField] = useState<UploadField | null>(null);
 
-  // Cleanup object URLs on unmount
+  // Revoke object URLs on unmount.
   const attachmentsRef = useRef<Attachment[]>([]);
-  attachmentsRef.current = attachments;
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
   useEffect(() => {
     return () => {
       attachmentsRef.current.forEach((a) => URL.revokeObjectURL(a.objectUrl));
@@ -50,7 +69,7 @@ export function useMediaAttachments(fields: UploadField[]) {
     [],
   );
 
-  /** Save an upload into the asset library so it's reusable everywhere. */
+  /** Save an upload into the library so it's reusable everywhere. */
   const registerAsset = useCallback(
     (file: File, url: string) => {
       authFetch("/api/assets", {
@@ -67,28 +86,30 @@ export function useMediaAttachments(fields: UploadField[]) {
           queryClient.invalidateQueries({ queryKey: assetQueryKeys.all }),
         )
         .catch(() => {
-          // Library registration is best-effort; the generation itself
-          // only needs the blob URL.
+          // Best effort: the generation only needs the blob URL, so a failed
+          // library registration shouldn't interrupt the user.
         });
     },
     [authFetch, queryClient],
   );
 
+  const countFor = useCallback(
+    (fieldKey: string) =>
+      attachments.filter((a) => a.fieldKey === fieldKey && a.status !== "error")
+        .length,
+    [attachments],
+  );
+
   const addFiles = useCallback(
     (field: UploadField, incoming: File[]) => {
-      const existing = attachments.filter(
-        (a) => a.fieldKey === field.key,
-      ).length;
-      const available = field.max - existing;
+      const available = field.max - countFor(field.key);
       if (available <= 0) {
-        toast.error(
-          `${field.label}: you can attach up to ${field.max} file${field.max === 1 ? "" : "s"}.`,
-        );
+        toast.error(`${field.label} takes up to ${plural(field.max, "file")}.`);
         return;
       }
       if (incoming.length > available) {
         toast.error(
-          `${field.label}: only ${available} more file${available === 1 ? "" : "s"} can be added (max ${field.max}).`,
+          `${field.label}: only ${plural(available, "more file")} fit. The rest weren't added.`,
         );
       }
 
@@ -115,6 +136,14 @@ export function useMediaAttachments(fields: UploadField[]) {
 
       pending.forEach((entry, idx) => {
         const file = valid[idx];
+        const fail = (message?: string) => {
+          patchAttachment(entry.id, { status: "error" });
+          toast.error(
+            message
+              ? `Couldn't upload "${file.name}". ${message}`
+              : `Couldn't upload "${file.name}". Try again.`,
+          );
+        };
         uploadFileToStorage(file, ({ percentage }) =>
           patchAttachment(entry.id, { progress: percentage }),
         )
@@ -127,55 +156,53 @@ export function useMediaAttachments(fields: UploadField[]) {
               });
               registerAsset(file, result.blobUrl);
             } else {
-              patchAttachment(entry.id, { status: "error" });
-              toast.error(`Failed to upload "${file.name}".`);
+              fail(result.error);
             }
           })
-          .catch(() => {
-            patchAttachment(entry.id, { status: "error" });
-            toast.error(`Failed to upload "${file.name}".`);
-          });
+          .catch(() => fail());
       });
     },
-    [attachments, patchAttachment, registerAsset],
+    [countFor, patchAttachment, registerAsset],
   );
 
-  /** Attach already-uploaded assets picked from the media library. */
+  /** Attach files picked from the library (already uploaded). */
   const addAssets = useCallback(
-    (field: UploadField, assets: UnifiedAsset[]) => {
-      const existing = attachments.filter(
-        (a) => a.fieldKey === field.key,
-      ).length;
-      const available = field.max - existing;
+    (field: UploadField, picked: PickedLibraryFile[]) => {
+      const available = field.max - countFor(field.key);
       const kind = kindFromAccept(field.accept);
 
-      const usable = assets.filter((a) => a.outputUrl && a.mediaType === kind);
-      if (usable.length < assets.length) {
-        toast.error(`${field.label}: some selected items aren't ${kind}s.`);
+      const usable = picked.filter(
+        (a) => (a.url || a.outputUrl) && a.mediaType === kind,
+      );
+      if (usable.length < picked.length) {
+        toast.error(`${field.label} only takes ${kind} files.`);
       }
       if (usable.length > available) {
         toast.error(
-          `${field.label}: only ${available} more file${available === 1 ? "" : "s"} can be added (max ${field.max}).`,
+          `${field.label}: only ${plural(Math.max(0, available), "more file")} fit. The rest weren't added.`,
         );
       }
 
       const selected = usable.slice(0, Math.max(0, available));
       if (selected.length === 0) return;
 
-      const newAtts: Attachment[] = selected.map((a) => ({
-        id: crypto.randomUUID(),
-        fieldKey: field.key,
-        fileName: a.name || a.prompt || "Library asset",
-        kind,
-        objectUrl: getCdnUrl(a.outputUrl!),
-        url: a.outputUrl!,
-        status: "ready" as const,
-        progress: 100,
-      }));
+      const added: Attachment[] = selected.map((a) => {
+        const url = (a.url || a.outputUrl) as string;
+        return {
+          id: crypto.randomUUID(),
+          fieldKey: field.key,
+          fileName: a.name || a.label || a.prompt || "Library file",
+          kind,
+          objectUrl: getCdnUrl(url),
+          url,
+          status: "ready" as const,
+          progress: 100,
+        };
+      });
 
-      setAttachments((prev) => [...prev, ...newAtts]);
+      setAttachments((prev) => [...prev, ...added]);
     },
-    [attachments],
+    [countFor],
   );
 
   const removeAttachment = useCallback((id: string) => {
@@ -186,22 +213,21 @@ export function useMediaAttachments(fields: UploadField[]) {
     });
   }, []);
 
-  const clearAttachments = useCallback(() => {
+  /** Clear every attachment, or only those in the given fields. */
+  const clearAttachments = useCallback((fieldKeys?: string[]) => {
     setAttachments((prev) => {
-      prev.forEach((a) => URL.revokeObjectURL(a.objectUrl));
-      return [];
+      const keys = fieldKeys ? new Set(fieldKeys) : null;
+      const removed = keys ? prev.filter((a) => keys.has(a.fieldKey)) : prev;
+      removed.forEach((a) => URL.revokeObjectURL(a.objectUrl));
+      return keys ? prev.filter((a) => !keys.has(a.fieldKey)) : [];
     });
   }, []);
 
-  /** Route loose files (drop/paste) to the first field that accepts them. */
+  /** Route loose files (drop, paste, file picker) to the first field with room. */
   const routeFiles = useCallback(
     (files: File[]) => {
       const counts: Record<string, number> = {};
-      for (const f of fields) {
-        counts[f.key] = attachments.filter(
-          (a) => a.fieldKey === f.key,
-        ).length;
-      }
+      for (const f of fields) counts[f.key] = countFor(f.key);
 
       const byField = new Map<UploadField, File[]>();
       for (const file of files) {
@@ -211,7 +237,7 @@ export function useMediaAttachments(fields: UploadField[]) {
             (counts[f.key] ?? 0) < f.max,
         );
         if (!field) {
-          toast.error(`No available slot for "${file.name}".`);
+          toast.error(`"${file.name}" can't be attached here.`);
           continue;
         }
         counts[field.key] += 1;
@@ -222,12 +248,20 @@ export function useMediaAttachments(fields: UploadField[]) {
         addFiles(field, fieldFiles);
       }
     },
-    [fields, attachments, addFiles],
+    [fields, countFor, addFiles],
+  );
+
+  const fieldKeys = useMemo(() => new Set(fields.map((f) => f.key)), [fields]);
+
+  /** Attachments that belong to the current fields. */
+  const visibleAttachments = useMemo(
+    () => attachments.filter((a) => fieldKeys.has(a.fieldKey)),
+    [attachments, fieldKeys],
   );
 
   const uploadingCount = useMemo(
-    () => attachments.filter((a) => a.status === "uploading").length,
-    [attachments],
+    () => visibleAttachments.filter((a) => a.status === "uploading").length,
+    [visibleAttachments],
   );
 
   const fileCounts = useMemo(() => {
@@ -239,19 +273,20 @@ export function useMediaAttachments(fields: UploadField[]) {
     return counts;
   }, [attachments]);
 
-  /** Upload field key → ready blob URLs, for building the submit payload. */
+  /** Field key → ready blob URLs, for building the submit payload. */
   const readyUrls = useCallback(() => {
     const urls: Record<string, string[]> = {};
-    for (const a of attachments) {
+    for (const a of visibleAttachments) {
       if (a.status === "ready" && a.url) {
         (urls[a.fieldKey] ??= []).push(a.url);
       }
     }
     return urls;
-  }, [attachments]);
+  }, [visibleAttachments]);
 
   return {
     attachments,
+    visibleAttachments,
     libraryField,
     setLibraryField,
     addFiles,
