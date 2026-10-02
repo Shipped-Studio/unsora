@@ -1,0 +1,275 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: var(--font-dm-sans), "DM Sans", ui-sans-serif, system-ui,
+    sans-serif;
+  --font-mono: var(--font-dm-mono), "DM Mono", ui-monospace, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-media: var(--media);
+  --color-media-foreground: var(--media-foreground);
+  --color-scrim: var(--scrim);
+  --color-overlay: var(--overlay);
+  --color-platform-linkedin: var(--platform-linkedin);
+  --color-platform-bluesky: var(--platform-bluesky);
+  --color-platform-threads: var(--platform-threads);
+  --color-platform-foreground: var(--platform-foreground);
+  --color-platform-facebook: var(--platform-facebook);
+  --color-platform-pinterest: var(--platform-pinterest);
+  --color-platform-tiktok: var(--platform-tiktok);
+  --color-link-instagram: var(--link-instagram);
+  --color-link-facebook: var(--link-facebook);
+  --color-link-linkedin: var(--link-linkedin);
+  --color-link-social: var(--link-social);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+}
+
+/*
+ * Soft product look: a gray canvas, content on white panels, one violet
+ * accent. `accent` is the pale violet used for selected nav, tabs and cells.
+ */
+:root,
+.light {
+  --radius: 0.5rem;
+
+  --background: #f3f3f7;
+  --foreground: #121218;
+  --card: #ffffff;
+  --card-foreground: #121218;
+  --popover: #ffffff;
+  --popover-foreground: #121218;
+  --primary: #0c0c0d;
+  --primary-foreground: #fafafa;
+  --secondary: #ededf3;
+  --secondary-foreground: #121218;
+  --muted: #f4f4f8;
+  --muted-foreground: #585870;
+  --accent: #e6e6ec;
+  --accent-foreground: #0c0c0d;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --success: #15803d;
+  --success-foreground: #ffffff;
+  --warning: #b45309;
+  --warning-foreground: #ffffff;
+  --info: #2563eb;
+  --border: #e1e1ea;
+  --input: #92929f;
+  --ring: rgb(12 12 13 / 0.35);
+
+  --brand: #e8ff6b;
+  --brand-foreground: #0c0c0d;
+
+  --chart-1: #0c0c0d;
+  --chart-2: #6b8a14;
+  --chart-3: #64647a;
+  --chart-4: #8e8ea3;
+  --chart-5: #2563eb;
+
+  --sidebar: #f3f3f7;
+  --sidebar-foreground: #121218;
+  --sidebar-primary: #0c0c0d;
+  --sidebar-primary-foreground: #fafafa;
+  --sidebar-accent: #e6e6ec;
+  --sidebar-accent-foreground: #0c0c0d;
+  --sidebar-border: #e1e1ea;
+  --sidebar-ring: rgb(12 12 13 / 0.35);
+
+  /* Video and photo stage, and badges drawn on top of media. */
+  --media: #000000;
+  --media-foreground: #ffffff;
+  --scrim: #000000;
+  /* Modal backdrop (used at full strength, alpha is baked in). */
+  --overlay: rgb(18 18 24 / 0.32);
+
+  /* Third-party brand marks. */
+  --platform-linkedin: #0a66c2;
+  --platform-bluesky: #1185fe;
+  --platform-threads: #000000;
+  --platform-foreground: #ffffff;
+  --platform-facebook: #0866ff;
+  --platform-pinterest: #e60023;
+  --platform-tiktok: #fe2c55;
+
+  /* Hashtags, mentions and links inside the post previews. */
+  --link-instagram: #00376b;
+  --link-facebook: #0064d1;
+  --link-linkedin: #0a66c2;
+  --link-social: #0a6fe8;
+
+  --hatch: rgb(18 18 24 / 0.045);
+}
+
+.dark {
+  --background: #0c0c10;
+  --foreground: #ececf1;
+  --card: #15151b;
+  --card-foreground: #ececf1;
+  --popover: #1b1b22;
+  --popover-foreground: #ececf1;
+  --primary: #e8ff6b;
+  --primary-foreground: #0c0c0d;
+  --secondary: #22222b;
+  --secondary-foreground: #ececf1;
+  --muted: #1c1c24;
+  --muted-foreground: #a6a6b8;
+  --accent: #2a2a34;
+  --accent-foreground: #ececf1;
+  --destructive: #f05252;
+  --destructive-foreground: #0c0c10;
+  --success: #34c77b;
+  --success-foreground: #0c0c10;
+  --warning: #f5a524;
+  --warning-foreground: #0c0c10;
+  --info: #60a5fa;
+  --border: #2d2d38;
+  --input: #62627a;
+  --ring: rgb(232 255 107 / 0.45);
+
+  --brand: #e8ff6b;
+  --brand-foreground: #0c0c0d;
+
+  --chart-1: #e8ff6b;
+  --chart-2: #9fb83a;
+  --chart-3: #9b9bad;
+  --chart-4: #6e6e85;
+  --chart-5: #60a5fa;
+
+  --sidebar: #0c0c10;
+  --sidebar-foreground: #ececf1;
+  --sidebar-primary: #e8ff6b;
+  --sidebar-primary-foreground: #0c0c0d;
+  --sidebar-accent: #2a2a34;
+  --sidebar-accent-foreground: #ececf1;
+  --sidebar-border: #2d2d38;
+  --sidebar-ring: rgb(232 255 107 / 0.45);
+
+  --overlay: rgb(0 0 0 / 0.6);
+
+  --hatch: rgb(255 255 255 / 0.045);
+
+  --link-instagram: #e0f1ff;
+  --link-facebook: #5aa7ff;
+  --link-linkedin: #71b7fb;
+  --link-social: #4ea1ff;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply bg-background;
+  }
+
+  body {
+    @apply bg-background font-sans text-sm text-foreground antialiased;
+    font-feature-settings: "ss01", "cv11";
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--brand) 70%, transparent);
+    color: var(--brand-foreground);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="menuitem"]:not([data-disabled]),
+  [role="menuitemcheckbox"]:not([data-disabled]),
+  [role="menuitemradio"]:not([data-disabled]),
+  [role="option"]:not([data-disabled]),
+  [role="tab"]:not([data-disabled]),
+  label[for] {
+    cursor: pointer;
+  }
+
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px var(--card) inset;
+    -webkit-text-fill-color: var(--foreground);
+    transition: background-color 5000s ease-in-out 0s;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+}
+
+/* Diagonal stripes for unavailable time, like past days on the calendar. */
+@utility bg-hatch {
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--hatch) 0 6px,
+    transparent 6px 12px
+  );
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

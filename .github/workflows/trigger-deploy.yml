@@ -14,20 +14,18 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: server
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: server/package-lock.json
-      - run: npm ci
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       # Pin the CLI to the installed SDK version so they never drift.
-      - run: |
+      - working-directory: apps/server
+        run: |
           version=$(node -p "require('@trigger.dev/sdk/package.json').version")
-          npx --yes "trigger.dev@${version}" deploy --env "${{ inputs.environment }}"
+          pnpm dlx "trigger.dev@${version}" deploy --env "${{ inputs.environment }}"
         env:
           TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}

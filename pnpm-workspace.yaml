@@ -1,0 +1,25 @@
+packages:
+  - apps/*
+  - packages/*
+
+# The apps were installed with npm's legacy-peer-deps before the move to pnpm.
+strictPeerDependencies: false
+
+# Dependency install scripts that the apps rely on (pnpm blocks them by default).
+onlyBuiltDependencies:
+  - '@depot/cli' # trigger.dev deploy builder
+  - '@prisma/client'
+  - '@prisma/engines'
+  - esbuild
+  - prisma
+  - puppeteer # downloads Chrome for scraping
+  - sharp
+  - unrs-resolver # eslint import resolver
+
+# Install scripts that only print notices or do nothing.
+ignoredBuiltDependencies:
+  - '@clerk/shared'
+  - '@google/genai'
+  - core-js
+  - msw
+  - protobufjs

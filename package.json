@@ -2,18 +2,19 @@
   "name": "unsora",
   "private": true,
   "description": "Unsora: AI content generation and social scheduling. Web app, API server, MCP server and Remotion compositions.",
+  "packageManager": "pnpm@10.34.6",
   "scripts": {
-    "install:all": "npm ci --prefix server && npm ci --prefix client && npm ci --prefix mcp && npm ci --prefix remotion",
-    "dev:server": "npm run dev --prefix server",
-    "dev:trigger": "npm run trigger:dev --prefix server",
-    "dev:client": "npm run dev --prefix client",
-    "dev:mcp": "npm run dev --prefix mcp",
-    "build:server": "npm run build --prefix server",
-    "build:client": "npm run build --prefix client",
-    "build:mcp": "npm run build --prefix mcp",
-    "typecheck": "npm run build --prefix server && npm run build --prefix mcp && npx --prefix client tsc --noEmit -p client"
+    "postinstall": "pnpm --filter @unsora/server db:generate",
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "dev:client": "turbo run dev --filter=@unsora/client",
+    "dev:server": "turbo run dev --filter=@unsora/server",
+    "dev:mcp": "turbo run dev --filter=@unsora/mcp",
+    "dev:trigger": "pnpm --filter @unsora/server trigger:dev"
   },
-  "engines": {
-    "node": ">=20.18.1"
+  "devDependencies": {
+    "turbo": "^2.11.7"
   }
 }
