@@ -1,0 +1,943 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Unsora Post Composer</title>
+<!--
+  Unsora post composer (MCP Apps). Bound to compose_post, whose result carries
+  { prefill, accounts, subscription }. The user picks accounts, media, caption,
+  per-platform options and timing; we validate against each platform's rules
+  and call create_post ourselves, then follow publishing with get_post.
+
+  Per-platform options mirror the web composer (client/components/composer):
+    YouTube   title (account title), visibility, category, tags, made for kids
+    TikTok    privacy (from the account's creator info), comments/duet/stitch,
+              recommended music (photos), AI label, promotional content
+    Pinterest board (from the account's boards), pin title, destination link
+    Video     cover image (Instagram Reel cover, YouTube thumbnail, Pinterest)
+  Settings apply per platform, so several accounts on one platform share them.
+-->
+<style>
+/*@kit.css*/
+.section { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 11px 12px; display: flex; flex-direction: column; gap: 9px; }
+.section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.section-title { font-size: 13px; font-weight: 700; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.acct-chip {
+  display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px 4px 4px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--card); font-weight: 500; font-size: 13px;
+}
+.acct-chip.on { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); background: var(--bg); }
+.acct-chip .avatar, .acct-chip .avatar img, .acct-chip .avatar .fallback { width: 26px; height: 26px; }
+.acct-chip .avatar .pf { width: 14px; height: 14px; font-size: 7.5px; right: -3px; bottom: -3px; }
+.media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+.m-tile { position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: var(--sunken); }
+.m-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.m-tile .ctl { position: absolute; inset: auto 4px 4px 4px; display: flex; gap: 3px; justify-content: flex-end; }
+.m-tile .ctl button { padding: 1px 6px; font-size: 11px; background: rgba(0, 0, 0, 0.6); color: #fff; border: none; }
+.m-tile .idx { position: absolute; top: 4px; left: 4px; font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: rgba(0, 0, 0, 0.6); color: #fff; }
+.m-tile .warn { position: absolute; top: 4px; right: 4px; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: var(--danger); color: #fff; }
+.video-box { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+.video-box video { max-height: 240px; max-width: 100%; border-radius: 8px; background: #000; display: block; }
+.add-row { display: flex; gap: 6px; }
+.add-row input { flex: 1; }
+.picker { border: 1px dashed var(--border); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+.picker .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 5px; max-height: 236px; overflow-y: auto; overscroll-behavior: contain; }
+.picker .tiles button { padding: 0; aspect-ratio: 1; border-radius: 6px; overflow: hidden; border: 2px solid transparent; background: var(--sunken); }
+.picker .tiles button:hover { border-color: var(--text); }
+.picker .tiles img, .picker .tiles video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.counter { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.counter.over { color: var(--danger); font-weight: 600; }
+.pf-panel { border-top: 1px solid var(--border); padding-top: 10px; display: flex; flex-direction: column; gap: 9px; }
+.pf-panel:first-of-type { border-top: none; padding-top: 0; }
+.pf-head { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 13px; }
+.checks { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.consent { font-size: 12px; color: var(--muted); }
+.consent button.link { font-size: 12px; }
+.issues { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
+.issues .e { color: var(--danger); }
+.issues .w { color: var(--warning); }
+.submit-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.result-target { display: flex; align-items: center; gap: 10px; }
+.result-target .who { flex: 1; min-width: 0; }
+.custom-captions { display: flex; flex-direction: column; gap: 8px; }
+.custom-captions .who { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; margin-bottom: 3px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+/*@kit.js*/
+(() => {
+  "use strict";
+  const { el, button, str, num, arr, obj, unwrap } = Kit;
+
+  /* ---------------------------- platform rules ------------------------ */
+
+  // What each platform publishes (server post-rules + publishers + web formats).
+  const RULES = {
+    youtube: { formats: ["video"], caption: 5000 },
+    tiktok: { formats: ["video", "images"], caption: 2200, maxImages: 35 },
+    instagram: { formats: ["video", "images"], caption: 2200, maxImages: 10 },
+    facebook: { formats: ["video", "images", "text"], caption: 63206 },
+    linkedin: { formats: ["video", "images", "text"], caption: 3000, maxImages: 20 },
+    pinterest: { formats: ["video", "images"], caption: 800, maxImages: 5 },
+    threads: { formats: ["video", "images", "text"], caption: 500, maxImages: 20 },
+    bluesky: { formats: ["video", "images", "text"], caption: 300, maxImages: 4 },
+  };
+  const NOTES = {
+    instagram: "Videos post as Reels. Feed images need an aspect ratio between 4:5 and 1.91:1.",
+    facebook: "Posts to your Facebook Page.",
+    linkedin: "Posts publicly to your personal profile.",
+    threads: "Up to 500 characters.",
+    bluesky: "Up to 300 characters and 4 images.",
+  };
+  const YT_CATEGORIES = [
+    ["22", "People & Blogs"], ["1", "Film & Animation"], ["2", "Autos & Vehicles"], ["10", "Music"],
+    ["15", "Pets & Animals"], ["17", "Sports"], ["19", "Travel & Events"], ["20", "Gaming"], ["23", "Comedy"],
+    ["24", "Entertainment"], ["25", "News & Politics"], ["26", "Howto & Style"], ["27", "Education"],
+    ["28", "Science & Technology"], ["29", "Nonprofits & Activism"],
+  ];
+  const TT_PRIVACY = {
+    PUBLIC_TO_EVERYONE: "Everyone",
+    MUTUAL_FOLLOW_FRIENDS: "Friends",
+    FOLLOWER_OF_CREATOR: "Followers",
+    SELF_ONLY: "Only me",
+  };
+  const LIBRARY_SOURCES = [
+    ["upload", "Uploads"], ["image", "Images"], ["video", "Videos"], ["thumbnail", "Thumbnails"],
+    ["influencer", "Influencers"], ["image_upscale", "Image upscales"], ["video_upscale", "Video upscales"],
+    ["motion_control", "Motion control"], ["avatar", "Avatars"], ["clipping", "Clips"],
+  ];
+  const POLL_MS = 8000;
+
+  /* ------------------------------- state ------------------------------ */
+
+  let phase = "loading"; // loading | form | done | error
+  let fatal = null;
+  let accounts = [];
+  let paid = true;
+  const selected = new Set();
+  let format = "video"; // video | images | text
+  let videoUrl = "";
+  let coverUrl = "";
+  let images = []; // urls in order
+  let newUrl = "";
+  let caption = "";
+  let customize = false;
+  const custom = {}; // accountId -> caption
+  const yt = { title: "", privacy: "public", category: "22", tags: "", madeForKids: false };
+  const tt = { privacy: "", comment: true, duet: true, stitch: true, music: true, aigc: false, promo: false, yourBrand: false, branded: false, coverSec: "" };
+  const pin = { boardId: "", title: "", link: "" };
+  let when = "now"; // now | schedule | draft
+  let scheduleAt = "";
+  let submitting = false;
+  let submitError = null;
+  let result = null; // { post, mode }
+  let showPicker = false;
+  const picker = { source: "upload", items: null, loading: false, error: null };
+
+  const creator = {}; // tiktok accountId -> { loading, data, error }
+  const boards = {}; // pinterest accountId -> { loading, list, error }
+  const dims = {}; // image url -> { w, h } | { error }
+  let videoMeta = null; // { duration, w, h }
+  const nodes = new Map(); // url -> media element, reused across renders
+  let stopped = false;
+
+  Kit.on("teardown", () => { stopped = true; });
+  Kit.on("result", (res) => {
+    if (!res || res.isError) {
+      phase = "error";
+      fatal = Kit.textOf(res) || "Couldn't open the composer.";
+      return Kit.refresh();
+    }
+    if (phase === "loading") start(obj(res.structuredContent));
+  });
+
+  function start(sc) {
+    const acc = obj(sc.accounts);
+    if (acc.error && !acc.data) {
+      phase = "error";
+      fatal = String(acc.error);
+      return Kit.refresh();
+    }
+    accounts = arr(unwrap(sc.accounts)).map(Kit.readAccount).filter((a) => a.id);
+    const order = Object.keys(Kit.PLATFORMS);
+    accounts.sort((a, b) => order.indexOf(Kit.platformOf(a.provider)) - order.indexOf(Kit.platformOf(b.provider)));
+    const sub = obj(unwrap(sc.subscription));
+    paid = "isActive" in sub ? !!sub.isActive : true;
+
+    const p = obj(sc.prefill);
+    caption = str(p.caption) || "";
+    const urls = arr(p.mediaUrls).filter((u) => typeof u === "string");
+    format = p.mediaType === "text" ? "text" : p.mediaType === "images" ? "images" : p.mediaType === "video" ? "video" : guessFormat(urls);
+    if (format === "video") videoUrl = urls[0] || "";
+    if (format === "images") images = urls.slice();
+    coverUrl = str(p.coverUrl) || "";
+    for (const id of arr(p.accountIds)) if (accounts.some((a) => a.id === id)) selected.add(id);
+    if (str(p.title)) { yt.title = p.title.slice(0, 100); pin.title = p.title.slice(0, 100); }
+    if (str(p.scheduled_at) && Kit.toDate(p.scheduled_at)) { when = "schedule"; scheduleAt = localInput(p.scheduled_at); }
+    phase = "form";
+    for (const u of images) measure(u);
+    loadPlatformData();
+    Kit.refresh();
+  }
+
+  function guessFormat(urls) {
+    if (!urls.length) return "video";
+    return urls.length === 1 && /\.(mp4|mov|webm|m4v)(\?|#|$)/i.test(urls[0]) ? "video" : "images";
+  }
+
+  /* ----------------------------- derived ------------------------------ */
+
+  const chosen = () => accounts.filter((a) => selected.has(a.id));
+  const platformsChosen = () => [...new Set(chosen().map((a) => Kit.platformOf(a.provider)))];
+  const accountsOn = (platform) => chosen().filter((a) => Kit.platformOf(a.provider) === platform);
+
+  function captionLimit() {
+    let best = null;
+    for (const p of platformsChosen()) {
+      const r = RULES[p];
+      if (r && (!best || r.caption < best.limit)) best = { limit: r.caption, platform: p };
+    }
+    return best;
+  }
+
+  /** Blocking errors and soft warnings for the current form. */
+  function check() {
+    const errors = [];
+    const warnings = [];
+    const plats = platformsChosen();
+    if (!selected.size) errors.push("Choose at least one account.");
+    if (!paid) errors.push("Posting needs a paid Unsora plan.");
+
+    for (const p of plats) {
+      const r = RULES[p];
+      if (r && !r.formats.includes(format)) {
+        const label = Kit.platformMeta(p).label;
+        errors.push(label + (format === "text" ? " can't publish text-only posts." : p === "youtube" ? " only accepts video." : " doesn't support this format."));
+      }
+    }
+    if (format === "video" && !videoUrl) errors.push("Add a video.");
+    if (format === "images") {
+      if (!images.length) errors.push("Add at least one image.");
+      for (const p of plats) {
+        const max = RULES[p] && RULES[p].maxImages;
+        if (max && images.length > max) errors.push(Kit.platformMeta(p).label + " allows up to " + max + " images.");
+      }
+      if (images.length > 35) errors.push("A post can have up to 35 images.");
+      if (plats.includes("instagram")) {
+        const bad = images.filter((u) => { const d = dims[u]; return d && d.w && (d.w / d.h < 0.8 - 0.01 || d.w / d.h > 1.91 + 0.01); });
+        if (bad.length) errors.push("Instagram rejects " + Kit.plural(bad.length, "image") + " outside 4:5 to 1.91:1 (marked in red).");
+      }
+    }
+    if (format === "video" && videoMeta && videoMeta.duration) {
+      const d = videoMeta.duration;
+      if (plats.includes("instagram") && (d < 3 || d > 900)) errors.push("Instagram Reels must be 3 seconds to 15 minutes.");
+      if (plats.includes("tiktok") && d < 3) errors.push("TikTok videos must be at least 3 seconds.");
+      for (const a of accountsOn("tiktok")) {
+        const max = num(obj(obj(creator[a.id]).data).max_video_post_duration_sec);
+        if (max && d > max) errors.push("This video is longer than " + a.name + " can post on TikTok (" + Math.floor(max / 60) + " min).");
+      }
+      if (plats.includes("bluesky") && d > 180) errors.push("Bluesky videos can be up to 3 minutes.");
+    }
+    if (format === "text" && !caption.trim()) errors.push("Write the post text.");
+    if (!caption.trim() && format !== "text") warnings.push("No caption.");
+
+    const lim = captionLimit();
+    if (lim && caption.length > lim.limit) errors.push(Kit.platformMeta(lim.platform).label + " captions are limited to " + Kit.fmtNum(lim.limit) + " characters.");
+    if (customize) {
+      for (const a of chosen()) {
+        const text = custom[a.id];
+        const r = RULES[Kit.platformOf(a.provider)];
+        if (text && r && text.length > r.caption) errors.push("Custom caption for " + a.name + " is over " + Kit.fmtNum(r.caption) + " characters.");
+      }
+    }
+
+    if (plats.includes("youtube")) {
+      if (!yt.title.trim()) errors.push("Add a YouTube title.");
+      if (yt.title.length > 100) errors.push("YouTube titles are limited to 100 characters.");
+    }
+    if (plats.includes("tiktok")) {
+      for (const a of accountsOn("tiktok")) {
+        const c = obj(creator[a.id]);
+        if (c.data && c.data.can_post === false) errors.push(a.name + " can't post on TikTok right now" + (c.data.can_post_reason ? ": " + c.data.can_post_reason : "."));
+      }
+      if (!tt.privacy) errors.push("Choose who can see the TikTok post.");
+      if (tt.promo && !tt.yourBrand && !tt.branded) errors.push("For promotional TikTok content, choose Your brand, Branded content or both.");
+      if (tt.branded && tt.privacy === "SELF_ONLY") errors.push("Branded content can't be private on TikTok.");
+    }
+    if (plats.includes("pinterest")) {
+      if (pin.title.length > 100) errors.push("Pin titles are limited to 100 characters.");
+      if (pin.link && !/^https?:\/\/\S+$/i.test(pin.link.trim())) errors.push("The Pinterest link must start with http:// or https://.");
+      if (format === "images" && images.length > 5) errors.push("Pinterest carousels take 2 to 5 images.");
+    }
+    if (when === "schedule") {
+      const t = new Date(scheduleAt).getTime();
+      if (!scheduleAt || isNaN(t)) errors.push("Pick when to publish.");
+      else if (t < Date.now() + 2 * 60 * 1000) errors.push("Schedule at least 2 minutes from now.");
+    }
+    return { errors, warnings };
+  }
+
+  /* --------------------------- remote data ---------------------------- */
+
+  function loadPlatformData() {
+    for (const a of accountsOn("tiktok")) {
+      if (creator[a.id]) continue;
+      creator[a.id] = { loading: true };
+      Kit.callTool("tiktok_creator_info", { accountId: a.id })
+        .then((sc) => {
+          const data = obj(unwrap(sc));
+          creator[a.id] = { data };
+          const opts = arr(data.privacy_level_options);
+          if (tt.privacy && !opts.includes(tt.privacy)) tt.privacy = "";
+          if (data.comment_disabled) tt.comment = false;
+          if (data.duet_disabled) tt.duet = false;
+          if (data.stitch_disabled) tt.stitch = false;
+        })
+        .catch((err) => { creator[a.id] = { error: err.message }; })
+        .then(() => Kit.refresh());
+    }
+    const pinAcct = accountsOn("pinterest")[0];
+    if (pinAcct && !boards[pinAcct.id]) {
+      boards[pinAcct.id] = { loading: true };
+      Kit.callTool("pinterest_boards", { accountId: pinAcct.id })
+        .then((sc) => {
+          const list = arr(unwrap(sc)).filter((b) => b && typeof b.id === "string");
+          boards[pinAcct.id] = { list };
+          if (!pin.boardId && list[0]) pin.boardId = list[0].id;
+        })
+        .catch((err) => { boards[pinAcct.id] = { error: err.message }; })
+        .then(() => Kit.refresh());
+    }
+  }
+
+  function measure(url) {
+    if (dims[url]) return;
+    dims[url] = {};
+    const img = new Image();
+    img.onload = () => { dims[url] = { w: img.naturalWidth, h: img.naturalHeight }; Kit.refresh(); };
+    img.onerror = () => { dims[url] = { error: true }; Kit.refresh(); };
+    img.src = url;
+  }
+
+  async function loadPicker(source) {
+    picker.source = source;
+    picker.loading = true;
+    picker.items = null;
+    picker.error = null;
+    Kit.refresh();
+    try {
+      const sc = source === "upload"
+        ? await Kit.callTool("list_uploads", { limit: 48 })
+        : await Kit.callTool("list_generations", { type: source, limit: 48 });
+      picker.items = pickerItems(source, sc);
+    } catch (err) {
+      picker.error = err.message;
+      picker.items = [];
+    }
+    picker.loading = false;
+    Kit.refresh();
+  }
+
+  /** Finished media from a library list: [{ url, thumb, kind }]. */
+  function pickerItems(source, sc) {
+    const s = obj(sc);
+    const kindOf = (mime, fallback) => {
+      const m = String(mime || "").toLowerCase();
+      return m.startsWith("video") || m === "video" ? "video" : m.startsWith("image") || m === "image" ? "image" : fallback;
+    };
+    const u = (a) => str(obj(a).url);
+    let rows = [];
+    if (source === "upload") {
+      rows = arr(obj(s.data).uploads).map((r) => ({ url: str(r.url), thumb: null, kind: kindOf(r.mimeType || r.type, "file") }));
+    } else if (source === "clipping") {
+      rows = arr(s.data).flatMap((j) => arr(obj(j).clips).map((c) => ({ url: u(c.outputAsset), thumb: u(c.thumbnailAsset), kind: "video" })));
+    } else {
+      const video = ["video", "video_upscale", "motion_control", "avatar"].includes(source);
+      const raw = s.generations || s.jobs || s.videos || (Array.isArray(s.data) ? s.data : []);
+      rows = arr(raw)
+        .filter((r) => !r.status || /completed/i.test(r.status))
+        .map((r) => ({ url: u(r.outputAsset) || u(r.processedAsset) || str(r.image), thumb: u(r.thumbnailAsset), kind: video ? "video" : "image" }));
+    }
+    return rows.filter((r) => r.url && (r.kind === "image" || r.kind === "video"));
+  }
+
+  /* ------------------------------ editing ----------------------------- */
+
+  function toggleAccount(id) {
+    selected.has(id) ? selected.delete(id) : selected.add(id);
+    loadPlatformData();
+    Kit.refresh();
+  }
+
+  function setFormat(f) {
+    if (f === format) return;
+    // Carry media across where it makes sense.
+    if (f === "images" && videoUrl && !images.length && guessFormat([videoUrl]) === "images") images = [videoUrl];
+    if (f === "video" && !videoUrl && images.length === 1 && guessFormat(images) === "video") videoUrl = images[0];
+    format = f;
+    Kit.refresh();
+  }
+
+  function addMedia(url, kind) {
+    const u = String(url || "").trim();
+    if (!/^https?:\/\/\S+$/i.test(u)) { submitError = "Media must be a public http(s) URL."; return Kit.refresh(); }
+    submitError = null;
+    if (kind === "video" || (kind !== "image" && format === "video")) {
+      format = "video";
+      videoUrl = u;
+      videoMeta = null;
+    } else {
+      if (format !== "images") format = "images";
+      if (!images.includes(u)) images.push(u);
+      measure(u);
+    }
+    newUrl = "";
+    Kit.refresh();
+  }
+
+  function moveImage(i, by) {
+    const j = i + by;
+    if (j < 0 || j >= images.length) return;
+    [images[i], images[j]] = [images[j], images[i]];
+    Kit.refresh();
+  }
+
+  /* ------------------------------ submit ------------------------------ */
+
+  function buildArgs() {
+    const plats = platformsChosen();
+    const a = { caption: caption.trim(), accountIds: [...selected] };
+    if (format === "video") {
+      a.mediaType = "video";
+      a.mediaUrl = videoUrl;
+      if (coverUrl.trim()) a.coverUrl = coverUrl.trim();
+    } else if (format === "images") {
+      a.mediaType = "slideshow";
+      a.mediaUrls = images.slice();
+    } else {
+      a.mediaType = "none";
+    }
+    if (when === "schedule") {
+      a.scheduled_at = new Date(scheduleAt).toISOString();
+      a.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    }
+    if (when === "now") a.publishNow = true;
+
+    const overrides = [];
+    for (const acc of chosen()) {
+      const o = { id: acc.id };
+      if (Kit.platformOf(acc.provider) === "youtube" && yt.title.trim()) o.title = yt.title.trim();
+      if (customize && custom[acc.id] && custom[acc.id].trim()) o.customCaption = custom[acc.id].trim();
+      if (o.title || o.customCaption) overrides.push(o);
+    }
+    if (overrides.length) a.accountOverrides = overrides;
+
+    if (plats.includes("youtube")) {
+      const tags = yt.tags.split(",").map((t) => t.trim()).filter(Boolean).slice(0, 30);
+      a.youtube = { privacy_status: yt.privacy, category_id: yt.category, made_for_kids: yt.madeForKids };
+      if (tags.length) a.youtube.tags = tags;
+    }
+    if (plats.includes("tiktok")) {
+      a.tiktok = {
+        privacy_level: tt.privacy,
+        disable_comment: !tt.comment,
+        brand_organic_toggle: tt.promo && tt.yourBrand,
+        brand_content_toggle: tt.promo && tt.branded,
+        is_aigc: tt.aigc,
+      };
+      if (format === "video") {
+        a.tiktok.disable_duet = !tt.duet;
+        a.tiktok.disable_stitch = !tt.stitch;
+        const sec = num(tt.coverSec);
+        if (sec != null && sec >= 0) a.tiktok.video_cover_timestamp_ms = Math.round(sec * 1000);
+      } else {
+        a.tiktok.auto_add_music = tt.music;
+      }
+    }
+    if (plats.includes("pinterest")) {
+      const p = {};
+      if (pin.boardId) p.board_id = pin.boardId;
+      if (pin.title.trim()) p.title = pin.title.trim();
+      if (pin.link.trim()) p.link = pin.link.trim();
+      if (Object.keys(p).length) a.pinterest = p;
+    }
+    return a;
+  }
+
+  async function submit() {
+    if (check().errors.length || submitting) return;
+    submitting = true;
+    submitError = null;
+    Kit.refresh();
+    try {
+      const sc = obj(await Kit.callTool("create_post", buildArgs()));
+      const id = obj(sc.data).id || obj(obj(sc.created).data).id;
+      result = { mode: when, post: null, id };
+      phase = "done";
+      Kit.refresh();
+      if (id) follow(id);
+    } catch (err) {
+      submitError = err.message;
+    }
+    submitting = false;
+    Kit.refresh();
+  }
+
+  /** Fetch the created post; keep checking while it publishes. */
+  async function follow(id) {
+    const started = Date.now();
+    while (!stopped) {
+      try {
+        const post = obj(unwrap(await Kit.callTool("get_post", { postId: id })));
+        if (result && result.id === id) result.post = post;
+        Kit.refresh();
+        if (String(post.status).toUpperCase() !== "PUBLISHING" && (result.mode !== "now" || post.status !== "DRAFT")) return;
+      } catch (err) { /* transient */ }
+      if (Date.now() - started > 10 * 60 * 1000) return;
+      await new Promise((r) => setTimeout(r, POLL_MS));
+    }
+  }
+
+  function reset() {
+    phase = "form";
+    result = null;
+    caption = "";
+    images = [];
+    videoUrl = "";
+    coverUrl = "";
+    videoMeta = null;
+    for (const k of Object.keys(custom)) delete custom[k];
+    yt.title = "";
+    pin.title = "";
+    pin.link = "";
+    when = "now";
+    scheduleAt = "";
+    Kit.refresh();
+  }
+
+  /* ------------------------------- views ------------------------------ */
+
+  function localInput(value) {
+    const d = Kit.toDate(value) || new Date(Date.now() + 3600e3);
+    const pad = (n) => String(n).padStart(2, "0");
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+
+  /** A text input/textarea bound to obj[key]; light inputs skip full re-render. */
+  function bound(tag, target, key, attrs, rerender) {
+    return el(tag, Object.assign({
+      "data-key": (attrs && attrs.id) || key + ":" + tag,
+      value: target[key],
+      oninput: (e) => {
+        target[key] = e.target.value;
+        rerender ? Kit.refresh() : updateLive();
+      },
+    }, attrs || {}));
+  }
+
+  function field(label, control, hint) {
+    return el("label", { class: "field" }, [label, control, hint ? el("span", { class: "hint" }, hint) : null]);
+  }
+
+  function check1(label, target, key, opts) {
+    const o = opts || {};
+    return el("label", { class: "check", title: o.title || null }, [
+      el("input", { type: "checkbox", checked: !!target[key], disabled: !!o.disabled, onchange: (e) => { target[key] = e.target.checked; Kit.refresh(); } }),
+      label,
+    ]);
+  }
+
+  function selectBox(target, key, options, attrs) {
+    return el("select", Object.assign({ onchange: (e) => { target[key] = e.target.value; Kit.refresh(); } }, attrs || {}),
+      options.map(([value, label, disabled]) => el("option", { value, selected: target[key] === value, disabled: !!disabled }, label)));
+  }
+
+  function mediaNode(url, kind) {
+    const key = kind + ":" + url;
+    let node = nodes.get(key);
+    if (!node) {
+      if (kind === "video") {
+        node = el("video", { src: url, controls: true, playsinline: true, preload: "metadata" });
+        node.addEventListener("loadedmetadata", () => {
+          if (videoUrl === url) { videoMeta = { duration: node.duration, w: node.videoWidth, h: node.videoHeight }; Kit.refresh(); }
+        });
+      } else {
+        node = el("img", { src: url, alt: "", loading: "lazy" });
+      }
+      nodes.set(key, node);
+    }
+    return node;
+  }
+
+  function accountsSection() {
+    if (!accounts.length) {
+      return el("div", { class: "section" }, [
+        el("div", { class: "section-title" }, "Post to"),
+        el("div", { class: "muted" }, "No social accounts are connected yet."),
+        el("div", { class: "actions" }, button("Connect accounts", () => Kit.appLink("/scheduler/accounts"), { primary: true })),
+      ]);
+    }
+    const all = selected.size === accounts.length;
+    return el("div", { class: "section" }, [
+      el("div", { class: "section-head" }, [
+        el("div", { class: "section-title" }, "Post to"),
+        button(all ? "Clear" : "Select all", () => {
+          if (all) selected.clear(); else accounts.forEach((a) => selected.add(a.id));
+          loadPlatformData();
+          Kit.refresh();
+        }, { sm: true, link: true }),
+      ]),
+      el("div", { class: "chips" }, accounts.map((a) => el("button", {
+        type: "button",
+        class: "acct-chip" + (selected.has(a.id) ? " on" : ""),
+        "aria-pressed": selected.has(a.id) ? "true" : "false",
+        title: Kit.platformMeta(a.provider).label + (a.username ? " · @" + a.username.replace(/^@/, "") : ""),
+        onclick: () => toggleAccount(a.id),
+      }, [Kit.avatar(a), el("span", { class: "ellipsis" }, a.name || Kit.platformMeta(a.provider).label)]))),
+    ]);
+  }
+
+  function mediaSection() {
+    const plats = platformsChosen();
+    const coverWanted = format === "video" && plats.some((p) => p === "instagram" || p === "youtube" || p === "pinterest");
+    const body = [];
+    if (format === "video") {
+      body.push(videoUrl
+        ? el("div", { class: "video-box" }, [
+            mediaNode(videoUrl, "video"),
+            el("div", { class: "stack" }, [
+              videoMeta && videoMeta.duration ? el("span", { class: "muted small" }, Math.round(videoMeta.duration) + "s · " + videoMeta.w + "×" + videoMeta.h) : null,
+              button("Remove video", () => { videoUrl = ""; videoMeta = null; Kit.refresh(); }, { sm: true }),
+            ]),
+          ])
+        : null);
+      if (coverWanted) {
+        body.push(field("Cover image (optional)", bound("input", { get coverUrl() { return coverUrl; }, set coverUrl(v) { coverUrl = v; } }, "coverUrl", { type: "url", placeholder: "https://… image URL", id: "cover" }),
+          "Used as the Instagram Reel cover, YouTube thumbnail and Pinterest video cover."));
+      }
+    } else if (format === "images") {
+      if (images.length) {
+        const igCheck = plats.includes("instagram");
+        body.push(el("div", { class: "media-grid" }, images.map((u, i) => {
+          const d = dims[u] || {};
+          const bad = igCheck && d.w && (d.w / d.h < 0.79 || d.w / d.h > 1.92);
+          return el("div", { class: "m-tile" }, [
+            mediaNode(u, "image"),
+            el("span", { class: "idx" }, String(i + 1)),
+            bad ? el("span", { class: "warn", title: "Outside Instagram's 4:5 to 1.91:1" }, d.w + "×" + d.h) : null,
+            d.error ? el("span", { class: "warn" }, "Can't load") : null,
+            el("div", { class: "ctl" }, [
+              i > 0 ? el("button", { type: "button", title: "Move earlier", "aria-label": "Move earlier", onclick: () => moveImage(i, -1) }, "←") : null,
+              i < images.length - 1 ? el("button", { type: "button", title: "Move later", "aria-label": "Move later", onclick: () => moveImage(i, 1) }, "→") : null,
+              el("button", { type: "button", title: "Remove", "aria-label": "Remove image", onclick: () => { images.splice(i, 1); Kit.refresh(); } }, "✕"),
+            ]),
+          ]);
+        })));
+        body.push(el("div", { class: "muted small" }, "The first image is the cover."));
+      }
+    } else {
+      body.push(el("div", { class: "muted" }, "Text-only post. Works on Facebook, LinkedIn, Threads and Bluesky."));
+    }
+
+    if (format !== "text") {
+      body.push(el("div", { class: "add-row" }, [
+        el("input", {
+          type: "url", "data-key": "newUrl", value: newUrl,
+          placeholder: format === "video" ? "Paste a video URL" : "Paste an image URL",
+          "aria-label": "Media URL",
+          oninput: (e) => { newUrl = e.target.value; },
+          onkeydown: (e) => { if (e.key === "Enter") addMedia(newUrl, format === "video" ? "video" : "image"); },
+        }),
+        button("Add", () => addMedia(newUrl, format === "video" ? "video" : "image"), { sm: true }),
+        button(showPicker ? "Hide library" : "From library", () => {
+          showPicker = !showPicker;
+          if (showPicker && !picker.items) loadPicker(format === "video" ? "video" : picker.source);
+          Kit.refresh();
+        }, { sm: true }),
+      ]));
+      if (showPicker) body.push(pickerView());
+    }
+
+    return el("div", { class: "section" }, [
+      el("div", { class: "section-head" }, [
+        el("div", { class: "section-title" }, "Media"),
+        el("div", { class: "seg" }, [["video", "Video"], ["images", "Images"], ["text", "Text only"]].map(([f, label]) =>
+          el("button", { type: "button", class: format === f ? "on" : "", "aria-pressed": format === f ? "true" : "false", onclick: () => setFormat(f) }, label))),
+      ]),
+      ...body,
+    ]);
+  }
+
+  function pickerView() {
+    return el("div", { class: "picker" }, [
+      el("div", { class: "row" }, [
+        el("select", { "aria-label": "Library", style: { width: "auto" }, onchange: (e) => loadPicker(e.target.value) },
+          LIBRARY_SOURCES.map(([v, label]) => el("option", { value: v, selected: picker.source === v }, label))),
+        el("span", { class: "muted small" }, "Tap to add"),
+      ]),
+      picker.loading ? el("div", { class: "row" }, [el("span", { class: "spinner" }), el("span", { class: "muted" }, "Loading…")]) : null,
+      picker.error ? el("div", { class: "error" }, picker.error) : null,
+      picker.items && !picker.items.length && !picker.loading ? el("div", { class: "muted" }, "Nothing here yet.") : null,
+      picker.items && picker.items.length
+        ? el("div", { class: "tiles" }, picker.items.map((it) => el("button", {
+            type: "button",
+            title: it.kind === "video" ? "Add video" : "Add image",
+            onclick: () => addMedia(it.url, it.kind),
+          }, it.kind === "image" || it.thumb
+            ? el("img", { src: it.thumb || it.url, alt: "", loading: "lazy" })
+            : el("video", { src: it.url + "#t=0.5", muted: true, preload: "metadata" }))))
+        : null,
+    ]);
+  }
+
+  function captionSection() {
+    const live = el("span", { class: "counter", "data-live": "counter" });
+    const list = chosen();
+    return el("div", { class: "section" }, [
+      el("div", { class: "section-head" }, [
+        el("div", { class: "section-title" }, format === "text" ? "Post" : "Caption"),
+        live,
+      ]),
+      bound("textarea", { get caption() { return caption; }, set caption(v) { caption = v; } }, "caption", {
+        id: "caption", rows: 5, placeholder: "Write your caption…", "aria-label": "Caption",
+      }),
+      list.length > 1 || (list.length === 1 && customize)
+        ? check1("Customize the caption per account", { get v() { return customize; }, set v(x) { customize = x; } }, "v")
+        : null,
+      customize
+        ? el("div", { class: "custom-captions" }, list.map((a) =>
+            el("div", null, [
+              el("div", { class: "who" }, [Kit.pfMark(a.provider), a.name]),
+              bound("textarea", custom, a.id, { id: "cc:" + a.id, rows: 2, placeholder: "Same as the main caption" }),
+            ])))
+        : null,
+    ]);
+  }
+
+  function youtubePanel() {
+    const n = accountsOn("youtube").length;
+    return el("div", { class: "pf-panel" }, [
+      el("div", { class: "pf-head" }, [Kit.pfMark("youtube"), "YouTube", n > 1 ? el("span", { class: "muted small" }, "applies to " + n + " channels") : null]),
+      el("div", { class: "fields" }, [
+        el("div", { class: "wide" }, field("Title", bound("input", yt, "title", { type: "text", maxlength: 100, placeholder: "What's this video about?", id: "yt-title" }), "The caption becomes the video description.")),
+        field("Visibility", selectBox(yt, "privacy", [["public", "Public"], ["unlisted", "Unlisted"], ["private", "Private"]])),
+        field("Category", selectBox(yt, "category", YT_CATEGORIES)),
+        el("div", { class: "wide" }, field("Tags", bound("input", yt, "tags", { type: "text", placeholder: "Comma separated", id: "yt-tags" }))),
+      ]),
+      check1("Made for kids", yt, "madeForKids"),
+    ]);
+  }
+
+  function tiktokPanel() {
+    const list = accountsOn("tiktok");
+    const first = list[0];
+    const info = obj(creator[first.id]);
+    const data = obj(info.data);
+    const opts = arr(data.privacy_level_options).length ? arr(data.privacy_level_options) : Object.keys(TT_PRIVACY);
+    const video = format === "video";
+    const name = str(data.creator_nickname) || first.name;
+    return el("div", { class: "pf-panel" }, [
+      el("div", { class: "pf-head" }, [
+        Kit.pfMark("tiktok"), "TikTok",
+        el("span", { class: "muted small" }, "posting as " + name + (list.length > 1 ? " (+" + (list.length - 1) + " more, same settings)" : "")),
+      ]),
+      info.loading ? el("div", { class: "row" }, [el("span", { class: "spinner" }), el("span", { class: "muted small" }, "Checking this account's TikTok options…")]) : null,
+      info.error ? el("div", { class: "muted small" }, "Couldn't load TikTok's options for this account (" + info.error + "). Defaults are shown.") : null,
+      el("div", { class: "fields" }, [
+        field("Who can see this post", selectBox(tt, "privacy",
+          [["", "Choose…", true]].concat(opts.map((o) => [o, TT_PRIVACY[o] || o, o === "SELF_ONLY" && tt.branded])))),
+      ]),
+      el("div", { class: "stack", style: { gap: "6px" } }, [
+        el("span", { class: "muted small" }, "Allow people to"),
+        el("div", { class: "checks" }, [
+          check1("Comment", tt, "comment", { disabled: !!data.comment_disabled, title: data.comment_disabled ? "Turned off in this account's TikTok settings" : null }),
+          video ? check1("Duet", tt, "duet", { disabled: !!data.duet_disabled }) : null,
+          video ? check1("Stitch", tt, "stitch", { disabled: !!data.stitch_disabled }) : null,
+        ]),
+      ]),
+      el("div", { class: "checks" }, [
+        video ? null : check1("Add recommended music", tt, "music"),
+        check1("Label as AI-generated", tt, "aigc"),
+        check1("This promotes a brand, product or service", tt, "promo"),
+      ]),
+      tt.promo ? el("div", { class: "checks" }, [
+        check1("Your brand", tt, "yourBrand"),
+        check1("Branded content", tt, "branded", { disabled: tt.privacy === "SELF_ONLY", title: tt.privacy === "SELF_ONLY" ? "Not available when only you can see the post" : null }),
+      ]) : null,
+      tt.promo && (tt.yourBrand || tt.branded)
+        ? el("div", { class: "muted small" }, tt.branded ? "Your post will be labeled as a 'Paid partnership'." : "Your post will be labeled as 'Promotional content'.")
+        : null,
+      video ? el("div", { class: "fields" }, [field("Cover frame (seconds, optional)", bound("input", tt, "coverSec", { type: "number", min: 0, step: 0.1, placeholder: "1", id: "tt-cover" }))]) : null,
+      el("div", { class: "consent" }, [
+        "By posting, you agree to TikTok's ",
+        tt.promo && tt.branded ? el("span", null, [button("Branded Content Policy", () => Kit.openLink("https://www.tiktok.com/legal/page/global/bc-policy/en"), { link: true }), " and "]) : null,
+        button("Music Usage Confirmation", () => Kit.openLink("https://www.tiktok.com/legal/page/global/music-usage-confirmation/en"), { link: true }),
+        ".",
+      ]),
+    ]);
+  }
+
+  function pinterestPanel() {
+    const list = accountsOn("pinterest");
+    const first = list[0];
+    const b = obj(boards[first.id]);
+    const boardList = arr(b.list);
+    return el("div", { class: "pf-panel" }, [
+      el("div", { class: "pf-head" }, [Kit.pfMark("pinterest"), "Pinterest", list.length > 1 ? el("span", { class: "muted small" }, "boards from " + first.name + "; applies to all " + list.length + " accounts") : null]),
+      el("div", { class: "fields" }, [
+        field("Board",
+          b.loading ? el("select", { disabled: true }, el("option", null, "Loading boards…"))
+            : boardList.length ? selectBox(pin, "boardId", boardList.map((x) => [x.id, (x.name || x.id) + (x.privacy && x.privacy !== "PUBLIC" ? " (" + String(x.privacy).toLowerCase() + ")" : "")]))
+            : el("select", { disabled: true }, el("option", null, b.error ? "Couldn't load boards" : "No boards")),
+          b.error ? "The pin goes to your first board." : !b.loading && !boardList.length ? "Create a board on Pinterest first." : null),
+        field("Pin title (optional)", bound("input", pin, "title", { type: "text", maxlength: 100, placeholder: "Defaults to the caption", id: "pin-title" })),
+        el("div", { class: "wide" }, field("Destination link (optional)", bound("input", pin, "link", { type: "url", placeholder: "https://…", id: "pin-link" }), "Where people go when they tap the pin.")),
+      ]),
+    ]);
+  }
+
+  function settingsSection() {
+    const plats = platformsChosen();
+    if (!plats.length) return null;
+    const panels = [];
+    if (plats.includes("youtube")) panels.push(youtubePanel());
+    if (plats.includes("tiktok")) panels.push(tiktokPanel());
+    if (plats.includes("pinterest")) panels.push(pinterestPanel());
+    const notes = plats.filter((p) => NOTES[p]).map((p) =>
+      el("div", { class: "row", style: { gap: "8px", alignItems: "flex-start" } }, [Kit.pfMark(p), el("span", { class: "muted small", style: { paddingTop: "3px" } }, NOTES[p])]));
+    return el("div", { class: "section" }, [
+      el("div", { class: "section-title" }, "Platform settings"),
+      ...panels,
+      notes.length ? el("div", { class: panels.length ? "pf-panel" : "stack" }, notes) : null,
+    ]);
+  }
+
+  function whenSection() {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return el("div", { class: "section" }, [
+      el("div", { class: "section-head" }, [
+        el("div", { class: "section-title" }, "When"),
+        el("div", { class: "seg" }, [["now", "Now"], ["schedule", "Schedule"], ["draft", "Draft"]].map(([w, label]) =>
+          el("button", {
+            type: "button", class: when === w ? "on" : "", "aria-pressed": when === w ? "true" : "false",
+            onclick: () => { when = w; if (w === "schedule" && !scheduleAt) scheduleAt = localInput(Date.now() + 3600e3); Kit.refresh(); },
+          }, label))),
+      ]),
+      when === "schedule"
+        ? el("div", { class: "row" }, [
+            bound("input", { get s() { return scheduleAt; }, set s(v) { scheduleAt = v; } }, "s", { type: "datetime-local", id: "when", style: { width: "auto" }, "aria-label": "Publish at" }),
+            el("span", { class: "muted small" }, tz),
+          ])
+        : el("div", { class: "muted small" }, when === "now" ? "Publishes as soon as you post." : "Saved in Unsora; publish or schedule it later."),
+    ]);
+  }
+
+  /** Counter, issues and the submit button update on every keystroke without a full render. */
+  function updateLive() {
+    const counter = document.querySelector('[data-live="counter"]');
+    if (counter) {
+      const lim = captionLimit();
+      counter.textContent = lim ? caption.length + " / " + Kit.fmtNum(lim.limit) : caption.length + " characters";
+      counter.className = "counter" + (lim && caption.length > lim.limit ? " over" : "");
+    }
+    const { errors, warnings } = check();
+    const issues = document.querySelector('[data-live="issues"]');
+    if (issues) {
+      issues.replaceChildren(...errors.map((e) => el("div", { class: "e" }, e)), ...warnings.map((w) => el("div", { class: "w" }, w)));
+    }
+    const go = document.querySelector('[data-live="submit"]');
+    if (go) go.disabled = !!errors.length || submitting;
+  }
+
+  function formView() {
+    const label = when === "now" ? "Post now" : when === "schedule" ? "Schedule post" : "Save draft";
+    const go = el("button", { type: "button", class: "primary", "data-live": "submit", onclick: submit }, submitting ? "Working…" : label);
+    const view = el("div", { class: "card stack" }, [
+      el("div", { class: "row between" }, [
+        el("div", { class: "h" }, "New post"),
+        !paid ? button("Upgrade", () => Kit.appLink("/billing"), { sm: true, primary: true }) : null,
+      ]),
+      !paid ? el("div", { class: "muted" }, "Scheduling and publishing need a paid plan.") : null,
+      accountsSection(),
+      mediaSection(),
+      captionSection(),
+      settingsSection(),
+      whenSection(),
+      el("div", { class: "issues", "data-live": "issues", "aria-live": "polite" }),
+      submitError ? el("div", { class: "error" }, submitError) : null,
+      el("div", { class: "submit-row" }, [
+        el("span", { class: "muted small" }, selected.size ? Kit.plural(selected.size, "account") + " · " + platformsChosen().map((p) => Kit.platformMeta(p).label).join(", ") : ""),
+        go,
+      ]),
+    ]);
+    // Fill the live parts once the tree is in the document.
+    queueMicrotask(updateLive);
+    return view;
+  }
+
+  function doneView() {
+    const post = obj(result.post);
+    const status = String(post.status || "").toUpperCase();
+    const targets = arr(post.postAccounts);
+    let headline;
+    if (result.mode === "schedule") headline = "Scheduled for " + Kit.fmtDateTime(post.scheduledFor || scheduleAt);
+    else if (result.mode === "draft") headline = "Saved as a draft";
+    else if (status === "PUBLISHED") headline = "Published";
+    else if (status === "PARTIALLY_PUBLISHED") headline = "Published on some accounts";
+    else if (status === "FAILED") headline = "Publishing failed";
+    else headline = "Publishing…";
+    const tone = status === "FAILED" ? "danger" : status === "PARTIALLY_PUBLISHED" ? "warning" : status === "PUBLISHED" || result.mode !== "now" ? "success" : "warning";
+    return el("div", { class: "card stack" }, [
+      el("div", { class: "row" }, [el("span", { class: "badge dot " + tone }, headline.replace(/…$/, "")), headline.endsWith("…") ? el("span", { class: "spinner" }) : null]),
+      targets.length
+        ? el("div", { class: "stack" }, targets.map((t) => {
+            const acc = Kit.readAccount(Object.assign({}, obj(t.account), { id: t.accountId }));
+            let badge = null;
+            if (t.published) badge = el("span", { class: "badge dot success" }, "Posted");
+            else if (t.error) badge = el("span", { class: "badge dot danger" }, "Failed");
+            else if (status === "PUBLISHING") badge = el("span", { class: "badge dot warning" }, "Posting…");
+            return el("div", { class: "result-target" }, [
+              Kit.avatar(acc),
+              el("div", { class: "who" }, [
+                el("div", { class: "title ellipsis" }, (acc.name || "Account") + " · " + Kit.platformMeta(acc.provider).label),
+                t.error ? el("div", { class: "error" }, t.error) : null,
+              ]),
+              badge,
+              t.publishedUrl ? button("View", () => Kit.openLink(t.publishedUrl), { sm: true, key: "v" + t.accountId }) : null,
+            ]);
+          }))
+        : el("div", { class: "row" }, [el("span", { class: "spinner" }), el("span", { class: "muted" }, "Loading the post…")]),
+      el("div", { class: "actions" }, [
+        button("Create another", reset, { primary: true }),
+        result.id ? button("Open in Unsora", () => Kit.appLink("/scheduler/posts/" + encodeURIComponent(result.id))) : null,
+        status === "FAILED" || status === "PARTIALLY_PUBLISHED"
+          ? button("Retry failed", async () => {
+              try {
+                await Kit.callTool("retry_post", { postId: result.id });
+                result.post = Object.assign({}, post, { status: "PUBLISHING" });
+                Kit.refresh();
+                follow(result.id);
+              } catch (err) { submitError = err.message; Kit.refresh(); }
+            })
+          : null,
+      ]),
+    ]);
+  }
+
+  function view() {
+    if (phase === "error") return Kit.errorCard(fatal || "Something went wrong.");
+    if (phase === "loading") return Kit.spinnerCard("Opening the composer…");
+    if (phase === "done") return doneView();
+    return formView();
+  }
+
+  Kit.mount(view);
+  Kit.init("unsora-composer");
+})();
+</script>
+</body>
+</html>

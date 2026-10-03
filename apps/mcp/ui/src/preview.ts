@@ -11,12 +11,42 @@ import {
 import mediaTemplate from "../../assets/mcp-ui/media-view.html?raw";
 import clippingHtml from "../../assets/mcp-ui/clipping-view.html?raw";
 import voicesHtml from "../../assets/mcp-ui/voices-view.html?raw";
+import accountHtml from "../../assets/mcp-ui/account-view.html?raw";
+import accountsHtml from "../../assets/mcp-ui/accounts-view.html?raw";
+import postsHtml from "../../assets/mcp-ui/posts-view.html?raw";
+import analyticsHtml from "../../assets/mcp-ui/analytics-view.html?raw";
+import libraryHtml from "../../assets/mcp-ui/library-view.html?raw";
+import composerHtml from "../../assets/mcp-ui/composer-view.html?raw";
+import kitCss from "../../assets/mcp-ui/shared/kit.css?raw";
+import kitJs from "../../assets/mcp-ui/shared/kit.js?raw";
+import * as mock from "./mocks";
 
-type View = "image" | "video" | "audio" | "clipping" | "voices";
+type View =
+  | "image" | "video" | "audio" | "clipping" | "voices"
+  | "account" | "accounts" | "posts" | "analytics" | "library" | "composer";
+
+const KIT_VIEWS: Partial<Record<View, string>> = {
+  account: accountHtml,
+  accounts: accountsHtml,
+  posts: postsHtml,
+  analytics: analyticsHtml,
+  library: libraryHtml,
+  composer: composerHtml,
+};
+
+/** Same inlining the server does in loadWidget (src/tools/index.ts). */
+function inlineKit(html: string): string {
+  return html
+    .split("/*@kit.css*/").join(kitCss)
+    .split("/*@kit.js*/").join(kitJs)
+    .split("__UNSORA_APP_URL__").join("https://app.tryunsora.com");
+}
 
 function widgetFor(view: View): string {
   if (view === "clipping") return clippingHtml;
   if (view === "voices") return voicesHtml;
+  const kit = KIT_VIEWS[view];
+  if (kit) return inlineKit(kit);
   return mediaTemplate.split("__UNSORA_KIND__").join(view);
 }
 
@@ -32,7 +62,37 @@ interface Scenario {
    */
   pollsToComplete: number;
   fail?: boolean;
+  /** Replies for tools the view calls itself (tool name -> structuredContent). */
+  mock?: Record<string, (args: Record<string, unknown>) => unknown>;
+  /** Send the tool result as an error. */
+  errorResult?: string;
 }
+
+/** Tools every scheduler/library view may call. */
+const SCHEDULER_MOCKS: Scenario["mock"] = {
+  get_post: (a) => mock.getPost(String(a.postId)),
+  list_posts: (a) => mock.listPosts(a),
+  publish_post: (a) => ({ success: true, message: "Publishing started", data: { postId: a.postId, status: "PUBLISHING", results: [] } }),
+  retry_post: (a) => ({ success: true, message: "Retry started", data: { postId: a.postId, status: "PUBLISHING", results: [] } }),
+  update_post: (a) => {
+    const base = mock.POSTS.find((p) => p.id === a.postId)!;
+    const scheduled = a.scheduled_at === null ? null : String(a.scheduled_at);
+    return { success: true, data: { ...base, scheduledFor: scheduled, status: scheduled ? "SCHEDULED" : "DRAFT" } };
+  },
+  delete_post: () => ({ success: true, message: "Post deleted successfully" }),
+  get_credits: () => mock.CREDITS,
+  get_subscription: () => mock.SUBSCRIPTION,
+  get_accounts: () => ({ success: true, data: mock.ACCOUNTS }),
+  get_post_analytics: (a) => mock.analytics(Number(a.days) || 30),
+  list_generations: (a) => mock.library(String(a.type)),
+  list_uploads: () => mock.uploads(),
+  delete_generation: () => ({ success: true, message: "Deleted" }),
+  pinterest_boards: () => mock.PINTEREST_BOARDS,
+  tiktok_creator_info: () => mock.TIKTOK_CREATOR,
+  create_post: () => mock.CREATE_POST_RESULT,
+  list_voices: () => mock.voiceLibrary(SAMPLE_VOICES),
+  delete_voice_clone: () => ({ success: true, message: "Voice clone deleted" }),
+};
 
 const SAMPLE_VIDEOS = [
   "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
@@ -79,6 +139,15 @@ const SAMPLE_VOICES = VOICE_CATALOG.map(([id, description, gender, accent], i) =
   // Last entry gets no preview to exercise the unavailable state.
   previewUrl: i === VOICE_CATALOG.length - 1 ? null : SAMPLE_AUDIO,
 }));
+
+const kitScenario = (
+  label: string,
+  view: View,
+  tool: string,
+  args: Record<string, unknown>,
+  structuredContent: Record<string, unknown>,
+  extra: Partial<Scenario> = {},
+): Scenario => ({ label, view, tool, args, structuredContent, pollsToComplete: 0, mock: SCHEDULER_MOCKS, ...extra });
 
 const SCENARIOS: Scenario[] = [
   {
@@ -196,6 +265,19 @@ const SCENARIOS: Scenario[] = [
     },
     pollsToComplete: 2,
   },
+  kitScenario("Composer — images", "composer", "compose_post", {}, mock.COMPOSE_PREFILL),
+  kitScenario("Composer — video", "composer", "compose_post", {}, mock.COMPOSE_VIDEO),
+  kitScenario("Posts — list", "posts", "list_posts", {}, mock.listPosts({})),
+  kitScenario("Post — partly published", "posts", "get_post", { postId: "p_partial" }, { success: true, data: mock.POSTS[3] }),
+  kitScenario("Post — publish now (live)", "posts", "create_post", { publishNow: true }, mock.CREATE_POST_RESULT),
+  kitScenario("Post — deleted", "posts", "delete_post", { postId: "p_draft" }, { success: true, message: "Post deleted successfully" }),
+  kitScenario("Analytics", "analytics", "get_post_analytics", { days: 30 }, mock.analytics(30)),
+  kitScenario("Accounts", "accounts", "get_accounts", {}, { success: true, data: mock.ACCOUNTS }),
+  kitScenario("Plan & credits", "account", "get_credits", {}, mock.CREDITS),
+  kitScenario("Library — images", "library", "list_generations", { type: "image" }, mock.library("image")),
+  kitScenario("Library — music", "library", "list_generations", { type: "music" }, mock.library("music")),
+  kitScenario("Voices — all + clones", "voices", "list_voices", {}, mock.voiceLibrary(SAMPLE_VOICES)),
+  kitScenario("Posts — plan required (error)", "posts", "create_post", {}, {}, { errorResult: "This feature requires an active paid plan." }),
 ];
 
 const logEl = document.getElementById("log")!;
@@ -305,6 +387,12 @@ async function mockCallTool(params: {
   const args = params.arguments ?? {};
   log(`🔧 tools/call <b>${params.name}</b> ${JSON.stringify(args)}`);
 
+  const handler = scenario.mock?.[params.name];
+  if (handler) {
+    const sc = handler(args) as Record<string, unknown>;
+    return { content: [{ type: "text", text: JSON.stringify(sc) }], structuredContent: sc };
+  }
+
   if (
     params.name === "image_status" ||
     params.name === "video_status" ||
@@ -411,6 +499,10 @@ async function loadScenario(scenario: Scenario) {
     initialized = true;
     log(`✅ view initialized — sending tool input + result`);
     void b.sendToolInput({ arguments: scenario.args });
+    if (scenario.errorResult) {
+      void b.sendToolResult({ content: [{ type: "text", text: scenario.errorResult }], isError: true });
+      return;
+    }
     void b.sendToolResult({
       content: [{ type: "text", text: JSON.stringify(scenario.structuredContent) }],
       structuredContent: scenario.structuredContent,

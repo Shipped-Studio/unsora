@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Unsora Analytics</title>
+<!--
+  Unsora post analytics (MCP Apps). Bound to get_post_analytics:
+  totals, a daily trend for one metric (hover for the day's numbers), the
+  metric by platform, and the top posts. The range (7/30/90 days) and
+  "Refresh" call get_post_analytics again.
+-->
+<style>
+/*@kit.css*/
+:root { --series: #2f6fd1; --series-fill: rgba(47, 111, 209, 0.12); }
+:root[data-theme="dark"] { --series: #7fb0ff; --series-fill: rgba(127, 176, 255, 0.14); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 8px; }
+.tile { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 9px 11px; }
+.tile .label { font-size: 12px; color: var(--muted); font-weight: 600; }
+.tile .value { font-size: 21px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 1px; }
+.panel { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; position: relative; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.panel-title { font-size: 13px; font-weight: 650; }
+svg text { fill: var(--muted); font-size: 11px; font-family: var(--font); }
+.grid-line { stroke: var(--border); stroke-width: 1; }
+.series-line { fill: none; stroke: var(--series); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.series-area { fill: var(--series-fill); }
+.cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.dot { fill: var(--series); stroke: var(--bg); stroke-width: 2; }
+.tip {
+  position: absolute; pointer-events: none; z-index: 2; min-width: 120px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12); font-size: 12px; display: none;
+}
+.tip .t { font-weight: 650; margin-bottom: 3px; }
+.tip .r { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); }
+.tip .r b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.bars { display: flex; flex-direction: column; gap: 6px; }
+.bar-row { display: grid; grid-template-columns: minmax(96px, 128px) 1fr auto; align-items: center; gap: 10px; }
+.bar-row .who { display: flex; align-items: center; gap: 7px; font-size: 13px; min-width: 0; }
+.bar-track { height: 14px; position: relative; }
+.bar { height: 100%; background: var(--series); border-radius: 0 4px 4px 0; min-width: 2px; }
+.bar-row .val { font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--text); font-weight: 600; min-width: 40px; text-align: right; }
+.top { display: flex; flex-direction: column; gap: 8px; }
+.top-row { display: flex; align-items: center; gap: 10px; }
+.top-row .body { flex: 1; min-width: 0; }
+.top-row .cap { font-size: 13px; }
+.top-row .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.top-row .num { font-weight: 650; font-variant-numeric: tabular-nums; font-size: 13px; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--muted); font-weight: 600; }
+.table-wrap { max-height: 220px; overflow-y: auto; overscroll-behavior: contain; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+/*@kit.js*/
+(() => {
+  "use strict";
+  const { el, button, str, num, arr, obj, unwrap } = Kit;
+  const SVG = "http://www.w3.org/2000/svg";
+
+  const METRICS = [["views", "Views"], ["likes", "Likes"], ["comments", "Comments"], ["shares", "Shares"]];
+  const RANGES = [7, 30, 90];
+
+  let data = null;
+  let error = null;
+  let loading = false;
+  let refreshing = false;
+  let days = 30;
+  let metric = "views";
+  let showTable = false;
+
+  Kit.on("input", (a) => { if (num(a && a.days)) days = num(a.days); });
+  Kit.on("result", (result) => {
+    if (!result || result.isError) error = Kit.textOf(result) || "Couldn't load analytics.";
+    else read(result.structuredContent);
+    Kit.refresh();
+  });
+
+  function read(sc) {
+    const d = obj(unwrap(sc));
+    const metrics = (m) => ({
+      views: num(obj(m).views) || 0, likes: num(obj(m).likes) || 0, comments: num(obj(m).comments) || 0,
+      shares: num(obj(m).shares) || 0, saves: num(obj(m).saves) || 0,
+    });
+    data = {
+      days: num(d.days) || days,
+      totals: metrics(d.totals),
+      postCount: num(d.postCount) || 0,
+      byPlatform: arr(d.byPlatform).map((p) => Object.assign(metrics(p), { platform: str(p.platform) || "other", posts: num(p.posts) || 0 })),
+      timeseries: arr(d.timeseries).map((p) => Object.assign(metrics(p), { date: str(p.date) })).filter((p) => p.date),
+      posts: arr(d.posts).map((p) => ({
+        platform: str(p.platform),
+        username: str(p.accountUsername),
+        avatarUrl: str(p.profilePicture),
+        caption: str(p.caption) || "",
+        publishedAt: str(p.publishedAt),
+        url: str(p.publishedUrl),
+        metrics: metrics(p.metrics),
+      })),
+    };
+    days = data.days;
+    error = null;
+  }
+
+  async function load(opts) {
+    const refresh = !!(opts && opts.refresh);
+    loading = true;
+    refreshing = refresh;
+    Kit.refresh();
+    try {
+      read(await Kit.callTool("get_post_analytics", refresh ? { days, refresh: true } : { days }));
+    } catch (err) {
+      error = err.message;
+    }
+    loading = false;
+    refreshing = false;
+    Kit.refresh();
+  }
+
+  /* ------------------------------- charts ----------------------------- */
+
+  function svg(tag, attrs) {
+    const node = document.createElementNS(SVG, tag);
+    for (const [k, v] of Object.entries(attrs || {})) node.setAttribute(k, v);
+    return node;
+  }
+
+  /** A round tick step giving about four intervals up to `v`. */
+  function niceStep(v) {
+    const raw = Math.max(v, 1) / 4;
+    const p = Math.pow(10, Math.floor(Math.log10(raw)));
+    for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= raw) return Math.max(1, m * p);
+    return 10 * p;
+  }
+
+  function shortDate(iso) {
+    const d = new Date(iso + "T00:00:00");
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+
+  function trendChart(points) {
+    const panel = el("div", { class: "panel" });
+    const tip = el("div", { class: "tip", role: "status" });
+    const label = METRICS.find((m) => m[0] === metric)[1];
+    panel.append(el("div", { class: "panel-head" }, [
+      el("div", { class: "panel-title" }, label + " per day"),
+      el("div", { class: "row" }, [
+        el("div", { class: "seg" }, METRICS.map(([key, name]) =>
+          el("button", { type: "button", class: metric === key ? "on" : "", "aria-pressed": metric === key ? "true" : "false", onclick: () => { metric = key; Kit.refresh(); } }, name))),
+        button(showTable ? "Chart" : "Table", () => { showTable = !showTable; Kit.refresh(); }, { sm: true }),
+      ]),
+    ]));
+
+    if (showTable) {
+      panel.append(el("div", { class: "table-wrap" }, el("table", null, [
+        el("thead", null, el("tr", null, [el("th", null, "Date"), ...METRICS.map((m) => el("th", null, m[1]))])),
+        el("tbody", null, points.slice().reverse().map((p) =>
+          el("tr", null, [el("td", null, shortDate(p.date)), ...METRICS.map((m) => el("td", null, Kit.fmtNum(p[m[0]])))]))),
+      ])));
+      return panel;
+    }
+
+    const width = Math.max(260, (document.getElementById("root").clientWidth || 600) - 52);
+    const height = 170;
+    const pad = { l: 38, r: 10, t: 10, b: 22 };
+    const w = width - pad.l - pad.r;
+    const h = height - pad.t - pad.b;
+    const values = points.map((p) => p[metric]);
+    const step = niceStep(Math.max(0, ...values));
+    const max = step * Math.max(1, Math.ceil(Math.max(0, ...values) / step));
+    const x = (i) => pad.l + (points.length <= 1 ? w / 2 : (i / (points.length - 1)) * w);
+    const y = (v) => pad.t + h - (v / max) * h;
+
+    const chart = svg("svg", { width, height, role: "img", "aria-label": label + " per day over the last " + days + " days" });
+    for (let v = 0; v <= max + step / 2; v += step) {
+      chart.append(svg("line", { class: "grid-line", x1: pad.l, x2: width - pad.r, y1: y(v), y2: y(v) }));
+      const t = svg("text", { x: pad.l - 6, y: y(v) + 3.5, "text-anchor": "end" });
+      t.textContent = Kit.fmtNum(v);
+      chart.append(t);
+    }
+    const ticks = points.length > 2 ? [0, Math.floor((points.length - 1) / 2), points.length - 1] : points.map((_, i) => i);
+    for (const i of ticks) {
+      const t = svg("text", { x: x(i), y: height - 6, "text-anchor": i === 0 ? "start" : i === points.length - 1 ? "end" : "middle" });
+      t.textContent = shortDate(points[i].date);
+      chart.append(t);
+    }
+    if (points.length) {
+      const line = points.map((p, i) => (i ? "L" : "M") + x(i).toFixed(1) + " " + y(p[metric]).toFixed(1)).join(" ");
+      chart.append(svg("path", { class: "series-area", d: line + " L" + x(points.length - 1) + " " + y(0) + " L" + x(0) + " " + y(0) + " Z" }));
+      chart.append(svg("path", { class: "series-line", d: line }));
+    }
+
+    // Hover layer: crosshair + dot + tooltip for the nearest day.
+    const cross = svg("line", { class: "cross", y1: pad.t, y2: pad.t + h, visibility: "hidden" });
+    const dot = svg("circle", { class: "dot", r: 4.5, visibility: "hidden" });
+    const hit = svg("rect", { x: pad.l, y: 0, width: w, height, fill: "transparent" });
+    chart.append(cross, dot, hit);
+    const hide = () => { cross.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden"); tip.style.display = "none"; };
+    hit.addEventListener("mouseleave", hide);
+    hit.addEventListener("mousemove", (e) => {
+      if (!points.length) return;
+      const box = chart.getBoundingClientRect();
+      const px = e.clientX - box.left;
+      const i = Math.max(0, Math.min(points.length - 1, Math.round(((px - pad.l) / w) * (points.length - 1))));
+      const p = points[i];
+      cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility", "visible");
+      dot.setAttribute("cx", x(i)); dot.setAttribute("cy", y(p[metric])); dot.setAttribute("visibility", "visible");
+      tip.replaceChildren(
+        el("div", { class: "t" }, shortDate(p.date)),
+        ...METRICS.map(([key, name]) => el("div", { class: "r" }, [name, el("b", null, Kit.fmtNum(p[key]))])),
+      );
+      tip.style.display = "block";
+      // The chart sits 12px inside the panel; flip the tip left near the right edge.
+      const tipWidth = tip.offsetWidth || 140;
+      const anchor = 12 + x(i);
+      tip.style.left = (anchor + 10 + tipWidth > width ? anchor - 10 - tipWidth : anchor + 10) + "px";
+      tip.style.top = "40px";
+    });
+    panel.append(chart, tip);
+    return panel;
+  }
+
+  function platformBars(rows) {
+    const label = METRICS.find((m) => m[0] === metric)[1];
+    const sorted = rows.slice().sort((a, b) => b[metric] - a[metric]);
+    const max = Math.max(1, ...sorted.map((r) => r[metric]));
+    const panel = el("div", { class: "panel" });
+    const tip = el("div", { class: "tip" });
+    panel.append(el("div", { class: "panel-head" }, el("div", { class: "panel-title" }, label + " by platform")));
+    panel.append(el("div", { class: "bars" }, sorted.map((r) => {
+      const meta = Kit.platformMeta(r.platform);
+      const row = el("div", { class: "bar-row" }, [
+        el("div", { class: "who" }, [Kit.pfMark(r.platform), el("span", { class: "ellipsis" }, meta.label)]),
+        el("div", { class: "bar-track" }, el("div", { class: "bar", style: { width: (r[metric] / max) * 100 + "%" } })),
+        el("div", { class: "val" }, Kit.fmtNum(r[metric])),
+      ]);
+      row.addEventListener("mouseenter", () => {
+        tip.replaceChildren(
+          el("div", { class: "t" }, meta.label + " · " + Kit.plural(r.posts, "post")),
+          ...METRICS.concat([["saves", "Saves"]]).map(([key, name]) => el("div", { class: "r" }, [name, el("b", null, Kit.fmtNum(r[key]))])),
+        );
+        tip.style.display = "block";
+        tip.style.left = "140px";
+        tip.style.top = row.offsetTop + 22 + "px";
+      });
+      row.addEventListener("mouseleave", () => { tip.style.display = "none"; });
+      return row;
+    })), tip);
+    return panel;
+  }
+
+  function topPosts(posts) {
+    const label = METRICS.find((m) => m[0] === metric)[1];
+    const top = posts.slice().sort((a, b) => b.metrics[metric] - a.metrics[metric]).slice(0, 5);
+    return el("div", { class: "panel" }, [
+      el("div", { class: "panel-head" }, el("div", { class: "panel-title" }, "Top posts by " + label.toLowerCase())),
+      el("div", { class: "top" }, top.map((p, i) =>
+        el("div", { class: "top-row" }, [
+          Kit.avatar({ provider: p.platform, name: p.username, avatarUrl: p.avatarUrl }),
+          el("div", { class: "body" }, [
+            el("div", { class: "cap ellipsis" }, p.caption || "(no caption)"),
+            el("div", { class: "meta" }, [
+              Kit.platformMeta(p.platform).label,
+              p.username ? " · @" + p.username.replace(/^@/, "") : "",
+              p.publishedAt ? " · " + Kit.fmtDate(p.publishedAt) : "",
+              " · " + Kit.fmtNum(p.metrics.likes) + " likes, " + Kit.fmtNum(p.metrics.comments) + " comments",
+            ].join("")),
+          ]),
+          el("div", { class: "num" }, Kit.fmtNum(p.metrics[metric])),
+          p.url ? button("View", () => Kit.openLink(p.url), { sm: true, key: "v" + i }) : null,
+        ]))),
+    ]);
+  }
+
+  /* -------------------------------- view ------------------------------ */
+
+  function view() {
+    if (error && !data) return Kit.errorCard(error, () => load());
+    if (!data) return Kit.spinnerCard("Loading analytics…");
+    const t = data.totals;
+    const header = el("div", { class: "row between" }, [
+      el("div", null, [
+        el("div", { class: "h" }, "Post performance"),
+        el("div", { class: "muted small" }, "Last " + data.days + " days · " + Kit.plural(data.postCount, "published post")),
+      ]),
+      el("div", { class: "row" }, [
+        el("div", { class: "seg" }, RANGES.map((d) =>
+          el("button", { type: "button", class: days === d ? "on" : "", disabled: loading, onclick: () => { if (days !== d) { days = d; load(); } } }, d + "d"))),
+        button(refreshing ? "Refreshing…" : "Refresh", () => load({ refresh: true }), { sm: true, disabled: loading, title: "Fetch the latest numbers from the platforms" }),
+      ]),
+    ]);
+
+    if (!data.postCount && !data.posts.length) {
+      return el("div", { class: "card stack" }, [header, el("div", { class: "muted" }, "No published posts in this period yet.")]);
+    }
+
+    const engagement = t.likes + t.comments + t.shares + t.saves;
+    const rate = t.views ? ((engagement / t.views) * 100).toFixed(1) + "%" : "—";
+    const tile = (label, value) => el("div", { class: "tile" }, [el("div", { class: "label" }, label), el("div", { class: "value" }, value)]);
+
+    return el("div", { class: "card stack" }, [
+      header,
+      error ? el("div", { class: "error" }, error) : null,
+      el("div", { class: "tiles" }, [
+        tile("Views", Kit.fmtNum(t.views)),
+        tile("Likes", Kit.fmtNum(t.likes)),
+        tile("Comments", Kit.fmtNum(t.comments)),
+        tile("Shares", Kit.fmtNum(t.shares)),
+        tile("Saves", Kit.fmtNum(t.saves)),
+        tile("Engagement", rate),
+      ]),
+      data.timeseries.length ? trendChart(data.timeseries) : null,
+      data.byPlatform.length ? platformBars(data.byPlatform) : null,
+      data.posts.length ? topPosts(data.posts) : null,
+    ]);
+  }
+
+  let lastWidth = 0;
+  window.addEventListener("resize", () => {
+    const w = document.getElementById("root").clientWidth;
+    if (Math.abs(w - lastWidth) > 4) { lastWidth = w; Kit.refresh(); }
+  });
+
+  Kit.mount(view);
+  Kit.init("unsora-analytics");
+})();
+</script>
+</body>
+</html>

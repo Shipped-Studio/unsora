@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Unsora Connected Accounts</title>
+<!--
+  Unsora connected accounts (MCP Apps). Bound to get_accounts: shows each
+  account with its platform; selecting some and pressing "Create post" asks
+  the model to open the composer for them.
+-->
+<style>
+/*@kit.css*/
+.accounts { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+.acct {
+  display: flex; align-items: center; gap: 10px; text-align: left; width: 100%;
+  padding: 9px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg);
+  font-weight: 400;
+}
+.acct.on { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
+.acct .who { min-width: 0; flex: 1; }
+.acct .name { font-weight: 600; font-size: 13.5px; }
+.acct .meta { font-size: 12px; color: var(--muted); }
+.tick {
+  width: 16px; height: 16px; flex: none; border-radius: 5px; border: 1.5px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+}
+.acct.on .tick { background: var(--text); border-color: var(--text); }
+.acct.on .tick::after {
+  content: ""; width: 7px; height: 4px; margin-top: -2px;
+  border-left: 2px solid var(--on-primary); border-bottom: 2px solid var(--on-primary); transform: rotate(-45deg);
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+/*@kit.js*/
+(() => {
+  "use strict";
+  const { el, button, arr, unwrap } = Kit;
+
+  let accounts = null; // [{ id, provider, name, username, avatarUrl }]
+  let error = null;
+  const selected = new Set();
+
+  function load(sc) {
+    accounts = arr(unwrap(sc)).map(Kit.readAccount).filter((a) => a.id);
+    // Group by platform, then name.
+    const order = Object.keys(Kit.PLATFORMS);
+    accounts.sort((a, b) =>
+      order.indexOf(Kit.platformOf(a.provider)) - order.indexOf(Kit.platformOf(b.provider)) ||
+      String(a.name).localeCompare(String(b.name)));
+  }
+
+  Kit.on("result", (result) => {
+    if (result && result.isError) error = Kit.textOf(result) || "Couldn't load your accounts.";
+    else load(result && result.structuredContent);
+    Kit.refresh();
+  });
+
+  async function reload() {
+    error = null;
+    accounts = null;
+    Kit.refresh();
+    try { load(await Kit.callTool("get_accounts")); }
+    catch (err) { error = err.message; }
+    Kit.refresh();
+  }
+
+  function toggle(id) {
+    selected.has(id) ? selected.delete(id) : selected.add(id);
+    Kit.refresh();
+  }
+
+  async function compose() {
+    const chosen = accounts.filter((a) => selected.has(a.id));
+    const names = chosen.map((a) => a.name + " (" + Kit.platformMeta(a.provider).label + ")").join(", ");
+    const ok = await Kit.sendPrompt(
+      "I want to create a post for " + names + ". Open the post composer (compose_post) with " +
+        "accountIds " + JSON.stringify(chosen.map((a) => a.id)) + ".",
+    );
+    Kit.flash("compose", ok ? "Sent" : "Couldn't send");
+  }
+
+  function card(account) {
+    const meta = Kit.platformMeta(account.provider);
+    const handle = account.username && account.username !== account.name ? "@" + account.username.replace(/^@/, "") : null;
+    return el("button", {
+      type: "button",
+      class: "acct" + (selected.has(account.id) ? " on" : ""),
+      "aria-pressed": selected.has(account.id) ? "true" : "false",
+      onclick: () => toggle(account.id),
+    }, [
+      Kit.avatar(account),
+      el("div", { class: "who" }, [
+        el("div", { class: "name ellipsis" }, account.name || meta.label),
+        el("div", { class: "meta ellipsis" }, [meta.label, handle ? " · " + handle : ""].join("")),
+      ]),
+      el("span", { class: "tick", "aria-hidden": "true" }),
+    ]);
+  }
+
+  function view() {
+    if (error && !accounts) return Kit.errorCard(error, reload);
+    if (!accounts) return Kit.spinnerCard("Loading accounts…");
+    if (!accounts.length) {
+      return el("div", { class: "card stack" }, [
+        el("div", { class: "title" }, "No social accounts connected yet"),
+        el("div", { class: "muted" }, "Connect YouTube, TikTok, Instagram, Facebook, LinkedIn, Pinterest, Threads or Bluesky in Unsora to start posting."),
+        el("div", { class: "actions" }, button("Connect accounts", () => Kit.appLink("/scheduler/accounts"), { primary: true })),
+      ]);
+    }
+    const n = selected.size;
+    return el("div", { class: "card stack" }, [
+      el("div", { class: "row between" }, [
+        el("div", { class: "h" }, Kit.plural(accounts.length, "connected account")),
+        button("Manage", () => Kit.appLink("/scheduler/accounts"), { sm: true }),
+      ]),
+      el("div", { class: "accounts" }, accounts.map(card)),
+      el("div", { class: "row between" }, [
+        el("span", { class: "muted" }, n ? Kit.plural(n, "account") + " selected" : "Select accounts to post to."),
+        button("Create post", compose, { primary: true, disabled: !n, key: "compose" }),
+      ]),
+    ]);
+  }
+
+  Kit.mount(view);
+  Kit.init("unsora-accounts").then(() => setTimeout(() => { if (!accounts && !error) reload(); }, 1500));
+})();
+</script>
+</body>
+</html>

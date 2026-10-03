@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Unsora Plan & Credits</title>
+<!--
+  Unsora plan & credits (MCP Apps). Bound to get_credits and get_subscription:
+  whichever ran, we show its result and fetch the other one so the card always
+  has both the credit balance and the plan.
+-->
+<style>
+/*@kit.css*/
+.figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.figure { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; }
+.figure .label { font-size: 12px; color: var(--muted); font-weight: 600; }
+.figure .value { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.figure .value.plan { text-transform: capitalize; }
+.figure .sub { margin-top: 4px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+/*@kit.js*/
+(() => {
+  "use strict";
+  const { el, button, str, num, obj, unwrap } = Kit;
+
+  let credits = null; // number | null
+  let sub = null; // { plan, status, isActive, isCancelled, periodEnd } | null
+  let error = null;
+  let loading = { credits: false, sub: false };
+
+  function readCredits(sc) {
+    const n = num(obj(sc).credits);
+    if (n != null) credits = n;
+    return n != null;
+  }
+
+  function readSub(sc) {
+    const d = obj(unwrap(sc));
+    if (!("isActive" in d) && !("plan" in d)) return false;
+    sub = {
+      plan: str(d.plan) || "free",
+      status: str(d.status) || "inactive",
+      isActive: !!d.isActive,
+      isCancelled: !!d.isCancelled,
+      periodEnd: str(d.stripeCurrentPeriodEnd),
+    };
+    return true;
+  }
+
+  Kit.on("result", (result) => {
+    const sc = result && result.structuredContent;
+    if (result && result.isError) {
+      error = Kit.textOf(result) || "Couldn't load your account.";
+    } else if (sc) {
+      readCredits(sc) || readSub(sc);
+    }
+    fillIn();
+    Kit.refresh();
+  });
+
+  /** Fetch whichever half the host didn't hand us. */
+  async function fillIn() {
+    const jobs = [];
+    if (credits == null && !loading.credits) {
+      loading.credits = true;
+      jobs.push(Kit.callTool("get_credits").then(readCredits).catch(() => {}));
+    }
+    if (!sub && !loading.sub) {
+      loading.sub = true;
+      jobs.push(Kit.callTool("get_subscription").then(readSub).catch(() => {}));
+    }
+    if (!jobs.length) return;
+    await Promise.all(jobs);
+    Kit.refresh();
+  }
+
+  function planBadge() {
+    if (!sub) return null;
+    if (sub.isActive && sub.isCancelled) return el("span", { class: "badge dot warning" }, "Cancels at period end");
+    if (sub.isActive) return el("span", { class: "badge dot success" }, sub.status === "trialing" ? "Trial" : "Active");
+    if (sub.status === "past_due") return el("span", { class: "badge dot danger" }, "Payment due");
+    return el("span", { class: "badge" }, "No active subscription");
+  }
+
+  function view() {
+    if (error && credits == null && !sub) return Kit.errorCard(error);
+    if (credits == null && !sub) return Kit.spinnerCard("Loading your account…");
+
+    const periodText = sub && sub.periodEnd
+      ? (sub.isCancelled ? "Ends " : "Renews ") + Kit.fmtDate(sub.periodEnd)
+      : null;
+
+    return el("div", { class: "card stack" }, [
+      el("div", { class: "figures" }, [
+        el("div", { class: "figure" }, [
+          el("div", { class: "label" }, "Credits"),
+          el("div", { class: "value" }, credits == null ? "—" : Kit.fmtNum(credits)),
+          el("div", { class: "sub muted small" }, "Spent on generations"),
+        ]),
+        el("div", { class: "figure" }, [
+          el("div", { class: "label" }, "Plan"),
+          el("div", { class: "value plan" }, sub ? sub.plan : "—"),
+          el("div", { class: "sub row" }, [planBadge(), periodText ? el("span", { class: "muted small" }, periodText) : null]),
+        ]),
+      ]),
+      sub && !sub.isActive
+        ? el("div", { class: "muted" }, "Scheduling and publishing posts need a paid plan.")
+        : null,
+      el("div", { class: "actions" }, [
+        button(sub && !sub.isActive ? "Upgrade" : "Manage plan", () => Kit.appLink("/billing"), { primary: !!(sub && !sub.isActive) }),
+        button("Buy credits", () => Kit.appLink("/billing")),
+      ]),
+    ]);
+  }
+
+  Kit.mount(view);
+  Kit.init("unsora-account").then(() => setTimeout(fillIn, 1500));
+})();
+</script>
+</body>
+</html>

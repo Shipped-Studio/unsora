@@ -22,6 +22,32 @@ const VIDEO_UI_URI = "ui://unsora/video";
 const AUDIO_UI_URI = "ui://unsora/audio";
 const CLIPPING_UI_URI = "ui://unsora/clipping";
 const VOICES_UI_URI = "ui://unsora/voices";
+const ACCOUNT_UI_URI = "ui://unsora/account";
+const ACCOUNTS_UI_URI = "ui://unsora/accounts";
+const POSTS_UI_URI = "ui://unsora/posts";
+const ANALYTICS_UI_URI = "ui://unsora/analytics";
+const LIBRARY_UI_URI = "ui://unsora/library";
+const COMPOSER_UI_URI = "ui://unsora/composer";
+
+/**
+ * Widgets built on the shared kit (assets/mcp-ui/shared). Each reads the
+ * structuredContent of the tools bound to it (see `_meta.ui.resourceUri`)
+ * and calls tools itself for follow-up actions.
+ */
+const KIT_WIDGETS = [
+  { uri: ACCOUNT_UI_URI, file: "account-view.html", name: "Unsora Plan & Credits", description: "Plan, subscription and credit balance" },
+  { uri: ACCOUNTS_UI_URI, file: "accounts-view.html", name: "Unsora Connected Accounts", description: "Connected social accounts" },
+  { uri: POSTS_UI_URI, file: "posts-view.html", name: "Unsora Posts", description: "Scheduled, draft and published posts with live publish status" },
+  { uri: ANALYTICS_UI_URI, file: "analytics-view.html", name: "Unsora Analytics", description: "Post performance across platforms" },
+  { uri: LIBRARY_UI_URI, file: "library-view.html", name: "Unsora Library", description: "Past generations and uploads" },
+  { uri: COMPOSER_UI_URI, file: "composer-view.html", name: "Unsora Post Composer", description: "Compose, configure per platform and schedule a post" },
+] as const;
+
+/** Appended to descriptions of tools whose result renders a widget. */
+const SHOWN_IN_UI =
+  " In app-capable hosts the result renders as an interactive panel the user can see and act " +
+  "on — do NOT repeat its contents as a list or table in your reply; add only what the panel " +
+  "doesn't say.";
 
 /*
  * Media preview contract (assets/mcp-ui/media-view.html reads this):
@@ -290,9 +316,23 @@ function claudeAppDomain(): string | undefined {
   return `${hash}.claudemcpcontent.com`;
 }
 
-function resourceUiMeta(): ResourceUiMeta {
+/** Where connected accounts' profile pictures are served from. */
+const AVATAR_DOMAINS = [
+  "https://*.fbcdn.net",
+  "https://*.cdninstagram.com",
+  "https://*.tiktokcdn.com",
+  "https://*.tiktokcdn-us.com",
+  "https://*.googleusercontent.com",
+  "https://*.ggpht.com",
+  "https://*.ytimg.com",
+  "https://*.pinimg.com",
+  "https://*.licdn.com",
+  "https://cdn.bsky.app",
+];
+
+function resourceUiMeta(extraDomains: readonly string[] = []): ResourceUiMeta {
   const meta: ResourceUiMeta = {
-    csp: { resourceDomains: MEDIA_DOMAINS },
+    csp: { resourceDomains: [...MEDIA_DOMAINS, ...extraDomains] },
   };
   const domain = claudeAppDomain();
   if (domain) meta.domain = domain;
@@ -301,11 +341,8 @@ function resourceUiMeta(): ResourceUiMeta {
 
 const widgetCache = new Map<string, string>();
 
-/** A widget from assets/mcp-ui (plain HTML/JS, no build step). */
-async function loadWidget(file: string): Promise<string> {
-  const cached = widgetCache.get(file);
-  if (cached) return cached;
-
+/** A file from assets/mcp-ui. */
+async function readWidgetAsset(file: string): Promise<string> {
   // dist/tools and src/tools (tsx) both sit two levels below assets/.
   const candidates = [
     fileURLToPath(new URL(`../../assets/mcp-ui/${file}`, import.meta.url)),
@@ -314,14 +351,37 @@ async function loadWidget(file: string): Promise<string> {
   let lastError: unknown;
   for (const path of candidates) {
     try {
-      const html = await readFile(path, "utf-8");
-      widgetCache.set(file, html);
-      return html;
+      return await readFile(path, "utf-8");
     } catch (error) {
       lastError = error;
     }
   }
-  throw new Error(`MCP widget not found (assets/mcp-ui/${file}). ${String(lastError)}`);
+  throw new Error(`MCP widget asset not found (assets/mcp-ui/${file}). ${String(lastError)}`);
+}
+
+/**
+ * A widget from assets/mcp-ui (plain HTML/JS, no build step). Widgets that
+ * use the shared kit mark where it goes with `/*@kit.css*\/` and
+ * `/*@kit.js*\/`; the kit is inlined so each widget stays one document.
+ */
+async function loadWidget(file: string): Promise<string> {
+  const cached = widgetCache.get(file);
+  if (cached) return cached;
+
+  let html = await readWidgetAsset(file);
+  if (html.includes("/*@kit.")) {
+    const [css, js] = await Promise.all([
+      readWidgetAsset("shared/kit.css"),
+      readWidgetAsset("shared/kit.js"),
+    ]);
+    const appUrl = (process.env.UNSORA_APP_URL || "https://app.tryunsora.com").replace(/\/+$/, "");
+    html = html
+      .split("/*@kit.css*/").join(css)
+      .split("/*@kit.js*/").join(js)
+      .split("__UNSORA_APP_URL__").join(JSON.stringify(appUrl).slice(1, -1));
+  }
+  widgetCache.set(file, html);
+  return html;
 }
 
 /** The media preview widget with its kind filled in. */
@@ -545,8 +605,17 @@ const workflowGuide = `# Unsora API workflows (polling only — no webhooks)
 
 ## Supported social platforms
 Posts can target any connected account on: YouTube, TikTok, Instagram,
-Facebook, LinkedIn. Connect accounts in the Unsora app; get_accounts
-returns them with a "provider" field.
+Facebook, LinkedIn, Pinterest, Threads and Bluesky. Connect accounts in the
+Unsora app; get_accounts returns them with a "provider" field.
+- YouTube: video only; title via title / accountOverrides.
+- Pinterest: 1 image, 2–5 images or a video; no text-only pins.
+- Instagram and TikTok: no text-only posts.
+
+## Composing posts in app-capable hosts
+compose_post opens an editable composer (accounts, caption, media, per-platform
+options, schedule) that creates the post itself. Prefill what the user gave,
+then let them finish there — don't also call create_post. Outside such hosts,
+use create_post directly.
 
 ## Uploading media
 upload_file imports a public URL (or small base64 payload) into the user's
@@ -702,6 +771,25 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
           args.tool,
           args.id,
         ),
+    );
+  }
+
+  for (const widget of KIT_WIDGETS) {
+    registerAppResource(
+      server,
+      widget.name,
+      widget.uri,
+      { description: widget.description },
+      async () => ({
+        contents: [
+          {
+            uri: widget.uri,
+            mimeType: RESOURCE_MIME_TYPE,
+            text: await loadWidget(widget.file),
+            _meta: { ui: resourceUiMeta(AVATAR_DOMAINS) },
+          },
+        ],
+      }),
     );
   }
 
@@ -870,14 +958,17 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
       ),
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "get_credits",
     {
       title: "Check Credits",
-      description: "Get current credit balance",
+      description: "Get current credit balance." + SHOWN_IN_UI,
+      inputSchema: {},
       annotations: READ_ONLY,
+      _meta: { ui: { resourceUri: ACCOUNT_UI_URI } },
     },
-    async (extra) =>
+    async (_args, extra) =>
       jsonResult(
         await unsoraFor(resolveUnsora, extra.authInfo).request(
           "GET",
@@ -886,15 +977,19 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
       ),
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "get_subscription",
     {
       annotations: READ_ONLY,
       title: "Check Subscription",
       description:
-        "Get plan and Stripe subscription state (check isActive before scheduling posts)",
+        "Get plan and Stripe subscription state (check isActive before scheduling posts)." +
+        SHOWN_IN_UI,
+      inputSchema: {},
+      _meta: { ui: { resourceUri: ACCOUNT_UI_URI } },
     },
-    async (extra) =>
+    async (_args, extra) =>
       jsonResult(
         await unsoraFor(resolveUnsora, extra.authInfo).request(
           "GET",
@@ -903,22 +998,66 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
       ),
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "get_accounts",
     {
       annotations: READ_ONLY,
       title: "Connected Accounts",
       description:
         "List connected social accounts for scheduling. Supported platforms: " +
-        "YouTube, TikTok, Instagram, Facebook, LinkedIn. " +
+        "YouTube, TikTok, Instagram, Facebook, LinkedIn, Pinterest, Threads and Bluesky. " +
         "Each account has a provider field identifying its platform " +
-        "(YouTube accounts have provider \"google\").",
+        "(YouTube accounts have provider \"google\")." +
+        SHOWN_IN_UI,
+      inputSchema: {},
+      _meta: { ui: { resourceUri: ACCOUNTS_UI_URI } },
     },
-    async (extra) =>
+    async (_args, extra) =>
       jsonResult(
         await unsoraFor(resolveUnsora, extra.authInfo).request(
           "GET",
           "/accounts",
+        ),
+      ),
+  );
+
+  registerAppTool(
+    server,
+    "pinterest_boards",
+    {
+      title: "Pinterest Boards",
+      description: "Boards a connected Pinterest account can pin to (used by the composer UI).",
+      inputSchema: { accountId: z.string() },
+      annotations: { ...READ_ONLY, idempotentHint: true },
+      _meta: { ui: { resourceUri: COMPOSER_UI_URI, visibility: ["app"] } },
+    },
+    async (args, extra) =>
+      jsonResult(
+        await unsoraFor(resolveUnsora, extra.authInfo).request(
+          "GET",
+          `/accounts/${encodeURIComponent(args.accountId)}/pinterest/boards`,
+        ),
+      ),
+  );
+
+  registerAppTool(
+    server,
+    "tiktok_creator_info",
+    {
+      title: "TikTok Posting Options",
+      description:
+        "TikTok creator info for a connected account: allowed privacy levels, whether " +
+        "comments/duets/stitches are disabled, max video length (used by the composer UI).",
+      inputSchema: { accountId: z.string() },
+      annotations: { ...READ_ONLY, idempotentHint: true },
+      _meta: { ui: { resourceUri: COMPOSER_UI_URI, visibility: ["app"] } },
+    },
+    async (args, extra) =>
+      jsonResult(
+        await unsoraFor(resolveUnsora, extra.authInfo).request(
+          "GET",
+          `/accounts/${encodeURIComponent(args.accountId)}/tiktok/creator-info`,
         ),
       ),
   );
@@ -1296,9 +1435,11 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
       ),
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "list_voices",
     {
+      _meta: { ui: { resourceUri: VOICES_UI_URI } },
       annotations: READ_ONLY,
       title: "List All Voices",
       description:
@@ -1306,7 +1447,7 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
         "voices with preview URLs (elevenV3Voices), and the user's own cloned voices (clones — " +
         "use the clone id). Voices work as voice_id in create_voiceover and create_avatar_video; " +
         "change_voice needs a cloned voice. Also returns the clone limit (maxClones) and " +
-        "cloneCreditCost.",
+        "cloneCreditCost." + SHOWN_IN_UI,
       inputSchema: {},
     },
     async (_args, extra) =>
@@ -1318,16 +1459,18 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
       ),
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "create_voice_clone",
     {
+      _meta: { ui: { resourceUri: VOICES_UI_URI } },
       title: "Clone Voice",
       description:
         "Create an instant voice clone from a speech recording (ElevenLabs). Only clone the " +
         "user's own voice or a voice they have permission to use. Best results: 1–2 minutes of " +
         "clean speech with no music or background noise. Costs 15 credits; max 10 clones per " +
         "account. Returns clone.id — use it as voice_id in create_voiceover, " +
-        "create_avatar_video and change_voice.",
+        "create_avatar_video and change_voice." + SHOWN_IN_UI,
       inputSchema: {
         name: z.string().min(1).max(80).describe("Name for the cloned voice."),
         sampleUrl: z
@@ -1356,12 +1499,14 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
     },
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "delete_voice_clone",
     {
+      _meta: { ui: { resourceUri: VOICES_UI_URI } },
       title: "Delete Voice Clone",
       description:
-        "Permanently delete one of the user's cloned voices. Confirm with the user first.",
+        "Permanently delete one of the user's cloned voices. Confirm with the user first." + SHOWN_IN_UI,
       inputSchema: {
         cloneId: z.string().describe("Clone id from list_voices."),
       },
@@ -1834,7 +1979,8 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
     },
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "create_post",
     {
       title: "Schedule Post",
@@ -1842,23 +1988,39 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
         "Create, schedule, queue, publish or cross-post content to connected social accounts. " +
         "Use this for any request to post now, schedule for later, publish to multiple " +
         "platforms at once, or add something to the posting queue. Supported platforms: " +
-        "YouTube, TikTok, Instagram, Facebook, LinkedIn. " +
+        "YouTube, TikTok, Instagram, Facebook, LinkedIn, Pinterest, Threads and Bluesky. " +
+        "When the user wants to set the post up themselves or per-platform options are " +
+        "still open (TikTok privacy, YouTube title, Pinterest board), prefer compose_post, " +
+        "which opens an editable composer in app-capable hosts. " +
         "Without scheduled_at the post is saved as a DRAFT — set publishNow: true to post " +
         "immediately. " +
         "Requires paid plan. Instagram feed/slideshow images must have an aspect ratio " +
         "between 4:5 (e.g. 1080x1350) and 1.91:1 (e.g. 1080x566) — 9:16 images are rejected " +
         "for Instagram (use 9:16 only for TikTok slideshows and video reels). " +
-        "YouTube uses `title` (video title).",
+        "YouTube only takes video and uses `title` (video title). Pinterest needs media " +
+        "(1 image, 2–5 images or a video)." +
+        SHOWN_IN_UI,
       inputSchema: {
         caption: z.string(),
         accountIds: z.array(z.string()).min(1).max(10),
         mediaType: z.enum(["video", "slideshow", "none"]).optional(),
         mediaUrl: z.string().url().optional(),
         mediaUrls: z.array(z.string().url()).optional(),
+        coverUrl: z
+          .string()
+          .url()
+          .optional()
+          .describe(
+            "Video cover image URL (Instagram Reel cover, YouTube thumbnail, Pinterest video cover).",
+          ),
         scheduled_at: z
           .string()
           .optional()
           .describe("ISO datetime at least 2 minutes ahead. Omit for a draft or publishNow."),
+        timezone: z
+          .string()
+          .optional()
+          .describe("IANA timezone the user scheduled in, e.g. Europe/London (display only)."),
         publishNow: z
           .boolean()
           .optional()
@@ -1886,8 +2048,44 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
           )
           .optional()
           .describe("Per-account title/caption overrides (id must also be in accountIds)."),
-        instagram: z.record(z.unknown()).optional(),
-        tiktok: z.record(z.unknown()).optional(),
+        instagram: z
+          .object({
+            cover_url: z.string().url().optional().describe("Reel cover image URL."),
+          })
+          .optional()
+          .describe("Instagram settings (applies to instagram accounts)."),
+        tiktok: z
+          .object({
+            privacy_level: z
+              .string()
+              .optional()
+              .describe(
+                "PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, FOLLOWER_OF_CREATOR or SELF_ONLY — " +
+                  "must be one the account allows. Default PUBLIC_TO_EVERYONE.",
+              ),
+            disable_comment: z.boolean().optional(),
+            disable_duet: z.boolean().optional().describe("Video only."),
+            disable_stitch: z.boolean().optional().describe("Video only."),
+            brand_organic_toggle: z
+              .boolean()
+              .optional()
+              .describe("Promotes the creator's own brand."),
+            brand_content_toggle: z
+              .boolean()
+              .optional()
+              .describe("Paid partnership / branded content. Not allowed with SELF_ONLY."),
+            is_aigc: z.boolean().optional().describe("Label the post as AI-generated."),
+            auto_add_music: z.boolean().optional().describe("Photo posts only."),
+            photo_cover_index: z.number().int().min(0).optional().describe("Photo posts: cover image index."),
+            video_cover_timestamp_ms: z
+              .number()
+              .int()
+              .min(0)
+              .optional()
+              .describe("Video posts: cover frame time in ms. Default 1000."),
+          })
+          .optional()
+          .describe("TikTok settings (applies to tiktok accounts)."),
         youtube: z
           .object({
             privacy_status: z.enum(["public", "private", "unlisted"]).optional(),
@@ -1903,10 +2101,13 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
               .string()
               .optional()
               .describe("Board to pin to. Defaults to the account's first board."),
+            title: z.string().max(100).optional().describe("Pin title (max 100)."),
+            link: z.string().url().optional().describe("Destination link opened from the pin."),
           })
           .optional()
-          .describe("Pinterest pin settings."),
+          .describe("Pinterest pin settings (applies to pinterest accounts)."),
       },
+      _meta: { ui: { resourceUri: POSTS_UI_URI } },
     },
     async (args, extra) => {
       const unsora = unsoraFor(resolveUnsora, extra.authInfo);
@@ -1927,7 +2128,11 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
       };
 
       if (args.mediaType === "video" && args.mediaUrl) {
-        body.media = { type: "video", url: args.mediaUrl };
+        body.media = {
+          type: "video",
+          url: args.mediaUrl,
+          ...(args.coverUrl ? { cover_url: args.coverUrl } : {}),
+        };
       } else if (args.mediaType === "slideshow" && args.mediaUrls?.length) {
         body.media = { type: "slideshow", urls: args.mediaUrls };
       } else if (args.mediaType === "none") {
@@ -1935,13 +2140,14 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
       }
 
       if (args.scheduled_at) body.scheduled_at = args.scheduled_at;
+      if (args.timezone) body.timezone = args.timezone;
       if (args.external_id) body.external_id = args.external_id;
 
       const settings: Record<string, unknown> = {};
-      if (args.instagram) settings.instagram = args.instagram;
-      if (args.tiktok) settings.tiktok = args.tiktok;
-      if (args.youtube) settings.youtube = args.youtube;
-      if (args.pinterest) settings.pinterest = args.pinterest;
+      if (args.instagram && Object.keys(args.instagram).length) settings.instagram = args.instagram;
+      if (args.tiktok && Object.keys(args.tiktok).length) settings.tiktok = args.tiktok;
+      if (args.youtube && Object.keys(args.youtube).length) settings.youtube = args.youtube;
+      if (args.pinterest && Object.keys(args.pinterest).length) settings.pinterest = args.pinterest;
       if (Object.keys(settings).length) body.settings = settings;
 
       const created = await unsora.request<{ data?: { id?: string } }>(
@@ -1966,15 +2172,84 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
     },
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
+    "compose_post",
+    {
+      title: "Compose Post",
+      description:
+        "Open the interactive post composer: the user picks accounts, edits the caption and " +
+        "media, sets per-platform options (YouTube title/visibility/category/tags, TikTok " +
+        "privacy/comments/duet/stitch/branded content/AI label, Pinterest board/title/link, " +
+        "video cover) and posts now, schedules or saves a draft — the composer creates the " +
+        "post itself. Use it whenever the user wants to create or schedule a post and the host " +
+        "can show apps; prefill everything the user already gave (caption, media URLs, " +
+        "accounts, time). After it opens, do NOT call create_post yourself; tell the user to " +
+        "finish in the composer. In hosts without app support, gather the details in chat " +
+        "and call create_post instead.",
+      inputSchema: {
+        caption: z.string().optional(),
+        mediaType: z
+          .enum(["video", "images", "text"])
+          .optional()
+          .describe("video = one video, images = one or more images (slideshow), text = no media."),
+        mediaUrls: z
+          .array(z.string().url())
+          .optional()
+          .describe("Media to post: one video URL, or image URLs in order."),
+        coverUrl: z.string().url().optional().describe("Video cover image URL."),
+        accountIds: z
+          .array(z.string())
+          .optional()
+          .describe("Accounts to preselect (ids from get_accounts)."),
+        scheduled_at: z.string().optional().describe("ISO datetime to preselect for scheduling."),
+        title: z.string().optional().describe("YouTube video title / Pinterest pin title."),
+      },
+      _meta: { ui: { resourceUri: COMPOSER_UI_URI } },
+    },
+    async (args, extra) => {
+      const unsora = unsoraFor(resolveUnsora, extra.authInfo);
+      const [accounts, subscription] = await Promise.all([
+        unsora.request("GET", "/accounts").catch((error: unknown) => ({
+          error: error instanceof Error ? error.message : String(error),
+        })),
+        unsora.request("GET", "/user/subscription").catch(() => null),
+      ]);
+      const accountList = asObject(accounts).data;
+      const count = Array.isArray(accountList) ? accountList.length : 0;
+      const structured = {
+        prefill: args,
+        accounts,
+        subscription,
+      };
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Composer opened with ${count} connected account(s). The user finishes and ` +
+              "submits it in the panel — don't call create_post yourself. In hosts without " +
+              "the panel, ask for the details and call create_post. " +
+              JSON.stringify(structured),
+          },
+        ],
+        structuredContent: structured,
+      };
+    },
+  );
+
+  registerAppTool(
+    server,
     "publish_post",
     {
+      _meta: { ui: { resourceUri: POSTS_UI_URI } },
       title: "Publish Post Now",
       description:
         "Publish a DRAFT or SCHEDULED post to its accounts right now instead of waiting for " +
         "its schedule. Requires paid plan. Publishing runs in the background: this returns " +
         "status PUBLISHING straight away. Call get_post after a minute or two to see each " +
-        "account's result; if some accounts fail, use retry_post.",
+        "account's result; if some accounts fail, use retry_post. In app-capable hosts the panel " +
+        "tracks publishing live, so don't poll get_post there." + SHOWN_IN_UI,
       inputSchema: {
         postId: z.string(),
       },
@@ -1988,14 +2263,16 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
       ),
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "get_post_analytics",
     {
+      _meta: { ui: { resourceUri: ANALYTICS_UI_URI } },
       title: "Post Analytics",
       description:
         "Performance of the user's published posts (Scheduler Analytics): totals for views, " +
         "likes, comments and shares plus per-platform breakdowns over the last N days. Pass " +
-        "refresh: true to pull fresh metrics from the platforms first (slower).",
+        "refresh: true to pull fresh metrics from the platforms first (slower)." + SHOWN_IN_UI,
       inputSchema: {
         days: z
           .number()
@@ -2019,12 +2296,14 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
     },
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "create_image_and_schedule",
     {
+      _meta: { ui: { resourceUri: POSTS_UI_URI } },
       title: "Create Image & Schedule Post",
       description:
-        "Generate an image for a social post and schedule it in one step: create image → wait → schedule slideshow post to accounts. If any target account is Instagram, pass aspectRatio 4:5 (or 1:1) — Instagram rejects 9:16 slideshow images.",
+        "Generate an image for a social post and schedule it in one step: create image → wait → schedule slideshow post to accounts. If any target account is Instagram, pass aspectRatio 4:5 (or 1:1) — Instagram rejects 9:16 slideshow images." + SHOWN_IN_UI,
       inputSchema: {
         prompt: z.string(),
         caption: z.string(),
@@ -2073,12 +2352,14 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
     },
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "retry_post",
     {
+      _meta: { ui: { resourceUri: POSTS_UI_URI } },
       title: "Retry Post",
       description:
-        "Retry a FAILED or PARTIALLY_PUBLISHED post. Re-attempts only the accounts that failed; already-published accounts are never re-posted. Runs in the background: call get_post after a minute or two for the outcome.",
+        "Retry a FAILED or PARTIALLY_PUBLISHED post. Re-attempts only the accounts that failed; already-published accounts are never re-posted. Runs in the background: call get_post after a minute or two for the outcome (in app-capable hosts the panel tracks it live)." + SHOWN_IN_UI,
       inputSchema: {
         postId: z.string(),
       },
@@ -2092,15 +2373,17 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
       ),
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "upload_file",
     {
+      _meta: { ui: { resourceUri: LIBRARY_UI_URI } },
       title: "Upload File",
       description:
         "Upload media to the user's Unsora library (available to every authenticated user). " +
         "Pass a public source URL (preferred) or a base64 payload for small files (≤ ~7MB). " +
         "The file is stored and recorded as an upload asset; the returned url can be used " +
-        "anywhere a media URL is accepted (create_post media, reference images, clipping input).",
+        "anywhere a media URL is accepted (create_post media, reference images, clipping input)." + SHOWN_IN_UI,
       inputSchema: {
         url: z
           .string()
@@ -2143,13 +2426,15 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
     },
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "list_uploads",
     {
+      _meta: { ui: { resourceUri: LIBRARY_UI_URI } },
       annotations: READ_ONLY,
       title: "List Uploads",
       description:
-        "List the user's uploaded media assets (from upload_file or the app).",
+        "List the user's uploaded media assets (from upload_file or the app)." + SHOWN_IN_UI,
       inputSchema: {
         page: z.number().int().optional(),
         limit: z.number().int().max(100).optional(),
@@ -2169,13 +2454,15 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
     },
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "get_post",
     {
+      _meta: { ui: { resourceUri: POSTS_UI_URI } },
       annotations: READ_ONLY,
       title: "Get Post",
       description:
-        "Fetch one post by id, including per-account publish status and media.",
+        "Fetch one post by id, including per-account publish status and media." + SHOWN_IN_UI,
       inputSchema: {
         postId: z.string(),
       },
@@ -2189,15 +2476,17 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
       ),
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "update_post",
     {
+      _meta: { ui: { resourceUri: POSTS_UI_URI } },
       title: "Update Post",
       description:
         "Edit a DRAFT or SCHEDULED post (published posts cannot be edited). " +
         "Only the fields you pass change. Passing scheduled_at reschedules; " +
         "passing scheduled_at: null converts it back to a draft. " +
-        "Passing accounts replaces the full target account list.",
+        "Passing accounts replaces the full target account list." + SHOWN_IN_UI,
       inputSchema: {
         postId: z.string(),
         caption: z.string().optional(),
@@ -2233,12 +2522,14 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
     },
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "delete_post",
     {
+      _meta: { ui: { resourceUri: POSTS_UI_URI } },
       title: "Delete Post",
       description:
-        "Delete a post. Does not remove already-published content from the platforms.",
+        "Delete a post. Does not remove already-published content from the platforms." + SHOWN_IN_UI,
       inputSchema: {
         postId: z.string(),
       },
@@ -2452,16 +2743,23 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
     },
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "list_posts",
     {
+      _meta: { ui: { resourceUri: POSTS_UI_URI } },
       annotations: READ_ONLY,
       title: "List Posts",
-      description: "List scheduled/draft posts",
+      description:
+        "List the user's posts, newest first: drafts, scheduled, publishing, published and " +
+        "failed. Filter with status (DRAFT, SCHEDULED, PUBLISHING, PUBLISHED, " +
+        "PARTIALLY_PUBLISHED or FAILED)." + SHOWN_IN_UI,
       inputSchema: {
-        status: z.string().optional(),
-        page: z.number().int().optional(),
-        limit: z.number().int().max(100).optional(),
+        status: z
+          .enum(["DRAFT", "SCHEDULED", "PUBLISHING", "PUBLISHED", "PARTIALLY_PUBLISHED", "FAILED"])
+          .optional(),
+        page: z.number().int().min(1).optional(),
+        limit: z.number().int().min(1).max(100).optional(),
       },
     },
     async (args, extra) => {
@@ -2479,9 +2777,11 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
     },
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "list_generations",
     {
+      _meta: { ui: { resourceUri: LIBRARY_UI_URI } },
       annotations: READ_ONLY,
       title: "List Generations",
       description:
@@ -2489,7 +2789,7 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
         "output URLs: image, video, music, voiceover, influencer, thumbnail, clipping, " +
         "image_upscale, video_upscale, watermark_removal, motion_control, avatar, " +
         "movie_material, voice_change. Use it to find something made earlier (e.g. to post " +
-        "or reuse it). Uploaded files are in list_uploads.",
+        "or reuse it). Uploaded files are in list_uploads." + SHOWN_IN_UI,
       inputSchema: {
         type: z.enum(LIBRARY_TYPES),
         page: z.number().int().min(1).optional(),
@@ -2510,14 +2810,16 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
     },
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "delete_generation",
     {
+      _meta: { ui: { resourceUri: LIBRARY_UI_URI } },
       title: "Delete Generation",
       description:
         "Permanently delete one result from the user's library (type + id from " +
         "list_generations), or an uploaded file (type upload, id from list_uploads). " +
-        "Confirm with the user first — this cannot be undone.",
+        "Confirm with the user first — this cannot be undone." + SHOWN_IN_UI,
       inputSchema: {
         type: z.enum([...LIBRARY_TYPES, "upload"]),
         id: z.string(),

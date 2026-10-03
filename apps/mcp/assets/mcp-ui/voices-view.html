@@ -12,6 +12,10 @@
   posts the choice into the chat so the model calls create_voiceover. If the
   host reopens the widget without replaying the result, we fetch the list.
 
+  Also bound to list_voices (sections: the user's clones, Eleven v3 voices,
+  MiniMax presets) and to create_voice_clone / delete_voice_clone, after which
+  we reload list_voices. Clones can be deleted from here.
+
   No framework or SDK: a small JSON-RPC bridge over postMessage covers the
   spec methods used here (ui/initialize, tools/call, ui/message,
   ui/notifications/size-changed).
@@ -100,6 +104,11 @@
   button:disabled { opacity: 0.5; cursor: default; }
   button.primary { background: var(--primary); color: var(--on-primary); border-color: transparent; }
   button.chip { font-size: 13px; }
+  button.danger { color: var(--danger); }
+  button.primary.danger { background: var(--danger); color: #fff; }
+  .group + .group { margin-top: 12px; }
+  .group-title { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+  .notice { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
 </style>
 </head>
 <body>
@@ -109,6 +118,7 @@
   "use strict";
 
   const LIST_TOOL = "list_voiceover_voices";
+  const ALL_VOICES_TOOL = "list_voices";
   const FALLBACK_FETCH_MS = 1500;
 
   /* ------------------------------ bridge ------------------------------ */
@@ -184,7 +194,11 @@
 
   /* ------------------------------- state ------------------------------ */
 
-  let voices = []; // [{ id, label, description, gender, accent, previewUrl }]
+  let voices = []; // [{ id, label, description, gender, accent, previewUrl, group }]
+  let library = null; // list_voices extras: { maxClones, cloneCreditCost }
+  let notice = null;
+  let confirmDelete = null; // clone id awaiting confirmation
+  let busy = false;
   let selected = null;
   let playingId = null;
   let error = null;
@@ -206,7 +220,60 @@
       }));
   }
 
+  /** list_voices: { presets, elevenV3Voices, clones, maxClones, cloneCreditCost }. */
+  function parseLibrary(sc) {
+    if (!sc || !(Array.isArray(sc.elevenV3Voices) || Array.isArray(sc.clones) || Array.isArray(sc.presets))) return null;
+    const clones = (sc.clones || []).filter((c) => c && typeof c.id === "string").map((c) => ({
+      id: c.id,
+      label: typeof c.name === "string" ? c.name : "Cloned voice",
+      description: typeof c.description === "string" ? c.description : "Your cloned voice",
+      gender: "", accent: "",
+      previewUrl: c.sampleAsset && typeof c.sampleAsset.url === "string" ? c.sampleAsset.url : null,
+      group: "clone",
+    }));
+    const eleven = parseVoices({ voices: sc.elevenV3Voices || [] }).map((v) => Object.assign(v, { group: "eleven" }));
+    const presets = (sc.presets || []).filter((p) => p && typeof p.id === "string").map((p) => ({
+      id: p.id, label: typeof p.label === "string" ? p.label : p.id, description: "MiniMax preset voice",
+      gender: "", accent: "", previewUrl: null, group: "preset",
+    }));
+    library = { maxClones: typeof sc.maxClones === "number" ? sc.maxClones : null, cloneCreditCost: sc.cloneCreditCost };
+    return clones.concat(eleven, presets);
+  }
+
+  async function reloadLibrary(selectId) {
+    try {
+      const res = await request("tools/call", { name: ALL_VOICES_TOOL, arguments: {} });
+      const parsed = parseLibrary(res && res.structuredContent);
+      if (parsed) {
+        voices = parsed;
+        if (selectId) selected = voices.find((v) => v.id === selectId) || null;
+      }
+    } catch (err) {
+      error = "Couldn't load the voices.";
+    }
+    render();
+  }
+
   function onToolResult(result) {
+    const sc = result && result.structuredContent;
+    // create_voice_clone: { success, clone, creditsDeducted }; delete: { success, message }.
+    if (sc && sc.clone && typeof sc.clone.id === "string") {
+      notice = "Voice cloned" + (typeof sc.creditsDeducted === "number" ? " · " + sc.creditsDeducted + " credits used" : "") + ".";
+      reloadLibrary(sc.clone.id);
+      return;
+    }
+    if (sc && sc.success && !sc.voices && !sc.clones && /delet/i.test(String(sc.message || ""))) {
+      notice = "Cloned voice deleted.";
+      reloadLibrary();
+      return;
+    }
+    const fromLibrary = parseLibrary(sc);
+    if (fromLibrary) {
+      voices = fromLibrary;
+      error = null;
+      render();
+      return;
+    }
     const parsed = parseVoices(result && result.structuredContent);
     if (parsed.length) {
       voices = parsed;
@@ -276,6 +343,23 @@
     }
   }
 
+  async function deleteClone(voice) {
+    busy = true;
+    render();
+    try {
+      const res = await request("tools/call", { name: "delete_voice_clone", arguments: { cloneId: voice.id } });
+      if (res && res.isError) throw new Error("Couldn't delete the voice.");
+      confirmDelete = null;
+      selected = null;
+      notice = "Deleted " + voice.label + ".";
+      await reloadLibrary();
+    } catch (err) {
+      notice = err.message || "Couldn't delete the voice.";
+    }
+    busy = false;
+    render();
+  }
+
   function showFlash(key, label) {
     flash[key] = label;
     render();
@@ -323,7 +407,9 @@
   }
 
   function chip(voice) {
-    const unavailable = !voice.previewUrl || broken.has(voice.id);
+    const noPreview = !voice.previewUrl || broken.has(voice.id);
+    // Presets never have previews; that's not an error worth greying out.
+    const unavailable = noPreview && voice.group !== "preset";
     const playing = playingId === voice.id;
     const classes = ["chip"];
     if (playing) classes.push("playing");
@@ -338,7 +424,7 @@
     }, [
       el("span", { class: "orb", style: orb(voice.id), "aria-hidden": "true" }),
       el("span", null, voice.label),
-      unavailable ? null : el("span", { class: "state " + (playing ? "pause" : "play"), "aria-hidden": "true" }),
+      noPreview ? null : el("span", { class: "state " + (playing ? "pause" : "play"), "aria-hidden": "true" }),
     ]);
   }
 
@@ -346,11 +432,21 @@
     if (!selected) return el("div", { class: "details" }, el("span", { class: "muted" }, "Tap a voice to hear a preview."));
     const key = "use:" + selected.id;
     const voice = selected;
+    if (confirmDelete === voice.id) {
+      return el("div", { class: "details" }, [
+        el("span", { class: "about" }, ["Delete ", el("strong", null, voice.label), " permanently? This can't be undone."]),
+        el("button", { type: "button", class: "primary danger", disabled: busy, onclick: () => deleteClone(voice) }, "Delete"),
+        el("button", { type: "button", onclick: () => { confirmDelete = null; render(); } }, "Cancel"),
+      ]);
+    }
     return el("div", { class: "details" }, [
       el("span", { class: "about" }, [el("strong", null, voice.label), voice.description ? " — " + voice.description : ""]),
       voice.gender ? el("span", { class: "badge" }, voice.gender) : null,
       voice.accent ? el("span", { class: "badge" }, voice.accent) : null,
       el("button", { type: "button", class: "primary", onclick: () => useVoice(voice) }, flash[key] || "Use " + voice.label),
+      voice.group === "clone"
+        ? el("button", { type: "button", class: "danger", onclick: () => { confirmDelete = voice.id; render(); } }, "Delete")
+        : null,
     ]);
   }
 
@@ -366,7 +462,23 @@
         el("strong", null, "Loading voices…"),
       ]);
     }
-    return el("div", { class: "card" }, [el("div", { class: "chips" }, voices.map(chip)), details()]);
+    const groups = [
+      ["clone", "Your cloned voices"],
+      ["eleven", "Eleven v3"],
+      ["preset", "MiniMax presets"],
+    ].filter(([g]) => voices.some((v) => v.group === g));
+    const body = groups.length
+      ? groups.map(([g, title]) => {
+          const list = voices.filter((v) => v.group === g);
+          const count = g === "clone" && library && library.maxClones != null ? " (" + list.length + "/" + library.maxClones + ")" : "";
+          return el("div", { class: "group" }, [el("div", { class: "group-title" }, title + count), el("div", { class: "chips" }, list.map(chip))]);
+        })
+      : [el("div", { class: "chips" }, voices.map(chip))];
+    return el("div", { class: "card" }, [
+      notice ? el("div", { class: "notice" }, notice) : null,
+      ...body,
+      details(),
+    ]);
   }
 
   /* ------------------------------- start ------------------------------ */

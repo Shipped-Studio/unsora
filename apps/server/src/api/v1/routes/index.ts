@@ -29,6 +29,7 @@ import { VoiceCloneController } from "../../../controllers/voice-clone.controlle
 import { VoiceConversionController } from "../../../controllers/voice-conversion.controller";
 import { PostController } from "../../../controllers/post.controller";
 import { analyticsController } from "../../../controllers/analytics.controller";
+import { ConnectController } from "../../../controllers/connect.controller";
 
 const router = Router();
 
@@ -60,6 +61,7 @@ const movieMaterialsController = new MovieMaterialsController();
 const voiceCloneController = new VoiceCloneController();
 const voiceConversionController = new VoiceConversionController();
 const appPostController = new PostController();
+const connectController = new ConnectController();
 
 // Auth is applied per-route (not router.use) so this router can be mounted
 // at /api/v1 without intercepting non-matching paths — unmatched requests
@@ -344,6 +346,18 @@ router.get("/user/subscription", ...auth, userController.getSubscription);
 
 // Social media scheduler
 router.get("/accounts", ...auth, accountsController.getAccounts);
+// Per-platform options for the post composer (same handlers as the app's
+// /api/connect routes; they scope the account to req.auth.userId).
+router.get(
+  "/accounts/:accountId/pinterest/boards",
+  ...auth,
+  connectController.getPinterestBoards,
+);
+router.get(
+  "/accounts/:accountId/tiktok/creator-info",
+  ...auth,
+  connectController.getTikTokCreatorInfo,
+);
 router.post("/posts", ...auth, requirePaidPlan, postController.createPost);
 router.get("/posts", ...auth, postController.listPosts);
 // Analytics — registered before "/posts/:id" so "analytics" isn't an id

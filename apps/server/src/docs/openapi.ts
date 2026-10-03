@@ -1124,7 +1124,18 @@ const openApiDocument = {
           boardId: {
             type: "string",
             description:
-              "Board to pin to. Alias: board_id. Defaults to the account's first board.",
+              "Board to pin to. Alias: board_id. Defaults to the account's first board. " +
+              "List boards with GET /accounts/{accountId}/pinterest/boards.",
+          },
+          title: {
+            type: "string",
+            maxLength: 100,
+            description: "Pin title. Defaults to the start of the caption.",
+          },
+          link: {
+            type: "string",
+            format: "uri",
+            description: "Destination link (http or https) opened when the pin is clicked.",
           },
         },
       },
@@ -3585,6 +3596,86 @@ const openApiDocument = {
           },
           "401": {
             description: "Unauthorized",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/accounts/{accountId}/pinterest/boards": {
+      get: {
+        tags: ["Scheduler"],
+        summary: "List a Pinterest account's boards",
+        description:
+          "Boards the connected Pinterest account can pin to: `{ id, name, privacy }`. " +
+          "Pass an `id` as `settings.pinterest.board_id` in POST /posts.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: "accountId", in: "path", required: true, schema: { type: "string" } },
+        ],
+        responses: {
+          "200": {
+            description: "Boards",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean" },
+                    data: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          id: { type: "string" },
+                          name: { type: "string" },
+                          privacy: { type: "string" },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "404": {
+            description: "Pinterest account not found",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/accounts/{accountId}/tiktok/creator-info": {
+      get: {
+        tags: ["Scheduler"],
+        summary: "Get TikTok posting options for an account",
+        description:
+          "TikTok's creator info for the account: the privacy levels it may post with " +
+          "(`privacy_level_options`), whether comments, duets and stitches are disabled, " +
+          "the maximum video length and whether it can post right now. Use these values for " +
+          "`settings.tiktok` in POST /posts.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: "accountId", in: "path", required: true, schema: { type: "string" } },
+        ],
+        responses: {
+          "200": {
+            description: "Creator info",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/TikTokCreatorInfoResponse" },
+              },
+            },
+          },
+          "404": {
+            description: "TikTok account not found",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ErrorResponse" },

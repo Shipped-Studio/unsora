@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Unsora Posts</title>
+<!--
+  Unsora posts (MCP Apps). Bound to the scheduler tools:
+    list_posts                 -> list grouped by day, filter by status, load more
+    get_post / update_post     -> one post in detail
+    create_post, publish_post, retry_post, create_image_and_schedule
+                               -> we fetch the post (get_post) and, while it is
+                                  PUBLISHING, re-check every 8s so each
+                                  account's outcome shows up live
+    delete_post                -> "deleted" note
+  Actions (publish now, retry, reschedule, unschedule, delete) call the same
+  tools directly; the host may ask the user to approve them.
+-->
+<style>
+/*@kit.css*/
+.day { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin: 4px 2px 0; }
+.list { display: flex; flex-direction: column; gap: 6px; }
+.post { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); }
+.post.open { border-color: var(--text); }
+.post-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; width: 100%; text-align: left; border: none; background: none; font-weight: 400; border-radius: var(--radius-sm); }
+.post-row .thumb { width: 44px; height: 44px; flex: none; }
+.post-row .body { flex: 1; min-width: 0; }
+.post-row .caption { font-size: 13.5px; }
+.post-row .sub { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 12px; color: var(--muted); }
+.marks { display: inline-flex; gap: 2px; }
+.marks .pf { width: 16px; height: 16px; border-radius: 4px; font-size: 8.5px; }
+.thumb.vid { position: relative; }
+.vid-tag { position: absolute; left: 3px; bottom: 3px; font-size: 9px; font-weight: 700; padding: 1px 4px; border-radius: 4px; background: rgba(0, 0, 0, 0.62); color: #fff; }
+.thumb .kind { font-size: 10.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+.detail { padding: 2px 12px 12px; }
+.post-detail { display: flex; flex-direction: column; gap: 12px; }
+.media-strip { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.media-strip .thumb { width: 96px; height: 96px; flex: none; }
+.media-strip .thumb.video { width: auto; max-width: 100%; height: 220px; background: #000; }
+.media-strip .thumb.video video { width: auto; height: 100%; object-fit: contain; }
+.full-caption { white-space: pre-wrap; font-size: 13.5px; line-height: 1.5; max-height: 220px; overflow-y: auto; overscroll-behavior: contain; }
+.targets { display: flex; flex-direction: column; gap: 8px; }
+.target { display: flex; align-items: center; gap: 10px; }
+.target .who { flex: 1; min-width: 0; }
+.target .name { font-weight: 600; font-size: 13px; }
+.target .err { font-size: 12px; color: var(--danger); margin-top: 2px; }
+.target .note { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.section-label { font-size: 12px; font-weight: 700; color: var(--muted); }
+.reschedule { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.reschedule input { width: auto; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+/*@kit.js*/
+(() => {
+  "use strict";
+  const { el, button, str, num, arr, obj, unwrap } = Kit;
+
+  const POLL_MS = 8000;
+  const POLL_FOR_MS = 10 * 60 * 1000;
+  const PAGE_SIZE = 20;
+  const FILTERS = [
+    ["", "All"], ["SCHEDULED", "Scheduled"], ["DRAFT", "Drafts"], ["PUBLISHED", "Published"], ["FAILED", "Failed"],
+  ];
+
+  /* ------------------------------- state ------------------------------ */
+
+  let mode = "loading"; // loading | list | detail | deleted | error
+  let error = null;
+  let args = {};
+  let list = { posts: [], page: 1, totalPages: 1, total: 0, status: "", loading: false };
+  let detail = null; // post shown in detail mode
+  let openId = null; // expanded row in list mode
+  const ui = {}; // per post id: { confirm, reschedule, busy, error }
+  const pollers = {};
+  let stopped = false;
+
+  Kit.on("input", (a) => { args = a || {}; });
+  Kit.on("teardown", () => { stopped = true; });
+  Kit.on("cancelled", () => { if (mode === "loading") { mode = "error"; error = "Cancelled."; Kit.refresh(); } });
+  Kit.on("result", (result) => { onResult(result); });
+
+  function postState(id) { return ui[id] || (ui[id] = {}); }
+
+  /* ------------------------------ parsing ----------------------------- */
+
+  const upper = (v) => (typeof v === "string" ? v.toUpperCase() : "");
+
+  function readPost(raw) {
+    const p = obj(raw);
+    const media = arr(p.media).slice().sort((a, b) => (num(a.order) || 0) - (num(b.order) || 0));
+    return {
+      id: str(p.id) || str(p.postId),
+      status: upper(p.status),
+      type: upper(p.type),
+      caption: str(p.mainCaption) || str(p.caption) || "",
+      scheduledFor: str(p.scheduledFor) || str(p.scheduled_at),
+      publishedAt: str(p.publishedAt),
+      createdAt: str(p.createdAt),
+      error: str(p.error),
+      media: media
+        .filter((m) => upper(m.type) !== "THUMBNAIL")
+        .map((m) => ({ type: upper(m.type), url: str(obj(m.asset).url) }))
+        .filter((m) => m.url),
+      cover: (media.find((m) => upper(m.type) === "THUMBNAIL") || {}).asset?.url || null,
+      targets: arr(p.postAccounts).map((pa) => ({
+        account: Kit.readAccount(Object.assign({}, obj(pa.account), { id: pa.accountId })),
+        published: !!pa.published,
+        publishedUrl: str(pa.publishedUrl),
+        error: str(pa.error),
+        title: str(pa.title),
+        customCaption: str(pa.customCaption),
+      })),
+      full: Array.isArray(p.postAccounts),
+    };
+  }
+
+  /** The post id a create/publish/retry/update result refers to. */
+  function postIdFrom(sc) {
+    const s = obj(sc);
+    const candidates = [
+      obj(s.data).id, obj(s.data).postId,
+      obj(obj(s.created).data).id,
+      obj(obj(s.post).data).id,
+      obj(obj(s.published).data).postId,
+      s.postId, s.id,
+    ];
+    return candidates.find((v) => typeof v === "string") || null;
+  }
+
+  /* ------------------------------- flow ------------------------------- */
+
+  function onResult(result) {
+    const sc = result && result.structuredContent;
+    if (!result || result.isError) {
+      mode = "error";
+      error = Kit.textOf(result) || "Something went wrong.";
+      return Kit.refresh();
+    }
+    const data = obj(unwrap(sc));
+    if (Array.isArray(data.posts)) {
+      list.status = str(args.status) ? upper(args.status) : "";
+      setList(data, false);
+      mode = "list";
+      return Kit.refresh();
+    }
+    if (obj(sc).success && !obj(sc).data && args.postId && /delet/i.test(String(obj(sc).message || ""))) {
+      mode = "deleted";
+      return Kit.refresh();
+    }
+    const id = postIdFrom(sc);
+    if (!id) {
+      mode = "error";
+      error = "No post in this result.";
+      return Kit.refresh();
+    }
+    if (Array.isArray(data.postAccounts)) {
+      showDetail(readPost(data));
+    } else {
+      mode = "loading";
+      Kit.refresh();
+      fetchPost(id).then((post) => { if (post) showDetail(post); });
+    }
+  }
+
+  function setList(data, append) {
+    const posts = arr(data.posts).map(readPost).filter((p) => p.id);
+    const pg = obj(data.pagination);
+    list.posts = append ? list.posts.concat(posts) : posts;
+    list.page = num(pg.page) || 1;
+    list.totalPages = num(pg.totalPages) || 1;
+    list.total = num(pg.total) || list.posts.length;
+  }
+
+  async function fetchPost(id) {
+    try {
+      return readPost(unwrap(await Kit.callTool("get_post", { postId: id })));
+    } catch (err) {
+      mode = "error";
+      error = err.message;
+      Kit.refresh();
+      return null;
+    }
+  }
+
+  function showDetail(post) {
+    detail = post;
+    mode = "detail";
+    Kit.refresh();
+    watch(post);
+  }
+
+  /** Replace a post wherever it is shown. */
+  function update(post) {
+    if (detail && detail.id === post.id) detail = post;
+    list.posts = list.posts.map((p) => (p.id === post.id ? post : p));
+    Kit.refresh();
+    watch(post);
+  }
+
+  /** Re-check a PUBLISHING post until every account has an outcome. */
+  function watch(post) {
+    if (post.status !== "PUBLISHING" || pollers[post.id]) return;
+    const started = Date.now();
+    pollers[post.id] = true;
+    const tick = async () => {
+      if (stopped) return;
+      try {
+        const fresh = readPost(unwrap(await Kit.callTool("get_post", { postId: post.id })));
+        if (fresh.id) {
+          if (detail && detail.id === fresh.id) detail = fresh;
+          list.posts = list.posts.map((p) => (p.id === fresh.id ? fresh : p));
+          Kit.refresh();
+          if (fresh.status !== "PUBLISHING") { delete pollers[post.id]; return; }
+        }
+      } catch (err) { /* transient: keep checking */ }
+      if (Date.now() - started > POLL_FOR_MS) { delete pollers[post.id]; return; }
+      setTimeout(tick, POLL_MS);
+    };
+    setTimeout(tick, POLL_MS);
+  }
+
+  async function loadList(status, append) {
+    list.loading = true;
+    if (!append) list.status = status;
+    Kit.refresh();
+    try {
+      const a = { limit: PAGE_SIZE, page: append ? list.page + 1 : 1 };
+      if (list.status) a.status = list.status;
+      setList(obj(unwrap(await Kit.callTool("list_posts", a))), append);
+      error = null;
+    } catch (err) {
+      error = err.message;
+    }
+    list.loading = false;
+    mode = "list";
+    Kit.refresh();
+  }
+
+  /* ------------------------------ actions ----------------------------- */
+
+  async function act(post, fn) {
+    const st = postState(post.id);
+    st.busy = true;
+    st.error = null;
+    Kit.refresh();
+    try { await fn(); }
+    catch (err) { st.error = err.message; }
+    st.busy = false;
+    Kit.refresh();
+  }
+
+  function publishNow(post) {
+    return act(post, async () => {
+      await Kit.callTool("publish_post", { postId: post.id });
+      update(Object.assign({}, post, { status: "PUBLISHING" }));
+    });
+  }
+
+  function retry(post) {
+    return act(post, async () => {
+      await Kit.callTool("retry_post", { postId: post.id });
+      update(Object.assign({}, post, { status: "PUBLISHING" }));
+    });
+  }
+
+  function reschedule(post, value) {
+    const when = new Date(value);
+    if (isNaN(when.getTime())) { postState(post.id).error = "Pick a date and time."; return Kit.refresh(); }
+    if (when.getTime() < Date.now() + 2 * 60 * 1000) { postState(post.id).error = "Pick a time at least 2 minutes from now."; return Kit.refresh(); }
+    return act(post, async () => {
+      const res = await Kit.callTool("update_post", {
+        postId: post.id,
+        scheduled_at: when.toISOString(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      });
+      postState(post.id).reschedule = null;
+      update(readPost(unwrap(res)));
+    });
+  }
+
+  function unschedule(post) {
+    return act(post, async () => {
+      const res = await Kit.callTool("update_post", { postId: post.id, scheduled_at: null });
+      update(readPost(unwrap(res)));
+    });
+  }
+
+  function remove(post) {
+    return act(post, async () => {
+      await Kit.callTool("delete_post", { postId: post.id });
+      if (detail && detail.id === post.id) { mode = "deleted"; detail = null; }
+      list.posts = list.posts.filter((p) => p.id !== post.id);
+      list.total = Math.max(0, list.total - 1);
+    });
+  }
+
+  /* ------------------------------ helpers ----------------------------- */
+
+  const STATUS = {
+    DRAFT: ["Draft", ""],
+    SCHEDULED: ["Scheduled", "info"],
+    PUBLISHING: ["Publishing", "warning"],
+    PUBLISHED: ["Published", "success"],
+    PARTIALLY_PUBLISHED: ["Partly published", "warning"],
+    FAILED: ["Failed", "danger"],
+  };
+
+  function statusBadge(status) {
+    const [label, tone] = STATUS[status] || [status ? status.toLowerCase() : "Unknown", ""];
+    return el("span", { class: "badge dot " + tone }, label);
+  }
+
+  /** When the post happens (or happened), for grouping and display. */
+  function whenOf(post) {
+    if (post.status === "PUBLISHED" || post.status === "PARTIALLY_PUBLISHED") return post.publishedAt || post.scheduledFor || post.createdAt;
+    return post.scheduledFor || post.createdAt;
+  }
+
+  function whenText(post) {
+    if (post.status === "SCHEDULED" && post.scheduledFor) return Kit.fmtDateTime(post.scheduledFor) + " (" + Kit.relTime(post.scheduledFor) + ")";
+    if ((post.status === "PUBLISHED" || post.status === "PARTIALLY_PUBLISHED") && post.publishedAt) return "Published " + Kit.fmtDateTime(post.publishedAt);
+    if (post.status === "DRAFT") return "Draft · created " + Kit.relTime(post.createdAt);
+    return Kit.fmtDateTime(whenOf(post));
+  }
+
+  function dayLabel(value) {
+    const d = Kit.toDate(value);
+    if (!d) return "No date";
+    const start = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const diff = Math.round((start(d) - start(new Date())) / 864e5);
+    if (diff === 0) return "Today";
+    if (diff === 1) return "Tomorrow";
+    if (diff === -1) return "Yesterday";
+    return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: d.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
+  }
+
+  function thumbFor(post) {
+    const first = post.media[0];
+    if (!first) return el("div", { class: "thumb" }, el("span", { class: "kind" }, "Text"));
+    if (first.type === "VIDEO") {
+      return el("div", { class: "thumb vid" }, [
+        post.cover
+          ? el("img", { src: post.cover, alt: "", loading: "lazy" })
+          : el("video", { src: first.url + "#t=0.5", muted: true, preload: "metadata", playsinline: true }),
+        el("span", { class: "vid-tag" }, "Video"),
+      ]);
+    }
+    return el("div", { class: "thumb" }, el("img", { src: first.url, alt: "", loading: "lazy" }));
+  }
+
+  function marks(post) {
+    return el("span", { class: "marks" }, post.targets.slice(0, 6).map((t) => Kit.pfMark(t.account.provider)));
+  }
+
+  /* ------------------------------- views ------------------------------ */
+
+  function targetRow(post, t) {
+    const meta = Kit.platformMeta(t.account.provider);
+    let badge = null;
+    if (t.published) badge = el("span", { class: "badge dot success" }, "Posted");
+    else if (t.error) badge = el("span", { class: "badge dot danger" }, "Failed");
+    else if (post.status === "PUBLISHING") badge = el("span", { class: "badge dot warning" }, "Posting…");
+    const notes = [];
+    if (t.title) notes.push("Title: " + t.title);
+    if (t.customCaption) notes.push("Custom caption");
+    return el("div", { class: "target" }, [
+      Kit.avatar(t.account),
+      el("div", { class: "who" }, [
+        el("div", { class: "name ellipsis" }, (t.account.name || meta.label) + " · " + meta.label),
+        notes.length ? el("div", { class: "note ellipsis" }, notes.join(" · ")) : null,
+        t.error ? el("div", { class: "err" }, t.error) : null,
+      ]),
+      badge,
+      t.publishedUrl ? button("View", () => Kit.openLink(t.publishedUrl), { sm: true, key: "view:" + post.id + t.account.id }) : null,
+    ]);
+  }
+
+  function actionsFor(post) {
+    const st = postState(post.id);
+    const busy = !!st.busy;
+    if (st.confirm) {
+      return el("div", { class: "confirm" }, [
+        el("span", { class: "grow" }, post.status === "PUBLISHED" || post.status === "PARTIALLY_PUBLISHED"
+          ? "Delete this post from Unsora? It stays live on the platforms."
+          : "Delete this post? This can't be undone."),
+        button("Delete", () => remove(post), { danger: true, primary: true, sm: true, disabled: busy, key: "del:" + post.id }),
+        button("Cancel", () => { st.confirm = false; Kit.refresh(); }, { sm: true, key: "cancel:" + post.id }),
+      ]);
+    }
+    if (st.reschedule != null) {
+      return el("div", { class: "reschedule" }, [
+        el("input", {
+          type: "datetime-local",
+          "data-key": "when:" + post.id,
+          value: st.reschedule,
+          oninput: (e) => { st.reschedule = e.target.value; },
+          "aria-label": "New date and time",
+        }),
+        button("Save", () => reschedule(post, st.reschedule), { primary: true, sm: true, disabled: busy, key: "save:" + post.id }),
+        button("Cancel", () => { st.reschedule = null; st.error = null; Kit.refresh(); }, { sm: true, key: "rc:" + post.id }),
+      ]);
+    }
+    const out = [];
+    const k = (name) => name + ":" + post.id;
+    switch (post.status) {
+      case "DRAFT":
+        out.push(button("Publish now", () => publishNow(post), { primary: true, disabled: busy, key: k("pub") }));
+        out.push(button("Schedule", () => { st.reschedule = localInput(Date.now() + 3600e3); Kit.refresh(); }, { disabled: busy, key: k("sch") }));
+        break;
+      case "SCHEDULED":
+        out.push(button("Publish now", () => publishNow(post), { primary: true, disabled: busy, key: k("pub") }));
+        out.push(button("Reschedule", () => { st.reschedule = localInput(post.scheduledFor); Kit.refresh(); }, { disabled: busy, key: k("sch") }));
+        out.push(button("Unschedule", () => unschedule(post), { disabled: busy, key: k("uns") }));
+        break;
+      case "FAILED":
+      case "PARTIALLY_PUBLISHED":
+        out.push(button("Retry failed", () => retry(post), { primary: true, disabled: busy, key: k("retry") }));
+        break;
+    }
+    if (post.status !== "PUBLISHING") {
+      if (post.status === "DRAFT" || post.status === "SCHEDULED") {
+        out.push(button("Edit in Unsora", () => Kit.appLink("/scheduler/posts/" + encodeURIComponent(post.id) + "/edit"), { key: k("edit") }));
+      } else {
+        out.push(button("Open in Unsora", () => Kit.appLink("/scheduler/posts/" + encodeURIComponent(post.id)), { key: k("open") }));
+      }
+      out.push(button("Delete", () => { st.confirm = true; Kit.refresh(); }, { danger: true, disabled: busy, key: k("delask") }));
+    }
+    return el("div", { class: "actions" }, out);
+  }
+
+  /** "2026-10-07T15:30" for a datetime-local input, in local time. */
+  function localInput(value) {
+    const d = Kit.toDate(value) || new Date(Date.now() + 3600e3);
+    const pad = (n) => String(n).padStart(2, "0");
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+
+  function postBody(post) {
+    const st = postState(post.id);
+    const strip = post.media.length
+      ? el("div", { class: "media-strip" }, post.media.slice(0, 10).map((m) =>
+          m.type === "VIDEO"
+            ? el("div", { class: "thumb video" }, el("video", { src: m.url, controls: true, playsinline: true, preload: "metadata", poster: post.cover || null }))
+            : el("div", { class: "thumb" }, el("img", { src: m.url, alt: "", loading: "lazy" }))))
+      : null;
+    return el("div", { class: "post-detail" }, [
+      strip,
+      post.caption ? el("div", { class: "full-caption", tabindex: "0" }, post.caption) : el("div", { class: "muted" }, "No caption."),
+      post.targets.length
+        ? el("div", { class: "stack" }, [el("div", { class: "section-label" }, "Accounts"), el("div", { class: "targets" }, post.targets.map((t) => targetRow(post, t)))])
+        : null,
+      post.error && !post.targets.some((t) => t.error) ? el("div", { class: "error" }, post.error) : null,
+      post.status === "PUBLISHING"
+        ? el("div", { class: "row" }, [el("span", { class: "spinner", "aria-hidden": "true" }), el("span", { class: "muted" }, "Publishing — results show up here as each platform responds.")])
+        : null,
+      actionsFor(post),
+      st.error ? el("div", { class: "error" }, st.error) : null,
+    ]);
+  }
+
+  function detailView(post) {
+    return el("div", { class: "card stack" }, [
+      el("div", { class: "row between" }, [
+        el("div", { class: "row" }, [statusBadge(post.status), el("span", { class: "muted" }, whenText(post))]),
+        marks(post),
+      ]),
+      postBody(post),
+    ]);
+  }
+
+  function row(post) {
+    const open = openId === post.id;
+    return el("div", { class: "post" + (open ? " open" : "") }, [
+      el("button", {
+        type: "button",
+        class: "post-row",
+        "aria-expanded": open ? "true" : "false",
+        onclick: () => { openId = open ? null : post.id; Kit.refresh(); },
+      }, [
+        thumbFor(post),
+        el("div", { class: "body" }, [
+          el("div", { class: "caption clamp2" }, post.caption || "(no caption)"),
+          el("div", { class: "sub" }, [marks(post), el("span", { class: "ellipsis" }, whenText(post))]),
+        ]),
+        statusBadge(post.status),
+      ]),
+      open ? el("div", { class: "detail" }, postBody(post)) : null,
+    ]);
+  }
+
+  /** Upcoming posts first (soonest first), then the rest (newest first). */
+  function ordered(posts) {
+    const now = Date.now();
+    const t = (p) => (Kit.toDate(whenOf(p)) || new Date(0)).getTime();
+    const upcoming = posts.filter((p) => t(p) >= now).sort((a, b) => t(a) - t(b));
+    const past = posts.filter((p) => t(p) < now).sort((a, b) => t(b) - t(a));
+    return upcoming.concat(past);
+  }
+
+  function listView() {
+    const groups = new Map();
+    for (const post of ordered(list.posts)) {
+      const label = dayLabel(whenOf(post));
+      if (!groups.has(label)) groups.set(label, []);
+      groups.get(label).push(post);
+    }
+    const empty = !list.posts.length && !list.loading;
+    return el("div", { class: "card stack" }, [
+      el("div", { class: "row between" }, [
+        el("div", { class: "h" }, list.total ? Kit.plural(list.total, "post") : "Posts"),
+        el("div", { class: "row" }, [
+          button("New post", async () => {
+            const ok = await Kit.sendPrompt("Open the Unsora post composer (compose_post) so I can create a new post.");
+            Kit.flash("new", ok ? "Sent" : "Couldn't send");
+          }, { sm: true, key: "new" }),
+          button("Calendar", () => Kit.appLink("/scheduler/calendar"), { sm: true }),
+        ]),
+      ]),
+      el("div", { class: "seg", role: "tablist" }, FILTERS.map(([value, label]) =>
+        el("button", {
+          type: "button",
+          class: list.status === value ? "on" : "",
+          role: "tab",
+          "aria-selected": list.status === value ? "true" : "false",
+          onclick: () => { if (list.status !== value) loadList(value, false); },
+        }, label))),
+      error ? el("div", { class: "error" }, error) : null,
+      empty ? el("div", { class: "muted" }, list.status ? "No " + (FILTERS.find((f) => f[0] === list.status) || [0, "matching"])[1].toLowerCase() + " posts." : "No posts yet.") : null,
+      ...[...groups].flatMap(([label, posts]) => [el("div", { class: "day" }, label), el("div", { class: "list" }, posts.map(row))]),
+      list.loading ? el("div", { class: "row" }, [el("span", { class: "spinner" }), el("span", { class: "muted" }, "Loading…")]) : null,
+      !list.loading && list.page < list.totalPages
+        ? el("div", { class: "actions" }, button("Load more", () => loadList(list.status, true)))
+        : null,
+    ]);
+  }
+
+  function view() {
+    switch (mode) {
+      case "error": return Kit.errorCard(error || "Something went wrong.");
+      case "deleted": return el("div", { class: "card row" }, [el("span", { class: "badge" }, "Deleted"), el("span", { class: "muted" }, "The post was removed from Unsora.")]);
+      case "list": return listView();
+      case "detail": return detail ? detailView(detail) : Kit.spinnerCard("Loading post…");
+      default: return Kit.spinnerCard("Loading…");
+    }
+  }
+
+  Kit.mount(view);
+  Kit.init("unsora-posts");
+})();
+</script>
+</body>
+</html>

@@ -29,6 +29,8 @@ export type YouTubePostSettings = {
 /** Keys must match PinterestPostSettings consumed by the publisher. */
 export type PinterestPostSettings = {
   boardId?: string;
+  title?: string;
+  link?: string;
 };
 
 export type PlatformSettings = {
@@ -211,15 +213,47 @@ function parseYouTubeSettings(
   return { ok: true, value: out };
 }
 
+/** Pinterest caps pin titles at 100 characters (pinterest.service.ts). */
+const PINTEREST_TITLE_MAX = 100;
+
 function parsePinterestSettings(
   raw: Record<string, unknown>,
 ): Result<PinterestPostSettings | undefined> {
+  const out: PinterestPostSettings = {};
+
   const boardId = raw.board_id ?? raw.boardId;
-  if (boardId === undefined) return { ok: true, value: undefined };
-  if (typeof boardId !== "string" || !boardId.trim()) {
-    return { ok: false, error: "pinterest.board_id must be a non-empty string" };
+  if (boardId !== undefined) {
+    if (typeof boardId !== "string" || !boardId.trim()) {
+      return { ok: false, error: "pinterest.board_id must be a non-empty string" };
+    }
+    out.boardId = boardId.trim();
   }
-  return { ok: true, value: { boardId: boardId.trim() } };
+
+  if (raw.title !== undefined) {
+    if (typeof raw.title !== "string") {
+      return { ok: false, error: "pinterest.title must be a string" };
+    }
+    const title = raw.title.trim();
+    if (title.length > PINTEREST_TITLE_MAX) {
+      return {
+        ok: false,
+        error: `pinterest.title must be at most ${PINTEREST_TITLE_MAX} characters`,
+      };
+    }
+    if (title) out.title = title;
+  }
+
+  if (raw.link !== undefined) {
+    if (typeof raw.link !== "string" || !/^https?:\/\/\S+$/i.test(raw.link.trim())) {
+      return { ok: false, error: "pinterest.link must be an http(s) URL" };
+    }
+    out.link = raw.link.trim();
+  }
+
+  if (Object.keys(out).length === 0) {
+    return { ok: true, value: undefined };
+  }
+  return { ok: true, value: out };
 }
 
 function rejectUnknownPlatformKeys(

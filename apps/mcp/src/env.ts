@@ -22,6 +22,7 @@ const schema = z.object({
 
   UNSORA_API_BASE_URL: required,
   MCP_MEDIA_DOMAINS: optional,
+  UNSORA_APP_URL: optional,
 });
 
 const parsed = schema.safeParse(process.env);

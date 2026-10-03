@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Unsora Library</title>
+<!--
+  Unsora library (MCP Apps). Bound to list_generations, list_uploads,
+  upload_file and delete_generation. Normalizes every library type into
+  { id, url, thumb, title, status } tiles; selecting one previews it with
+  Download / Copy URL / Post / Animate / Delete. The type picker and
+  "Load more" call the list tools again.
+-->
+<style>
+/*@kit.css*/
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; }
+.tile { padding: 0; border: 2px solid transparent; border-radius: var(--radius-sm); background: none; aspect-ratio: 1; overflow: hidden; position: relative; }
+.tile.on { border-color: var(--text); }
+.tile .thumb { width: 100%; height: 100%; border-radius: 7px; }
+.tile .state { font-size: 11.5px; padding: 6px; text-align: center; }
+.tile .tag {
+  position: absolute; left: 5px; bottom: 5px; font-size: 10px; font-weight: 700;
+  padding: 2px 6px; border-radius: 999px; background: rgba(0, 0, 0, 0.62); color: #fff;
+}
+.audio-list { display: flex; flex-direction: column; gap: 6px; }
+.audio-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); }
+.audio-row .body { flex: 1; min-width: 0; }
+.audio-row audio { width: 100%; height: 34px; margin-top: 4px; }
+.preview { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.preview .media { display: flex; justify-content: center; background: var(--sunken); border-radius: 8px; overflow: hidden; }
+.preview .media img, .preview .media video { display: block; max-width: 100%; max-height: 320px; object-fit: contain; }
+.preview .text { font-size: 13px; white-space: pre-wrap; max-height: 90px; overflow-y: auto; }
+select.type { width: auto; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+/*@kit.js*/
+(() => {
+  "use strict";
+  const { el, button, str, num, arr, obj } = Kit;
+
+  /** Library types -> label and media kind. "upload" uses list_uploads. */
+  const TYPES = {
+    image: ["Images", "image"],
+    video: ["Videos", "video"],
+    music: ["Music", "audio"],
+    voiceover: ["Voiceovers", "audio"],
+    influencer: ["Influencers", "image"],
+    thumbnail: ["Thumbnails", "image"],
+    clipping: ["Clips", "video"],
+    image_upscale: ["Image upscales", "image"],
+    video_upscale: ["Video upscales", "video"],
+    watermark_removal: ["Watermark removals", "video"],
+    motion_control: ["Motion control", "video"],
+    avatar: ["Avatars", "video"],
+    movie_material: ["Movie materials", "image"],
+    voice_change: ["Voice changes", "audio"],
+    upload: ["Uploads", "mixed"],
+  };
+  const PAGE_SIZE = 24;
+
+  let type = null;
+  let items = null; // [{ id, kind, url, thumb, title, text, status, createdAt, deletable }]
+  let page = 1;
+  let totalPages = 1;
+  let error = null;
+  let loading = false;
+  let selectedId = null;
+  let confirmDelete = false;
+  let busy = false;
+  let notice = null;
+  let args = {};
+
+  Kit.on("input", (a) => { args = a || {}; });
+  Kit.on("result", (result) => {
+    if (!result || result.isError) {
+      error = Kit.textOf(result) || "Couldn't load your library.";
+      return Kit.refresh();
+    }
+    const sc = obj(result.structuredContent);
+    // delete_generation: { success, message }
+    if (sc.success && !sc.data && args.id && args.type && /delet/i.test(String(sc.message || ""))) {
+      notice = "Deleted from your library.";
+      type = args.type;
+      return Kit.refresh();
+    }
+    // upload_file: { success, data: asset }
+    if (obj(sc.data).url && !Array.isArray(obj(sc.data).uploads)) {
+      type = "upload";
+      items = [readItem(sc.data, "upload")];
+      selectedId = items[0].id;
+      return Kit.refresh();
+    }
+    type = str(args.type) || (obj(sc.data).uploads ? "upload" : type || "image");
+    setPage(sc, false);
+    Kit.refresh();
+  });
+
+  /* ------------------------------ parsing ----------------------------- */
+
+  const lower = (v) => (typeof v === "string" ? v.toLowerCase() : "completed");
+  const url = (asset) => str(obj(asset).url);
+
+  function kindFromMime(mime, fallback) {
+    const m = String(mime || "").toLowerCase();
+    if (m.startsWith("image") || m === "image") return "image";
+    if (m.startsWith("video") || m === "video") return "video";
+    if (m.startsWith("audio") || m === "audio") return "audio";
+    return fallback;
+  }
+
+  function readItem(raw, t) {
+    const r = obj(raw);
+    if (t === "upload") {
+      return {
+        id: str(r.id), kind: kindFromMime(r.mimeType || r.type, "file"), url: str(r.url), thumb: null,
+        title: str(r.name) || "Upload", text: null, status: "completed", createdAt: str(r.createdAt), deletable: true,
+      };
+    }
+    const kind = TYPES[t] ? TYPES[t][1] : "image";
+    const output = url(r.outputAsset) || url(r.processedAsset) || str(r.image) || null;
+    return {
+      id: str(r.id),
+      kind,
+      url: output,
+      thumb: url(r.thumbnailAsset) || (kind === "image" ? output : null),
+      title: str(r.songTitle) || str(r.prompt) || str(r.title) || str(r.originalName) || str(obj(r.originalAsset).name) || null,
+      text: str(r.text) || str(r.lyrics) || str(r.transcript) || null,
+      status: lower(r.status),
+      createdAt: str(r.createdAt),
+      deletable: true,
+    };
+  }
+
+  /** Clipping jobs list their clips; each finished clip is a tile. */
+  function readClips(job) {
+    const j = obj(job);
+    return arr(j.clips).map((c, i) => ({
+      id: str(c.id) || str(j.id) + ":" + i,
+      jobId: str(j.id),
+      kind: "video",
+      url: url(c.outputAsset),
+      thumb: url(c.thumbnailAsset),
+      title: str(c.title) || "Clip " + (i + 1),
+      text: null,
+      status: lower(c.status || j.status),
+      createdAt: str(j.createdAt),
+      deletable: false,
+    }));
+  }
+
+  function setPage(sc, append) {
+    const s = obj(sc);
+    const data = s.data;
+    let list = [];
+    let pg = obj(s.pagination);
+    if (type === "upload") {
+      list = arr(obj(data).uploads).map((r) => readItem(r, "upload"));
+      pg = obj(obj(data).pagination);
+    } else if (type === "clipping") {
+      list = arr(data).flatMap(readClips);
+    } else {
+      const raw = s.generations || s.jobs || s.videos || s.conversions || (Array.isArray(data) ? data : []);
+      list = arr(raw).map((r) => readItem(r, type));
+    }
+    list = list.filter((i) => i.id);
+    items = append && items ? items.concat(list) : list;
+    page = num(pg.currentPage) || num(pg.page) || 1;
+    totalPages = num(pg.totalPages) || 1;
+    error = null;
+  }
+
+  async function load(t, append) {
+    loading = true;
+    notice = null;
+    if (!append) { type = t; items = null; selectedId = null; confirmDelete = false; }
+    Kit.refresh();
+    try {
+      const a = { page: append ? page + 1 : 1, limit: PAGE_SIZE };
+      const sc = type === "upload"
+        ? await Kit.callTool("list_uploads", a)
+        : await Kit.callTool("list_generations", Object.assign({ type }, a));
+      setPage(sc, append);
+    } catch (err) {
+      error = err.message;
+      if (!items) items = [];
+    }
+    loading = false;
+    Kit.refresh();
+  }
+
+  /* ------------------------------ actions ----------------------------- */
+
+  async function remove(item) {
+    busy = true;
+    Kit.refresh();
+    try {
+      await Kit.callTool("delete_generation", { type, id: item.id });
+      items = items.filter((i) => i.id !== item.id);
+      selectedId = null;
+      confirmDelete = false;
+      notice = "Deleted.";
+    } catch (err) {
+      error = err.message;
+    }
+    busy = false;
+    Kit.refresh();
+  }
+
+  async function post(item) {
+    const mediaType = item.kind === "video" ? "video" : "images";
+    const ok = await Kit.sendPrompt(
+      "Open the post composer (compose_post) with mediaType " + mediaType + " and mediaUrls " +
+        JSON.stringify([item.url]) + " so I can post this " + item.kind + ".",
+    );
+    Kit.flash("post", ok ? "Sent" : "Couldn't send");
+  }
+
+  async function animate(item) {
+    const ok = await Kit.sendPrompt("Animate this image into a short video with create_video, using it as the start frame (image): " + item.url);
+    Kit.flash("animate", ok ? "Sent" : "Couldn't send");
+  }
+
+  async function copy(item) {
+    Kit.flash("copy", (await Kit.copyText(item.url)) ? "Copied" : "Copy failed");
+  }
+
+  /* -------------------------------- view ------------------------------ */
+
+  function tile(item) {
+    let inner;
+    if (item.status === "failed") inner = el("div", { class: "thumb state error" }, "Failed");
+    else if (item.status !== "completed" || !item.url) inner = el("div", { class: "thumb state muted" }, "Generating…");
+    else if (item.kind === "image" || item.thumb) inner = el("div", { class: "thumb" }, el("img", { src: item.thumb || item.url, alt: item.title || "", loading: "lazy" }));
+    else if (item.kind === "video") inner = el("div", { class: "thumb" }, el("video", { src: item.url + "#t=0.5", muted: true, preload: "metadata", playsinline: true }));
+    else inner = el("div", { class: "thumb state muted" }, item.title || "File");
+    return el("button", {
+      type: "button",
+      class: "tile" + (selectedId === item.id ? " on" : ""),
+      title: item.title || "",
+      "aria-pressed": selectedId === item.id ? "true" : "false",
+      onclick: () => { selectedId = selectedId === item.id ? null : item.id; confirmDelete = false; Kit.refresh(); },
+    }, [inner, item.kind === "video" && item.url ? el("span", { class: "tag" }, "Video") : null]);
+  }
+
+  function audioRow(item) {
+    return el("div", { class: "audio-row" }, [
+      el("div", { class: "body" }, [
+        el("div", { class: "title ellipsis" }, item.title || (item.text ? item.text.slice(0, 80) : "Audio")),
+        el("div", { class: "muted small" }, Kit.fmtDate(item.createdAt)),
+        item.status === "completed" && item.url
+          ? el("audio", { src: item.url, controls: true, preload: "none" })
+          : el("div", { class: item.status === "failed" ? "error" : "muted" }, item.status === "failed" ? "Failed" : "Generating…"),
+      ]),
+      item.url ? button("Copy", () => Kit.copyText(item.url).then((ok) => Kit.flash("c" + item.id, ok ? "Copied" : "Failed")), { sm: true, key: "c" + item.id }) : null,
+      item.url ? button("Save", () => Kit.download(item.url), { sm: true, key: "s" + item.id }) : null,
+    ]);
+  }
+
+  function preview(item) {
+    let media = null;
+    if (item.url && item.kind === "image") media = el("img", { src: item.url, alt: item.title || "" });
+    else if (item.url && item.kind === "video") media = el("video", { src: item.url, controls: true, playsinline: true, preload: "metadata", poster: item.thumb || null });
+    else if (item.url && item.kind === "audio") media = el("audio", { src: item.url, controls: true, style: { width: "100%" } });
+    const ready = item.status === "completed" && item.url;
+    return el("div", { class: "preview" }, [
+      media ? el("div", { class: "media" }, media) : null,
+      item.title ? el("div", { class: "text" }, item.title) : null,
+      el("div", { class: "muted small" }, [Kit.fmtDateTime(item.createdAt), item.status !== "completed" ? " · " + item.status : ""].join("")),
+      confirmDelete
+        ? el("div", { class: "confirm" }, [
+            el("span", { class: "grow" }, "Delete this permanently? This can't be undone."),
+            button("Delete", () => remove(item), { danger: true, primary: true, sm: true, disabled: busy }),
+            button("Cancel", () => { confirmDelete = false; Kit.refresh(); }, { sm: true }),
+          ])
+        : el("div", { class: "actions" }, [
+            ready ? button("Download", () => Kit.download(item.url), { primary: true }) : null,
+            ready ? button("Copy URL", () => copy(item), { key: "copy" }) : null,
+            ready && (item.kind === "image" || item.kind === "video") ? button("Post", () => post(item), { key: "post" }) : null,
+            ready && item.kind === "image" ? button("Animate", () => animate(item), { key: "animate" }) : null,
+            item.deletable ? button("Delete", () => { confirmDelete = true; Kit.refresh(); }, { danger: true }) : null,
+          ]),
+    ]);
+  }
+
+  function view() {
+    if (error && !items) return Kit.errorCard(error, () => load(type || "image", false));
+    if (notice && !items) {
+      return el("div", { class: "card row" }, [el("span", { class: "badge" }, "Deleted"), el("span", { class: "muted" }, notice)]);
+    }
+    if (!items) return Kit.spinnerCard("Loading library…");
+
+    const label = (TYPES[type] || ["Library"])[0];
+    const selected = items.find((i) => i.id === selectedId);
+    const audio = items.filter((i) => i.kind === "audio");
+    const visual = items.filter((i) => i.kind !== "audio");
+
+    return el("div", { class: "card stack" }, [
+      el("div", { class: "row between" }, [
+        el("div", { class: "h" }, label),
+        el("select", {
+          class: "type",
+          "aria-label": "Library type",
+          onchange: (e) => load(e.target.value, false),
+        }, Object.entries(TYPES).map(([key, [name]]) => el("option", { value: key, selected: key === type }, name))),
+      ]),
+      notice ? el("div", { class: "muted" }, notice) : null,
+      error ? el("div", { class: "error" }, error) : null,
+      !items.length && !loading ? el("div", { class: "muted" }, "Nothing here yet.") : null,
+      selected && selected.kind !== "audio" ? preview(selected) : null,
+      visual.length ? el("div", { class: "tiles" }, visual.map(tile)) : null,
+      audio.length ? el("div", { class: "audio-list" }, audio.map(audioRow)) : null,
+      loading ? el("div", { class: "row" }, [el("span", { class: "spinner" }), el("span", { class: "muted" }, "Loading…")]) : null,
+      !loading && page < totalPages ? el("div", { class: "actions" }, button("Load more", () => load(type, true))) : null,
+    ]);
+  }
+
+  Kit.mount(view);
+  Kit.init("unsora-library");
+})();
+</script>
+</body>
+</html>
