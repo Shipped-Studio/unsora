@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useParams } from "next/navigation";
+import { Eye } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { AdminPage } from "@/components/admin/admin-page";
 import { BarList, ChartCard, kindLabel } from "@/components/admin/charts";
@@ -45,6 +46,7 @@ import {
 import {
   formatDate,
   formatDateTime,
+  providerLabel,
   timeAgo,
   titleCase,
 } from "@/lib/admin-format";
@@ -153,7 +155,7 @@ function UserDetail({ id, data }: { id: string; data: AdminUserDetail }) {
                   {data.socialAccounts.map((a) => (
                     <div
                       key={a.id}
-                      className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2"
+                      className="flex min-w-0 items-center gap-2 rounded-lg border bg-card px-3 py-2"
                     >
                       <Avatar size="sm">
                         <AvatarImage src={a.profilePicture ?? undefined} alt="" />
@@ -162,7 +164,7 @@ function UserDetail({ id, data }: { id: string; data: AdminUserDetail }) {
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0">
-                        <div className="text-xs font-medium">{titleCase(a.provider)}</div>
+                        <div className="text-xs font-medium">{providerLabel(a.provider)}</div>
                         <div className="truncate text-xs text-muted-foreground">
                           {a.accountUsername || a.accountName || "Unnamed account"}
                         </div>
@@ -186,38 +188,69 @@ function UserDetail({ id, data }: { id: string; data: AdminUserDetail }) {
                   <TableRow className="hover:bg-transparent">
                     <Th>Feature</Th>
                     <Th>Status</Th>
-                    <Th>Prompt</Th>
-                    <Th className="text-right">Credits</Th>
-                    <Th>When</Th>
-                    <Th className="text-right">Output</Th>
+                    <Th className="hidden md:table-cell">Prompt</Th>
+                    <Th className="hidden text-right md:table-cell">Credits</Th>
+                    <Th className="hidden md:table-cell">When</Th>
+                    <Th className="w-12">
+                      <span className="sr-only">Output</span>
+                    </Th>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {data.recentTasks.length === 0 ? (
-                    <EmptyRow cols={6}>No tasks yet.</EmptyRow>
+                    <EmptyRow cols={6} title="No tasks yet" />
                   ) : (
-                    data.recentTasks.map((t) => (
-                      <TableRow key={`${t.kind}-${t.id}`}>
-                        <Td>{kindLabel(t.kind)}</Td>
-                        <Td>
-                          <StatusBadge status={t.status} />
-                        </Td>
-                        <Td className="max-w-60 truncate text-muted-foreground">
-                          {t.label || t.model || ""}
-                        </Td>
-                        <Td className="text-right tabular-nums">{t.credits}</Td>
-                        <Td className="text-muted-foreground">{timeAgo(t.createdAt)}</Td>
-                        <Td className="text-right">
-                          <Button
-                            variant="outline"
-                            size="xs"
-                            onClick={() => setSelectedTask({ kind: t.kind, id: t.id })}
+                    data.recentTasks.map((t) => {
+                      const open = () => setSelectedTask({ kind: t.kind, id: t.id });
+                      const prompt = t.label || t.model;
+                      return (
+                        <TableRow
+                          key={`${t.kind}-${t.id}`}
+                          onClick={open}
+                          className="cursor-pointer"
+                        >
+                          <Td>
+                            <div className="font-medium">{kindLabel(t.kind)}</div>
+                            <div className="text-xs text-muted-foreground md:hidden">
+                              {timeAgo(t.createdAt)}
+                            </div>
+                          </Td>
+                          <Td>
+                            <StatusBadge status={t.status} />
+                          </Td>
+                          <Td className="hidden max-w-60 truncate text-muted-foreground md:table-cell">
+                            {prompt || "—"}
+                          </Td>
+                          <Td
+                            className={cn(
+                              "hidden text-right tabular-nums md:table-cell",
+                              !t.credits && "text-muted-foreground",
+                            )}
                           >
-                            View
-                          </Button>
-                        </Td>
-                      </TableRow>
-                    ))
+                            {t.credits.toLocaleString()}
+                          </Td>
+                          <Td className="hidden text-muted-foreground md:table-cell">
+                            <time dateTime={t.createdAt} title={timeAgo(t.createdAt)}>
+                              {formatDateTime(t.createdAt)}
+                            </time>
+                          </Td>
+                          <Td className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              className="-my-1"
+                              aria-label="View output"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                open();
+                              }}
+                            >
+                              <Eye />
+                            </Button>
+                          </Td>
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </TableShell>
@@ -228,22 +261,27 @@ function UserDetail({ id, data }: { id: string; data: AdminUserDetail }) {
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
                     <Th>Type</Th>
-                    <Th>Reason</Th>
+                    <Th className="hidden md:table-cell">Reason</Th>
                     <Th className="text-right">Amount</Th>
                     <Th>When</Th>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {data.creditTransactions.length === 0 ? (
-                    <EmptyRow cols={4}>No credit activity yet.</EmptyRow>
+                    <EmptyRow cols={4} title="No credit activity yet" />
                   ) : (
                     data.creditTransactions.map((t) => (
                       <TableRow key={t.id}>
                         <Td>
                           <Badge variant="outline">{titleCase(t.type.toLowerCase())}</Badge>
+                          {t.reason ? (
+                            <div className="mt-1 max-w-40 truncate text-xs text-muted-foreground md:hidden">
+                              {t.reason}
+                            </div>
+                          ) : null}
                         </Td>
-                        <Td className="max-w-64 truncate text-muted-foreground">
-                          {t.reason}
+                        <Td className="hidden max-w-64 truncate text-muted-foreground md:table-cell">
+                          {t.reason || "—"}
                         </Td>
                         <Td
                           className={cn(
@@ -315,13 +353,13 @@ function AccessCard({ id, user }: { id: string; user: AdminUserDetail["user"] })
         <form onSubmit={save}>
           <FieldGroup className="gap-4">
             <Field>
-              <FieldLabel>Plan</FieldLabel>
+              <FieldLabel htmlFor="user-plan">Plan</FieldLabel>
               <Select
                 value={plan}
                 items={planItems}
                 onValueChange={(v) => setPlan((v as string | null) ?? "free")}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger id="user-plan" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -335,13 +373,13 @@ function AccessCard({ id, user }: { id: string; user: AdminUserDetail["user"] })
             </Field>
 
             <Field>
-              <FieldLabel>Role</FieldLabel>
+              <FieldLabel htmlFor="user-role">Role</FieldLabel>
               <Select
                 value={role}
                 items={roleItems}
                 onValueChange={(v) => setRole((v as string | null) ?? "USER")}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger id="user-role" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

@@ -4,29 +4,61 @@ import Link from "next/link";
 import { useState } from "react";
 import {
   ArrowRight,
-  CalendarPlus,
   CheckCircle,
   Circle,
+  NotePencil,
   Robot,
   Warning,
 } from "@phosphor-icons/react";
+import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageSection } from "@/components/layout/page-header";
+import { ErrorState } from "@/components/shared/states";
+import { AgentMediaList, AgentMediaRow } from "@/components/home/agent-media-row";
 import { AccountAvatar, AccountStack, accountLabel } from "@/components/scheduler/account-avatar";
 import { PostSheet } from "@/components/scheduler/post-sheet";
-import { PostStatusBadge } from "@/components/scheduler/post-status-badge";
 import { PostThumb } from "@/components/scheduler/post-thumb";
 import { useApiKeys } from "@/components/api-keys/use-api-keys";
 import { useAnalyticsSummary } from "@/hooks/use-analytics";
 import { useConnectedAccounts } from "@/hooks/use-connected-accounts";
-import { libraryItemTitle, libraryKindLabel, useLibraryPage } from "@/hooks/use-library";
+import { libraryKindLabel, useLibraryPage } from "@/hooks/use-library";
 import { usePostCounts, usePosts } from "@/hooks/use-posts";
 import { usePostingSlots, useSchedulerTimezone } from "@/hooks/use-schedule";
+import { STATUS_META } from "@/lib/scheduler/status";
 import { dayKey, formatDay, formatRelative, formatTime } from "@/lib/scheduler/dates";
-import { scheduleHref } from "@/lib/scheduler/formats";
 import type { Post } from "@/lib/scheduler/types";
 import { cn } from "@/lib/utils";
+
+const ROW_FOCUS =
+  "outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset";
+
+/**
+ * Publishing errors can be raw provider or worker text. Show a plain line and
+ * keep the original in the tooltip.
+ */
+function friendlyPostError(error: string | null | undefined) {
+  if (!error) return "Didn't publish to every account";
+  if (/^Failed to publish/i.test(error) && error.length <= 80) return error;
+  if (/time(d)? ?out/i.test(error)) return "Publishing timed out";
+  return "Couldn't publish this post";
+}
+
+/** One-line empty message with an optional action, sized for list slots. */
+function EmptyRow({
+  children,
+  action,
+}: {
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-start gap-3 rounded-xl bg-muted p-4 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm text-muted-foreground">{children}</p>
+      {action}
+    </div>
+  );
+}
 
 function PostRow({
   post,
@@ -44,14 +76,17 @@ function PostRow({
       <button
         type="button"
         onClick={() => onOpen(post.id)}
-        className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-secondary"
+        className={cn(
+          "flex w-full min-w-0 items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-accent",
+          ROW_FOCUS,
+        )}
       >
         {showTime ? (
           <span className="w-16 shrink-0 text-sm font-medium tabular-nums">
             {post.scheduledFor ? formatTime(post.scheduledFor, timeZone) : ""}
           </span>
         ) : null}
-        <PostThumb post={post} />
+        <PostThumb post={post} className="rounded-lg bg-card" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm">{post.mainCaption.trim() || "No caption"}</span>
           {!showTime ? (
@@ -60,7 +95,7 @@ function PostRow({
             </span>
           ) : null}
         </span>
-        <span className="hidden sm:block">
+        <span className="hidden shrink-0 sm:block">
           <AccountStack accounts={post.postAccounts.map((leg) => leg.account)} />
         </span>
       </button>
@@ -72,7 +107,7 @@ function ListSkeleton({ rows = 3 }: { rows?: number }) {
   return (
     <div className="space-y-2">
       {Array.from({ length: rows }).map((_, i) => (
-        <Skeleton key={i} className="h-14 w-full rounded-lg" />
+        <Skeleton key={i} className="h-14 w-full rounded-xl" />
       ))}
     </div>
   );
@@ -99,26 +134,30 @@ function Setup({
   if (done === steps.length) return null;
 
   return (
-    <div className="rounded-xl bg-muted">
-      <div className="flex items-center justify-between border-b px-4 py-3">
-        <p className="text-sm font-medium">Get set up</p>
+    <div className="overflow-hidden rounded-xl bg-muted">
+      <div className="flex items-center justify-between border-b border-card px-4 py-3">
+        <h2 className="text-sm font-semibold">Get set up</h2>
         <span className="text-xs text-muted-foreground tabular-nums">
           {done} of {steps.length}
         </span>
       </div>
-      <ul className="divide-y">
+      <ul className="divide-y divide-card">
         {steps.map((step) => (
           <li key={step.label}>
             <Link
               href={step.href}
-              className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary"
+              className={cn(
+                "flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-accent",
+                ROW_FOCUS,
+              )}
             >
               {step.done ? (
-                <CheckCircle weight="fill" className="size-4 text-success" />
+                <CheckCircle weight="fill" className="size-4 shrink-0 text-success" />
               ) : (
-                <Circle className="size-4 text-muted-foreground" />
+                <Circle className="size-4 shrink-0 text-muted-foreground" />
               )}
-              <span className={cn("flex-1", step.done && "text-muted-foreground line-through")}>
+              <span className="sr-only">{step.done ? "Done:" : "To do:"}</span>
+              <span className={cn("min-w-0 flex-1", step.done && "text-muted-foreground line-through")}>
                 {step.label}
               </span>
               {!step.done ? <ArrowRight className="size-3.5 text-muted-foreground" /> : null}
@@ -169,10 +208,10 @@ export function HomeView() {
 
   const c = counts.data?.counts;
   const tiles = [
-    { label: "Scheduled", value: c ? c.SCHEDULED + c.PUBLISHING : null, href: "/scheduler/posts?status=scheduled" },
-    { label: "Drafts", value: c?.DRAFT ?? null, href: "/scheduler/posts?status=drafts" },
-    { label: "Published", value: c ? c.PUBLISHED + c.PARTIALLY_PUBLISHED : null, href: "/scheduler/posts?status=published" },
-    { label: "Views, last 7 days", value: stats.data?.totals.views ?? (stats.isLoading ? null : 0), href: "/scheduler/analytics?days=7" },
+    { label: "Scheduled", value: c ? c.SCHEDULED + c.PUBLISHING : null, failed: counts.isError, href: "/scheduler/posts?status=scheduled" },
+    { label: "Drafts", value: c?.DRAFT ?? null, failed: counts.isError, href: "/scheduler/posts?status=drafts" },
+    { label: "Published", value: c ? c.PUBLISHED + c.PARTIALLY_PUBLISHED : null, failed: counts.isError, href: "/scheduler/posts?status=published" },
+    { label: "Views, last 7 days", value: stats.data?.totals.views ?? (stats.isLoading || stats.isError ? null : 0), failed: stats.isError, href: "/scheduler/analytics?days=7" },
   ];
 
   return (
@@ -182,10 +221,21 @@ export function HomeView() {
           <Link
             key={tile.label}
             href={tile.href}
-            className="rounded-xl bg-muted p-4 transition-colors hover:bg-secondary"
+            className={cn(
+              "min-w-0 rounded-xl bg-muted p-4 transition-colors hover:bg-accent",
+              "outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+            )}
           >
-            <p className="text-sm text-muted-foreground">{tile.label}</p>
-            {tile.value === null ? (
+            <p className="truncate text-sm text-muted-foreground">{tile.label}</p>
+            {tile.failed && tile.value === null ? (
+              <p
+                className="mt-1 text-2xl font-semibold tracking-tight text-muted-foreground"
+                title="Couldn't load this number"
+              >
+                <span aria-hidden>—</span>
+                <span className="sr-only">Couldn&apos;t load</span>
+              </p>
+            ) : tile.value === null ? (
               <Skeleton className="mt-2 h-7 w-12" />
             ) : (
               <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">
@@ -196,15 +246,15 @@ export function HomeView() {
         ))}
       </div>
 
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-8">
           {needsAttention > 0 ? (
             <PageSection title="Needs attention">
-              <ul className="divide-y divide-destructive/15 rounded-xl bg-destructive/5">
+              <ul className="divide-y divide-card overflow-hidden rounded-xl bg-muted">
                 {reconnect.map((account) => (
-                  <li key={account.id} className="flex items-center gap-3 px-3 py-2.5">
+                  <li key={account.id} className="flex min-w-0 items-center gap-3 px-3 py-2.5">
                     <AccountAvatar account={account} size="sm" />
-                    <span className="min-w-0 flex-1 text-sm">
+                    <span className="min-w-0 flex-1 truncate text-sm">
                       <span className="font-medium">{accountLabel(account)}</span>{" "}
                       <span className="text-muted-foreground">
                         {account.status === "reconnect" ? "needs to be reconnected" : "expires soon"}
@@ -212,7 +262,7 @@ export function HomeView() {
                     </span>
                     <Link
                       href="/scheduler/accounts"
-                      className={buttonVariants({ variant: "outline", size: "sm" })}
+                      className={buttonVariants({ size: "sm" })}
                     >
                       Reconnect
                     </Link>
@@ -223,18 +273,29 @@ export function HomeView() {
                     <button
                       type="button"
                       onClick={() => setOpenPostId(post.id)}
-                      className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-secondary"
+                      className={cn(
+                        "flex w-full min-w-0 items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-accent",
+                        ROW_FOCUS,
+                      )}
                     >
                       <Warning weight="fill" className="size-4 shrink-0 text-destructive" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm">
                           {post.mainCaption.trim() || "No caption"}
                         </span>
-                        <span className="block truncate text-xs text-destructive">
-                          {post.error ?? "Didn't publish to every account"}
+                        <span
+                          className="block truncate text-xs text-muted-foreground"
+                          title={post.error ?? undefined}
+                        >
+                          {friendlyPostError(post.error)}
                         </span>
                       </span>
-                      <PostStatusBadge status={post.status} />
+                      <Badge
+                        variant="destructive"
+                        className="bg-destructive-subtle dark:bg-destructive-subtle"
+                      >
+                        {STATUS_META[post.status].label}
+                      </Badge>
                     </button>
                   </li>
                 ))}
@@ -246,22 +307,37 @@ export function HomeView() {
             title="Up next"
             description="Scheduled for the next 7 days."
             actions={
-              <Link href="/scheduler/calendar" className={buttonVariants({ variant: "ghost" })}>
+              <Link
+                href="/scheduler/calendar"
+                className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "-my-1.5 -mr-2")}
+              >
                 Calendar
-                <ArrowRight />
+                <ArrowRight data-icon="inline-end" />
               </Link>
             }
           >
             {upcoming.isLoading ? (
               <ListSkeleton />
+            ) : upcoming.isError ? (
+              <ErrorState
+                title="Couldn't load upcoming posts"
+                className="py-8"
+                onRetry={() => void upcoming.refetch()}
+              />
             ) : byDay.size === 0 ? (
-              <div className="flex flex-col items-start gap-3 rounded-xl bg-muted p-5 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-muted-foreground">Nothing scheduled this week.</p>
-                <Link href="/scheduler/new" className={buttonVariants({ size: "sm" })}>
-                  <CalendarPlus />
-                  Schedule a post
-                </Link>
-              </div>
+              <EmptyRow
+                action={
+                  <Link
+                    href="/scheduler/new"
+                    className={buttonVariants({ variant: "outline", size: "sm" })}
+                  >
+                    <NotePencil />
+                    New post
+                  </Link>
+                }
+              >
+                Nothing scheduled this week.
+              </EmptyRow>
             ) : (
               <div className="space-y-4">
                 {[...byDay.entries()].map(([key, posts]) => (
@@ -269,7 +345,7 @@ export function HomeView() {
                     <p className="text-xs font-medium text-muted-foreground">
                       {formatDay(posts[0].scheduledFor!, timeZone, true)}
                     </p>
-                    <ul className="divide-y divide-card rounded-xl bg-muted">
+                    <ul className="divide-y divide-card overflow-hidden rounded-xl bg-muted">
                       {posts.map((post) => (
                         <PostRow key={post.id} post={post} timeZone={timeZone} onOpen={setOpenPostId} />
                       ))}
@@ -281,7 +357,7 @@ export function HomeView() {
           </PageSection>
         </div>
 
-        <aside className="space-y-8">
+        <aside className="min-w-0 space-y-8">
           <Setup
             hasAccounts={(accounts.data?.length ?? 0) > 0}
             hasSlots={(slots.data?.slots.length ?? 0) > 0}
@@ -292,78 +368,75 @@ export function HomeView() {
           <PageSection
             title="From your agents"
             actions={
-              <Link href="/files?source=api" className={buttonVariants({ variant: "ghost" })}>
+              <Link
+                href="/files?source=api"
+                className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "-my-1.5 -mr-2")}
+              >
                 Library
-                <ArrowRight />
+                <ArrowRight data-icon="inline-end" />
               </Link>
             }
           >
             {fromAgents.isLoading ? (
               <ListSkeleton />
+            ) : fromAgents.isError ? (
+              <ErrorState
+                title="Couldn't load agent files"
+                className="py-8"
+                onRetry={() => void fromAgents.refetch()}
+              />
             ) : (fromAgents.data?.items.length ?? 0) === 0 ? (
-              <div className="space-y-3 rounded-xl bg-muted p-4">
-                <p className="text-sm text-muted-foreground">
-                  Images and videos your agent makes through the Unsora MCP server or API show up
-                  here, ready to schedule.
-                </p>
-                <Link href="/connect-agent" className={buttonVariants({ variant: "outline", size: "sm" })}>
-                  <Robot />
-                  Connect an agent
-                </Link>
-              </div>
+              <EmptyRow
+                action={
+                  <Link
+                    href="/connect-agent"
+                    className={buttonVariants({ variant: "outline", size: "sm" })}
+                  >
+                    <Robot />
+                    Connect an agent
+                  </Link>
+                }
+              >
+                Images and videos your agent makes through the Unsora MCP server or API show up
+                here, ready to schedule.
+              </EmptyRow>
             ) : (
-              <ul className="divide-y divide-card rounded-xl bg-muted">
+              <AgentMediaList>
                 {fromAgents.data!.items.map((item) => (
-                  <li key={item.id} className="flex items-center gap-3 px-3 py-2.5">
-                    <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
-                      {item.thumbnailUrl || (item.mediaType === "image" && item.url) ? (
-                        <img
-                          src={item.thumbnailUrl ?? item.url!}
-                          alt=""
-                          loading="lazy"
-                          className="size-full object-cover"
-                        />
-                      ) : item.mediaType === "video" && item.url ? (
-                        <video src={`${item.url}#t=0.5`} muted preload="metadata" className="size-full object-cover" />
-                      ) : null}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm">{libraryItemTitle(item)}</span>
-                      <span className="block text-xs text-muted-foreground">
-                        {libraryKindLabel(item.kind)} · {formatRelative(item.createdAt)}
-                      </span>
-                    </span>
-                    {item.url && (item.mediaType === "video" || item.mediaType === "image") ? (
-                      <Link
-                        href={scheduleHref({ url: item.url, mediaType: item.mediaType })}
-                        className={buttonVariants({ variant: "outline", size: "xs" })}
-                      >
-                        Schedule
-                      </Link>
-                    ) : null}
-                  </li>
+                  <AgentMediaRow
+                    key={item.id}
+                    item={item}
+                    meta={`${libraryKindLabel(item.kind)} · ${formatRelative(item.createdAt)}`}
+                  />
                 ))}
-              </ul>
+              </AgentMediaList>
             )}
           </PageSection>
 
           <PageSection
             title="Drafts"
             actions={
-              <Link href="/scheduler/posts?status=drafts" className={buttonVariants({ variant: "ghost" })}>
+              <Link
+                href="/scheduler/posts?status=drafts"
+                className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "-my-1.5 -mr-2")}
+              >
                 All drafts
-                <ArrowRight />
+                <ArrowRight data-icon="inline-end" />
               </Link>
             }
           >
             {drafts.isLoading ? (
               <ListSkeleton />
+            ) : drafts.isError ? (
+              <ErrorState
+                title="Couldn't load drafts"
+                className="py-8"
+                onRetry={() => void drafts.refetch()}
+              />
             ) : (drafts.data?.posts.length ?? 0) === 0 ? (
-              <p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">
-                No drafts. Posts saved without a time wait here.
-              </p>
+              <EmptyRow>No drafts. Posts saved without a time show up here.</EmptyRow>
             ) : (
-              <ul className="divide-y divide-card rounded-xl bg-muted">
+              <ul className="divide-y divide-card overflow-hidden rounded-xl bg-muted">
                 {drafts.data!.posts.map((post) => (
                   <PostRow
                     key={post.id}

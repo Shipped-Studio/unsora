@@ -4,9 +4,10 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { DownloadSimple, Plus, Subtitles } from "@phosphor-icons/react";
-import { PageBody, PageHeader } from "@/components/layout/page-header";
+import { ToolPage } from "@/components/generator/tool-layout";
 import { EmptyState, ErrorState } from "@/components/shared/states";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { DeleteDialog } from "@/components/subtitle-editor/delete-dialog";
 import { failureMessage } from "@/components/subtitle-editor/format";
 import {
@@ -32,38 +33,39 @@ export default function SubtitleProjectsPage() {
   const openUpload = () => setUploadOpen(true);
 
   return (
-    <>
-      <PageHeader
-        actions={
-          <>
-            <Link
-              href="/subtitle-editor/exports"
-              className={buttonVariants({ variant: "outline" })}
-            >
-              <DownloadSimple />
-              Exports
-            </Link>
-            <Button onClick={openUpload}>
-              <Plus />
-              New project
-            </Button>
-          </>
-        }
-      />
-      <PageBody>
-        <Suspense fallback={<ProjectsGridSkeleton count={SUBTITLE_PAGE_SIZE} />}>
-          <ProjectsList onNewProject={openUpload} />
-        </Suspense>
-      </PageBody>
+    <ToolPage
+      actions={
+        <>
+          {/* Icon-only below sm so the page title keeps its room. */}
+          <Link
+            href="/subtitle-editor/exports"
+            className={cn(buttonVariants({ variant: "outline" }), ICON_ONLY_MOBILE)}
+          >
+            <DownloadSimple />
+            <span className="max-sm:sr-only">Exports</span>
+          </Link>
+          <Button onClick={openUpload} className={ICON_ONLY_MOBILE}>
+            <Plus />
+            <span className="max-sm:sr-only">New project</span>
+          </Button>
+        </>
+      }
+    >
+      <Suspense fallback={<ProjectsGridSkeleton count={SUBTITLE_PAGE_SIZE} />}>
+        <ProjectsList onNewProject={openUpload} />
+      </Suspense>
       <UploadDialog
         open={uploadOpen}
         onOpenChange={setUploadOpen}
         onVideoUploaded={createProject}
         isCreating={isCreating}
       />
-    </>
+    </ToolPage>
   );
 }
+
+/** Square icon button below sm; the label stays for screen readers. */
+const ICON_ONLY_MOBILE = "max-sm:w-9 max-sm:px-0";
 
 function ProjectsList({ onNewProject }: { onNewProject: () => void }) {
   const page = usePageParam();
@@ -102,20 +104,25 @@ function ProjectsList({ onNewProject }: { onNewProject: () => void }) {
   const totalPages = data?.pagination?.totalPages ?? 1;
 
   if (items.length === 0) {
-    return page > 1 ? (
-      <EmptyState
-        icon={Subtitles}
-        title="Nothing on this page"
-        description="This page is past the end of your projects."
-        action={{ label: "Go to first page", href: "/subtitle-editor" }}
-      />
-    ) : (
-      <EmptyState
-        icon={Subtitles}
-        title="No subtitle projects yet"
-        description="Upload a video to transcribe it and style its subtitles."
-        action={{ label: "New project", onClick: onNewProject }}
-      />
+    // Centred in the room left under the header, like ToolEmpty.
+    return (
+      <div className="flex flex-1 flex-col justify-center">
+        {page > 1 ? (
+          <EmptyState
+            icon={Subtitles}
+            title="Nothing on this page"
+            description="This page is past the end of your projects."
+            action={{ label: "Go to first page", href: "/subtitle-editor" }}
+          />
+        ) : (
+          <EmptyState
+            icon={Subtitles}
+            title="No subtitle projects yet"
+            description="Upload a video to transcribe it and style its subtitles."
+            action={{ label: "New project", onClick: onNewProject }}
+          />
+        )}
+      </div>
     );
   }
 

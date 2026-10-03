@@ -2,9 +2,11 @@
 
 import Image from "next/image";
 import { X, WarningCircle, MusicNote } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import type { Attachment } from "./attachments";
+import { MEDIA_ICON_BUTTON_CLASS } from "./result-tile";
 
 interface AttachmentStripProps {
   attachments: Attachment[];
@@ -24,15 +26,15 @@ export function AttachmentStrip({
   return (
     <ul
       aria-label="Attached files"
-      className="flex items-end gap-2 overflow-x-auto pb-1 scrollbar-none"
+      className="no-scrollbar flex items-end gap-2 overflow-x-auto pb-1"
     >
       {attachments.map((att) => (
         <li key={att.id} className="flex shrink-0 flex-col gap-1">
           <div
             className={cn(
-              "group relative overflow-hidden rounded-xl bg-muted",
+              "relative overflow-hidden rounded-xl bg-muted",
               att.kind === "audio"
-                ? "flex h-16 max-w-40 items-center gap-2 px-3"
+                ? "flex h-16 max-w-40 items-center gap-2 pr-9 pl-3"
                 : "size-16",
             )}
           >
@@ -69,15 +71,15 @@ export function AttachmentStrip({
             )}
 
             {att.status === "uploading" && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 bg-background/60 text-foreground">
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 bg-scrim/50 text-media-foreground">
                 <Spinner />
-                <span className="text-xs tabular-nums">{att.progress}%</span>
+                <span className="text-2xs tabular-nums">{att.progress}%</span>
               </div>
             )}
 
             {att.status === "error" && (
               <div
-                className="absolute inset-0 flex items-center justify-center bg-background/70"
+                className="absolute inset-0 flex items-center justify-center bg-card/80"
                 title="Upload failed"
               >
                 <WarningCircle className="size-5 text-destructive" weight="fill" />
@@ -85,14 +87,16 @@ export function AttachmentStrip({
               </div>
             )}
 
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-xs"
               onClick={() => onRemove(att.id)}
               aria-label={`Remove ${att.fileName}`}
-              className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full border bg-background text-foreground transition-opacity focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100"
+              className={cn("absolute top-1 right-1", MEDIA_ICON_BUTTON_CLASS)}
             >
-              <X className="size-3" weight="bold" />
-            </button>
+              <X weight="bold" />
+            </Button>
           </div>
           {fieldLabel && (
             <span className="max-w-16 truncate text-xs text-muted-foreground">

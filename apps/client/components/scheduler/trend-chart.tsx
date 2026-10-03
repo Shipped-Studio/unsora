@@ -96,7 +96,7 @@ export function TrendChart({
               y={tick.y}
               dy="0.32em"
               textAnchor="end"
-              className="fill-muted-foreground text-[11px] tabular-nums"
+              className="fill-muted-foreground text-2xs tabular-nums"
             >
               {compact(tick.value)}
             </text>
@@ -110,7 +110,7 @@ export function TrendChart({
               x={xs[i]}
               y={HEIGHT - 6}
               textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}
-              className="fill-muted-foreground text-[11px]"
+              className="fill-muted-foreground text-2xs"
             >
               {format(new Date(point.date), "MMM d")}
             </text>
@@ -149,7 +149,7 @@ export function TrendChart({
 
       {active && hover !== null ? (
         <div
-          className="pointer-events-none absolute top-0 z-10 rounded-md border bg-popover px-2.5 py-1.5 text-xs shadow-md"
+          className="pointer-events-none absolute top-0 z-10 rounded-lg border border-border bg-popover px-2.5 py-1.5 text-xs shadow-md"
           style={{
             left: Math.min(Math.max(xs[hover] - 60, 0), Math.max(width - 130, 0)),
           }}

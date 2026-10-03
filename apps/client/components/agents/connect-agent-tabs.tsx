@@ -23,7 +23,7 @@ interface ClientSetup {
 
 function Mono({ children }: { children: React.ReactNode }) {
   return (
-    <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">
+    <code className="rounded-md border bg-card px-1 py-0.5 font-mono text-xs text-foreground">
       {children}
     </code>
   );
@@ -138,7 +138,7 @@ function Steps({ steps }: { steps: React.ReactNode[] }) {
     <ol className="space-y-2.5">
       {steps.map((step, i) => (
         <li key={i} className="flex gap-3 text-sm">
-          <span className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-foreground tabular-nums">
+          <span className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full border bg-card text-xs font-medium text-foreground tabular-nums">
             {i + 1}
           </span>
           <span className="min-w-0 text-muted-foreground">{step}</span>
@@ -148,16 +148,17 @@ function Steps({ steps }: { steps: React.ReactNode[] }) {
   );
 }
 
+/** A labelled snippet on a card surface, with the copy button beside the value. */
 export function CodeBlock({ label, code }: { label: string; code: string }) {
   return (
-    <div className="overflow-hidden rounded-xl bg-muted">
-      <div className="flex items-center justify-between gap-2 border-b py-1 pr-1 pl-3">
-        <span className="truncate text-xs text-muted-foreground">{label}</span>
-        <CopyButton value={code} label={`Copy ${label}`} size="icon-xs" />
+    <div className="min-w-0 space-y-1.5">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <div className="flex w-fit max-w-full items-start gap-2 rounded-lg border bg-card py-1 pr-1 pl-3">
+        <pre className="min-w-0 overflow-x-auto py-1.5 font-mono text-xs leading-relaxed text-foreground">
+          <code>{code}</code>
+        </pre>
+        <CopyButton value={code} label={`Copy ${label}`} size="icon-sm" />
       </div>
-      <pre className="overflow-x-auto p-3 font-mono text-xs leading-relaxed text-foreground">
-        <code>{code}</code>
-      </pre>
     </div>
   );
 }
@@ -176,82 +177,85 @@ export function ConnectAgentTabs() {
   const [insertedKey, setInsertedKey] = useState<string | null>(null);
 
   return (
-    <div className="space-y-5 rounded-xl bg-muted p-4 md:p-5">
+    <div>
       <Tabs
         value={client}
         onValueChange={(value) => setClient(value as ClientId)}
-        className="gap-4"
+        className="gap-3"
       >
-        <div className="-mx-1 overflow-x-auto px-1 pb-1">
-          <TabsList variant="pill">
+        {/* Scrolls sideways on narrow screens; the right edge fades to show there's more. */}
+        <div className="-mx-1 overflow-x-auto px-1 py-1 max-sm:pr-8 max-sm:mask-r-from-85%">
+          <TabsList>
             {CLIENTS.map((c) => (
-              <TabsTrigger key={c.id} value={c.id} className="px-3">
+              <TabsTrigger key={c.id} value={c.id}>
                 {c.label}
               </TabsTrigger>
             ))}
           </TabsList>
         </div>
 
-        {CLIENTS.map((c) => {
-          const code = insertedKey
-            ? c.code.text.replaceAll(KEY_PLACEHOLDER, insertedKey)
-            : c.code.text;
-          return (
-            <TabsContent key={c.id} value={c.id} className="space-y-4">
-              <Steps steps={c.steps} />
-              {c.usesKey ? (
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted px-3 py-2">
-                  {insertedKey ? (
-                    <>
-                      <p className="text-sm text-muted-foreground">
-                        Your new key is in the snippet. Copy it now: it
-                        isn&apos;t shown again after you leave this page.
-                      </p>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setInsertedKey(null)}
-                      >
-                        Hide key
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-sm text-muted-foreground">
-                        Replace <Mono>{KEY_PLACEHOLDER}</Mono> with an API key.
-                      </p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCreateOpen(true)}
-                      >
-                        <Plus />
-                        Create API key
-                      </Button>
-                    </>
-                  )}
-                </div>
-              ) : null}
-              <CodeBlock label={c.code.label} code={code} />
-            </TabsContent>
-          );
-        })}
-      </Tabs>
+        <div className="space-y-5 rounded-xl bg-muted p-4 md:p-5">
+          {CLIENTS.map((c) => {
+            const code = insertedKey
+              ? c.code.text.replaceAll(KEY_PLACEHOLDER, insertedKey)
+              : c.code.text;
+            return (
+              <TabsContent key={c.id} value={c.id} className="min-w-0 space-y-4">
+                <Steps steps={c.steps} />
+                {c.usesKey ? (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2">
+                    {insertedKey ? (
+                      <>
+                        <p className="text-sm text-muted-foreground">
+                          Your new key is in the snippet. Copy it now: it
+                          isn&apos;t shown again after you leave this page.
+                        </p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setInsertedKey(null)}
+                        >
+                          Hide key
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm text-muted-foreground">
+                          Replace <Mono>{KEY_PLACEHOLDER}</Mono> with an API key.
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCreateOpen(true)}
+                        >
+                          <Plus />
+                          Create API key
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                ) : null}
+                <CodeBlock label={c.code.label} code={code} />
+              </TabsContent>
+            );
+          })}
 
-      <div className="space-y-2 border-t pt-4">
-        <p className="text-sm font-medium">Then try asking</p>
-        <ul className="space-y-1.5">
-          {EXAMPLE_PROMPTS.map((prompt) => (
-            <li
-              key={prompt}
-              className="flex items-center gap-2 rounded-md bg-muted/40 py-1 pr-1 pl-3 text-sm"
-            >
-              <span className="min-w-0 flex-1">{prompt}</span>
-              <CopyButton value={prompt} label="Copy prompt" size="icon-xs" />
-            </li>
-          ))}
-        </ul>
-      </div>
+          <div className="space-y-2 border-t border-card pt-4">
+            <p className="text-sm font-medium">Then try asking</p>
+            <ul className="space-y-1.5">
+              {EXAMPLE_PROMPTS.map((prompt) => (
+                <li
+                  key={prompt}
+                  className="flex items-center gap-2 rounded-lg border bg-card py-1 pr-1 pl-3 text-sm"
+                >
+                  <span className="min-w-0 flex-1 py-1">{prompt}</span>
+                  <CopyButton value={prompt} label="Copy prompt" size="icon-sm" />
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </Tabs>
 
       <CreateApiKeyDialog
         open={createOpen}

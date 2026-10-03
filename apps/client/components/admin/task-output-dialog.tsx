@@ -78,7 +78,9 @@ export function TaskOutputDialog({
           <Alert variant="destructive">
             <WarningCircle />
             <AlertDescription>
-              Couldn&apos;t load this task. {error.message}
+              <span title={error.message}>
+                Couldn&apos;t load this task. Close it and try again.
+              </span>
             </AlertDescription>
           </Alert>
         ) : null}
@@ -88,8 +90,11 @@ export function TaskOutputDialog({
             {data.error ? (
               <Alert variant="destructive">
                 <WarningCircle />
-                <AlertDescription className="break-words whitespace-pre-wrap">
-                  {data.error}
+                <AlertDescription className="flex flex-col gap-1">
+                  <span>This task failed. The provider returned:</span>
+                  <span className="font-mono text-xs wrap-break-word whitespace-pre-wrap text-muted-foreground">
+                    {data.error}
+                  </span>
                 </AlertDescription>
               </Alert>
             ) : null}
@@ -101,7 +106,7 @@ export function TaskOutputDialog({
                 ))}
               </div>
             ) : !data.error ? (
-              <p className="rounded-lg bg-muted p-6 text-center text-sm text-muted-foreground">
+              <p className="rounded-xl border bg-card p-6 text-center text-sm text-muted-foreground">
                 No output
                 {data.status !== "COMPLETED"
                   ? ` yet. Status: ${data.status.toLowerCase()}.`
@@ -111,7 +116,7 @@ export function TaskOutputDialog({
 
             {data.text ? (
               <Section label="Prompt">
-                <p className="max-h-40 overflow-y-auto rounded-lg bg-muted p-3 text-sm break-words whitespace-pre-wrap">
+                <p className="max-h-40 overflow-y-auto rounded-lg border bg-card p-3 text-sm wrap-break-word whitespace-pre-wrap">
                   {data.text}
                 </p>
               </Section>
@@ -170,7 +175,7 @@ function MediaBlock({
 }) {
   return (
     <div className={cn("flex flex-col gap-1", primary ? "w-full" : "w-28 shrink-0")}>
-      <div className="overflow-hidden rounded-xl bg-muted">
+      <div className="overflow-hidden rounded-lg border bg-card">
         <MediaPlayer media={media} primary={primary} />
       </div>
       <div className="flex items-center justify-between gap-1">

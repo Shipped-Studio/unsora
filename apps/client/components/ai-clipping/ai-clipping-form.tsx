@@ -13,7 +13,16 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
+import { GHOST_TRIGGER_CLASS } from "@/components/generator/param-control";
+import {
+  ComposerCard,
+  ComposerDivider,
+  ComposerDock,
+  ComposerFooter,
+  ComposerToolbar,
+} from "@/components/generator/prompt-composer";
 import { Button } from "@/components/ui/button";
+import { GenerateButton } from "@/components/ui/generate-button";
 import {
   Command,
   CommandEmpty,
@@ -22,12 +31,6 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { GenerateButton } from "@/components/ui/generate-button";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
 import {
   Popover,
@@ -42,7 +45,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   CAPTION_STYLE_GROUPS,
   DEFAULT_CAPTION_STYLE,
@@ -52,8 +54,7 @@ import { LANGUAGES } from "@/constant/lang";
 import { useAuthFetch } from "@/hooks/use-auth-fetch";
 import type { AIClippingJob } from "@/hooks/use-ai-clippings";
 import { CLIPPING_CREDITS_PER_MINUTE } from "@/lib/clipping-pricing";
-import { BOTTOM_PROMPT_DOCK_CLASS } from "@/lib/layout-classes";
-import { getYouTubeVideoId, looksLikeDirectVideoUrl } from "@/lib/utils";
+import { cn, getYouTubeVideoId, looksLikeDirectVideoUrl } from "@/lib/utils";
 
 const CLIP_LENGTHS = [
   { value: "DURATION_0_90", label: "Auto length" },
@@ -82,6 +83,15 @@ const CLIP_LIMITS = [
 ];
 
 const MAX_QUERY_LENGTH = 500;
+
+const MODES = [
+  { value: "clips", label: "Best clips" },
+  { value: "moments", label: "Find moments" },
+];
+
+/** Borderless single-line field inside the composer card. */
+const FIELD_CLASS =
+  "h-12 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground disabled:opacity-50 md:text-sm";
 
 function languageName(code: string) {
   return LANGUAGES.find((l) => l.code === code)?.name ?? code;
@@ -180,76 +190,35 @@ export function AIClippingForm({
   }
 
   return (
-    <div className={BOTTOM_PROMPT_DOCK_CLASS}>
-      <div className="pointer-events-auto w-full max-w-3xl rounded-xl border border-border/70 bg-card shadow-lg shadow-foreground/5">
-        {looksLikeLink ? (
-          <div className="flex items-center gap-3 border-b p-3">
-            <div className="relative flex aspect-video w-28 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted sm:w-36">
-              {youTubeId ? (
-                <Image
-                  src={`https://img.youtube.com/vi/${youTubeId}/hqdefault.jpg`}
-                  alt=""
-                  fill
-                  sizes="144px"
-                  className="object-cover"
-                />
-              ) : directVideoUrl ? (
-                <video
-                  src={directVideoUrl}
-                  className="size-full object-cover"
-                  muted
-                  playsInline
-                  preload="metadata"
-                />
-              ) : (
-                <VideoCamera className="size-6 text-muted-foreground" />
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="line-clamp-2 text-sm font-medium break-all">
-                {trimmedUrl}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {youTubeId
-                  ? "YouTube video"
-                  : directVideoUrl
-                    ? "Video file link"
-                    : "Video link"}
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => setUrl("")}
-              disabled={submitting}
-              aria-label="Remove video link"
-            >
-              <X />
-            </Button>
-          </div>
-        ) : null}
-
-        <div className="flex flex-wrap items-center gap-1.5 px-3 pt-3">
-          <ToggleGroup
-            value={[mode]}
-            onValueChange={(value) => {
-              const next = value[0];
-              if (next === "clips" || next === "moments") setMode(next);
+    <ComposerDock>
+      <ComposerCard>
+        <ComposerToolbar>
+          <Select
+            items={MODES}
+            value={mode}
+            onValueChange={(v) => {
+              if (v === "clips" || v === "moments") setMode(v);
             }}
-            variant="outline"
-            size="sm"
-            spacing={0}
-            aria-label="What to find"
+            disabled={submitting}
           >
-            <ToggleGroupItem value="clips">
-              <Scissors />
-              Best clips
-            </ToggleGroupItem>
-            <ToggleGroupItem value="moments">
-              <MagnifyingGlass />
-              Find moments
-            </ToggleGroupItem>
-          </ToggleGroup>
+            <SelectTrigger
+              variant="ghost"
+              size="sm"
+              aria-label="What to find"
+              className={cn(GHOST_TRIGGER_CLASS, "font-medium text-foreground")}
+            >
+              {findMoments ? <MagnifyingGlass /> : <Scissors />}
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {MODES.map((option) => (
+                <SelectItem key={option.value} value={option.value} className="text-xs">
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <ComposerDivider />
 
           <Popover>
             <PopoverTrigger
@@ -258,20 +227,20 @@ export function AIClippingForm({
                   variant="ghost"
                   size="sm"
                   disabled={submitting}
-                  className="text-muted-foreground"
+                  className={GHOST_TRIGGER_CLASS}
                 />
               }
             >
-              <Globe />
+              <Globe className="size-3.5" />
               <span className="max-w-40 truncate">{languageLabel}</span>
               <CaretDown className="size-3" />
             </PopoverTrigger>
             <PopoverContent
               side="top"
               align="start"
-              className="w-[min(calc(100vw-2rem),32rem)] gap-3 p-3"
+              className="w-lg max-w-[calc(100vw-2rem)] gap-3 p-3"
             >
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <LanguageList
                   title="Spoken language"
                   selected={sourceLang}
@@ -294,12 +263,17 @@ export function AIClippingForm({
             onValueChange={(v) => v && setClipLength(v)}
             disabled={submitting || findMoments}
           >
-            <SelectTrigger variant="ghost" size="sm" aria-label="Clip length">
+            <SelectTrigger
+              variant="ghost"
+              size="sm"
+              aria-label="Clip length"
+              className={GHOST_TRIGGER_CLASS}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {CLIP_LENGTHS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
+                <SelectItem key={option.value} value={option.value} className="text-xs">
                   {option.label}
                 </SelectItem>
               ))}
@@ -312,12 +286,17 @@ export function AIClippingForm({
             onValueChange={(v) => v && setRatio(v)}
             disabled={submitting}
           >
-            <SelectTrigger variant="ghost" size="sm" aria-label="Aspect ratio">
+            <SelectTrigger
+              variant="ghost"
+              size="sm"
+              aria-label="Aspect ratio"
+              className={GHOST_TRIGGER_CLASS}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {RATIOS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
+                <SelectItem key={option.value} value={option.value} className="text-xs">
                   {option.label}
                   <span className="text-xs text-muted-foreground">
                     {option.hint}
@@ -333,12 +312,17 @@ export function AIClippingForm({
             onValueChange={(v) => v && setClipLimit(v)}
             disabled={submitting}
           >
-            <SelectTrigger variant="ghost" size="sm" aria-label="Number of clips">
+            <SelectTrigger
+              variant="ghost"
+              size="sm"
+              aria-label="Number of clips"
+              className={GHOST_TRIGGER_CLASS}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {CLIP_LIMITS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
+                <SelectItem key={option.value} value={option.value} className="text-xs">
                   {option.label}
                 </SelectItem>
               ))}
@@ -352,11 +336,11 @@ export function AIClippingForm({
                   variant="ghost"
                   size="sm"
                   disabled={submitting}
-                  className="text-muted-foreground"
+                  className={GHOST_TRIGGER_CLASS}
                 />
               }
             >
-              <ClosedCaptioning />
+              <ClosedCaptioning className="size-3.5" />
               <span className="max-w-32 truncate">
                 {enableCaption ? getCaptionStyleLabel(captionStyle) : "No captions"}
               </span>
@@ -398,57 +382,103 @@ export function AIClippingForm({
               ) : null}
             </PopoverContent>
           </Popover>
-        </div>
+        </ComposerToolbar>
 
-        {findMoments ? (
-          <div className="px-3 pt-2">
-            <InputGroup>
-              <InputGroupAddon>
-                <MagnifyingGlass />
-              </InputGroupAddon>
-              <InputGroupInput
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                disabled={submitting}
-                maxLength={MAX_QUERY_LENGTH}
-                placeholder="Moments to find, like “funny reactions” or “goals”"
-                aria-label="Moments to find"
-              />
-            </InputGroup>
+        {looksLikeLink ? (
+          <div className="flex items-center gap-3 px-3 pt-3">
+            <div className="relative flex aspect-video w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted sm:w-32">
+              {youTubeId ? (
+                <Image
+                  src={`https://img.youtube.com/vi/${youTubeId}/hqdefault.jpg`}
+                  alt=""
+                  fill
+                  sizes="128px"
+                  className="object-cover"
+                />
+              ) : directVideoUrl ? (
+                <video
+                  src={directVideoUrl}
+                  className="size-full object-cover"
+                  muted
+                  playsInline
+                  preload="metadata"
+                />
+              ) : (
+                <VideoCamera className="size-6 text-muted-foreground" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">
+                {youTubeId
+                  ? "YouTube video"
+                  : directVideoUrl
+                    ? "Video file link"
+                    : "Video link"}
+              </p>
+              <p className="truncate text-xs text-muted-foreground">
+                {trimmedUrl}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setUrl("")}
+              disabled={submitting}
+              aria-label="Remove video link"
+            >
+              <X />
+            </Button>
           </div>
         ) : null}
 
-        <div className="flex items-center gap-2 p-3">
-          <InputGroup className="flex-1">
-            <InputGroupAddon>
-              <LinkIcon />
-            </InputGroupAddon>
-            <InputGroupInput
-              type="url"
-              inputMode="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
+        <label className="flex items-center gap-2 px-4">
+          <LinkIcon className="size-4 shrink-0 text-muted-foreground" />
+          <span className="sr-only">Video link</span>
+          <input
+            type="url"
+            inputMode="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void handleSubmit();
+            }}
+            disabled={submitting}
+            placeholder="Paste a YouTube or video link"
+            className={FIELD_CLASS}
+          />
+        </label>
+
+        {findMoments ? (
+          <label className="flex items-center gap-2 border-t px-4">
+            <MagnifyingGlass className="size-4 shrink-0 text-muted-foreground" />
+            <span className="sr-only">Moments to find</span>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") void handleSubmit();
               }}
               disabled={submitting}
-              placeholder="Paste a YouTube or video link"
-              aria-label="Video link"
+              maxLength={MAX_QUERY_LENGTH}
+              placeholder="Moments to find, like “funny reactions” or “goals”"
+              className={FIELD_CLASS}
             />
-          </InputGroup>
-          <GenerateButton
-            label="Get clips"
-            disabled={!canSubmit}
-            submitting={submitting}
-            onClick={handleSubmit}
-          />
-        </div>
-        <p className="-mt-1 px-3 pb-3 text-xs text-muted-foreground">
-          {CLIPPING_CREDITS_PER_MINUTE} credits per minute of source video,
-          charged when you start.
-        </p>
-      </div>
-    </div>
+          </label>
+        ) : null}
+
+        <ComposerFooter
+          end={
+            <GenerateButton
+              label="Get clips"
+              costLabel={`${CLIPPING_CREDITS_PER_MINUTE} credits/min`}
+              disabled={!canSubmit}
+              submitting={submitting}
+              onClick={handleSubmit}
+            />
+          }
+        />
+      </ComposerCard>
+    </ComposerDock>
   );
 }
 

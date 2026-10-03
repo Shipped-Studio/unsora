@@ -44,7 +44,7 @@ export function AccountAvatar({
         {account.profilePicture ? (
           <AvatarImage src={account.profilePicture} alt="" />
         ) : null}
-        <AvatarFallback className="text-[11px] font-medium uppercase">
+        <AvatarFallback className="text-2xs font-medium uppercase">
           {label.slice(0, 1)}
         </AvatarFallback>
       </Avatar>

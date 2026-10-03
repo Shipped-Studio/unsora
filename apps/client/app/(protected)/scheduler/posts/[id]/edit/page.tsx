@@ -51,7 +51,7 @@ export default function EditPostPage({ params }: { params: Promise<{ id: string 
       <>
         <PageHeader parents={[{ label: "Posts", href: "/scheduler/posts" }]} title="Edit post" />
         <PageBody width="narrow">
-          <div className="space-y-4 rounded-lg bg-muted p-6">
+          <div className="space-y-4 rounded-xl bg-muted p-6">
             <p className="text-sm text-muted-foreground">
               {post.status === "PUBLISHING"
                 ? "This post is publishing right now. You can edit it again if any account fails."

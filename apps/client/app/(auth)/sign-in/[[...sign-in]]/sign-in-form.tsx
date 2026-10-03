@@ -27,6 +27,8 @@ import {
   GoogleButton,
   PasswordInput,
   ResendButton,
+  AUTH_CONTROL,
+  AUTH_LINK,
 } from "../../_components/auth-parts";
 
 type Step = "start" | "email-code" | "second-factor";
@@ -236,7 +238,7 @@ export function SignInForm() {
             </FieldError>
           </Field>
           <FormError message={error} />
-          <Button type="submit" className="w-full" disabled={busy || code.length < 6}>
+          <Button type="submit" size="lg" className="w-full" disabled={busy || code.length < 6}>
             {busy ? <Spinner /> : null}
             Continue
           </Button>
@@ -269,7 +271,7 @@ export function SignInForm() {
             New here?{" "}
             <Link
               href={`/sign-up${searchParams.toString() ? `?${searchParams}` : ""}`}
-              className="font-medium text-foreground underline-offset-4 hover:underline"
+              className={AUTH_LINK}
             >
               Create an account
             </Link>
@@ -290,6 +292,7 @@ export function SignInForm() {
           <Field data-invalid={Boolean(errors.fields.identifier) || undefined}>
             <FieldLabel htmlFor="email">Email</FieldLabel>
             <Input
+              className={AUTH_CONTROL}
               id="email"
               name="email"
               type="email"
@@ -311,7 +314,7 @@ export function SignInForm() {
                 <FieldLabel htmlFor="password">Password</FieldLabel>
                 <Link
                   href={`/forgot-password${email ? `?email=${encodeURIComponent(email)}` : ""}`}
-                  className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                  className="rounded-sm text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                 >
                   Forgot password?
                 </Link>
@@ -333,7 +336,7 @@ export function SignInForm() {
 
         <FormError message={error} />
 
-        <Button type="submit" className="w-full" disabled={busy || !email}>
+        <Button type="submit" size="lg" className="w-full" disabled={busy}>
           {busy ? <Spinner /> : null}
           {method === "password" ? "Sign in" : "Email me a code"}
         </Button>
@@ -342,7 +345,7 @@ export function SignInForm() {
       <p className="text-center text-sm text-muted-foreground">
         <button
           type="button"
-          className="underline-offset-4 hover:text-foreground hover:underline"
+          className="rounded-sm underline-offset-4 hover:text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
           onClick={() => {
             setFormError(null);
             setMethod(method === "password" ? "code" : "password");

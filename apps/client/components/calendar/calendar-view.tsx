@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -15,7 +15,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { useQueryClient } from "@tanstack/react-query";
-import { format, isSameDay } from "date-fns";
+import { format } from "date-fns";
 import {
   CaretLeft,
   CaretRight,
@@ -34,6 +34,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Toggle } from "@/components/ui/toggle";
+import { PageSection } from "@/components/layout/page-header";
 import { ErrorState } from "@/components/shared/states";
 import { accountLabel } from "@/components/scheduler/account-avatar";
 import { PostSheet } from "@/components/scheduler/post-sheet";
@@ -85,6 +87,23 @@ interface PendingMove {
   iso: string;
 }
 
+const NARROW_QUERY = "(max-width: 767px)";
+
+/** True below md. The server and first client render assume a wide screen. */
+function useIsNarrow() {
+  return useSyncExternalStore(
+    (onChange) => {
+      const query = window.matchMedia(NARROW_QUERY);
+      query.addEventListener("change", onChange);
+      return () => query.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia(NARROW_QUERY).matches,
+    () => false,
+  );
+}
+
+const UNIT_LABEL: Record<View, string> = { month: "month", week: "week", day: "day" };
+
 export function CalendarView() {
   const router = useRouter();
   const pathname = usePathname();
@@ -96,7 +115,9 @@ export function CalendarView() {
   const { data: accounts } = useConnectedAccounts();
   const slots = usePostingSlots();
 
-  const view = (searchParams.get("view") as View | "agenda") || "week";
+  const isNarrow = useIsNarrow();
+  // Phones get one day at a time unless a view was picked.
+  const view = (searchParams.get("view") as View | "agenda") || (isNarrow ? "day" : "week");
   const today = todayIn(timeZone);
   const anchor = searchParams.get("date") ? parseDayId(searchParams.get("date")!) : today;
   const accountId = searchParams.get("account") ?? "";
@@ -302,103 +323,108 @@ export function CalendarView() {
       onDragCancel={() => setDragging(null)}
     >
       <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setParams({ date: null })}
-            disabled={isSameDay(anchor, today) && view !== "month"}
-          >
-            Today
-          </Button>
-          <div className="flex items-center">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Previous"
-              onClick={() => setParams({ date: dayId(shift(gridView, anchor, -1)) })}
-            >
-              <CaretLeft />
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <div className="mr-auto flex min-w-0 flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setParams({ date: null })}>
+              Today
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Next"
-              onClick={() => setParams({ date: dayId(shift(gridView, anchor, 1)) })}
-            >
-              <CaretRight />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon-sm"
+                aria-label={`Previous ${UNIT_LABEL[gridView]}`}
+                onClick={() => setParams({ date: dayId(shift(gridView, anchor, -1)) })}
+              >
+                <CaretLeft />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon-sm"
+                aria-label={`Next ${UNIT_LABEL[gridView]}`}
+                onClick={() => setParams({ date: dayId(shift(gridView, anchor, 1)) })}
+              >
+                <CaretRight />
+              </Button>
+            </div>
+            <div className="flex min-w-0 items-baseline gap-1.5">
+              <h2 className="truncate text-base font-semibold tabular-nums">{label}</h2>
+              <Link
+                href="/settings?tab=scheduling"
+                title={`Times in ${zoneName(timeZone)}. Change in Settings.`}
+                className="shrink-0 rounded-md px-1 text-xs text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                {zoneLabel(timeZone)}
+              </Link>
+            </div>
           </div>
-          <h2 className="text-lg font-semibold tabular-nums">{label}</h2>
-          <Link
-            href="/settings?tab=scheduling"
-            title={`Times in ${zoneName(timeZone)}. Change in Settings.`}
-            className="mr-auto rounded-md px-1.5 py-0.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-          >
-            {zoneLabel(timeZone)}
-          </Link>
 
-          <Select
-            value={accountId || "all"}
-            onValueChange={(value) => setParams({ account: value === "all" ? null : (value as string) })}
-          >
-            <SelectTrigger className="w-48">
-              <SelectValue>
-                {(value: string) => {
-                  const account = accounts?.find((a) => a.id === value);
-                  return account ? accountLabel(account) : "All accounts";
-                }}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All accounts</SelectItem>
-              {(accounts ?? []).map((account) => (
-                <SelectItem key={account.id} value={account.id}>
-                  {accountLabel(account)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            <Select
+              value={accountId || "all"}
+              onValueChange={(value) =>
+                setParams({ account: value === "all" ? null : (value as string) })
+              }
+            >
+              <SelectTrigger size="sm" className="min-w-0 flex-1 sm:w-44 sm:flex-none">
+                <SelectValue>
+                  {(value: string) => {
+                    const account = accounts?.find((a) => a.id === value);
+                    return account ? accountLabel(account) : "All accounts";
+                  }}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All accounts</SelectItem>
+                {(accounts ?? []).map((account) => (
+                  <SelectItem key={account.id} value={account.id}>
+                    {accountLabel(account)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          <label className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Switch
+            <label className="flex h-8 items-center gap-2 text-sm text-muted-foreground">
+              <Switch
+                size="sm"
+                checked={showPublished}
+                onCheckedChange={(checked) => setParams({ published: checked ? null : "0" })}
+              />
+              Published
+            </label>
+
+            <Tabs
+              value={view}
+              onValueChange={(value) => setParams({ view: value as string })}
+              className="w-full sm:w-auto"
+            >
+              <TabsList size="sm" className="w-full sm:w-fit">
+                {VIEWS.map((v) => (
+                  <TabsTrigger key={v.value} value={v.value}>
+                    {v.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+
+            <Toggle
+              variant="outline"
               size="sm"
-              checked={showPublished}
-              onCheckedChange={(checked) => setParams({ published: checked ? null : "0" })}
-            />
-            Published
-          </label>
-
-          <Tabs value={view} onValueChange={(value) => setParams({ view: value as string })}>
-            <TabsList>
-              {VIEWS.map((v) => (
-                <TabsTrigger key={v.value} value={v.value}>
-                  {v.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-
-          <Button
-            variant="outline"
-            aria-pressed={draftsOpen}
-            onClick={() => setParams({ drafts: draftsOpen ? "0" : null })}
-            className={cn(
-              "hidden xl:inline-flex",
-              draftsOpen && "border-transparent bg-accent text-accent-foreground hover:bg-accent",
-            )}
-          >
-            <SidebarSimple />
-            Drafts
-            {draftsQuery.data?.pagination.total ? (
-              <span className="text-muted-foreground tabular-nums">
-                {draftsQuery.data.pagination.total}
-              </span>
-            ) : null}
-          </Button>
+              pressed={draftsOpen}
+              onPressedChange={(pressed) => setParams({ drafts: pressed ? null : "0" })}
+              className="hidden xl:inline-flex"
+            >
+              <SidebarSimple />
+              Drafts
+              {draftsQuery.data?.pagination.total ? (
+                <span className="text-muted-foreground tabular-nums">
+                  {draftsQuery.data.pagination.total}
+                </span>
+              ) : null}
+            </Toggle>
+          </div>
         </div>
 
-
-        <div className={cn("grid gap-4", draftsOpen && "xl:grid-cols-[minmax(0,1fr)_280px]")}>
+        <div className={cn("grid grid-cols-1 gap-4", draftsOpen && "xl:grid-cols-[minmax(0,1fr)_280px]")}>
           <div className="min-w-0">
             {postsQuery.error ? (
               <ErrorState
@@ -407,7 +433,7 @@ export function CalendarView() {
                 onRetry={() => void postsQuery.refetch()}
               />
             ) : postsQuery.isLoading ? (
-              <Skeleton className="h-[32rem] w-full rounded-lg" />
+              <Skeleton className="h-[32rem] w-full rounded-xl" />
             ) : view === "agenda" ? (
               <AgendaList
                 days={days}
@@ -439,36 +465,37 @@ export function CalendarView() {
           </div>
 
           {draftsOpen ? (
-            <aside className="hidden space-y-3 xl:block">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-semibold">Drafts</h3>
-                <Link
-                  href="/scheduler/new"
-                  className={buttonVariants({ variant: "ghost", size: "xs" })}
-                >
-                  <NotePencil />
-                  New
-                </Link>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Drag a draft onto a day or time to schedule it.
-              </p>
-              <div className="max-h-[calc(100svh-16rem)] space-y-2 overflow-y-auto pr-1">
-                {draftsQuery.isLoading ? (
-                  Array.from({ length: 4 }).map((_, i) => (
-                    <Skeleton key={i} className="h-14 w-full rounded-lg" />
-                  ))
-                ) : drafts.length ? (
-                  drafts.map((post) => (
-                    <DraftCard key={post.id} post={post} onOpen={setOpenPostId} />
-                  ))
-                ) : (
-                  <p className="rounded-xl bg-muted p-4 text-center text-sm text-muted-foreground">
-                    No drafts. Posts you save as drafts, or your agent creates without a
-                    time, wait here.
-                  </p>
-                )}
-              </div>
+            <aside className="hidden xl:block">
+              <PageSection
+                title="Drafts"
+                description="Drag a draft onto a day or time to schedule it."
+                actions={
+                  <Link
+                    href="/scheduler/new"
+                    className={buttonVariants({ variant: "ghost", size: "xs" })}
+                  >
+                    <NotePencil />
+                    New
+                  </Link>
+                }
+              >
+                <div className="max-h-[calc(100svh-16rem)] space-y-2 overflow-y-auto pr-1">
+                  {draftsQuery.isLoading ? (
+                    Array.from({ length: 4 }).map((_, i) => (
+                      <Skeleton key={i} className="h-14 w-full rounded-xl" />
+                    ))
+                  ) : drafts.length ? (
+                    drafts.map((post) => (
+                      <DraftCard key={post.id} post={post} onOpen={setOpenPostId} />
+                    ))
+                  ) : (
+                    <p className="rounded-xl bg-muted p-4 text-center text-sm text-muted-foreground">
+                      No drafts. Posts you save as drafts, or your agent creates without a
+                      time, wait here.
+                    </p>
+                  )}
+                </div>
+              </PageSection>
             </aside>
           ) : null}
         </div>
@@ -512,7 +539,7 @@ function AgendaList({
   return (
     <div className="divide-y divide-card rounded-xl bg-muted">
       {withPosts.map((day) => (
-        <div key={dayId(day)} className="grid gap-2 p-3 sm:grid-cols-[9rem_1fr]">
+        <div key={dayId(day)} className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-[9rem_1fr]">
           <p className="text-sm font-medium">
             {formatDay(toUtc(day, timeZone), timeZone, true)}
           </p>

@@ -1,5 +1,7 @@
 "use client";
 
+import { Button, buttonVariants } from "@/components/ui/button";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, useContext, useState } from "react";
@@ -72,7 +74,7 @@ const CREATE_ITEMS = [...(section("Create")?.items ?? []), ...(section("Create")
 
 const railItemClass = (active: boolean) =>
   cn(
-    "flex w-full shrink-0 flex-col items-center gap-1 rounded-lg px-1 py-2 text-[10px] leading-none font-medium transition-colors outline-none focus-visible:bg-secondary",
+    "flex w-full shrink-0 flex-col items-center gap-1 rounded-lg px-1 py-2 text-2xs leading-none font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
     active
       ? "bg-sidebar-accent text-sidebar-accent-foreground"
       : "text-muted-foreground hover:bg-secondary hover:text-foreground",
@@ -82,7 +84,7 @@ function RailLink({ item, pathname }: { item: NavItem; pathname: string }) {
   const active = isNavItemActive(item, pathname);
   return (
     <Link href={item.href} className={railItemClass(active)} aria-current={active ? "page" : undefined}>
-      <item.icon className="size-[18px]" />
+      <item.icon className="size-4.5" />
       <span>{item.label}</span>
     </Link>
   );
@@ -95,7 +97,7 @@ function CreateMenu({ pathname }: { pathname: string }) {
       <DropdownMenuTrigger
         render={
           <button type="button" className={railItemClass(active)}>
-            <Sparkle className="size-[18px]" />
+            <Sparkle className="size-4.5" />
             <span>Create</span>
           </button>
         }
@@ -166,11 +168,11 @@ function UserMenu({ side = "right" }: { side?: "right" | "top" }) {
             </p>
           </div>
           {isFree ? (
-            <button type="button" onClick={openPricing} className="text-xs font-medium text-accent-foreground">
+            <Button size="xs" onClick={openPricing}>
               Upgrade
-            </button>
+            </Button>
           ) : (
-            <Link href="/billing" className="text-xs font-medium text-accent-foreground">
+            <Link href="/billing" className={buttonVariants({ variant: "outline", size: "xs" })}>
               Buy credits
             </Link>
           )}
@@ -232,9 +234,9 @@ export function AppRail() {
       <Link
         href="/scheduler/new"
         aria-label="New post"
-        className="flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-colors hover:bg-primary/90"
+        className={buttonVariants({ size: "icon-lg" })}
       >
-        <Plus className="size-[18px]" weight="bold" />
+        <Plus className="size-4.5" weight="bold" />
       </Link>
 
       <nav aria-label="Main" className="flex w-full flex-1 flex-col gap-0.5">
@@ -278,7 +280,7 @@ export function MobileNav() {
           active ? "bg-accent text-accent-foreground" : "text-foreground hover:bg-secondary",
         )}
       >
-        <item.icon className="size-[18px]" />
+        <item.icon className="size-4.5" />
         {item.label}
       </Link>
     );
@@ -296,7 +298,7 @@ export function MobileNav() {
           <Link
             href="/scheduler/new"
             onClick={() => setOpen(false)}
-            className="flex h-11 items-center justify-center gap-2 rounded-md bg-primary text-sm font-medium text-primary-foreground"
+            className={buttonVariants({ size: "lg", className: "w-full" })}
           >
             <Plus weight="bold" />
             New post

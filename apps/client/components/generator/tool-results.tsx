@@ -64,7 +64,7 @@ export function ToolResults<T>({
 
   const skeletons = (count: number) =>
     Array.from({ length: count }, (_, i) => (
-      <Skeleton key={`skeleton-${i}`} className={`${aspectClassName} rounded-lg`} />
+      <Skeleton key={`skeleton-${i}`} className={`${aspectClassName} rounded-xl`} />
     ));
 
   if (items.length === 0) {
@@ -98,7 +98,7 @@ export function ToolResults<T>({
   return (
     <div className="space-y-4">
       {initialLoadFailed && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted px-4 py-3 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-muted px-4 py-3 text-sm">
           <span className="text-muted-foreground">
             Couldn&apos;t load your earlier {plural}.
           </span>

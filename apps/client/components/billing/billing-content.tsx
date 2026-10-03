@@ -155,7 +155,6 @@ export function BillingContent() {
     return error && !loading ? (
       <ErrorState
         title="Couldn't load billing"
-        description={error}
         onRetry={() => void refetch()}
       />
     ) : (

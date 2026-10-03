@@ -31,10 +31,12 @@ import {
 import { TableBody, TableHeader, TableRow } from "@/components/ui/table";
 import { useAdminUsers, type UsersQuery } from "@/hooks/admin/use-admin-data";
 import { useDebounce } from "@/hooks/use-debounce";
-import { compactNumber, formatDate, titleCase } from "@/lib/admin-format";
+import { formatDate, titleCase } from "@/lib/admin-format";
 import { cn } from "@/lib/utils";
 
 const COLS = 7;
+/** Columns folded into the User cell's second line below `md`. */
+const MOBILE_HIDDEN = [1, 3, 4, 5, 6];
 
 export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
@@ -74,30 +76,35 @@ export default function AdminUsersPage() {
             <MagnifyingGlass />
           </InputGroupAddon>
         </InputGroup>
-        <Filter
-          value={plan}
-          onChange={(v) => reset(() => setPlan(v))}
-          allLabel="All plans"
-          options={planOptions.map((p) => ({ value: p, label: titleCase(p) }))}
-        />
-        <Filter
-          value={role}
-          onChange={(v) => reset(() => setRole(v))}
-          allLabel="All roles"
-          options={[
-            { value: "USER", label: "User" },
-            { value: "ADMIN", label: "Admin" },
-          ]}
-        />
-        <Filter
-          value={active}
-          onChange={(v) => reset(() => setActive(v))}
-          allLabel="Any status"
-          options={[
-            { value: "true", label: "Active" },
-            { value: "false", label: "Inactive" },
-          ]}
-        />
+        <div className="-m-1 flex gap-2 overflow-x-auto p-1 no-scrollbar sm:overflow-visible">
+          <Filter
+            label="Plan"
+            value={plan}
+            onChange={(v) => reset(() => setPlan(v))}
+            allLabel="All plans"
+            options={planOptions.map((p) => ({ value: p, label: titleCase(p) }))}
+          />
+          <Filter
+            label="Role"
+            value={role}
+            onChange={(v) => reset(() => setRole(v))}
+            allLabel="All roles"
+            options={[
+              { value: "USER", label: "User" },
+              { value: "ADMIN", label: "Admin" },
+            ]}
+          />
+          <Filter
+            label="Status"
+            value={active}
+            onChange={(v) => reset(() => setActive(v))}
+            allLabel="Any status"
+            options={[
+              { value: "true", label: "Active" },
+              { value: "false", label: "Inactive" },
+            ]}
+          />
+        </div>
       </div>
 
       {error && !data ? (
@@ -112,27 +119,31 @@ export default function AdminUsersPage() {
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <Th>User</Th>
-                <Th>Plan</Th>
+                <Th className="hidden md:table-cell">Plan</Th>
                 <Th>Status</Th>
-                <Th className="text-right">Credits</Th>
-                <Th className="text-right">Tasks</Th>
-                <Th className="text-right">Accounts</Th>
-                <Th>Joined</Th>
+                <Th className="hidden text-right md:table-cell">Credits</Th>
+                <Th className="hidden text-right md:table-cell">Tasks</Th>
+                <Th className="hidden text-right md:table-cell">Accounts</Th>
+                <Th className="hidden md:table-cell">Joined</Th>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading || !data ? (
-                <SkeletonRows cols={COLS} />
+                <SkeletonRows cols={COLS} mobileHidden={MOBILE_HIDDEN} />
               ) : data.users.length === 0 ? (
-                <EmptyRow cols={COLS}>No users match these filters.</EmptyRow>
+                <EmptyRow
+                  cols={COLS}
+                  title="No users match these filters"
+                  description="Try another plan, role, status or email."
+                />
               ) : (
                 data.users.map((u) => (
                   <TableRow key={u.id}>
-                    <Td className="max-w-72">
-                      <div className="flex items-center gap-2">
+                    <Td>
+                      <div className="flex max-w-56 min-w-0 items-center gap-2 md:max-w-72">
                         <Link
                           href={`/admin/users/${u.id}`}
-                          className="truncate font-medium underline-offset-4 hover:underline"
+                          className="truncate rounded-xs font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
                         >
                           {u.email}
                         </Link>
@@ -140,8 +151,15 @@ export default function AdminUsersPage() {
                           <Badge variant="secondary">Admin</Badge>
                         ) : null}
                       </div>
+                      <div className="max-w-56 truncate text-xs text-muted-foreground md:hidden">
+                        {titleCase(u.plan || "free")} ·{" "}
+                        {u.credits.toLocaleString()} credits · Joined{" "}
+                        {formatDate(u.createdAt)}
+                      </div>
                     </Td>
-                    <Td>{titleCase(u.plan || "free")}</Td>
+                    <Td className="hidden md:table-cell">
+                      {titleCase(u.plan || "free")}
+                    </Td>
                     <Td>
                       {u.isActive ? (
                         u.isCancelled ? (
@@ -153,16 +171,10 @@ export default function AdminUsersPage() {
                         <StatusDot tone="muted">Inactive</StatusDot>
                       )}
                     </Td>
-                    <Td className="text-right tabular-nums">
-                      {compactNumber(u.credits)}
-                    </Td>
-                    <Td className="text-right tabular-nums">
-                      {compactNumber(u.taskCount)}
-                    </Td>
-                    <Td className="text-right tabular-nums">
-                      {u.connectedAccounts}
-                    </Td>
-                    <Td className="text-muted-foreground">
+                    <NumberCell value={u.credits} />
+                    <NumberCell value={u.taskCount} />
+                    <NumberCell value={u.connectedAccounts} />
+                    <Td className="hidden text-muted-foreground md:table-cell">
                       {formatDate(u.createdAt)}
                     </Td>
                   </TableRow>
@@ -185,12 +197,28 @@ export default function AdminUsersPage() {
   );
 }
 
+/** Exact count, muted when zero; hidden below `md`. */
+function NumberCell({ value }: { value: number }) {
+  return (
+    <Td
+      className={cn(
+        "hidden text-right tabular-nums md:table-cell",
+        value === 0 && "text-muted-foreground",
+      )}
+    >
+      {value.toLocaleString()}
+    </Td>
+  );
+}
+
 function Filter({
+  label,
   value,
   onChange,
   allLabel,
   options,
 }: {
+  label: string;
   value: string;
   onChange: (v: string) => void;
   allLabel: string;
@@ -203,7 +231,7 @@ function Filter({
       onValueChange={(v) => onChange((v as string | null) ?? "all")}
       items={items}
     >
-      <SelectTrigger className="w-full sm:w-36">
+      <SelectTrigger aria-label={label} className="w-auto shrink-0 sm:w-36">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

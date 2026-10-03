@@ -23,6 +23,10 @@ import { clerkErrorMessage } from "@/lib/clerk-errors";
 
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 
+// Visible compact header so the description has a title to sit under.
+const SECTION_TITLE = "Profile";
+const SECTION_DESCRIPTION = "Your name and photo across Unsora.";
+
 export function ProfileSection() {
   const { user, isLoaded } = useUser();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -36,14 +40,14 @@ export function ProfileSection() {
 
   if (!isLoaded || !user) {
     return (
-      <PageSection title="Profile">
+      <PageSection title={SECTION_TITLE} description={SECTION_DESCRIPTION}>
         <Card size="sm">
           <CardContent className="gap-5">
             <div className="flex items-center gap-4">
               <Skeleton className="size-16 rounded-full" />
-              <Skeleton className="h-8 w-32" />
+              <Skeleton className="h-8 w-32 rounded-lg" />
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Skeleton className="h-9" />
               <Skeleton className="h-9" />
             </div>
@@ -117,16 +121,16 @@ export function ProfileSection() {
   };
 
   return (
-    <PageSection title="Profile" description="Your name and photo across Unsora.">
+    <PageSection title={SECTION_TITLE} description={SECTION_DESCRIPTION}>
       <Card size="sm">
         <CardContent className="gap-5">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
             <Avatar className="size-16">
               <AvatarImage src={user.imageUrl} alt="" />
               <AvatarFallback className="text-base">{initials}</AvatarFallback>
             </Avatar>
-            <div className="space-y-2">
-              <div className="flex flex-wrap gap-2">
+            <div className="min-w-0 space-y-2">
+              <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -172,7 +176,7 @@ export function ProfileSection() {
 
           <form onSubmit={saveName}>
             <FieldGroup className="gap-5">
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field>
                   <FieldLabel htmlFor="first-name">First name</FieldLabel>
                   <Input

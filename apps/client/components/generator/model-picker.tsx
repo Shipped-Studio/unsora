@@ -115,8 +115,8 @@ export function ModelPicker({
                   setOpen(false);
                 }}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-secondary",
-                  isActive && "bg-muted",
+                  "flex items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors outline-none hover:bg-secondary focus-visible:ring-3 focus-visible:ring-ring/50",
+                  isActive && "bg-accent hover:bg-accent",
                 )}
               >
                 <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">

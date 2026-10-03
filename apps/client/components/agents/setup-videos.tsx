@@ -53,7 +53,7 @@ function VideoEmbed({ id, title }: { id: string; title: string }) {
             className="object-cover"
           />
           <span className="absolute inset-0 flex items-center justify-center">
-            <span className="flex size-12 items-center justify-center rounded-full bg-background/90 text-foreground shadow-xs transition-colors group-hover:bg-background">
+            <span className="flex size-12 items-center justify-center rounded-full bg-scrim/60 text-media-foreground shadow-xs transition-colors group-hover:bg-scrim/75">
               <Play weight="fill" className="size-5" />
             </span>
           </span>
@@ -65,7 +65,7 @@ function VideoEmbed({ id, title }: { id: string; title: string }) {
 
 export function SetupVideos() {
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       {VIDEOS.map((video) => (
         <div key={video.id} className="space-y-2">
           <VideoEmbed id={video.id} title={video.title} />

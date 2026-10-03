@@ -54,12 +54,12 @@ const LIBRARY: ToolGroup = {
 function Group({ group }: { group: ToolGroup }) {
   return (
     <div className="overflow-hidden rounded-xl bg-muted">
-      <h3 className="border-b px-4 py-2.5 text-sm font-medium">{group.title}</h3>
-      <dl className="divide-y">
+      <h3 className="border-b border-card px-4 py-2.5 text-sm font-medium">{group.title}</h3>
+      <dl className="divide-y divide-card">
         {group.tools.map((tool) => (
           <div
             key={tool.name}
-            className="grid gap-0.5 px-4 py-2.5 sm:grid-cols-[11rem_minmax(0,1fr)] sm:gap-3"
+            className="grid grid-cols-1 gap-0.5 px-4 py-2.5 sm:grid-cols-[11rem_minmax(0,1fr)] sm:gap-3"
           >
             <dt>
               <code className="font-mono text-xs text-foreground">{tool.name}</code>
@@ -75,7 +75,7 @@ function Group({ group }: { group: ToolGroup }) {
 /** The MCP tools an agent gets, grouped by what they're for. */
 export function AgentToolList() {
   return (
-    <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
       <div className="space-y-4">
         <Group group={PUBLISH} />
         <Group group={LIBRARY} />

@@ -25,11 +25,16 @@ export function TimezoneCombobox({
   onChange,
   className,
   size = "default",
+  id,
+  "aria-labelledby": labelledBy,
 }: {
   value: string;
   onChange: (timezone: string) => void;
   className?: string;
   size?: "sm" | "default";
+  /** For a <label htmlFor> on the trigger. */
+  id?: string;
+  "aria-labelledby"?: string;
 }) {
   const [open, setOpen] = useState(false);
   const browser = useMemo(() => getBrowserTimezone(), []);
@@ -54,6 +59,8 @@ export function TimezoneCombobox({
             type="button"
             variant="outline"
             size={size}
+            id={id}
+            aria-labelledby={labelledBy}
             className={cn("justify-between font-normal", className)}
           />
         }

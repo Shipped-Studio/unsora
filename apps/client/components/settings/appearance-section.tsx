@@ -28,7 +28,7 @@ function WindowPreview({ mode }: { mode: "light" | "dark" }) {
 
 function ThemePreview({ value }: { value: (typeof OPTIONS)[number]["value"] }) {
   return (
-    <div className="flex h-20 w-full overflow-hidden rounded-md border" aria-hidden>
+    <div className="flex h-20 w-full overflow-hidden rounded-lg border" aria-hidden>
       {value === "system" ? (
         <>
           <div className="w-1/2 overflow-hidden">
@@ -54,13 +54,14 @@ export function AppearanceSection() {
 
   return (
     <PageSection
-      title="Appearance"
+      title={<span id="settings-appearance-title">Appearance</span>}
       description="System follows your device setting."
     >
       <RadioGroup
+        aria-labelledby="settings-appearance-title"
         value={mounted ? (theme ?? "system") : null}
         onValueChange={(value) => setTheme(String(value))}
-        className="grid grid-cols-3 gap-3"
+        className="grid grid-cols-1 gap-3 sm:grid-cols-3"
       >
         {OPTIONS.map((option) => (
           <FieldLabel key={option.value} htmlFor={`theme-${option.value}`}>

@@ -75,13 +75,20 @@ export default function AdminSkillsPage() {
       description="Agent skills shown on the landing site"
       actions={
         <>
-          <Button variant="outline" onClick={() => setImportOpen(true)}>
-            <GithubLogo data-icon="inline-start" />
-            Import from GitHub
+          <Button
+            variant="outline"
+            onClick={() => setImportOpen(true)}
+            aria-label="Import from GitHub"
+          >
+            <GithubLogo />
+            <span className="hidden sm:inline">Import from GitHub</span>
           </Button>
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus data-icon="inline-start" />
-            New skill
+          <Button
+            onClick={() => setCreateOpen(true)}
+            aria-label="New skill"
+          >
+            <Plus />
+            <span className="hidden sm:inline">New skill</span>
           </Button>
         </>
       }
@@ -118,18 +125,22 @@ export default function AdminSkillsPage() {
             <li key={skill.id} className="border-b last:border-b-0">
               <Link
                 href={`/admin/skills/${skill.id}`}
-                className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-muted/50"
+                className="flex items-center gap-4 px-4 py-3 transition-colors outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
                     <span className="truncate font-medium">{skill.name}</span>
-                    <Badge variant={skill.status === "PUBLISHED" ? "secondary" : "outline"}>
-                      {skill.status === "PUBLISHED" ? "Published" : "Draft"}
-                    </Badge>
+                    {skill.status === "PUBLISHED" ? null : (
+                      <Badge variant="outline">Draft</Badge>
+                    )}
                   </div>
                   <div className="mt-0.5 truncate text-sm text-muted-foreground">
                     /skills/{skill.slug}
                     {skill.tagline ? ` · ${skill.tagline}` : ""}
+                  </div>
+                  <div className="mt-0.5 truncate text-xs text-muted-foreground sm:hidden">
+                    {skill.sourceType === "GITHUB" ? "GitHub" : "Upload"} ·{" "}
+                    {skill._count.media} media · {timeAgo(skill.updatedAt)}
                   </div>
                 </div>
                 <div className="hidden items-center gap-4 text-xs text-muted-foreground sm:flex">

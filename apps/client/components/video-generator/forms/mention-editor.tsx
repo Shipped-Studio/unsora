@@ -221,7 +221,7 @@ export function MentionEditor({
                   role="option"
                   aria-selected={i === highlight}
                   className={cn(
-                    "flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent",
+                    "flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent",
                     i === highlight && "bg-accent",
                   )}
                   onMouseDown={(e) => {
@@ -277,7 +277,7 @@ export function MentionEditor({
         contentEditable={!disabled}
         suppressContentEditableWarning
         data-placeholder={placeholder}
-        className="block max-h-52 min-h-20 w-full overflow-y-auto px-4 py-3 text-sm leading-relaxed wrap-break-word whitespace-pre-wrap text-foreground outline-none empty:before:text-muted-foreground empty:before:content-[attr(data-placeholder)] aria-disabled:opacity-50"
+        className="block max-h-52 min-h-20 w-full overflow-y-auto px-4 py-3 text-base leading-relaxed md:text-sm wrap-break-word whitespace-pre-wrap text-foreground outline-none empty:before:text-muted-foreground empty:before:content-[attr(data-placeholder)] aria-disabled:opacity-50"
         onInput={(e) => {
           onChange(e.currentTarget.innerText);
           const selection = window.getSelection();

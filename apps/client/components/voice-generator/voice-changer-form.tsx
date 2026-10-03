@@ -3,6 +3,10 @@
 import { useRef, useState } from "react";
 import { UploadSimple, Waveform } from "@phosphor-icons/react";
 import { toast } from "sonner";
+import {
+  ToolSidebarBody,
+  ToolSidebarFooter,
+} from "@/components/generator/tool-layout";
 import { GenerateButton } from "@/components/ui/generate-button";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
@@ -69,8 +73,8 @@ export function VoiceChangerForm({
   }
 
   return (
-    <div className="flex flex-col lg:h-full">
-      <div className="flex-1 space-y-6 p-4 sm:p-5 lg:overflow-y-auto">
+    <>
+      <ToolSidebarBody>
         <div className="space-y-2">
           <Label htmlFor="voice-changer-source">Recording</Label>
           <button
@@ -78,7 +82,7 @@ export function VoiceChangerForm({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading || submitting}
-            className="flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed px-4 py-6 text-center transition-colors outline-none hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
+            className="flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed px-4 py-6 text-center transition-colors outline-none hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
           >
             {uploading ? (
               <>
@@ -88,7 +92,7 @@ export function VoiceChangerForm({
             ) : sourceFileName ? (
               <>
                 <Waveform className="size-5 text-muted-foreground" />
-                <span className="text-sm font-medium break-all">
+                <span className="max-w-full truncate text-sm font-medium">
                   {sourceFileName}
                 </span>
                 <span className="text-xs text-muted-foreground">
@@ -127,9 +131,9 @@ export function VoiceChangerForm({
           label="New voice"
           clonesOnly
         />
-      </div>
+      </ToolSidebarBody>
 
-      <div className="border-t p-4 sm:p-5">
+      <ToolSidebarFooter>
         <GenerateButton
           label="Change voice"
           credits={CREDITS}
@@ -139,7 +143,7 @@ export function VoiceChangerForm({
           onClick={handleSubmit}
           className="w-full"
         />
-      </div>
-    </div>
+      </ToolSidebarFooter>
+    </>
   );
 }

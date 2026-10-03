@@ -22,6 +22,7 @@ import {
   FormError,
   PasswordInput,
   ResendButton,
+  AUTH_CONTROL,
 } from "../_components/auth-parts";
 
 type Step = "email" | "code" | "password";
@@ -132,7 +133,7 @@ export function ForgotPasswordForm() {
             </FieldError>
           </Field>
           <FormError message={error} />
-          <Button type="submit" className="w-full" disabled={busy || code.length < 6}>
+          <Button type="submit" size="lg" className="w-full" disabled={busy || code.length < 6}>
             {busy ? <Spinner /> : null}
             Continue
           </Button>
@@ -176,7 +177,7 @@ export function ForgotPasswordForm() {
             )}
           </Field>
           <FormError message={error} />
-          <Button type="submit" className="w-full" disabled={busy || !password}>
+          <Button type="submit" size="lg" className="w-full" disabled={busy}>
             {busy ? <Spinner /> : null}
             Save password and sign in
           </Button>
@@ -197,6 +198,7 @@ export function ForgotPasswordForm() {
           <Field data-invalid={Boolean(errors.fields.identifier) || undefined}>
             <FieldLabel htmlFor="email">Email</FieldLabel>
             <Input
+              className={AUTH_CONTROL}
               id="email"
               name="email"
               type="email"
@@ -213,7 +215,7 @@ export function ForgotPasswordForm() {
           </Field>
         </FieldGroup>
         <FormError message={error} />
-        <Button type="submit" className="w-full" disabled={busy || !email}>
+        <Button type="submit" size="lg" className="w-full" disabled={busy}>
           {busy ? <Spinner /> : null}
           Send code
         </Button>

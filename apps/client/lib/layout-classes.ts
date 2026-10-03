@@ -5,7 +5,7 @@
  * results from showing through under the composer.
  */
 export const BOTTOM_PROMPT_DOCK_CLASS =
-  "pointer-events-none sticky bottom-0 z-20 flex justify-center bg-linear-to-t from-card from-60% to-transparent px-3 pt-6 pb-[calc(max(0.75rem,env(safe-area-inset-bottom,0px))+var(--music-player-height,0px))] sm:px-6 sm:pb-[calc(max(1.25rem,env(safe-area-inset-bottom,0px))+var(--music-player-height,0px))]";
+  "pointer-events-none sticky bottom-0 z-20 flex justify-center bg-linear-to-t from-card from-20% via-card/70 via-45% to-transparent px-3 pt-10 pb-[calc(max(0.75rem,env(safe-area-inset-bottom,0px))+var(--music-player-height,0px))] sm:px-6 sm:pb-[calc(max(1.25rem,env(safe-area-inset-bottom,0px))+var(--music-player-height,0px))]";
 
 /** Same dock; kept as a separate name for forms that imported it. */
 export const BOTTOM_PROMPT_DOCK_CLASS_COMPACT = BOTTOM_PROMPT_DOCK_CLASS;

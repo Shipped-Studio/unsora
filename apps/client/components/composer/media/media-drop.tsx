@@ -53,9 +53,9 @@ export function MediaDrop({
       }}
       onPaste={(event) => take(Array.from(event.clipboardData.files))}
       className={cn(
-        "flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-muted/30 px-6 text-center transition-colors",
+        "flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-input bg-muted/40 px-6 text-center transition-colors hover:bg-accent",
         compact ? "py-6" : "py-10",
-        dragging && "border-foreground/40 bg-accent",
+        dragging && "border-ring bg-accent",
       )}
     >
       <div className="space-y-1">

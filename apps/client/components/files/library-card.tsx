@@ -65,10 +65,10 @@ function SelectionMark({
     <span
       aria-hidden
       className={cn(
-        "flex size-5 items-center justify-center rounded-full border shadow-xs transition-colors",
+        "flex size-5 items-center justify-center rounded-full border transition-colors",
         selection.selected
           ? "border-primary bg-primary text-primary-foreground"
-          : "border-border bg-background/90 text-transparent",
+          : "border-input bg-card text-transparent",
         className,
       )}
     >
@@ -97,6 +97,7 @@ export function LibraryMedia({ item }: { item: LibraryItem }) {
   if (item.mediaType === "video") {
     return (
       <VideoThumbnail
+        className="bg-card"
         videoUrl={item.url}
         thumbnailUrl={item.thumbnailUrl}
         alt={title}
@@ -120,6 +121,10 @@ function ApiMarker({ className }: { className?: string }) {
   );
 }
 
+/** The one style for labels drawn on top of media (duration, API). */
+const MEDIA_CHIP =
+  "rounded-md bg-scrim/60 px-1.5 py-0.5 text-2xs font-medium text-media-foreground tabular-nums";
+
 /** Multi-select on the Library page: a checkbox next to each card. */
 export interface LibraryBulkSelect {
   selected: boolean;
@@ -134,7 +139,7 @@ interface LibraryCardProps {
   onClick: () => void;
   /** Picker mode: the whole card is a checkbox. */
   selection?: LibrarySelection;
-  /** Page mode: a separate checkbox, shown on hover or while selecting. */
+  /** Page mode: a separate, always-visible checkbox. */
   bulk?: LibraryBulkSelect;
   className?: string;
 }
@@ -153,13 +158,8 @@ function BulkCheckbox({
       checked={bulk.selected}
       aria-label={`Select ${title}`}
       onClick={(event) => bulk.onToggle(event.shiftKey)}
-      className={cn(
-        "size-5 rounded-md bg-background/90 transition-opacity dark:bg-background/90",
-        bulk.active || bulk.selected
-          ? "opacity-100"
-          : "opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100",
-        className,
-      )}
+      // Always visible (no hover reveal): a subtle white box in the corner.
+      className={cn("size-5 rounded-md bg-card dark:bg-card", className)}
     />
   );
 }
@@ -200,26 +200,31 @@ export function LibraryCard({
       aria-label={title}
       aria-haspopup={selection || bulk?.active ? undefined : "dialog"}
       className={cn(
-        "group flex w-full min-w-0 flex-col overflow-hidden rounded-xl bg-muted text-left outline-none transition-colors hover:border-foreground/20 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
-        selected && "border-primary ring-2 ring-primary/30 hover:border-primary",
+        "group flex w-full min-w-0 flex-col rounded-xl bg-muted p-1.5 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+        selected && "ring-2 ring-primary",
         !bulk && className,
       )}
     >
-      <div className="relative aspect-square w-full overflow-hidden bg-muted">
+      {/* Media sits on a card-colored inset with its own inner radius; the
+          video placeholder is recolored so it doesn't vanish into the tile. */}
+      <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-card">
         <LibraryMedia item={item} />
         {selection ? (
           <SelectionMark selection={selection} className="absolute top-2 left-2" />
         ) : null}
         {item.source === "api" ? (
-          <ApiMarker className="absolute top-2 right-2" />
-        ) : null}
-        {duration ? (
-          <span className="absolute right-2 bottom-2 rounded-md bg-background/85 px-1.5 py-0.5 text-xs text-foreground tabular-nums">
-            {duration}
+          <span
+            className={cn(MEDIA_CHIP, "absolute top-2 right-2")}
+            title="Made with the API or an agent"
+          >
+            API
           </span>
         ) : null}
+        {duration ? (
+          <span className={cn(MEDIA_CHIP, "absolute right-2 bottom-2")}>{duration}</span>
+        ) : null}
       </div>
-      <div className="min-w-0 space-y-0.5 px-2.5 py-2">
+      <div className="min-w-0 space-y-0.5 px-1 pt-2 pb-0.5">
         <p className="truncate text-sm text-foreground">{title}</p>
         <p className="truncate text-xs text-muted-foreground">
           {libraryKindLabel(item.kind)} · {libraryRelativeDate(item.createdAt)}
@@ -257,13 +262,13 @@ export function LibraryAudioRow({
       aria-label={title}
       aria-haspopup={selection || bulk?.active ? undefined : "dialog"}
       className={cn(
-        "flex w-full min-w-0 items-center gap-3 rounded-xl bg-muted p-2.5 text-left outline-none transition-colors hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
-        selected && "border-primary ring-2 ring-primary/30",
+        "flex w-full min-w-0 items-center gap-3 rounded-xl bg-muted p-2.5 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+        selected && "ring-2 ring-primary",
         !bulk && className,
       )}
     >
       {selection ? <SelectionMark selection={selection} /> : null}
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-card text-muted-foreground">
         <LibraryItemIcon item={item} className="size-5" />
       </span>
       <span className="min-w-0 flex-1">
@@ -309,8 +314,8 @@ export function LibrarySkeleton({
     return (
       <div className={cn(LIBRARY_ROWS_CLASS, className)} aria-hidden>
         {Array.from({ length: count }).map((_, i) => (
-          <div key={i} className="flex items-center gap-3 rounded-lg bg-muted p-2.5">
-            <Skeleton className="size-10 shrink-0" />
+          <div key={i} className="flex items-center gap-3 rounded-xl bg-muted p-2.5">
+            <Skeleton className="size-10 shrink-0 rounded-lg bg-card" />
             <div className="flex-1 space-y-1.5">
               <Skeleton className="h-3.5 w-2/3" />
               <Skeleton className="h-3 w-1/3" />
@@ -324,9 +329,9 @@ export function LibrarySkeleton({
   return (
     <div className={cn(LIBRARY_GRID_CLASS, className)} aria-hidden>
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="overflow-hidden rounded-xl">
-          <Skeleton className="aspect-square w-full rounded-none" />
-          <div className="space-y-1.5 px-2.5 py-2">
+        <div key={i} className="rounded-xl bg-muted p-1.5">
+          <Skeleton className="aspect-square w-full rounded-lg bg-card" />
+          <div className="space-y-1.5 px-1 pt-2 pb-0.5">
             <Skeleton className="h-3.5 w-3/4" />
             <Skeleton className="h-3 w-1/2" />
           </div>

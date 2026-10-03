@@ -8,7 +8,13 @@ import {
   DotsThree,
   Trash,
   VideoCamera,
+  WarningCircle,
 } from "@phosphor-icons/react";
+import { friendlyGenerationError } from "@/components/generator/generation-error";
+import {
+  TILE_GHOST_BUTTON_CLASS,
+  TILE_SKELETON_BAR_CLASS,
+} from "@/components/generator/result-tile";
 import { ToolGrid } from "@/components/generator/tool-layout";
 import {
   AlertDialog,
@@ -46,9 +52,21 @@ import { cn, getYouTubeVideoId } from "@/lib/utils";
 import { AIClippingClipCard } from "./ai-clipping-clip-card";
 import { clipAspectClass, clipGridShape, formatClipRatio } from "./clip-ratio";
 
-function sourceLabel(url?: string | null) {
+/** Short, readable name for the source; the URL itself is shown muted. */
+function sourceTitle(url?: string | null, youTubeId?: string | null) {
+  if (youTubeId) return "YouTube video";
   if (!url) return "Video";
-  return url.replace(/^https?:\/\/(www\.)?/i, "");
+  try {
+    const file = decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "");
+    if (/\.(mp4|mov|webm|m4v|mkv)$/i.test(file)) return file;
+  } catch {
+    // Not a parseable URL; fall through.
+  }
+  return "Video link";
+}
+
+function displayUrl(url?: string | null) {
+  return url ? url.replace(/^https?:\/\/(www\.)?/i, "") : null;
 }
 
 function placeholderCount(job: AIClippingJob) {
@@ -112,8 +130,8 @@ export function AIClippingJobGroup({
     <section className="rounded-xl bg-muted">
       <Collapsible open={open} onOpenChange={setOpen}>
         <div className="flex items-center gap-2 p-3">
-          <CollapsibleTrigger className="-m-1 flex min-w-0 flex-1 items-center gap-3 rounded-md p-1 text-left outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50">
-            <span className="relative flex aspect-video w-20 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+          <CollapsibleTrigger className="-m-1 flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1 text-left outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50">
+            <span className="relative flex aspect-video w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-card">
               {youTubeId ? (
                 <Image
                   src={`https://img.youtube.com/vi/${youTubeId}/hqdefault.jpg`}
@@ -127,15 +145,17 @@ export function AIClippingJobGroup({
               )}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium">
-                {sourceLabel(job.videoUrl)}
+              <span className="flex min-w-0 items-baseline gap-2">
+                <span className="max-w-full shrink-0 truncate text-sm font-medium">
+                  {sourceTitle(job.videoUrl, youTubeId)}
+                </span>
+                {displayUrl(job.videoUrl) ? (
+                  <span className="truncate text-xs text-muted-foreground">
+                    {displayUrl(job.videoUrl)}
+                  </span>
+                ) : null}
               </span>
-              <span
-                className={cn(
-                  "block truncate text-xs",
-                  failed ? "text-destructive" : "text-muted-foreground",
-                )}
-              >
+              <span className="block truncate text-xs text-muted-foreground">
                 {summary}
               </span>
             </span>
@@ -163,6 +183,7 @@ export function AIClippingJobGroup({
                 <Button
                   variant="ghost"
                   size="icon-sm"
+                  className={TILE_GHOST_BUTTON_CLASS}
                   aria-label="More actions for this job"
                 />
               }
@@ -198,14 +219,22 @@ export function AIClippingJobGroup({
           </DropdownMenu>
         </div>
 
-        {failed && job.error ? (
-          <p role="alert" className="border-t px-3 py-2 text-xs text-destructive">
-            {job.error}
+        {failed ? (
+          <p
+            role="alert"
+            className="flex items-center gap-2 border-t border-card px-3 py-2 text-xs text-muted-foreground"
+            title={job.error ?? undefined}
+          >
+            <WarningCircle className="size-4 shrink-0 text-destructive" />
+            <span>
+              <span className="font-medium text-foreground">Clipping failed.</span>{" "}
+              {friendlyGenerationError(job.error, "file")}
+            </span>
           </p>
         ) : null}
 
         <CollapsibleContent>
-          <div className="border-t p-3">
+          <div className="border-t border-card p-3">
             {clipCount === 0 && placeholders === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
                 {failed
@@ -228,12 +257,13 @@ export function AIClippingJobGroup({
                 {Array.from({ length: placeholders }).map((_, i) => (
                   <div
                     key={`placeholder-${i}`}
-                    className="overflow-hidden rounded-xl bg-muted"
+                    // White on the grey job group, like the clip cards.
+                    className="overflow-hidden rounded-xl bg-card"
                     aria-hidden
                   >
                     <div
                       className={cn(
-                        "flex items-center justify-center bg-muted",
+                        "flex items-center justify-center",
                         clipAspectClass(job.config?.ratio),
                       )}
                     >
@@ -283,15 +313,18 @@ export function JobGroupSkeleton() {
   return (
     <div className="space-y-3 rounded-xl bg-muted p-3">
       <div className="flex items-center gap-3">
-        <Skeleton className="aspect-video w-20 rounded-md" />
-        <div className="flex-1 space-y-2">
-          <Skeleton className="h-4 w-48" />
-          <Skeleton className="h-3 w-64" />
+        <Skeleton className={cn("aspect-video w-20 rounded-lg", TILE_SKELETON_BAR_CLASS)} />
+        <div className="min-w-0 flex-1 space-y-2">
+          <Skeleton className={cn("h-4 w-48 max-w-full", TILE_SKELETON_BAR_CLASS)} />
+          <Skeleton className={cn("h-3 w-64 max-w-full", TILE_SKELETON_BAR_CLASS)} />
         </div>
       </div>
       <ToolGrid shape="video">
         {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="aspect-video rounded-lg" />
+          <Skeleton
+            key={i}
+            className={cn("aspect-video rounded-xl", TILE_SKELETON_BAR_CLASS)}
+          />
         ))}
       </ToolGrid>
     </div>

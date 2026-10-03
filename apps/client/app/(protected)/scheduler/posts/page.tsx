@@ -23,7 +23,8 @@ export default function PostsPage() {
         }
       />
       <PageBody>
-        <Suspense fallback={<Skeleton className="h-96 w-full rounded-lg" />}>
+        <PublishTabs placement="page" />
+        <Suspense fallback={<Skeleton className="h-96 w-full rounded-xl" />}>
           <PostsTable />
         </Suspense>
       </PageBody>

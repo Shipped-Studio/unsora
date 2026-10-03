@@ -95,9 +95,9 @@ export default function AdminContentPage() {
                 target="_blank"
                 rel="noopener noreferrer"
                 title={a.name}
-                className="flex flex-col overflow-hidden rounded-xl bg-muted transition-colors hover:border-foreground/20"
+                className="flex flex-col overflow-hidden rounded-xl bg-muted transition-colors outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
               >
-                <div className="relative aspect-square overflow-hidden bg-muted">
+                <div className="relative aspect-square overflow-hidden">
                   <AssetPreview type={a.type} url={a.url} />
                 </div>
                 <div className="flex flex-col gap-0.5 p-2">

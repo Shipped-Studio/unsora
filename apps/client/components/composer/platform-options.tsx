@@ -355,7 +355,7 @@ function TikTokOptionsForm({
         </div>
       </Field>
 
-      <div className="space-y-3 rounded-md bg-muted p-3">
+      <div className="space-y-3 rounded-lg border border-border bg-card p-3">
         <Field orientation="horizontal">
           <Switch
             id={`tt-disclose-${account.id}`}

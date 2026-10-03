@@ -38,18 +38,56 @@ function sourceLabel(tx: CreditTransaction) {
   return "Web";
 }
 
+function formatAmount(amount: number) {
+  return `${amount > 0 ? "+" : amount < 0 ? "−" : ""}${Math.abs(amount).toLocaleString()}`;
+}
+
+function amountClass(amount: number) {
+  return cn("font-medium tabular-nums", amount > 0 ? "text-success" : "text-foreground");
+}
+
 function AmountCell({ amount }: { amount: number }) {
-  const positive = amount > 0;
   return (
-    <TableCell
-      className={cn(
-        "px-4 text-right font-medium tabular-nums",
-        positive ? "text-success" : "text-foreground",
-      )}
-    >
-      {positive ? "+" : amount < 0 ? "−" : ""}
-      {Math.abs(amount).toLocaleString()}
+    <TableCell className={cn("px-4 text-right", amountClass(amount))}>
+      {formatAmount(amount)}
     </TableCell>
+  );
+}
+
+/** Below sm: two-line rows instead of a table that scrolls sideways. */
+function MobileRows({
+  transactions,
+  loading,
+}: {
+  transactions: CreditTransaction[] | null;
+  loading: boolean;
+}) {
+  return (
+    <ul className="divide-y divide-card sm:hidden">
+      {loading || !transactions
+        ? Array.from({ length: 6 }).map((_, i) => (
+            <li key={i} className="flex items-center gap-3 px-4 py-3">
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-3 w-28" />
+              </div>
+              <Skeleton className="h-4 w-12" />
+            </li>
+          ))
+        : transactions.map((tx) => (
+            <li key={tx.id} className="flex items-center gap-3 px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm">{tx.label}</p>
+                <p className="truncate text-xs text-muted-foreground tabular-nums">
+                  {formatWhen(tx.createdAt)} · {sourceLabel(tx)}
+                </p>
+              </div>
+              <span className={cn("shrink-0 text-sm", amountClass(tx.amount))}>
+                {formatAmount(tx.amount)}
+              </span>
+            </li>
+          ))}
+    </ul>
   );
 }
 
@@ -72,14 +110,13 @@ function HeaderRow() {
 
 export function CreditHistory() {
   const [page, setPage] = useState(1);
-  const { data, isLoading, isError, error, refetch, isPlaceholderData } =
+  const { data, isLoading, isError, refetch, isPlaceholderData } =
     useCreditTransactions(page, PAGE_SIZE);
 
   if (isError && !data) {
     return (
       <ErrorState
         title="Couldn't load credit history"
-        description={error.message}
         onRetry={() => void refetch()}
       />
     );
@@ -105,42 +142,45 @@ export function CreditHistory() {
           isPlaceholderData && "opacity-60",
         )}
       >
-        <Table>
-          <HeaderRow />
-          <TableBody>
-            {isLoading || !data
-              ? Array.from({ length: 6 }).map((_, i) => (
-                  <TableRow key={i} className="hover:bg-transparent">
-                    <TableCell className="px-4">
-                      <Skeleton className="h-4 w-32" />
-                    </TableCell>
-                    <TableCell className="px-4">
-                      <Skeleton className="h-4 w-48" />
-                    </TableCell>
-                    <TableCell className="px-4">
-                      <Skeleton className="h-4 w-16" />
-                    </TableCell>
-                    <TableCell className="px-4">
-                      <Skeleton className="ml-auto h-4 w-12" />
-                    </TableCell>
-                  </TableRow>
-                ))
-              : data.transactions.map((tx) => (
-                  <TableRow key={tx.id}>
-                    <TableCell className="px-4 text-muted-foreground tabular-nums">
-                      {formatWhen(tx.createdAt)}
-                    </TableCell>
-                    <TableCell className="max-w-[320px] truncate px-4">
-                      {tx.label}
-                    </TableCell>
-                    <TableCell className="max-w-[180px] truncate px-4 text-muted-foreground">
-                      {sourceLabel(tx)}
-                    </TableCell>
-                    <AmountCell amount={tx.amount} />
-                  </TableRow>
-                ))}
-          </TableBody>
-        </Table>
+        <MobileRows transactions={data?.transactions ?? null} loading={isLoading} />
+        <div className="max-sm:hidden">
+          <Table>
+            <HeaderRow />
+            <TableBody>
+              {isLoading || !data
+                ? Array.from({ length: 6 }).map((_, i) => (
+                    <TableRow key={i} className="hover:bg-transparent">
+                      <TableCell className="px-4">
+                        <Skeleton className="h-4 w-32" />
+                      </TableCell>
+                      <TableCell className="px-4">
+                        <Skeleton className="h-4 w-48" />
+                      </TableCell>
+                      <TableCell className="px-4">
+                        <Skeleton className="h-4 w-16" />
+                      </TableCell>
+                      <TableCell className="px-4">
+                        <Skeleton className="ml-auto h-4 w-12" />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                : data.transactions.map((tx) => (
+                    <TableRow key={tx.id}>
+                      <TableCell className="px-4 text-muted-foreground tabular-nums">
+                        {formatWhen(tx.createdAt)}
+                      </TableCell>
+                      <TableCell className="max-w-80 truncate px-4">
+                        {tx.label}
+                      </TableCell>
+                      <TableCell className="max-w-44 truncate px-4 text-muted-foreground">
+                        {sourceLabel(tx)}
+                      </TableCell>
+                      <AmountCell amount={tx.amount} />
+                    </TableRow>
+                  ))}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       {data && totalPages > 1 ? (

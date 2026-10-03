@@ -30,6 +30,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
+import { friendlyGenerationError } from "@/components/generator/generation-error";
+import {
+  TILE_CLASS,
+  TILE_GHOST_BUTTON_CLASS,
+  TILE_SKELETON_BAR_CLASS,
+  TILE_SKELETON_CLASS,
+} from "@/components/generator/result-tile";
 import { cn } from "@/lib/utils";
 import { getCdnUrl } from "@/lib/video-utils";
 
@@ -51,6 +58,8 @@ interface VoiceGenerationCardProps {
   onDelete?: (id: string) => void;
   /** Hides a clip that's still starting or failed to start. */
   onDismiss?: (id: string) => void;
+  /** Word used in the delete confirmation. */
+  noun?: string;
 }
 
 /** Result row for the voice generator and voice changer. */
@@ -58,6 +67,7 @@ export function VoiceGenerationCard({
   generation,
   onDelete,
   onDismiss,
+  noun = "voiceover",
 }: VoiceGenerationCardProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -79,7 +89,7 @@ export function VoiceGenerationCard({
         ? "Starting"
         : "Generating"
     : failed
-      ? generation.error || "Generation failed."
+      ? friendlyGenerationError(generation.error)
       : generation.meta;
 
   function togglePlay() {
@@ -98,8 +108,9 @@ export function VoiceGenerationCard({
   return (
     <article
       className={cn(
-        "flex items-start gap-3 rounded-xl bg-muted p-3",
-        playing && "border-foreground/20",
+        "flex items-start gap-3 p-3",
+        TILE_CLASS,
+        playing && "ring-2 ring-ring/50",
       )}
     >
       {audioUrl ? (
@@ -113,7 +124,7 @@ export function VoiceGenerationCard({
             onEnded={() => setPlaying(false)}
           />
           <Button
-            variant="secondary"
+            variant="outline"
             size="icon"
             onClick={togglePlay}
             aria-label={playing ? "Pause" : "Play"}
@@ -125,7 +136,7 @@ export function VoiceGenerationCard({
         <div
           className={cn(
             "flex size-9 shrink-0 items-center justify-center rounded-md",
-            failed ? "bg-destructive/10" : "bg-muted",
+            failed ? "bg-destructive-subtle" : "bg-card",
           )}
         >
           {failed ? (
@@ -137,16 +148,14 @@ export function VoiceGenerationCard({
       )}
 
       <div className="min-w-0 flex-1">
-        <p className="line-clamp-2 text-sm font-medium" title={title}>
+        <p className="truncate text-sm font-medium" title={title}>
           {title}
         </p>
         <p
-          className={cn(
-            "truncate text-xs",
-            failed ? "text-destructive" : "text-muted-foreground",
-          )}
+          className="truncate text-xs text-muted-foreground"
           title={failed ? (generation.error ?? undefined) : undefined}
         >
+          {failed ? <span className="sr-only">Generation failed. </span> : null}
           {status}
         </p>
       </div>
@@ -156,7 +165,10 @@ export function VoiceGenerationCard({
           <a
             href={getCdnUrl(audioUrl, { download: true })}
             download
-            className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+            className={cn(
+              buttonVariants({ variant: "ghost", size: "icon-sm" }),
+              TILE_GHOST_BUTTON_CLASS,
+            )}
             aria-label="Download audio"
           >
             <DownloadSimple />
@@ -167,6 +179,7 @@ export function VoiceGenerationCard({
           <Button
             variant="ghost"
             size="icon-sm"
+            className={TILE_GHOST_BUTTON_CLASS}
             onClick={() => onDismiss(generation.id)}
             aria-label="Dismiss"
           >
@@ -174,7 +187,7 @@ export function VoiceGenerationCard({
           </Button>
         ) : onDelete && failed ? (
           <Button
-            variant="ghost"
+            variant="outline"
             size="icon-sm"
             onClick={() => setConfirmOpen(true)}
             aria-label="Delete"
@@ -185,7 +198,12 @@ export function VoiceGenerationCard({
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
-                <Button variant="ghost" size="icon-sm" aria-label="More actions" />
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className={TILE_GHOST_BUTTON_CLASS}
+                  aria-label="More actions"
+                />
               }
             >
               <DotsThree weight="bold" />
@@ -207,7 +225,7 @@ export function VoiceGenerationCard({
         <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
           <AlertDialogContent size="sm">
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete this clip?</AlertDialogTitle>
+              <AlertDialogTitle>Delete this {noun}?</AlertDialogTitle>
               <AlertDialogDescription>
                 The audio will be removed from your results. This can&apos;t be
                 undone.
@@ -234,11 +252,11 @@ export function VoiceGenerationCard({
 
 export function VoiceRowSkeleton() {
   return (
-    <div className="flex items-center gap-3 rounded-xl bg-muted p-3">
-      <Skeleton className="size-9 rounded-md" />
+    <div className={cn("flex items-center gap-3 p-3", TILE_SKELETON_CLASS)}>
+      <Skeleton className={cn("size-9 rounded-md", TILE_SKELETON_BAR_CLASS)} />
       <div className="flex-1 space-y-2">
-        <Skeleton className="h-4 w-2/3" />
-        <Skeleton className="h-3 w-1/3" />
+        <Skeleton className={cn("h-4 w-2/3", TILE_SKELETON_BAR_CLASS)} />
+        <Skeleton className={cn("h-3 w-1/3", TILE_SKELETON_BAR_CLASS)} />
       </div>
     </div>
   );

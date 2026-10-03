@@ -28,7 +28,7 @@ export function DonutChart({
   const [active, setActive] = useState<number | null>(null);
   const total = slices.reduce((s, x) => s + x.value, 0);
 
-  const stroke = 20;
+  const stroke = 14;
   const r = (size - stroke) / 2;
   const cx = size / 2;
   const cy = size / 2;
@@ -38,7 +38,8 @@ export function DonutChart({
   let offset = 0;
   const arcs = slices.map((slice, i) => {
     const frac = total > 0 ? slice.value / total : 0;
-    const len = Math.max(frac * circ - gap, 0);
+    // Keep tiny non-zero slices visible as a sliver.
+    const len = slice.value > 0 ? Math.max(frac * circ - gap, 1.5) : 0;
     const arc = {
       slice,
       i,
@@ -58,7 +59,7 @@ export function DonutChart({
             cy={cy}
             r={r}
             fill="none"
-            className="stroke-muted"
+            className="stroke-input"
             strokeWidth={stroke}
           />
           {total > 0 &&
@@ -82,7 +83,7 @@ export function DonutChart({
             ))}
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-medium tabular-nums text-foreground">
+          <span className="text-2xl font-semibold tracking-tight tabular-nums text-foreground">
             {(active !== null ? slices[active].value : total).toLocaleString()}
           </span>
           <span className="text-xs text-muted-foreground">
@@ -93,11 +94,13 @@ export function DonutChart({
 
       <div className="flex w-full flex-col gap-1.5">
         {slices.map((slice, i) => {
-          const pct = total > 0 ? Math.round((slice.value / total) * 100) : 0;
+          const raw = total > 0 ? (slice.value / total) * 100 : 0;
+          const pct =
+            raw > 0 && Math.round(raw) === 0 ? "<1%" : `${Math.round(raw)}%`;
           return (
             <div
               key={slice.label}
-              className="flex items-center gap-2 rounded-md px-1.5 py-1 transition-colors hover:bg-muted/60"
+              className="flex items-center gap-2 rounded-md px-1.5 py-1 transition-colors hover:bg-accent"
               onMouseEnter={() => setActive(i)}
               onMouseLeave={() => setActive(null)}
             >
@@ -112,7 +115,7 @@ export function DonutChart({
                 {slice.value.toLocaleString()}
               </span>
               <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">
-                {pct}%
+                {pct}
               </span>
             </div>
           );

@@ -83,8 +83,8 @@ export function ComposerCard({
   return (
     <div
       className={cn(
-        "rounded-xl border border-border/70 bg-card shadow-lg shadow-foreground/5 transition-colors",
-        dragging && "border-ring ring-3 ring-ring/20",
+        "rounded-xl border bg-card shadow-lg transition-[color,box-shadow,border-color] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
+        dragging && "border-ring ring-3 ring-ring/50",
         className,
       )}
       onPaste={(e) => {
@@ -105,6 +105,10 @@ export function ComposerCard({
   );
 }
 
+/**
+ * Settings row at the top of the card. One horizontally scrolling row on
+ * phones (fading out at the right edge), wrapping from sm up.
+ */
 export function ComposerToolbar({
   className,
   children,
@@ -115,7 +119,7 @@ export function ComposerToolbar({
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-0.5 border-b px-2 py-1.5",
+        "no-scrollbar flex flex-nowrap items-center gap-0.5 overflow-x-auto border-b px-2 py-1.5 max-sm:[mask-image:linear-gradient(to_right,black_85%,transparent)] max-sm:pr-8 sm:flex-wrap sm:overflow-x-visible [&>*]:shrink-0",
         className,
       )}
     >
@@ -125,8 +129,15 @@ export function ComposerToolbar({
 }
 
 export function ComposerDivider() {
-  return <div aria-hidden className="mx-1 h-4 w-px bg-border" />;
+  return <div aria-hidden className="mx-1 h-4 w-px shrink-0 bg-border" />;
 }
+
+/**
+ * Borderless prompt text inside a ComposerCard. The card draws the focus ring,
+ * so the field drops its own outline. text-base on phones avoids iOS zoom.
+ */
+export const COMPOSER_PROMPT_CLASS =
+  "field-sizing-content block max-h-52 min-h-20 w-full resize-none bg-transparent px-4 py-3 text-base leading-relaxed outline-none placeholder:text-muted-foreground disabled:opacity-50 md:text-sm";
 
 /** Auto-growing prompt field. Cmd/Ctrl+Enter submits. */
 export function ComposerPrompt({
@@ -162,7 +173,7 @@ export function ComposerPrompt({
       disabled={disabled}
       maxLength={maxLength}
       rows={3}
-      className="field-sizing-content block max-h-52 min-h-20 w-full resize-none bg-transparent px-4 py-3 text-sm leading-relaxed placeholder:text-muted-foreground focus:outline-none disabled:opacity-50"
+      className={COMPOSER_PROMPT_CLASS}
     />
   );
 }

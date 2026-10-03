@@ -154,7 +154,7 @@ export default function ImageGeneratorPage() {
           icon: ImageSquare,
           title: "No images yet",
           description:
-            "Describe an image below. Finished images show up here and in Files.",
+            "Describe an image below. Finished images show up here and in your Library.",
         }}
         renderItem={(item) => (
           <MediaResultCard

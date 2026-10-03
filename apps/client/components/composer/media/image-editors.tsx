@@ -43,7 +43,7 @@ function AddTile({
             type="button"
             aria-label="Add images"
             className={cn(
-              "flex items-center justify-center rounded-md border border-dashed text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+              "flex items-center justify-center rounded-lg border border-dashed border-input text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
               className,
             )}
           />
@@ -188,9 +188,9 @@ export function SlideshowEditor({
   }
 
   return (
-    <div className="grid gap-4 rounded-xl bg-muted p-3 sm:grid-cols-[200px_1fr]">
+    <div className="grid grid-cols-1 gap-4 rounded-xl bg-muted p-3 sm:grid-cols-[200px_1fr]">
       <div className="space-y-2">
-        <div className="relative mx-auto aspect-[9/16] w-full max-w-[200px] overflow-hidden rounded-md bg-media">
+        <div className="relative mx-auto aspect-9/16 w-full max-w-[200px] overflow-hidden rounded-lg bg-media">
           {current ? (
             <img src={current.previewUrl} alt="" className="size-full object-contain" />
           ) : null}

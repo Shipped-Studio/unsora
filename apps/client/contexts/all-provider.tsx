@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import Next13ProgressBar from "next13-progressbar";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { IconContext } from "@phosphor-icons/react";
 import { Toaster } from "@/components/ui/sonner";
 import { PricingProvider } from "@/contexts/pricing-context";
 
@@ -35,7 +36,9 @@ export default function AllProvider({
           disableTransitionOnChange
         >
           <TooltipProvider delay={300}>
-            <PricingProvider>{children}</PricingProvider>
+            <IconContext.Provider value={{ "aria-hidden": true }}>
+              <PricingProvider>{children}</PricingProvider>
+            </IconContext.Provider>
             <Next13ProgressBar
               height="2px"
               color="var(--primary)"

@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import type { SubscriptionPlan } from "@/hooks/use-subscription-plans";
-import { formatLongDate, formatUsd, intervalLabel, planCreditsLabel } from "./format";
+import { formatLongDate, formatUsd, intervalLabel } from "./format";
 
 export type PlanState = "free" | "active" | "trialing" | "ending";
 
@@ -75,7 +75,9 @@ export function CurrentPlanCard({
       <CardHeader>
         <CardTitle className="flex flex-wrap items-center gap-2">
           {planName}
-          {state === "active" ? <Badge variant="secondary">Active</Badge> : null}
+          {state === "active" ? (
+            <Badge className="bg-success-subtle text-success">Active</Badge>
+          ) : null}
           {state === "trialing" ? <Badge variant="outline">Trial</Badge> : null}
           {state === "ending" ? (
             <Badge variant="outline">
@@ -100,7 +102,7 @@ export function CurrentPlanCard({
       </CardHeader>
 
       <CardContent>
-        <dl className="grid gap-4 sm:grid-cols-2">
+        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <dt className="text-xs text-muted-foreground">Credit balance</dt>
             <dd className="mt-1 text-2xl font-medium tabular-nums">
@@ -113,8 +115,11 @@ export function CurrentPlanCard({
           {plan ? (
             <div>
               <dt className="text-xs text-muted-foreground">Plan includes</dt>
-              <dd className="mt-1 text-sm">
-                {planCreditsLabel(plan.credits, plan.interval)}
+              <dd className="mt-1 text-2xl font-medium tabular-nums">
+                {plan.credits.toLocaleString()}
+                <span className="ml-1.5 text-sm font-normal text-muted-foreground">
+                  credits per {per ?? "billing period"}
+                </span>
               </dd>
             </div>
           ) : null}
@@ -161,10 +166,12 @@ export function CurrentPlanCard({
           </Button>
         ) : null}
 
+        {/* Leaving is a quiet text action, set apart from the main buttons. */}
         {state === "active" ? (
           <Button
-            variant="ghost"
-            className="text-muted-foreground sm:ml-auto"
+            variant="link"
+            size="sm"
+            className="px-0 text-muted-foreground hover:text-foreground max-sm:basis-full max-sm:justify-start sm:ml-auto"
             onClick={onCancelPlan}
           >
             Cancel plan
@@ -173,8 +180,9 @@ export function CurrentPlanCard({
 
         {state === "trialing" ? (
           <Button
-            variant="ghost"
-            className="text-muted-foreground sm:ml-auto"
+            variant="link"
+            size="sm"
+            className="px-0 text-muted-foreground hover:text-foreground max-sm:basis-full max-sm:justify-start sm:ml-auto"
             onClick={onCancelTrial}
           >
             Cancel trial

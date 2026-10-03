@@ -6,8 +6,8 @@ import { FilmSlate } from "@phosphor-icons/react";
 import { PageBody, PageHeader } from "@/components/layout/page-header";
 import { EmptyState, ErrorState } from "@/components/shared/states";
 import { DeleteDialog } from "@/components/subtitle-editor/delete-dialog";
+import { ToolGrid } from "@/components/generator/tool-layout";
 import {
-  EXPORT_GRID_CLASS,
   ExportCard,
   ExportCardSkeleton,
 } from "@/components/subtitle-editor/export-card";
@@ -27,10 +27,12 @@ const PARENTS = [{ label: "Subtitles", href: "/subtitle-editor" }];
 
 function ExportsGridSkeleton() {
   return (
-    <div className={EXPORT_GRID_CLASS} aria-busy>
-      {Array.from({ length: SUBTITLE_PAGE_SIZE }, (_, i) => (
-        <ExportCardSkeleton key={i} />
-      ))}
+    <div aria-busy>
+      <ToolGrid shape="video">
+        {Array.from({ length: SUBTITLE_PAGE_SIZE }, (_, i) => (
+          <ExportCardSkeleton key={i} />
+        ))}
+      </ToolGrid>
     </div>
   );
 }
@@ -111,7 +113,7 @@ function ExportsList() {
         aria-busy={isPlaceholderData}
         className={isPlaceholderData ? "opacity-70 transition-opacity" : undefined}
       >
-        <div className={EXPORT_GRID_CLASS}>
+        <ToolGrid shape="video">
           {items.map((item) => (
             <ExportCard
               key={item.id}
@@ -120,7 +122,7 @@ function ExportsList() {
               showProjectLink
             />
           ))}
-        </div>
+        </ToolGrid>
       </div>
       <ListPagination page={page} totalPages={totalPages} />
       <DeleteDialog

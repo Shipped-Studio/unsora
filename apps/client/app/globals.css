@@ -30,6 +30,16 @@
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-success-subtle: var(--success-subtle);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-info-subtle: var(--info-subtle);
+  --color-destructive-subtle: var(--destructive-subtle);
+  --color-stage: var(--stage);
+  --color-stage-foreground: var(--stage-foreground);
+  --color-stage-muted: var(--stage-muted);
+  --color-stage-card: var(--stage-card);
+  --color-stage-border: var(--stage-border);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -71,15 +81,36 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+  --radius-xs: calc(var(--radius) - 5px);
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+}
+
+/* Shadows read their values from :root/.dark so dark mode can deepen them
+   instead of using Tailwind's pure-black defaults. */
+@theme {
+  --shadow-2xs: var(--sh-2xs);
+  --shadow-xs: var(--sh-xs);
+  --shadow-sm: var(--sh-sm);
+  --shadow: var(--sh-sm);
+  --shadow-md: var(--sh-md);
+  --shadow-lg: var(--sh-lg);
+  --shadow-xl: var(--sh-xl);
+  --shadow-2xl: var(--sh-xl);
 }
 
 /*
- * Soft product look: a gray canvas, content on white panels, one violet
- * accent. `accent` is the pale violet used for selected nav, tabs and cells.
+ * Soft product look: a gray canvas, content on white panels, ink buttons and
+ * one lime brand accent. `accent` is the neutral fill for selected nav, tabs,
+ * toggles and menu items.
+ *
+ * Radius scale (base 10px): xs 5 · sm 6 · md 8 · lg 10 (controls) ·
+ * xl 14 (cards, menus) · 2xl 18 (dialogs). Control heights: xs 28 · sm 32 ·
+ * default 36 · lg 40.
  */
 :root,
 .light {
-  --radius: 0.5rem;
+  --radius: 0.625rem;
 
   --background: #f3f3f7;
   --foreground: #121218;
@@ -103,8 +134,9 @@
   --warning-foreground: #ffffff;
   --info: #2563eb;
   --border: #e1e1ea;
-  --input: #92929f;
-  --ring: rgb(12 12 13 / 0.35);
+  /* Edge of fields and outline buttons: has to read on white cards too. */
+  --input: #c2c2ce;
+  --ring: #8c8ca0;
 
   --brand: #e8ff6b;
   --brand-foreground: #0c0c0d;
@@ -147,6 +179,28 @@
   --link-social: #0a6fe8;
 
   --hatch: rgb(18 18 24 / 0.045);
+
+  /* Soft status fills for badges, alerts and rows. */
+  --info-foreground: #ffffff;
+  --success-subtle: color-mix(in oklab, var(--success) 11%, transparent);
+  --warning-subtle: color-mix(in oklab, var(--warning) 12%, transparent);
+  --info-subtle: color-mix(in oklab, var(--info) 10%, transparent);
+  --destructive-subtle: color-mix(in oklab, var(--destructive) 9%, transparent);
+
+  /* The dark brand stage beside the auth forms (dark in both themes). */
+  --stage: #0c0c10;
+  --stage-foreground: #f4f4f7;
+  --stage-muted: #9a9aae;
+  --stage-card: #17171e;
+  --stage-border: rgb(255 255 255 / 0.08);
+
+  /* Shadows tinted with the foreground ink, not pure black. */
+  --sh-2xs: 0 1px 1px rgb(18 18 24 / 0.03);
+  --sh-xs: 0 1px 2px rgb(18 18 24 / 0.05);
+  --sh-sm: 0 1px 2px rgb(18 18 24 / 0.04), 0 2px 8px -2px rgb(18 18 24 / 0.06);
+  --sh-md: 0 1px 2px rgb(18 18 24 / 0.04), 0 8px 24px -8px rgb(18 18 24 / 0.12);
+  --sh-lg: 0 1px 3px rgb(18 18 24 / 0.05), 0 16px 40px -12px rgb(18 18 24 / 0.18);
+  --sh-xl: 0 2px 4px rgb(18 18 24 / 0.05), 0 28px 64px -20px rgb(18 18 24 / 0.26);
 }
 
 .dark {
@@ -154,15 +208,15 @@
   --foreground: #ececf1;
   --card: #15151b;
   --card-foreground: #ececf1;
-  --popover: #1b1b22;
+  --popover: #17171d;
   --popover-foreground: #ececf1;
   --primary: #e8ff6b;
   --primary-foreground: #0c0c0d;
   --secondary: #22222b;
   --secondary-foreground: #ececf1;
-  --muted: #1c1c24;
+  --muted: #20202a;
   --muted-foreground: #a6a6b8;
-  --accent: #2a2a34;
+  --accent: #2b2b36;
   --accent-foreground: #ececf1;
   --destructive: #f05252;
   --destructive-foreground: #0c0c10;
@@ -172,7 +226,7 @@
   --warning-foreground: #0c0c10;
   --info: #60a5fa;
   --border: #2d2d38;
-  --input: #62627a;
+  --input: #4a4a5c;
   --ring: rgb(232 255 107 / 0.45);
 
   --brand: #e8ff6b;
@@ -196,6 +250,23 @@
   --overlay: rgb(0 0 0 / 0.6);
 
   --hatch: rgb(255 255 255 / 0.045);
+
+  --info-foreground: #0c0c10;
+  --success-subtle: color-mix(in oklab, var(--success) 16%, transparent);
+  --warning-subtle: color-mix(in oklab, var(--warning) 16%, transparent);
+  --info-subtle: color-mix(in oklab, var(--info) 16%, transparent);
+  --destructive-subtle: color-mix(in oklab, var(--destructive) 16%, transparent);
+
+  --stage: #08080b;
+  --stage-card: #141419;
+  --stage-border: rgb(255 255 255 / 0.07);
+
+  --sh-2xs: 0 1px 1px rgb(0 0 0 / 0.3);
+  --sh-xs: 0 1px 2px rgb(0 0 0 / 0.4);
+  --sh-sm: 0 1px 2px rgb(0 0 0 / 0.35), 0 2px 8px -2px rgb(0 0 0 / 0.5);
+  --sh-md: 0 1px 2px rgb(0 0 0 / 0.35), 0 8px 24px -8px rgb(0 0 0 / 0.6);
+  --sh-lg: 0 1px 3px rgb(0 0 0 / 0.4), 0 16px 40px -12px rgb(0 0 0 / 0.7);
+  --sh-xl: 0 2px 4px rgb(0 0 0 / 0.4), 0 28px 64px -20px rgb(0 0 0 / 0.8);
 
   --link-instagram: #e0f1ff;
   --link-facebook: #5aa7ff;

@@ -15,12 +15,19 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <AppNavProvider>
       <CommandMenuProvider>
+        <a
+          href="#app-panel"
+          className="sr-only rounded-lg bg-card px-3 py-2 text-sm font-medium shadow-lg focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50"
+        >
+          Skip to content
+        </a>
         <div className="flex h-svh bg-background">
           <AppRail />
           <div className="min-w-0 flex-1 md:p-2">
             <main
               id="app-panel"
-              className="relative flex h-full flex-col overflow-y-auto bg-card md:rounded-xl"
+              tabIndex={-1}
+              className="relative flex h-full flex-col overflow-y-auto bg-card outline-none md:rounded-xl"
             >
               <MusicPlayerProvider>{children}</MusicPlayerProvider>
             </main>

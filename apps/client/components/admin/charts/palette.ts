@@ -31,6 +31,10 @@ export function statusColor(status: string): string {
       return "var(--warning)";
     case "PROCESSING":
       return "var(--info)";
+    case "PENDING":
+      return "var(--warning)";
+    case "DRAFT":
+      return "var(--chart-4)";
     default:
       return "var(--muted-foreground)";
   }

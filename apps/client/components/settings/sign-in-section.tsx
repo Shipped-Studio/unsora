@@ -62,12 +62,16 @@ interface PasswordParams {
   signOutOfOtherSessions?: boolean;
 }
 
+// Visible compact header so the description has a title to sit under.
+const SECTION_TITLE = "Sign-in";
+const SECTION_DESCRIPTION = "How you get into your account.";
+
 export function SignInSection() {
   const { user, isLoaded } = useUser();
 
   if (!isLoaded || !user) {
     return (
-      <PageSection title="Sign-in">
+      <PageSection title={SECTION_TITLE} description={SECTION_DESCRIPTION}>
         <Skeleton className="h-32 rounded-xl" />
       </PageSection>
     );
@@ -75,8 +79,8 @@ export function SignInSection() {
 
   return (
     <PageSection
-      title="Sign-in"
-      description="How you get into your account."
+      title={SECTION_TITLE}
+      description={SECTION_DESCRIPTION}
     >
       <div className="space-y-3">
         <ItemGroup className="gap-0 rounded-xl bg-muted">
@@ -206,7 +210,7 @@ function PasswordForm({ hasPassword }: { hasPassword: boolean }) {
               </Field>
             ) : null}
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="new-password">New password</FieldLabel>
                 <Input

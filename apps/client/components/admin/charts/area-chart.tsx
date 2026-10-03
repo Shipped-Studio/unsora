@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { format, isValid, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 
 export interface AreaSeries {
@@ -18,6 +19,47 @@ export interface AreaSeries {
 function val(row: object, key: string): number {
   return Number((row as Record<string, unknown>)[key]) || 0;
 }
+
+/**
+ * A round axis maximum and its integer tick step (same idea as niceMax in
+ * components/scheduler/trend-chart.tsx). Counts are whole numbers, so the
+ * step never drops below 1 and the labels never repeat.
+ */
+function niceScale(max: number): { max: number; step: number } {
+  if (max <= 0) return { max: 4, step: 1 };
+  const rough = max / 4;
+  const magnitude = 10 ** Math.floor(Math.log10(rough));
+  const steps = [1, 2, 2.5, 5, 10];
+  let step = (steps.find((s) => s * magnitude >= rough) ?? 10) * magnitude;
+  // 2.5 × 1 (or smaller) is not a whole number; take the next round step.
+  if (!Number.isInteger(step)) step = step < 1 ? 1 : Math.ceil(step / 5) * 5;
+  return { max: Math.ceil(max / step) * step, step };
+}
+
+const compactAxis = new Intl.NumberFormat(undefined, {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+function parseDay(d: string): Date | null {
+  const date = parseISO(d);
+  return isValid(date) ? date : null;
+}
+
+/** "Sep 4" for axis labels. */
+function axisDate(d: string): string {
+  const date = parseDay(d);
+  return date ? format(date, "MMM d") : d;
+}
+
+/** "Thu, Sep 4" for the tooltip. */
+function tooltipDate(d: string): string {
+  const date = parseDay(d);
+  return date ? format(date, "EEE, MMM d") : d;
+}
+
+/** Minimum horizontal room for one "MMM d" label. */
+const X_LABEL_GAP = 64;
 
 /**
  * Time-series line/area chart with a crosshair and tooltip. One or several
@@ -64,8 +106,8 @@ export function AreaChart<T extends { date: string }>({
   const innerH = Math.max(height - padT - padB, 10);
   const n = data.length;
 
-  // Y max — for stacked, the max column total; else the max single value.
-  const maxY = useMemo(() => {
+  // Data max — for stacked, the max column total; else the max single value.
+  const dataMax = useMemo(() => {
     let m = 0;
     for (const row of data) {
       if (stacked) {
@@ -75,8 +117,12 @@ export function AreaChart<T extends { date: string }>({
         for (const ser of series) m = Math.max(m, val(row, ser.key));
       }
     }
-    return m || 1;
+    return m;
   }, [data, series, stacked]);
+  const { max: maxY, step: tickStep } = useMemo(
+    () => niceScale(dataMax),
+    [dataMax],
+  );
 
   const x = useCallback(
     (i: number) => padL + (n <= 1 ? innerW / 2 : (i / (n - 1)) * innerW),
@@ -130,35 +176,62 @@ export function AreaChart<T extends { date: string }>({
     )},${y(0).toFixed(1)} Z`;
   };
 
-  // Y ticks (4 bands).
+  // Y ticks: whole-number steps from 0 to the nice max.
   const ticks = useMemo(() => {
-    const count = 4;
-    return Array.from({ length: count + 1 }, (_, i) => (maxY / count) * i);
-  }, [maxY]);
+    const out: number[] = [];
+    for (let t = 0; t <= maxY + tickStep / 2; t += tickStep) out.push(t);
+    return out;
+  }, [maxY, tickStep]);
 
-  // Sparse x labels.
-  const labelEvery = Math.max(1, Math.ceil(n / 7));
+  // Sparse x labels: as many as fit, then the last day only if it has room.
+  const labelEvery = Math.max(
+    1,
+    Math.ceil(n / Math.max(2, Math.floor(innerW / X_LABEL_GAP))),
+  );
+  const lastRegular = n > 0 ? Math.floor((n - 1) / labelEvery) * labelEvery : 0;
+  const showLast =
+    n > 1 &&
+    lastRegular !== n - 1 &&
+    x(n - 1) - x(lastRegular) >= X_LABEL_GAP;
 
-  const onMove = (e: React.MouseEvent<SVGRectElement>) => {
+  const onMove = (e: React.PointerEvent<SVGRectElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const rel = e.clientX - rect.left - padL;
+    const rel = e.clientX - rect.left;
     const i = Math.round((rel / innerW) * (n - 1));
     setHover(Math.max(0, Math.min(n - 1, i)));
   };
 
-  const fmtDate = (d: string) => {
-    const parts = d.split("-");
-    return parts.length === 3 ? `${parts[1]}/${parts[2]}` : d;
-  };
-
   const hoverRow = hover !== null ? data[hover] : null;
+  const empty = n === 0 || dataMax === 0;
+
+  // Empty: a compact message (same height as BarList's) rather than a full
+  // chart-height blank card.
+  if (empty) {
+    return (
+      <div
+        ref={wrapRef}
+        className={cn(
+          "flex h-24 w-full items-center justify-center text-sm text-muted-foreground",
+          className,
+        )}
+      >
+        No data in this range
+      </div>
+    );
+  }
 
   return (
     <div ref={wrapRef} className={cn("relative w-full", className)}>
-      <svg width={width} height={height} className="overflow-visible">
+      <svg
+        width={width}
+        height={height}
+        role="img"
+        aria-label={`${series.map((s) => s.label).join(", ")} per day. Highest ${valueFormat(dataMax)}.`}
+        className="overflow-visible"
+      >
         {/* gridlines + y labels */}
-        {ticks.map((t, i) => (
-          <g key={i}>
+        {ticks.map((t) => (
+          <g key={t}>
             <line
               x1={padL}
               x2={width - padR}
@@ -166,16 +239,16 @@ export function AreaChart<T extends { date: string }>({
               y2={y(t)}
               className="stroke-border"
               strokeWidth={1}
+              strokeDasharray={t === 0 ? undefined : "2 4"}
             />
             <text
-              x={padL - 6}
+              x={padL - 8}
               y={y(t)}
+              dy="0.32em"
               textAnchor="end"
-              dominantBaseline="middle"
-              fontSize={11}
-              className="fill-muted-foreground tabular-nums"
+              className="fill-muted-foreground text-2xs tabular-nums"
             >
-              {valueFormat(Math.round(t))}
+              {compactAxis.format(t)}
             </text>
           </g>
         ))}
@@ -204,16 +277,17 @@ export function AreaChart<T extends { date: string }>({
 
         {/* x labels */}
         {data.map((row, i) =>
-          i % labelEvery === 0 || i === n - 1 ? (
+          i % labelEvery === 0 || (i === n - 1 && showLast) ? (
             <text
               key={`x-${i}`}
               x={x(i)}
               y={height - 6}
-              textAnchor="middle"
-              fontSize={11}
-              className="fill-muted-foreground tabular-nums"
+              textAnchor={
+                n > 1 && i === 0 ? "start" : n > 1 && i === n - 1 ? "end" : "middle"
+              }
+              className="fill-muted-foreground text-2xs tabular-nums"
             >
-              {fmtDate(row.date)}
+              {axisDate(row.date)}
             </text>
           ) : null,
         )}
@@ -256,8 +330,8 @@ export function AreaChart<T extends { date: string }>({
           width={innerW}
           height={innerH}
           fill="transparent"
-          onMouseMove={onMove}
-          onMouseLeave={() => setHover(null)}
+          onPointerMove={onMove}
+          onPointerLeave={() => setHover(null)}
         />
       </svg>
 
@@ -265,7 +339,7 @@ export function AreaChart<T extends { date: string }>({
         <Tooltip
           x={x(hover!)}
           width={width}
-          date={fmtDate(hoverRow.date)}
+          date={tooltipDate(hoverRow.date)}
           rows={series.map((ser) => ({
             label: ser.label,
             color: ser.color,
@@ -292,7 +366,7 @@ function Tooltip({
   const flip = x > width - 160;
   return (
     <div
-      className="pointer-events-none absolute top-2 z-10 min-w-32 rounded-md border bg-popover p-2 text-xs text-popover-foreground shadow-md"
+      className="pointer-events-none absolute top-2 z-10 min-w-32 rounded-lg border bg-popover p-2 text-xs text-popover-foreground shadow-md"
       style={{
         left: flip ? undefined : Math.min(x + 10, width - 140),
         right: flip ? Math.max(width - x + 10, 8) : undefined,

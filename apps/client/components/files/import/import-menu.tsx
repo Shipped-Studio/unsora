@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   CaretDown,
   Cloud,
+  CloudArrowDown,
   DropboxLogo,
   GoogleDriveLogo,
   LinkSimple,
@@ -11,7 +12,6 @@ import {
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { ButtonGroup, ButtonGroupSeparator } from "@/components/ui/button-group";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +22,7 @@ import type {
   ImportSourceItem,
   LibraryFilterMediaType,
 } from "@/hooks/use-library";
+import { cn } from "@/lib/utils";
 import { ImportLinkDialog } from "./import-link-dialog";
 import { pickFromDropbox, preloadDropbox } from "./dropbox";
 import { pickFromGoogleDrive, preloadGoogleDrive } from "./google-drive";
@@ -42,8 +43,10 @@ interface ImportMenuProps {
   max?: number;
   uploading?: boolean;
   uploadLabel?: string;
-  /** `default` makes Upload the page's main action. */
+  /** `default` makes Upload the page's main action. Import stays outline. */
   variant?: "default" | "outline";
+  /** Icon-only buttons below `sm`, for page headers. */
+  compact?: boolean;
 }
 
 function preloadCloudScripts() {
@@ -66,6 +69,7 @@ export function ImportMenu({
   uploading = false,
   uploadLabel,
   variant = "outline",
+  compact = false,
 }: ImportMenuProps) {
   const [linkOpen, setLinkOpen] = useState(false);
   const pickOptions: PickOptions = { mediaType, multiple, max };
@@ -84,30 +88,36 @@ export function ImportMenu({
       });
   };
 
+  // Below sm the label turns into screen-reader text and the button squares up
+  // to the icon size, so the page title keeps its room.
+  const iconOnly = compact ? "max-sm:size-9 max-sm:p-0" : undefined;
+  const label = compact ? "max-sm:sr-only" : undefined;
+
   return (
     <>
-      <ButtonGroup>
+      <div className="flex items-center gap-2">
         <Button
           variant={variant}
           onClick={onUploadClick}
           disabled={uploading}
+          className={iconOnly}
         >
           <UploadSimple />
-          {uploadLabel ?? (uploading ? "Uploading…" : "Upload")}
+          <span className={label}>
+            {uploadLabel ?? (uploading ? "Uploading…" : "Upload")}
+          </span>
         </Button>
-        <ButtonGroupSeparator
-          className={variant === "default" ? "bg-primary-foreground/25" : undefined}
-        />
         <DropdownMenu
           onOpenChange={(open) => {
             if (open) preloadCloudScripts();
           }}
         >
           <DropdownMenuTrigger
-            render={<Button variant={variant} aria-label="Import from" />}
+            render={<Button variant="outline" className={iconOnly} />}
           >
-            Import
-            <CaretDown />
+            {compact ? <CloudArrowDown className="sm:hidden" /> : null}
+            <span className={label}>Import</span>
+            <CaretDown className={cn(compact && "max-sm:hidden")} />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-60">
             <DropdownMenuItem onClick={() => setLinkOpen(true)}>
@@ -154,7 +164,7 @@ export function ImportMenu({
             ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
-      </ButtonGroup>
+      </div>
 
       <ImportLinkDialog
         open={linkOpen}

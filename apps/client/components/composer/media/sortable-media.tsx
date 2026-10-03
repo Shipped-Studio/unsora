@@ -49,7 +49,7 @@ function SortableTile({
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
-        "group/tile relative overflow-hidden rounded-md bg-muted",
+        "group/tile relative overflow-hidden rounded-lg bg-card",
         isDragging && "z-10 opacity-80 shadow-md",
         selected && "ring-2 ring-primary ring-offset-2 ring-offset-background",
         className,
@@ -61,7 +61,7 @@ function SortableTile({
         {...listeners}
         onClick={onSelect}
         aria-label={`Image ${index + 1}. Drag to reorder${onSelect ? ", click to use as cover" : ""}.`}
-        className="block size-full cursor-grab touch-none active:cursor-grabbing"
+        className="block size-full cursor-grab touch-none outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset active:cursor-grabbing"
       >
         <img
           src={item.previewUrl}
@@ -71,7 +71,7 @@ function SortableTile({
         />
       </button>
 
-      <span className="pointer-events-none absolute top-1.5 left-1.5 flex size-5 items-center justify-center rounded bg-scrim/60 text-[11px] font-medium text-media-foreground tabular-nums">
+      <span className="pointer-events-none absolute top-1.5 left-1.5 flex size-5 items-center justify-center rounded-full bg-scrim/60 text-2xs font-medium text-media-foreground tabular-nums">
         {index + 1}
       </span>
 
@@ -81,7 +81,7 @@ function SortableTile({
         variant="secondary"
         aria-label={`Remove image ${index + 1}`}
         onClick={onRemove}
-        className="absolute top-1.5 right-1.5 opacity-0 shadow-xs group-hover/tile:opacity-100 focus-visible:opacity-100"
+        className="absolute top-1.5 right-1.5 shadow-xs [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/tile:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100"
       >
         <X />
       </Button>
@@ -94,7 +94,7 @@ function SortableTile({
       {item.status === "error" || warning ? (
         <span
           title={item.status === "error" ? item.error : warning}
-          className="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded bg-scrim/70 px-1.5 py-0.5 text-[11px] text-media-foreground"
+          className="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded-full bg-scrim/70 px-1.5 py-0.5 text-2xs text-media-foreground"
         >
           <WarningCircle className="size-3 text-warning" />
           {item.status === "error" ? "Upload failed" : "Aspect ratio"}

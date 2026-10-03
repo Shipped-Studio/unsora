@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import {
   ArrowLeft,
@@ -32,16 +32,6 @@ import { cn } from "@/lib/utils";
  * lands on /onboarding, which redirects here); the step lives in the URL so
  * it survives the OAuth round trip when connecting a channel.
  */
-const STEPS = [
-  { id: "channels", label: "Connect channels" },
-  { id: "agents", label: "Connect agents" },
-  { id: "tutorial", label: "Watch tutorial" },
-] as const;
-
-type StepId = (typeof STEPS)[number]["id"];
-
-export const ONBOARDING_PARAM = "onboarding";
-
 /** A YouTube watch / share / embed URL as an embed URL, else null. */
 function youTubeEmbed(url: string): string | null {
   try {
@@ -57,10 +47,41 @@ function youTubeEmbed(url: string): string | null {
   }
 }
 
-function StepHeading({ title, description }: { title: string; description: string }) {
+const TUTORIAL_EMBED = TUTORIAL_VIDEO_URL ? youTubeEmbed(TUTORIAL_VIDEO_URL) : null;
+
+const STEPS = [
+  { id: "channels", label: "Connect channels" },
+  { id: "agents", label: "Connect agents" },
+  // Without a tutorial video the last step is a short list of places to start.
+  { id: "tutorial", label: TUTORIAL_EMBED ? "Watch tutorial" : "Get started" },
+] as const;
+
+type StepId = (typeof STEPS)[number]["id"];
+
+export const ONBOARDING_PARAM = "onboarding";
+
+/** Content column shared by every step, so the width doesn't change between them. */
+const STEP_BODY = "mx-auto w-full max-w-4xl space-y-6";
+
+function StepHeading({
+  title,
+  description,
+  titleRef,
+}: {
+  title: string;
+  description: string;
+  titleRef: React.RefObject<HTMLHeadingElement | null>;
+}) {
   return (
     <div className="space-y-1.5 text-center">
-      <DialogTitle className="text-xl font-semibold tracking-tight sm:text-2xl">{title}</DialogTitle>
+      {/* Focus lands here when the dialog opens or the step changes, not on a button. */}
+      <DialogTitle
+        ref={titleRef}
+        tabIndex={-1}
+        className="text-xl font-semibold tracking-tight outline-none sm:text-2xl"
+      >
+        {title}
+      </DialogTitle>
       <DialogDescription>{description}</DialogDescription>
     </div>
   );
@@ -70,7 +91,11 @@ function Stepper({ current }: { current: number }) {
   return (
     <ol className="flex items-center justify-center gap-2 sm:gap-3" aria-label="Setup progress">
       {STEPS.map((step, index) => (
-        <li key={step.id} className="flex items-center gap-2 sm:gap-3">
+        <li
+          key={step.id}
+          aria-current={index === current ? "step" : undefined}
+          className="flex items-center gap-2 sm:gap-3"
+        >
           <span
             className={cn(
               "flex size-7 shrink-0 items-center justify-center rounded-full border text-xs tabular-nums",
@@ -78,30 +103,36 @@ function Stepper({ current }: { current: number }) {
               index === current && "border-foreground bg-foreground font-medium text-background",
               index > current && "text-muted-foreground",
             )}
-            aria-current={index === current ? "step" : undefined}
+            aria-hidden
           >
             {index < current ? <Check className="size-3.5" weight="bold" /> : index + 1}
           </span>
           <span
             className={cn(
-              "hidden text-sm sm:inline",
+              "sr-only text-sm sm:not-sr-only",
               index === current ? "font-medium text-foreground" : "text-muted-foreground",
             )}
           >
             {step.label}
+            {index < current ? <span className="sr-only"> (done)</span> : null}
           </span>
-          {index < STEPS.length - 1 ? <span className="h-px w-6 bg-border sm:w-12" /> : null}
+          {index < STEPS.length - 1 ? (
+            <span aria-hidden className="h-px w-6 bg-border sm:w-12" />
+          ) : null}
         </li>
       ))}
     </ol>
   );
 }
 
-function ChannelsStep() {
+type TitleRef = React.RefObject<HTMLHeadingElement | null>;
+
+function ChannelsStep({ titleRef }: { titleRef: TitleRef }) {
   const { data: accounts } = useConnectedAccounts();
   return (
-    <div className="space-y-6">
+    <div className={STEP_BODY}>
       <StepHeading
+        titleRef={titleRef}
         title="Connect your channels"
         description="Connect the social accounts you want to schedule posts to. You can add more any time from Accounts."
       />
@@ -110,11 +141,12 @@ function ChannelsStep() {
           {accounts.map((account) => (
             <li
               key={account.id}
-              className="flex items-center gap-2 rounded-xl bg-muted py-1.5 pr-3 pl-1.5 text-sm"
+              className="flex min-w-0 items-center gap-2 rounded-full border bg-card py-1 pr-3 pl-1 text-sm"
             >
               <AccountAvatar account={account} size="sm" />
-              {accountLabel(account)}
-              <Check className="size-3.5 text-success" />
+              <span className="truncate">{accountLabel(account)}</span>
+              <Check className="size-3.5 shrink-0 text-success" />
+              <span className="sr-only">connected</span>
             </li>
           ))}
         </ul>
@@ -124,10 +156,11 @@ function ChannelsStep() {
   );
 }
 
-function AgentsStep() {
+function AgentsStep({ titleRef }: { titleRef: TitleRef }) {
   return (
-    <div className="space-y-6">
+    <div className={STEP_BODY}>
       <StepHeading
+        titleRef={titleRef}
         title="Connect your AI agent"
         description="Pick the agent you use and let it create and schedule posts for you."
       />
@@ -153,16 +186,23 @@ const NEXT_UP = [
     href: "/scheduler/queue",
     icon: Clock,
     title: "Set your posting times",
-    body: "Add to queue then picks the next open time for you.",
+    body: "Add to queue picks the next open time for you.",
   },
 ];
 
-function TutorialStep({ onNavigate }: { onNavigate: (href: string) => void }) {
-  const embed = TUTORIAL_VIDEO_URL ? youTubeEmbed(TUTORIAL_VIDEO_URL) : null;
+function TutorialStep({
+  titleRef,
+  onNavigate,
+}: {
+  titleRef: TitleRef;
+  onNavigate: (href: string) => void;
+}) {
+  const embed = TUTORIAL_EMBED;
   return (
-    <div className="space-y-6">
+    <div className={STEP_BODY}>
       <StepHeading
-        title={embed ? "Learn how to use Unsora" : "You're all set"}
+        titleRef={titleRef}
+        title={embed ? "Learn how to use Unsora" : "Get started"}
         description={
           embed
             ? "Watch this short video to get the most out of Unsora."
@@ -170,7 +210,7 @@ function TutorialStep({ onNavigate }: { onNavigate: (href: string) => void }) {
         }
       />
       {embed ? (
-        <div className="mx-auto aspect-video w-full max-w-3xl overflow-hidden rounded-xl bg-media">
+        <div className="aspect-video w-full overflow-hidden rounded-xl bg-media">
           <iframe
             src={embed}
             title="Unsora tutorial"
@@ -180,7 +220,7 @@ function TutorialStep({ onNavigate }: { onNavigate: (href: string) => void }) {
           />
         </div>
       ) : (
-        <div className="mx-auto grid max-w-3xl gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {NEXT_UP.map((item) => (
             <Link
               key={item.href}
@@ -189,7 +229,7 @@ function TutorialStep({ onNavigate }: { onNavigate: (href: string) => void }) {
                 event.preventDefault();
                 onNavigate(item.href);
               }}
-              className="space-y-2 rounded-xl bg-muted p-4 transition-colors hover:bg-accent"
+              className="space-y-2 rounded-xl bg-muted p-4 transition-colors outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <item.icon className="size-5" />
               <p className="text-sm font-medium">{item.title}</p>
@@ -236,17 +276,37 @@ export function OnboardingDialog() {
 
   const hasChannels = (accounts?.length ?? 0) > 0;
 
+  // Move focus to the new step's title so the next control doesn't light up
+  // with a focus ring, and screen readers announce the step.
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const lastStep = useRef(step);
+  useEffect(() => {
+    if (!open || lastStep.current === step) return;
+    lastStep.current = step;
+    titleRef.current?.focus({ preventScroll: true });
+  }, [open, step]);
+
   return (
     <Dialog open={open} onOpenChange={(next) => !next && void finish()}>
-      <DialogContent className="flex max-h-[92svh] flex-col gap-0 p-0 sm:max-w-5xl">
+      <DialogContent
+        initialFocus={() => titleRef.current ?? true}
+        className="flex h-[92svh] flex-col gap-0 p-0 sm:top-[8vh] sm:h-auto sm:max-h-[min(760px,84svh)] sm:min-h-[min(520px,84svh)] sm:max-w-5xl sm:translate-y-0"
+      >
         <div className="border-b px-6 py-5 pr-14">
           <Stepper current={step} />
         </div>
 
-        <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-8 sm:px-10">
-          {step === 0 ? <ChannelsStep /> : null}
-          {step === 1 ? <AgentsStep /> : null}
-          {step === 2 ? <TutorialStep onNavigate={(href) => void finish(href)} /> : null}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-8 sm:px-10">
+          {step === 0 ? <ChannelsStep titleRef={titleRef} /> : null}
+          {step === 1 ? <AgentsStep titleRef={titleRef} /> : null}
+          {step === 2 ? (
+            <TutorialStep titleRef={titleRef} onNavigate={(href) => void finish(href)} />
+          ) : null}
+          {/* Fades the bottom edge so it's clear the list keeps going. */}
+          <div
+            aria-hidden
+            className="pointer-events-none sticky bottom-0 mt-2 h-8 bg-linear-to-t from-popover to-transparent"
+          />
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t px-6 py-4">

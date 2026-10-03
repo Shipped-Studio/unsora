@@ -2,15 +2,15 @@ import { STATUS_META } from "@/lib/scheduler/status";
 import type { PostStatus } from "@/lib/scheduler/types";
 import { cn } from "@/lib/utils";
 
-const TONE_DOT = {
-  neutral: "bg-muted-foreground/50",
-  info: "bg-info",
-  success: "bg-success",
-  warning: "bg-warning",
-  danger: "bg-destructive",
+const TONE_PILL = {
+  neutral: "bg-muted text-muted-foreground",
+  info: "bg-info-subtle text-info",
+  success: "bg-success-subtle text-success",
+  warning: "bg-warning-subtle text-warning",
+  danger: "bg-destructive-subtle text-destructive",
 } as const;
 
-/** Status as a small dot and label. */
+/** Status as a soft, tinted pill. */
 export function PostStatusBadge({
   status,
   className,
@@ -22,17 +22,12 @@ export function PostStatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 text-xs font-medium whitespace-nowrap text-muted-foreground",
+        "inline-flex h-5 items-center rounded-full px-2 text-xs font-medium whitespace-nowrap",
+        TONE_PILL[meta.tone],
+        status === "PUBLISHING" && "animate-pulse",
         className,
       )}
     >
-      <span
-        className={cn(
-          "size-1.5 rounded-full",
-          TONE_DOT[meta.tone],
-          status === "PUBLISHING" && "animate-pulse",
-        )}
-      />
       {meta.label}
     </span>
   );

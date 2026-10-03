@@ -1,7 +1,7 @@
 "use client";
 
+import { ToolGrid } from "@/components/generator/tool-layout";
 import {
-  PROJECT_GRID_CLASS,
   ProjectCard,
   ProjectCardSkeleton,
 } from "@/components/subtitle-editor/project-card";
@@ -15,20 +15,22 @@ export function ProjectsGrid({
   onDelete: (project: TranscriptionListItem) => void;
 }) {
   return (
-    <div className={PROJECT_GRID_CLASS}>
+    <ToolGrid shape="video">
       {projects.map((project) => (
         <ProjectCard key={project.id} project={project} onDelete={onDelete} />
       ))}
-    </div>
+    </ToolGrid>
   );
 }
 
 export function ProjectsGridSkeleton({ count }: { count: number }) {
   return (
-    <div className={PROJECT_GRID_CLASS} aria-busy>
-      {Array.from({ length: count }, (_, i) => (
-        <ProjectCardSkeleton key={i} />
-      ))}
+    <div aria-busy>
+      <ToolGrid shape="video">
+        {Array.from({ length: count }, (_, i) => (
+          <ProjectCardSkeleton key={i} />
+        ))}
+      </ToolGrid>
     </div>
   );
 }

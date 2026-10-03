@@ -8,7 +8,11 @@ import { GenerateButton } from "@/components/ui/generate-button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { VideoGenerationSubmitParams } from "@/hooks/use-video-generation";
-import { ParamControl, CountSelect } from "@/components/generator/param-control";
+import {
+  CountSelect,
+  GHOST_TRIGGER_CLASS,
+  ParamControl,
+} from "@/components/generator/param-control";
 import { ModelPicker } from "@/components/generator/model-picker";
 import { LibraryPicker } from "@/components/generator/library-picker";
 import { AttachmentStrip } from "@/components/generator/attachment-strip";
@@ -244,10 +248,7 @@ export function VideoPromptForm({ onSubmit }: VideoPromptFormProps) {
               disabled={submitting}
               aria-pressed={showNegativePrompt}
               onClick={() => setShowNegativePrompt((v) => !v)}
-              className={cn(
-                "text-xs font-normal text-muted-foreground hover:text-foreground",
-                showNegativePrompt && "text-foreground",
-              )}
+              className={GHOST_TRIGGER_CLASS}
             >
               Negative prompt
             </Button>
@@ -284,7 +285,7 @@ export function VideoPromptForm({ onSubmit }: VideoPromptFormProps) {
               placeholder="What to leave out of the video"
               aria-label="Negative prompt"
               disabled={submitting}
-              className="min-h-14 resize-none pr-9 text-sm"
+              className="min-h-14 resize-none pr-9"
             />
             <Button
               variant="ghost"

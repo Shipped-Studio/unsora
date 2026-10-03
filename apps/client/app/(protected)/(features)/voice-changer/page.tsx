@@ -1,7 +1,12 @@
 "use client";
 
 import { Waveform } from "@phosphor-icons/react";
-import { ToolEmpty, ToolPage } from "@/components/generator/tool-layout";
+import {
+  ToolEmpty,
+  ToolPage,
+  ToolPane,
+  ToolSidebar,
+} from "@/components/generator/tool-layout";
 import { ErrorState } from "@/components/shared/states";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -26,7 +31,7 @@ interface VoiceConversion {
   createdAt: string;
 }
 
-const LIST_CLASS = "grid gap-2 @3xl:grid-cols-2 @7xl:grid-cols-3";
+const LIST_CLASS = "grid grid-cols-1 gap-2 @3xl:grid-cols-2 @7xl:grid-cols-3";
 
 export default function VoiceChangerPage() {
   const { catalog } = useVoiceClones();
@@ -94,19 +99,16 @@ export default function VoiceChangerPage() {
   const isEmpty = activeCards.length === 0 && historyCards.length === 0;
 
   return (
-    <ToolPage className="p-0 sm:p-0 lg:flex lg:items-start">
-      <aside className="border-b lg:sticky lg:top-14 lg:h-[calc(100svh-3.5rem)] lg:w-95 lg:shrink-0 lg:border-r lg:border-b-0">
+    <ToolPage className="p-0 sm:p-0 lg:flex-row lg:items-start">
+      <ToolSidebar>
         <VoiceChangerForm
           onSubmit={async (payload) => {
             await submitConversion(payload);
           }}
         />
-      </aside>
+      </ToolSidebar>
 
-      <section
-        aria-label="Recordings"
-        className="@container min-w-0 flex-1 px-3 py-4 sm:px-6 sm:py-6"
-      >
+      <ToolPane label="Recordings">
         {isLoading && activeCards.length === 0 ? (
           <div className={LIST_CLASS}>
             {Array.from({ length: 6 }).map((_, i) => (
@@ -132,6 +134,7 @@ export default function VoiceChangerPage() {
                 <VoiceGenerationCard
                   key={card.id}
                   generation={card}
+                  noun="recording"
                   onDismiss={dismissConversion}
                 />
               ))}
@@ -139,6 +142,7 @@ export default function VoiceChangerPage() {
                 <VoiceGenerationCard
                   key={card.id}
                   generation={card}
+                  noun="recording"
                   onDelete={(id) => void deleteItem(id)}
                 />
               ))}
@@ -152,7 +156,7 @@ export default function VoiceChangerPage() {
             ) : null}
           </>
         )}
-      </section>
+      </ToolPane>
     </ToolPage>
   );
 }

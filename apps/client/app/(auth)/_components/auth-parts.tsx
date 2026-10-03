@@ -17,6 +17,13 @@ import {
 } from "@/components/ui/input-otp";
 import { Spinner } from "@/components/ui/spinner";
 
+/** Auth forms use one control height: inputs, password field and buttons. */
+export const AUTH_CONTROL = "h-10";
+
+/** Text link inside auth copy ("Create an account", "Forgot password?"). */
+export const AUTH_LINK =
+  "rounded-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none";
+
 export function AuthHeader({
   title,
   description,
@@ -25,8 +32,8 @@ export function AuthHeader({
   description?: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1.5">
-      <h1 className="text-xl font-semibold tracking-tight text-foreground">
+    <div className="space-y-2">
+      <h1 className="text-2xl font-semibold tracking-tight text-foreground">
         {title}
       </h1>
       {description ? (
@@ -82,6 +89,7 @@ export function GoogleButton({
     <Button
       type="button"
       variant="outline"
+      size="lg"
       className="w-full"
       onClick={onClick}
       disabled={disabled || pending}
@@ -109,7 +117,7 @@ export function PasswordInput({
 }) {
   const [visible, setVisible] = useState(false);
   return (
-    <InputGroup>
+    <InputGroup className={AUTH_CONTROL}>
       <InputGroupInput
         id={id}
         name={name}

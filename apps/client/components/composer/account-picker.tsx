@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useRef } from "react";
 import { Check, Warning } from "@phosphor-icons/react";
 import { buttonVariants } from "@/components/ui/button";
 import { Button } from "@/components/ui/button";
@@ -51,21 +52,33 @@ export function AccountPicker({
   /** Accounts that already published and can't be removed. */
   locked?: string[];
   onToggle: (accountId: string) => void;
-  onSelectMany: (accountIds: string[]) => void;
+  /** `auto` is true when the picker chose for the user (not an edit). */
+  onSelectMany: (accountIds: string[], auto?: boolean) => void;
 }) {
+  const visible = sortAccounts(
+    accounts.filter((a) => !isProvider(a.provider) || PLATFORMS[a.provider].enabled),
+  );
+  const eligible = visible.filter((a) => supportsFormat(a.provider, format));
+
+  // With exactly one account that can take this format, pick it for the user.
+  // Only once, so clearing it again sticks.
+  const autoPicked = useRef(false);
+  const onlyEligible = !loading && eligible.length === 1 ? eligible[0].id : null;
+  useEffect(() => {
+    if (autoPicked.current || !onlyEligible) return;
+    autoPicked.current = true;
+    if (selected.length === 0) onSelectMany([onlyEligible], true);
+  }, [onlyEligible, onSelectMany, selected.length]);
+
   if (loading) {
     return (
       <div className="flex flex-wrap gap-2">
         {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-10 w-40 rounded-lg" />
+          <Skeleton key={i} className="h-10 w-40 rounded-xl" />
         ))}
       </div>
     );
   }
-
-  const visible = sortAccounts(
-    accounts.filter((a) => !isProvider(a.provider) || PLATFORMS[a.provider].enabled),
-  );
 
   if (visible.length === 0) {
     return (
@@ -83,7 +96,6 @@ export function AccountPicker({
     );
   }
 
-  const eligible = visible.filter((a) => supportsFormat(a.provider, format));
   const allEligibleSelected =
     eligible.length > 0 && eligible.every((a) => selected.includes(a.id));
 
@@ -104,11 +116,11 @@ export function AccountPicker({
               disabled={disabled}
               onClick={() => onToggle(account.id)}
               className={cn(
-                "group/chip flex h-10 max-w-60 items-center gap-2 rounded-xl bg-muted pr-3 pl-1.5 text-left text-sm transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                "group/chip flex h-10 max-w-60 items-center gap-2 rounded-xl border border-transparent pr-3 pl-1.5 text-left text-sm transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                 isSelected
-                  ? "border-foreground/40 bg-accent"
-                  : "hover:bg-secondary",
-                disabled && "cursor-not-allowed opacity-45 hover:bg-card",
+                  ? "border-border bg-card shadow-xs"
+                  : "bg-muted hover:bg-secondary",
+                disabled && "cursor-not-allowed opacity-45 hover:bg-muted",
                 isSelected && !supported && "border-destructive/50",
               )}
             >
@@ -119,7 +131,7 @@ export function AccountPicker({
               ) : null}
               <span
                 className={cn(
-                  "ml-auto flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors",
+                  "ml-auto flex size-4 shrink-0 items-center justify-center rounded-xs border transition-colors",
                   isSelected
                     ? "border-primary bg-primary text-primary-foreground"
                     : "border-input",
@@ -152,7 +164,7 @@ export function AccountPicker({
           type="button"
           variant="link"
           size="sm"
-          className="h-auto p-0 text-muted-foreground"
+          className="h-auto p-0 text-foreground underline"
           onClick={() =>
             onSelectMany(
               allEligibleSelected

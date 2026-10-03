@@ -1,8 +1,13 @@
 "use client";
 
-import { CaretDown, Timer } from "@phosphor-icons/react";
+import {
+  CaretDown,
+  SpeakerHigh,
+  SpeakerX,
+  Timer,
+  type Icon,
+} from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Popover,
   PopoverContent,
@@ -27,7 +32,8 @@ export interface ParamOption {
  * - "select":   dropdown (generation mode, style)
  * - "duration": popover with a slider; the trigger shows "10s"
  * - "aspect":   dropdown of aspect ratios
- * - "toggle":   checkbox; options[0] is on, options[1] is off
+ * - "toggle":   pressable ghost chip; options[0] is on, options[1] is off.
+ *               On shows `label` on a filled chip, off shows `offLabel`.
  */
 export type ParamType = "select" | "duration" | "aspect" | "toggle";
 
@@ -39,10 +45,40 @@ export interface ParamConfig {
   defaultValue: string;
   /** Show only the value on the trigger, without the "Label: " prefix. */
   hideLabel?: boolean;
+  /** Toggle only: chip text when off, e.g. "No audio". Defaults to "<label> off". */
+  offLabel?: string;
 }
 
+/**
+ * Ghost chip in a composer toolbar. Use on Button / SelectTrigger with
+ * `variant="ghost" size="sm"` so every tool's chips share one size.
+ */
 export const GHOST_TRIGGER_CLASS =
-  "h-8 gap-1 px-2 text-xs font-normal text-muted-foreground hover:text-foreground";
+  "gap-1 px-2 text-xs font-normal text-muted-foreground hover:text-foreground aria-pressed:bg-accent aria-pressed:text-foreground";
+
+/** Ratios, resolutions, counts and durations read fine without a label. */
+function isSelfExplanatory(valueLabel: string) {
+  return /^\d+(\.\d+)?\s*[:x×]\s*\d+|^\d+(\.\d+)?\s*(p|k|s|px|fps)?$/i.test(
+    valueLabel.trim(),
+  );
+}
+
+/** Chip text: just the value when it speaks for itself, else "Label: value". */
+function chipText(param: ParamConfig, value: string, valueLabel: string) {
+  if (param.hideLabel || isSelfExplanatory(valueLabel)) return valueLabel;
+  // A bare "Auto" is ambiguous when several selects sit side by side, and an
+  // aspect chip that isn't a ratio ("Match input") needs its label too.
+  if (value === "auto" || param.type === "aspect") {
+    return `${param.label}: ${valueLabel}`;
+  }
+  return valueLabel;
+}
+
+/** On/off icons for known toggle keys; others get a status dot. */
+const TOGGLE_ICONS: Record<string, [Icon, Icon]> = {
+  sound: [SpeakerHigh, SpeakerX],
+  keep_sound: [SpeakerHigh, SpeakerX],
+};
 
 export function parseDuration(value: string): number {
   return parseInt(value.replace("s", ""), 10);
@@ -126,6 +162,7 @@ function OptionSelect({
     >
       <SelectTrigger
         variant="ghost"
+        size="sm"
         aria-label={param.label}
         className={GHOST_TRIGGER_CLASS}
       >
@@ -162,10 +199,7 @@ export function ParamControl({
         <OptionSelect
           param={param}
           value={value}
-          // A bare "Auto" is ambiguous when several selects sit side by side.
-          display={
-            value === "auto" ? `${param.label}: ${valueLabel}` : valueLabel
-          }
+          display={chipText(param, value, valueLabel)}
           disabled={disabled}
           onChange={onChange}
         />
@@ -176,9 +210,7 @@ export function ParamControl({
         <OptionSelect
           param={param}
           value={value}
-          display={
-            param.hideLabel ? valueLabel : `${param.label}: ${valueLabel}`
-          }
+          display={chipText(param, value, valueLabel)}
           disabled={disabled}
           onChange={onChange}
         />
@@ -191,6 +223,7 @@ export function ParamControl({
             render={
               <Button
                 variant="ghost"
+                size="sm"
                 disabled={disabled}
                 aria-label={`Duration: ${parseDuration(value)} seconds`}
                 className={GHOST_TRIGGER_CLASS}
@@ -214,23 +247,29 @@ export function ParamControl({
     case "toggle": {
       const [onOpt, offOpt] = param.options;
       const isOn = value === onOpt.value;
+      const ToggleIcon = TOGGLE_ICONS[param.key]?.[isOn ? 0 : 1];
       return (
-        <label
-          className={cn(
-            "flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-xs transition-colors hover:bg-secondary",
-            disabled && "pointer-events-none opacity-50",
-            isOn ? "text-foreground" : "text-muted-foreground",
-          )}
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={disabled}
+          aria-pressed={isOn}
+          onClick={() => onChange(isOn ? offOpt.value : onOpt.value)}
+          className={GHOST_TRIGGER_CLASS}
         >
-          <Checkbox
-            checked={isOn}
-            disabled={disabled}
-            onCheckedChange={(checked) =>
-              onChange(checked ? onOpt.value : offOpt.value)
-            }
-          />
-          {param.label}
-        </label>
+          {ToggleIcon ? (
+            <ToggleIcon className="size-3.5" />
+          ) : (
+            <span
+              aria-hidden
+              className={cn(
+                "size-1.5 rounded-full",
+                isOn ? "bg-success" : "bg-muted-foreground",
+              )}
+            />
+          )}
+          {isOn ? param.label : (param.offLabel ?? `${param.label} off`)}
+        </Button>
       );
     }
   }
@@ -259,6 +298,7 @@ export function CountSelect({
     >
       <SelectTrigger
         variant="ghost"
+        size="sm"
         aria-label="Number of results"
         className={GHOST_TRIGGER_CLASS}
       >

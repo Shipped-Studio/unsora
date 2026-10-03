@@ -1,5 +1,6 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -27,9 +28,19 @@ interface CreditPacksProps {
 }
 
 function gridCols(count: number) {
-  if (count >= 4) return "sm:grid-cols-2 lg:grid-cols-4";
-  if (count === 3) return "sm:grid-cols-3";
-  return "sm:grid-cols-2";
+  if (count >= 4) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4";
+  if (count === 3) return "grid-cols-1 sm:grid-cols-3";
+  return "grid-cols-1 sm:grid-cols-2";
+}
+
+/** The pack with the lowest price per credit, when there's a real choice. */
+function bestValueKey(packs: CreditPack[]): string | null {
+  const priced = packs.filter((pack) => pack.credits > 0);
+  if (priced.length < 2) return null;
+  const best = priced.reduce((a, b) =>
+    b.priceUsd / b.credits < a.priceUsd / a.credits ? b : a,
+  );
+  return best.key;
 }
 
 export function CreditPacks({
@@ -44,11 +55,7 @@ export function CreditPacks({
 
   if (error) {
     return (
-      <ErrorState
-        title="Couldn't load credit packs"
-        description={error}
-        onRetry={onRetry}
-      />
+      <ErrorState title="Couldn't load credit packs" onRetry={onRetry} />
     );
   }
 
@@ -61,15 +68,21 @@ export function CreditPacks({
     );
   }
 
+  const bestKey = bestValueKey(packs);
+
   return (
     <div className={cn("grid gap-3", gridCols(packs.length))}>
       {packs.map((pack) => {
         const isPending = pendingPackKey === pack.key;
+        const isBest = pack.key === bestKey;
         const perCredit = pack.credits > 0 ? pack.priceUsd / pack.credits : 0;
         return (
-          <Card key={pack.key} size="sm">
+          <Card key={pack.key} size="sm" className={cn(isBest && "ring-2 ring-primary")}>
             <CardHeader>
-              <CardTitle>{pack.name}</CardTitle>
+              <CardTitle className="flex flex-wrap items-center gap-2">
+                {pack.name}
+                {isBest ? <Badge>Best value</Badge> : null}
+              </CardTitle>
               {pack.description ? (
                 <CardDescription>{pack.description}</CardDescription>
               ) : null}
@@ -87,7 +100,7 @@ export function CreditPacks({
             </CardContent>
             <CardFooter>
               <Button
-                variant="outline"
+                variant={isBest ? "default" : "outline"}
                 className="w-full"
                 disabled={pendingPackKey !== null}
                 onClick={() => onBuy(pack.key)}
@@ -116,7 +129,7 @@ export function CreditPacksSkeleton() {
             <Skeleton className="h-3 w-24" />
           </CardContent>
           <CardFooter>
-            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-9 w-full rounded-lg" />
           </CardFooter>
         </Card>
       ))}

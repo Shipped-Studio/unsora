@@ -23,7 +23,8 @@ export default function CalendarPage() {
         }
       />
       <PageBody width="full">
-        <Suspense fallback={<Skeleton className="h-[36rem] w-full rounded-lg" />}>
+        <PublishTabs placement="page" />
+        <Suspense fallback={<Skeleton className="h-[36rem] w-full rounded-xl" />}>
           <CalendarView />
         </Suspense>
       </PageBody>

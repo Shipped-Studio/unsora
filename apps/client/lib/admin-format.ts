@@ -1,11 +1,15 @@
 /** Small formatting helpers shared across admin views. */
 
+import { platformName } from "@/lib/scheduler/formats";
+
+const COMPACT = new Intl.NumberFormat(undefined, {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+/** "3.8K", "1.2M". For KPI tiles and chart axes; tables show exact numbers. */
 export function compactNumber(n: number): string {
-  if (Math.abs(n) >= 1_000_000)
-    return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
-  if (Math.abs(n) >= 1_000)
-    return `${(n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1)}k`;
-  return n.toLocaleString();
+  return COMPACT.format(n);
 }
 
 export function formatDate(input: string | Date | null | undefined): string {
@@ -50,4 +54,10 @@ export function timeAgo(input: string | Date | null | undefined): string {
 
 export function titleCase(s: string): string {
   return s.replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Proper platform name ("TikTok", "YouTube"), falling back to title case. */
+export function providerLabel(provider: string): string {
+  const name = platformName(provider);
+  return name === provider ? titleCase(provider) : name;
 }

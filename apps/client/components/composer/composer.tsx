@@ -6,6 +6,7 @@ import {
   CalendarBlank,
   CaretDown,
   CheckCircle,
+  Circle,
   PaperPlaneTilt,
   Queue,
   WarningCircle,
@@ -35,6 +36,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LibraryPickerDialog } from "@/components/files/library-picker-dialog";
 import { AccountAvatar } from "@/components/scheduler/account-avatar";
+import { PublishNowDialog } from "@/components/scheduler/publish-now-dialog";
 import { AccountPicker } from "./account-picker";
 import { CaptionEditor } from "./caption-editor";
 import { ComposerSection } from "./composer-section";
@@ -75,12 +77,23 @@ const SECTION_FOR: Record<Issue["field"], string> = {
   schedule: "composer-accounts",
 };
 
+/** Scrolls a composer section into view, without animation for reduced motion. */
+function scrollToSection(id: string) {
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  document
+    .getElementById(id)
+    ?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+}
+
 function Checklist({
   issues,
   accounts,
+  attempted,
 }: {
   issues: Issue[];
   accounts: ConnectedAccount[];
+  /** After a submit attempt the list reads as problems; before, as a to-do list. */
+  attempted: boolean;
 }) {
   const errors = issues.filter((issue) => issue.level === "error");
   if (!errors.length) {
@@ -92,28 +105,30 @@ function Checklist({
     );
   }
   return (
-    <div className="rounded-xl bg-muted">
-      <p className="border-b px-4 py-2.5 text-sm font-medium">
-        {errors.length === 1 ? "1 thing to fix" : `${errors.length} things to fix`}
+    <div className="overflow-hidden rounded-xl bg-muted">
+      <p className="border-b border-border px-4 py-2.5 text-sm font-semibold">
+        {!attempted
+          ? "Before you post"
+          : errors.length === 1
+            ? "1 thing to fix"
+            : `${errors.length} things to fix`}
       </p>
-      <ul className="divide-y">
+      <ul className="divide-y divide-border">
         {errors.map((issue, index) => {
           const account = accounts.find((a) => a.id === issue.accountId);
           return (
             <li key={`${issue.message}-${index}`}>
               <button
                 type="button"
-                onClick={() =>
-                  document
-                    .getElementById(SECTION_FOR[issue.field])
-                    ?.scrollIntoView({ behavior: "smooth", block: "start" })
-                }
-                className="flex w-full items-start gap-2.5 px-4 py-2.5 text-left text-sm hover:bg-secondary"
+                onClick={() => scrollToSection(SECTION_FOR[issue.field])}
+                className="flex w-full items-start gap-2.5 px-4 py-2.5 text-left text-sm outline-none transition-colors hover:bg-secondary focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
               >
                 {account ? (
                   <AccountAvatar account={account} size="xs" className="mt-0.5" />
-                ) : (
+                ) : attempted ? (
                   <WarningCircle className="mt-0.5 size-4 shrink-0 text-warning" />
+                ) : (
+                  <Circle className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                 )}
                 <span className="text-muted-foreground">{issue.message}</span>
               </button>
@@ -149,6 +164,8 @@ export function Composer({
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [whenOpen, setWhenOpen] = useState(false);
   const [pending, setPending] = useState<Intent | null>(null);
+  const [attempted, setAttempted] = useState(false);
+  const [confirmNow, setConfirmNow] = useState(false);
   const [tiktokLimits, setTikTokLimits] = useState<Record<string, TikTokLimits>>({});
   const onTikTokLimits = useCallback(
     (accountId: string, limits: TikTokLimits) =>
@@ -247,10 +264,9 @@ export function Composer({
     const issues = intent === "draft" ? draftIssues : publishIssues;
     const firstError = issues.find((issue) => issue.level === "error");
     if (firstError) {
+      setAttempted(true);
       toast.error(firstError.message);
-      document
-        .getElementById(SECTION_FOR[firstError.field])
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      scrollToSection(SECTION_FOR[firstError.field]);
       return;
     }
 
@@ -329,14 +345,16 @@ export function Composer({
   const formatLabel = FORMATS[state.format].label.toLowerCase();
 
   return (
-    <div className="flex min-h-svh flex-col">
+    // shrink-0 keeps the column as tall as its content, so the sticky dock
+    // stays at the bottom of the form instead of overlapping it.
+    <div className="flex min-h-svh shrink-0 flex-col">
       <PageHeader
         parents={[{ label: "Posts", href: "/scheduler/posts" }]}
         title={post ? "Edit post" : `New ${formatLabel} post`}
         description={null}
       />
 
-      <div className="mx-auto grid w-full max-w-7xl flex-1 gap-8 px-4 py-6 md:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-8">
+      <div className="mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 gap-8 px-4 py-6 md:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-8">
         <div className="min-w-0 space-y-8">
           {!post ? (
             <Tabs value={state.format} onValueChange={(value) => switchFormat(value as PostFormat)}>
@@ -366,7 +384,9 @@ export function Composer({
               selected={state.accountIds}
               locked={locked}
               onToggle={composer.toggleAccount}
-              onSelectMany={(ids) => update((prev) => ({ ...prev, accountIds: ids }))}
+              onSelectMany={(ids, auto) =>
+                update((prev) => ({ ...prev, accountIds: ids }), !auto)
+              }
             />
           </ComposerSection>
 
@@ -428,29 +448,36 @@ export function Composer({
           </div>
         </div>
 
-        <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+        <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
           <PreviewPanel state={state} selectedAccounts={selectedAccounts} />
-          <Checklist issues={publishIssues} accounts={accounts} />
+          <Checklist issues={publishIssues} accounts={accounts} attempted={attempted} />
         </aside>
       </div>
 
-      <div className="sticky bottom-0 z-20 border-t bg-card/95 backdrop-blur supports-backdrop-filter:bg-card/85">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between md:px-6 lg:px-8">
+      <div className="sticky bottom-0 z-20 border-t border-border bg-card">
+        <div className="mx-auto flex w-full max-w-7xl items-center gap-2 px-4 py-3 md:px-6 lg:px-8">
           <Popover open={whenOpen} onOpenChange={setWhenOpen}>
             <PopoverTrigger
               render={
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="outline"
+                  aria-label={whenLabel}
                   className={cn(
-                    "justify-start font-normal",
+                    "relative font-normal max-sm:w-9 max-sm:px-0 sm:mr-auto",
                     !state.scheduledAt && "text-muted-foreground",
                   )}
                 />
               }
             >
               <CalendarBlank />
-              {whenLabel}
+              <span className="hidden sm:inline">{whenLabel}</span>
+              {state.scheduledAt ? (
+                <span
+                  aria-hidden
+                  className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-primary sm:hidden"
+                />
+              ) : null}
             </PopoverTrigger>
             <PopoverContent align="start" side="top" className="w-auto p-3">
               <SchedulePicker
@@ -475,63 +502,65 @@ export function Composer({
             </PopoverContent>
           </Popover>
 
-          <div className="flex items-center gap-2 sm:justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending !== null}
+            onClick={() => void submit("draft")}
+            className="flex-1 max-sm:px-3 sm:flex-none"
+          >
+            {pending === "draft" ? <Spinner /> : null}
+            Save draft
+          </Button>
+          <ButtonGroup className="flex-1 sm:flex-none">
             <Button
               type="button"
-              variant="outline"
               disabled={pending !== null}
-              onClick={() => void submit("draft")}
+              onClick={() =>
+                void submit(state.scheduledAt ? "schedule" : nextSlot ? "queue" : "schedule")
+              }
+              className="flex-1 max-sm:px-3"
             >
-              {pending === "draft" ? <Spinner /> : null}
-              Save draft
+              {pending && pending !== "draft" ? <Spinner /> : null}
+              {state.scheduledAt ? "Schedule" : nextSlot ? "Add to queue" : "Schedule"}
             </Button>
-            <ButtonGroup>
-              <Button
-                type="button"
-                disabled={pending !== null}
-                onClick={() =>
-                  void submit(state.scheduledAt ? "schedule" : nextSlot ? "queue" : "schedule")
+            <ButtonGroupSeparator className="bg-primary-foreground/25" />
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    type="button"
+                    size="icon"
+                    aria-label="More publishing options"
+                    disabled={pending !== null}
+                  />
                 }
               >
-                {pending && pending !== "draft" ? <Spinner /> : null}
-                {state.scheduledAt ? "Schedule" : nextSlot ? "Add to queue" : "Schedule"}
-              </Button>
-              <ButtonGroupSeparator className="bg-primary-foreground/25" />
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      type="button"
-                      size="icon"
-                      aria-label="More publishing options"
-                      disabled={pending !== null}
-                    />
-                  }
+                <CaretDown />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" side="top" className="w-64">
+                <DropdownMenuItem onClick={() => setWhenOpen(true)}>
+                  <CalendarBlank />
+                  Pick a date and time
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => void submit("queue")}>
+                  <Queue />
+                  <span className="flex-1">Add to queue</span>
+                  {nextSlot ? (
+                    <span className="text-xs text-muted-foreground">
+                      {formatDayTime(nextSlot, state.timezone)}
+                    </span>
+                  ) : null}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => (blocking.length ? void submit("now") : setConfirmNow(true))}
                 >
-                  <CaretDown />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" side="top" className="w-64">
-                  <DropdownMenuItem onClick={() => setWhenOpen(true)}>
-                    <CalendarBlank />
-                    Pick a date and time
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => void submit("queue")}>
-                    <Queue />
-                    <span className="flex-1">Add to queue</span>
-                    {nextSlot ? (
-                      <span className="text-xs text-muted-foreground">
-                        {formatDayTime(nextSlot, state.timezone)}
-                      </span>
-                    ) : null}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => void submit("now")}>
-                    <PaperPlaneTilt />
-                    Publish now
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </ButtonGroup>
-          </div>
+                  <PaperPlaneTilt />
+                  Publish now
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </ButtonGroup>
         </div>
         {blocking.length && state.accountIds.length ? (
           <span className="sr-only" aria-live="polite">
@@ -539,6 +568,13 @@ export function Composer({
           </span>
         ) : null}
       </div>
+
+      <PublishNowDialog
+        open={confirmNow}
+        onOpenChange={setConfirmNow}
+        accounts={state.accountIds.length}
+        onConfirm={() => void submit("now")}
+      />
 
       <AlertDialog
         open={confirmFormat !== null}

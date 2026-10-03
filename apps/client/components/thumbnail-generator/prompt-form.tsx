@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import type { ThumbnailTemplate } from "@/lib/thumbmaker-types";
 import {
   CountSelect,
+  GHOST_TRIGGER_CLASS,
   ParamControl,
   type ParamConfig,
 } from "@/components/generator/param-control";
@@ -21,6 +22,7 @@ import { AttachmentStrip } from "@/components/generator/attachment-strip";
 import { useMediaAttachments } from "@/components/generator/use-media-attachments";
 import type { UploadField } from "@/components/generator/attachments";
 import {
+  COMPOSER_PROMPT_CLASS,
   AddMediaButton,
   ComposerCard,
   ComposerDivider,
@@ -204,7 +206,7 @@ export function ThumbPromptForm({ onGenerationsStarted }: ThumbPromptFormProps) 
     <>
       <ComposerDock onFiles={routeFiles}>
         {(template || visibleAttachments.length > 0) && (
-          <div className="flex items-end gap-2 overflow-x-auto">
+          <div className="no-scrollbar flex items-end gap-2 overflow-x-auto">
             {template && (
               <TemplateStrip template={template} onRemove={() => setTemplate(null)} />
             )}
@@ -235,7 +237,7 @@ export function ThumbPromptForm({ onGenerationsStarted }: ThumbPromptFormProps) 
               size="sm"
               disabled={submitting}
               onClick={() => setTemplatesOpen(true)}
-              className="text-xs font-normal text-muted-foreground hover:text-foreground"
+              className={GHOST_TRIGGER_CLASS}
             >
               <GridFour />
               {template ? "Change template" : "Template"}
@@ -245,7 +247,7 @@ export function ThumbPromptForm({ onGenerationsStarted }: ThumbPromptFormProps) 
               size="sm"
               disabled={submitting}
               onClick={() => setContextOpen(true)}
-              className="text-xs font-normal text-muted-foreground hover:text-foreground"
+              className={GHOST_TRIGGER_CLASS}
             >
               <LinkSimple />
               Context
@@ -308,12 +310,12 @@ export function ThumbPromptForm({ onGenerationsStarted }: ThumbPromptFormProps) 
               maxLength={PROMPT_MAX_CHARS}
               disabled={submitting}
               rows={3}
-              className="field-sizing-content block max-h-52 min-h-20 w-full resize-none bg-transparent px-4 py-3 text-sm leading-relaxed placeholder:text-muted-foreground focus:outline-none disabled:opacity-50"
+              className={COMPOSER_PROMPT_CLASS}
             />
             {prompt.length >= PROMPT_COUNT_AT && (
               <span
                 className={cn(
-                  "absolute right-4 bottom-1 text-xs tabular-nums",
+                  "absolute right-4 bottom-1 text-2xs tabular-nums",
                   prompt.length >= PROMPT_MAX_CHARS
                     ? "text-destructive"
                     : "text-muted-foreground",

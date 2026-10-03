@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CheckCircle, WarningCircle } from "@phosphor-icons/react/dist/ssr";
 import { UnsoraLogo } from "@/components/brand/unsora-logo";
 import { PlatformIcon } from "@/components/scheduler/platform-icon";
+import { buttonVariants } from "@/components/ui/button";
 import { platformName } from "@/lib/scheduler/formats";
 
 export const metadata = { title: "Account connected · Unsora", robots: { index: false } };
@@ -23,29 +24,56 @@ export default async function ConnectedPage({
   const ok = status === "success";
 
   return (
-    <div className="flex min-h-svh flex-col bg-background px-6 py-6 sm:px-10">
+    <div className="flex min-h-svh flex-col bg-background px-4 py-6 sm:px-10">
       <Link href="https://tryunsora.com" className="inline-flex w-fit">
         <UnsoraLogo variant="full" priority className="h-7" />
       </Link>
 
       <main className="flex flex-1 items-center justify-center py-12">
-        <div className="w-full max-w-sm space-y-4 text-center">
+        <div className="w-full max-w-sm space-y-4 rounded-2xl border bg-card p-8 text-center shadow-sm">
           <div className="relative mx-auto w-fit">
-            {provider ? <PlatformIcon provider={provider} className="size-12" /> : null}
+            {provider ? (
+              // The ring keeps black marks (TikTok, Threads) visible on dark backgrounds.
+              <PlatformIcon provider={provider} className="size-12 rounded-full ring-1 ring-border" />
+            ) : null}
             {ok ? (
-              <CheckCircle weight="fill" className="absolute -right-2 -bottom-2 size-6 rounded-full bg-background text-success" />
+              <CheckCircle
+                weight="fill"
+                className="absolute -right-2 -bottom-2 size-6 rounded-full bg-card text-success"
+              />
             ) : (
-              <WarningCircle weight="fill" className="absolute -right-2 -bottom-2 size-6 rounded-full bg-background text-destructive" />
+              <WarningCircle
+                weight="fill"
+                className="absolute -right-2 -bottom-2 size-6 rounded-full bg-card text-destructive"
+              />
             )}
           </div>
           <h1 className="text-xl font-semibold">
             {ok ? `${name} connected` : `Couldn't connect ${name}`}
           </h1>
-          <p className="text-sm text-muted-foreground">
-            {ok
-              ? "The account is now linked to the Unsora workspace that sent you this link. You can close this tab."
-              : error || "Something went wrong. Try the link again, or ask for a new one."}
-          </p>
+          {ok ? (
+            <p className="text-sm text-muted-foreground">
+              The account is now linked to the Unsora workspace that sent you this link. You can
+              close this tab.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Try the link again, or ask whoever sent it for a new one.
+              </p>
+              {error ? (
+                // Usually our own reason (expired link, plan limit); provider text is kept short.
+                <p className="line-clamp-3 text-xs text-muted-foreground" title={error}>
+                  {error}
+                </p>
+              ) : null}
+            </div>
+          )}
+          <div className="pt-2">
+            <Link href="/" className={buttonVariants()}>
+              Open Unsora
+            </Link>
+          </div>
         </div>
       </main>
     </div>

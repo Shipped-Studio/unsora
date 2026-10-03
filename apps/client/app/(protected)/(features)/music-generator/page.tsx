@@ -1,7 +1,12 @@
 "use client";
 
 import { MusicNotes } from "@phosphor-icons/react";
-import { ToolEmpty, ToolPage } from "@/components/generator/tool-layout";
+import {
+  ToolEmpty,
+  ToolPage,
+  ToolPane,
+  ToolSidebar,
+} from "@/components/generator/tool-layout";
 import {
   AudioRowSkeleton,
   MusicGenerationCard,
@@ -45,7 +50,7 @@ function toCard(g: MusicGeneration): MusicCardData {
   };
 }
 
-const LIST_CLASS = "grid gap-2 @3xl:grid-cols-2 @7xl:grid-cols-3";
+const LIST_CLASS = "grid grid-cols-1 gap-2 @3xl:grid-cols-2 @7xl:grid-cols-3";
 
 export default function MusicGeneratorPage() {
   const { currentTrack, stop } = useMusicPlayer();
@@ -93,19 +98,16 @@ export default function MusicGeneratorPage() {
   const isEmpty = activeCards.length === 0 && historyCards.length === 0;
 
   return (
-    <ToolPage className="p-0 sm:p-0 lg:flex lg:items-start">
-      <aside className="border-b lg:sticky lg:top-14 lg:h-[calc(100svh-3.5rem)] lg:w-95 lg:shrink-0 lg:border-r lg:border-b-0">
+    <ToolPage className="p-0 sm:p-0 lg:flex-row lg:items-start">
+      <ToolSidebar>
         <MusicGenerationForm
           onSubmit={async (payload) => {
             await submitGeneration(payload);
           }}
         />
-      </aside>
+      </ToolSidebar>
 
-      <section
-        aria-label="Songs"
-        className="@container min-w-0 flex-1 px-3 py-4 sm:px-6 sm:py-6"
-      >
+      <ToolPane label="Songs">
         {isLoading && activeCards.length === 0 ? (
           <div className={LIST_CLASS}>
             {Array.from({ length: 8 }).map((_, i) => (
@@ -151,7 +153,7 @@ export default function MusicGeneratorPage() {
             ) : null}
           </>
         )}
-      </section>
+      </ToolPane>
     </ToolPage>
   );
 }

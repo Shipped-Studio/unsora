@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import type { UploadField, Attachment } from "./attachments";
+import { MEDIA_ICON_BUTTON_CLASS } from "./result-tile";
 
 interface MediaSlotsProps {
   fields: UploadField[];
@@ -44,8 +45,8 @@ export function MediaSlots({
     >
       <p className="px-4 pt-3 text-xs text-muted-foreground">
         {onUpload
-          ? "Pick from your files or upload new ones."
-          : "Pick from your files."}
+          ? "Pick from your Library or upload new files."
+          : "Pick from your Library."}
       </p>
 
       {slotFields.length > 0 && (
@@ -87,7 +88,7 @@ export function MediaSlots({
                 type="button"
                 onClick={() => onPick(field)}
                 disabled={count >= field.max}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-secondary disabled:pointer-events-none disabled:opacity-50"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors outline-none hover:bg-secondary focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
               >
                 <field.icon className="size-4 shrink-0 text-muted-foreground" />
                 <span className="flex-1 text-left">{field.label}</span>
@@ -131,7 +132,7 @@ function SlotBox({
   return (
     <div className="flex w-20 flex-col items-center gap-1.5">
       {attachment ? (
-        <div className="group relative size-16 overflow-hidden rounded-xl bg-muted">
+        <div className="relative size-16 overflow-hidden rounded-xl bg-muted">
           {attachment.kind === "image" && (
             <Image
               src={attachment.objectUrl}
@@ -157,25 +158,27 @@ function SlotBox({
             </div>
           )}
           {attachment.status === "uploading" && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/60">
+            <div className="absolute inset-0 flex items-center justify-center bg-scrim/50 text-media-foreground">
               <Spinner />
             </div>
           )}
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-xs"
             onClick={() => onRemove(attachment.id)}
             aria-label={`Remove ${field.label.toLowerCase()}`}
-            className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full border bg-background text-foreground transition-opacity focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100"
+            className={cn("absolute top-1 right-1", MEDIA_ICON_BUTTON_CLASS)}
           >
-            <X className="size-3" weight="bold" />
-          </button>
+            <X weight="bold" />
+          </Button>
         </div>
       ) : (
         <button
           type="button"
           onClick={() => onPick(field)}
           aria-label={`Add ${field.label.toLowerCase()}`}
-          className="flex size-16 items-center justify-center rounded-xl border border-dashed text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          className="flex size-16 items-center justify-center rounded-xl border border-dashed text-muted-foreground transition-colors outline-none hover:bg-secondary hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <field.icon className="size-5" />
         </button>

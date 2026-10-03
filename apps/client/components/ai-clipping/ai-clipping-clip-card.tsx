@@ -8,8 +8,14 @@ import {
   FilmStrip,
   Trash,
   TrendUp,
-  WarningCircle,
 } from "@phosphor-icons/react";
+import {
+  FailedState,
+  MEDIA_ICON_BUTTON_CLASS,
+  PlayBadge,
+  UnavailableState,
+  useImageFade,
+} from "@/components/generator/result-tile";
 import { ScheduleLink } from "@/components/generator/tool-layout";
 import {
   AlertDialog,
@@ -79,6 +85,7 @@ export function AIClippingClipCard({
   const preparing = jobActive && !thumbnailUrl && !videoUrl && !failed;
   const hasPreview = Boolean(thumbnailUrl || videoUrl);
   const momentUrl = buildSourceTimestampUrl(sourceUrl, clip.startTime);
+  const fade = useImageFade(thumbnailUrl);
 
   const meta = preparing
     ? "Preparing"
@@ -87,7 +94,8 @@ export function AIClippingClipCard({
       : [duration, start ? `from ${start}` : null].filter(Boolean).join(" · ");
 
   return (
-    <article className="flex flex-col overflow-hidden rounded-xl bg-muted">
+    // White card: clip cards sit inside the grey job group.
+    <article className="group relative flex flex-col overflow-hidden rounded-xl bg-card">
       {hasPreview ? (
         <button
           type="button"
@@ -98,16 +106,21 @@ export function AIClippingClipCard({
             clipAspectClass(ratio),
           )}
         >
-          {thumbnailUrl ? (
+          {thumbnailUrl && fade.failed && !videoUrl ? (
+            <UnavailableState />
+          ) : thumbnailUrl && !fade.failed ? (
             <img
               src={getCdnUrl(thumbnailUrl)}
               alt={title}
               loading="lazy"
-              className="size-full object-cover"
+              onLoad={fade.onLoad}
+              onError={fade.onError}
+              className={cn("size-full object-cover", fade.className)}
             />
           ) : (
             <VideoThumbnail videoUrl={getCdnUrl(videoUrl!)} alt={title} />
           )}
+          <PlayBadge />
           {score != null ? (
             <Badge
               variant="secondary"
@@ -127,6 +140,10 @@ export function AIClippingClipCard({
             </Badge>
           ) : null}
         </button>
+      ) : failed ? (
+        <div className={cn("bg-muted", clipAspectClass(ratio))}>
+          <FailedState error={clip.error} kind="file" title="Clip failed" />
+        </div>
       ) : (
         <div
           className={cn(
@@ -139,79 +156,68 @@ export function AIClippingClipCard({
               <Spinner className="text-muted-foreground" />
               <span className="text-xs text-muted-foreground">Preparing</span>
             </>
-          ) : failed ? (
-            <>
-              <WarningCircle className="size-5 text-destructive" />
-              <p className="line-clamp-3 text-xs text-destructive">
-                {clip.error || "This clip failed."}
-              </p>
-            </>
           ) : (
             <FilmStrip className="size-6 text-muted-foreground" />
           )}
         </div>
       )}
 
-      <div className="flex flex-1 flex-col gap-3 p-3">
-        <div className="flex items-start gap-2">
-          <div className="min-w-0 flex-1">
-            <p className="line-clamp-2 text-sm font-medium" title={title}>
-              {title}
-            </p>
-            <p
-              className={cn(
-                "truncate text-xs tabular-nums",
-                failed ? "text-destructive" : "text-muted-foreground",
-              )}
+      {!preparing ? (
+        <div className="absolute top-2 right-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className={MEDIA_ICON_BUTTON_CLASS}
+                  aria-label={`More actions for ${title}`}
+                />
+              }
             >
-              {meta}
-            </p>
-          </div>
-          {!preparing ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="-mt-1 -mr-1"
-                    aria-label={`More actions for ${title}`}
-                  />
-                }
-              >
-                <DotsThree weight="bold" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                {momentUrl ? (
-                  <DropdownMenuItem
-                    render={
-                      <a href={momentUrl} target="_blank" rel="noopener noreferrer" />
-                    }
-                  >
-                    <ArrowSquareOut />
-                    Open in source video
-                  </DropdownMenuItem>
-                ) : null}
-                {momentUrl ? <DropdownMenuSeparator /> : null}
+              <DotsThree weight="bold" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              {momentUrl ? (
                 <DropdownMenuItem
-                  variant="destructive"
-                  onClick={() => setConfirmOpen(true)}
+                  render={
+                    <a href={momentUrl} target="_blank" rel="noopener noreferrer" />
+                  }
                 >
-                  <Trash />
-                  Delete clip
+                  <ArrowSquareOut />
+                  Open in source video
                 </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
+              ) : null}
+              {momentUrl ? <DropdownMenuSeparator /> : null}
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => setConfirmOpen(true)}
+              >
+                <Trash />
+                Delete clip
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ) : null}
+
+      <div className="flex flex-1 flex-col gap-2 p-3">
+        <div className="min-w-0">
+          <p className="line-clamp-2 text-sm font-medium" title={title}>
+            {title}
+          </p>
+          <p className="truncate text-xs text-muted-foreground tabular-nums">
+            {meta}
+          </p>
         </div>
 
         {videoUrl ? (
-          <div className="mt-auto flex gap-2">
-            <ScheduleLink url={videoUrl} mediaType="video" className="flex-1" />
+          <div className="mt-auto flex items-center gap-1">
+            <ScheduleLink url={videoUrl} mediaType="video" size="xs" variant="secondary" />
             <a
               href={getCdnUrl(videoUrl, { download: true })}
               download
-              className={buttonVariants({ variant: "outline", size: "icon-sm" })}
+              className={buttonVariants({ variant: "ghost", size: "icon-xs" })}
               aria-label={`Download ${title}`}
             >
               <DownloadSimple />

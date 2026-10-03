@@ -9,10 +9,7 @@ import {
   Copy,
   DotsThree,
   DownloadSimple,
-  ImageSquare,
-  Play,
   Trash,
-  WarningCircle,
 } from "@phosphor-icons/react";
 import {
   AlertDialog,
@@ -37,6 +34,14 @@ import { VideoThumbnail } from "@/components/ui/video-thumbnail";
 import { scheduleHref } from "@/lib/scheduler/formats";
 import { getCdnUrl } from "@/lib/video-utils";
 import { cn } from "@/lib/utils";
+import {
+  FailedState,
+  MEDIA_ICON_BUTTON_CLASS,
+  PlayBadge,
+  TILE_CLASS,
+  UnavailableState,
+  useImageFade,
+} from "./result-tile";
 
 const cdnLoader = ({ src }: { src: string }) => src;
 
@@ -95,7 +100,7 @@ export function DeleteResultDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete this {noun}?</AlertDialogTitle>
           <AlertDialogDescription>
-            It will be removed from this page and from Files. This can&apos;t be
+            It will be removed from this page and from your Library. This can&apos;t be
             undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -142,20 +147,40 @@ export function MediaResultCard({
     result.mediaType === "image" ? (mediaUrl ?? result.thumbnailUrl) : mediaUrl;
   const title = result.prompt.trim() || `Untitled ${noun}`;
   const canDelete = !result.local && !!onDelete;
+  const fade = useImageFade(previewUrl);
+  // An image that fails to load reads as "File unavailable", not a blank tile.
+  const showMedia =
+    complete && !!previewUrl && !(result.mediaType === "image" && fade.failed);
+
+  const tileAction = canDelete ? (
+    <Button
+      variant="outline"
+      size="xs"
+      className="mt-1"
+      onClick={() => setConfirmDelete(true)}
+    >
+      <Trash />
+      Delete
+    </Button>
+  ) : onDismiss ? (
+    <Button
+      variant="outline"
+      size="xs"
+      className="mt-1"
+      onClick={() => onDismiss(result.id)}
+    >
+      Dismiss
+    </Button>
+  ) : null;
 
   return (
-    <div
-      className={cn(
-        "group relative overflow-hidden rounded-xl bg-muted",
-        aspectClassName,
-      )}
-    >
-      {complete && previewUrl ? (
+    <div className={cn("group relative", TILE_CLASS, aspectClassName)}>
+      {showMedia && previewUrl ? (
         <button
           type="button"
           onClick={() => onOpen?.(result)}
           aria-label={`Open ${noun}: ${title}`}
-          className="absolute inset-0 size-full cursor-pointer bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
+          className="absolute inset-0 size-full cursor-pointer outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
         >
           {result.mediaType === "video" ? (
             <>
@@ -164,9 +189,7 @@ export function MediaResultCard({
                 thumbnailUrl={result.thumbnailUrl}
                 alt=""
               />
-              <span className="absolute bottom-2 left-2 flex size-7 items-center justify-center rounded-full bg-background/90 text-foreground">
-                <Play className="size-3.5" weight="fill" />
-              </span>
+              <PlayBadge />
             </>
           ) : (
             <Image
@@ -175,14 +198,16 @@ export function MediaResultCard({
               alt=""
               fill
               sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
-              className="object-cover"
+              onLoad={fade.onLoad}
+              onError={fade.onError}
+              className={cn("object-cover", fade.className)}
             />
           )}
         </button>
       ) : pending ? (
         <div
           role="status"
-          className="flex size-full flex-col items-center justify-center gap-2 bg-muted/40 px-4 text-center"
+          className="flex size-full flex-col items-center justify-center gap-2 px-4 text-center"
         >
           <Spinner aria-hidden className="text-muted-foreground" />
           <span className="text-sm text-muted-foreground">
@@ -194,52 +219,21 @@ export function MediaResultCard({
             </p>
           )}
         </div>
+      ) : failed ? (
+        <FailedState error={result.error}>{tileAction}</FailedState>
       ) : (
-        <div className="flex size-full flex-col items-center justify-center gap-1.5 px-4 text-center">
-          {failed ? (
-            <WarningCircle className="size-5 text-destructive" />
-          ) : (
-            <ImageSquare className="size-5 text-muted-foreground" />
-          )}
-          <p className="text-sm font-medium">
-            {failed ? "Generation failed" : "File unavailable"}
-          </p>
-          <p className="line-clamp-3 text-xs text-muted-foreground">
-            {failed
-              ? result.error || "The provider didn't return a result."
-              : "The file for this result is missing."}
-          </p>
-          {canDelete ? (
-            <Button
-              variant="outline"
-              size="xs"
-              className="mt-1"
-              onClick={() => setConfirmDelete(true)}
-            >
-              <Trash />
-              Delete
-            </Button>
-          ) : onDismiss ? (
-            <Button
-              variant="outline"
-              size="xs"
-              className="mt-1"
-              onClick={() => onDismiss(result.id)}
-            >
-              Dismiss
-            </Button>
-          ) : null}
-        </div>
+        <UnavailableState>{tileAction}</UnavailableState>
       )}
 
-      {complete && previewUrl && (
-        <div className="absolute top-2 right-2 transition-opacity has-[[data-popup-open]]:opacity-100 md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
+      {showMedia && previewUrl && (
+        <div className="absolute top-2 right-2">
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
                 <Button
-                  variant="outline"
-                  size="icon-sm"
+                  variant="ghost"
+                  size="icon-xs"
+                  className={MEDIA_ICON_BUTTON_CLASS}
                   aria-label={`More actions for ${noun}`}
                 />
               }

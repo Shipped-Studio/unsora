@@ -25,6 +25,8 @@ import {
   GoogleButton,
   PasswordInput,
   ResendButton,
+  AUTH_CONTROL,
+  AUTH_LINK,
 } from "../../_components/auth-parts";
 
 const TERMS_URL = "https://tryunsora.com/terms";
@@ -55,7 +57,7 @@ function LegalConsent({
             href={TERMS_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-foreground underline underline-offset-4"
+            className="rounded-sm text-foreground underline underline-offset-4 hover:decoration-2 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
           >
             Terms of Service
           </a>{" "}
@@ -64,7 +66,7 @@ function LegalConsent({
             href={PRIVACY_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-foreground underline underline-offset-4"
+            className="rounded-sm text-foreground underline underline-offset-4 hover:decoration-2 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
           >
             Privacy Policy
           </a>
@@ -198,7 +200,7 @@ export function SignUpForm() {
           ) : null}
           <FormError message={error} />
           {captcha}
-          <Button type="submit" className="w-full" disabled={busy}>
+          <Button type="submit" size="lg" className="w-full" disabled={busy}>
             {busy ? <Spinner /> : null}
             Create account
           </Button>
@@ -253,7 +255,7 @@ export function SignUpForm() {
             </FieldError>
           </Field>
           <FormError message={error} />
-          <Button type="submit" className="w-full" disabled={busy || code.length < 6}>
+          <Button type="submit" size="lg" className="w-full" disabled={busy || code.length < 6}>
             {busy ? <Spinner /> : null}
             Verify email
           </Button>
@@ -278,7 +280,7 @@ export function SignUpForm() {
             Already have one?{" "}
             <Link
               href={`/sign-in${searchParams.toString() ? `?${searchParams}` : ""}`}
-              className="font-medium text-foreground underline-offset-4 hover:underline"
+              className={AUTH_LINK}
             >
               Sign in
             </Link>
@@ -295,6 +297,7 @@ export function SignUpForm() {
           <Field data-invalid={Boolean(errors.fields.emailAddress) || undefined}>
             <FieldLabel htmlFor="email">Email</FieldLabel>
             <Input
+              className={AUTH_CONTROL}
               id="email"
               name="email"
               type="email"
@@ -345,7 +348,7 @@ export function SignUpForm() {
         <FormError message={error} />
         {captcha}
 
-        <Button type="submit" className="w-full" disabled={busy || !email || !password}>
+        <Button type="submit" size="lg" className="w-full" disabled={busy}>
           {busy ? <Spinner /> : null}
           Create account
         </Button>

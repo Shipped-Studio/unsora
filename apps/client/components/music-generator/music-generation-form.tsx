@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Checkbox } from "@/components/ui/checkbox";
+import {
+  ToolSidebarBody,
+  ToolSidebarFooter,
+} from "@/components/generator/tool-layout";
 import { GenerateButton } from "@/components/ui/generate-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { VoiceSelector } from "@/components/voice-generator/voice-selector";
 
@@ -78,40 +82,8 @@ export function MusicGenerationForm({
   }
 
   return (
-    <div className="flex flex-col lg:h-full">
-      <div className="flex-1 space-y-6 p-4 sm:p-5 lg:overflow-y-auto">
-        <section className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="music-use-clone"
-              checked={useCloneVocal}
-              onCheckedChange={(checked) => {
-                setUseCloneVocal(checked === true);
-                if (checked !== true) setVoiceCloneId("");
-              }}
-              disabled={submitting}
-            />
-            <Label htmlFor="music-use-clone" className="font-normal">
-              Use my cloned voice
-            </Label>
-          </div>
-          {useCloneVocal ? (
-            <>
-              <VoiceSelector
-                value={voiceCloneId}
-                onChange={setVoiceCloneId}
-                disabled={submitting}
-                clonesOnly
-                label="Cloned voice"
-              />
-              <p className="text-xs text-muted-foreground">
-                Makes an instrumental track, then your cloned voice reads the
-                lyrics over it. It speaks, it doesn&apos;t sing.
-              </p>
-            </>
-          ) : null}
-        </section>
-
+    <>
+      <ToolSidebarBody>
         {!useClone ? (
           <div className="space-y-2">
             <Label htmlFor="music-model">Model</Label>
@@ -155,7 +127,7 @@ export function MusicGenerationForm({
             disabled={submitting}
             placeholder={LYRICS_PLACEHOLDER}
             rows={10}
-            className="field-sizing-fixed min-h-40 resize-y font-mono text-sm leading-relaxed"
+            className="field-sizing-fixed min-h-40 resize-y leading-relaxed"
           />
         </div>
 
@@ -179,9 +151,39 @@ export function MusicGenerationForm({
             Genre, tempo, mood and vocal style.
           </p>
         </div>
-      </div>
 
-      <div className="border-t p-4 sm:p-5">
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <Label htmlFor="music-use-clone">Use my cloned voice</Label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Makes an instrumental track, then your cloned voice reads the
+                lyrics over it. It speaks, it doesn&apos;t sing.
+              </p>
+            </div>
+            <Switch
+              id="music-use-clone"
+              checked={useCloneVocal}
+              onCheckedChange={(checked) => {
+                setUseCloneVocal(checked);
+                if (!checked) setVoiceCloneId("");
+              }}
+              disabled={submitting}
+            />
+          </div>
+          {useCloneVocal ? (
+            <VoiceSelector
+              value={voiceCloneId}
+              onChange={setVoiceCloneId}
+              disabled={submitting}
+              clonesOnly
+              label="Cloned voice"
+            />
+          ) : null}
+        </section>
+      </ToolSidebarBody>
+
+      <ToolSidebarFooter>
         <GenerateButton
           label={useClone ? "Generate with my voice" : isBgm ? "Generate music" : "Generate song"}
           credits={credits}
@@ -190,7 +192,7 @@ export function MusicGenerationForm({
           onClick={handleSubmit}
           className="w-full"
         />
-      </div>
-    </div>
+      </ToolSidebarFooter>
+    </>
   );
 }

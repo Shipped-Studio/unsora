@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { EmptyState, ErrorState } from "@/components/shared/states";
 import { AccountStack } from "@/components/scheduler/account-avatar";
 import { PostSheet } from "@/components/scheduler/post-sheet";
@@ -25,7 +26,6 @@ import {
 } from "@/hooks/use-schedule";
 import { dayKey, formatDay, formatTime } from "@/lib/scheduler/dates";
 import type { Post } from "@/lib/scheduler/types";
-import { cn } from "@/lib/utils";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -74,7 +74,7 @@ function Upcoming({ timeZone, onOpen }: { timeZone: string; onOpen: (id: string)
     return (
       <div className="space-y-2">
         {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-14 w-full rounded-lg" />
+          <Skeleton key={i} className="h-10 w-full rounded-lg" />
         ))}
       </div>
     );
@@ -91,23 +91,32 @@ function Upcoming({ timeZone, onOpen }: { timeZone: string; onOpen: (id: string)
   }
 
   return (
-    <div className="space-y-6">
+    <div className="divide-y divide-card rounded-xl bg-muted">
       {groups.map(([key, rows]) => (
-        <section key={key} className="space-y-2">
-          <h3 className="text-sm font-medium">{formatDay(rows[0].at, timeZone, true)}</h3>
-          <ul className="divide-y divide-card rounded-xl bg-muted">
+        <section
+          key={key}
+          aria-label={formatDay(rows[0].at, timeZone, true)}
+          className="grid grid-cols-1 gap-x-4 gap-y-1 p-2 sm:grid-cols-[10rem_minmax(0,1fr)]"
+        >
+          <h3
+            className="px-2 pt-1 text-sm font-medium sm:pt-2.5"
+            title={formatDay(rows[0].at, timeZone, true)}
+          >
+            {formatDay(rows[0].at, timeZone)}
+          </h3>
+          <ul className="space-y-1">
             {rows.map((row) =>
               row.kind === "post" ? (
                 <li key={row.post.id}>
                   <button
                     type="button"
                     onClick={() => onOpen(row.post.id)}
-                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-secondary"
+                    className="flex min-h-10 w-full items-center gap-3 rounded-lg px-2 py-1 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
                   >
                     <span className="w-16 shrink-0 text-sm font-medium tabular-nums">
                       {formatTime(row.at, timeZone)}
                     </span>
-                    <PostThumb post={row.post} />
+                    <PostThumb post={row.post} className="size-8 bg-card" />
                     <span className="min-w-0 flex-1 truncate text-sm">
                       {row.post.mainCaption.trim() || "No caption"}
                     </span>
@@ -118,14 +127,18 @@ function Upcoming({ timeZone, onOpen }: { timeZone: string; onOpen: (id: string)
                   </button>
                 </li>
               ) : (
-                <li key={`slot-${row.at}`} className="flex items-center gap-3 px-3 py-2.5">
+                <li
+                  key={`slot-${row.at}`}
+                  className="flex min-h-10 items-center gap-3 rounded-lg border border-dashed border-input py-1 pr-1 pl-2"
+                >
                   <span className="w-16 shrink-0 text-sm tabular-nums text-muted-foreground">
                     {formatTime(row.at, timeZone)}
                   </span>
-                  <span className="flex-1 text-sm text-muted-foreground">Open slot</span>
+                  <span className="flex-1 text-sm text-muted-foreground">Open</span>
                   <Link
                     href={`/scheduler/new?date=${encodeURIComponent(row.at)}`}
-                    className={buttonVariants({ variant: "ghost", size: "sm" })}
+                    aria-label={`Fill the open slot at ${formatTime(row.at, timeZone)}`}
+                    className={buttonVariants({ variant: "ghost", size: "xs" })}
                   >
                     <Plus />
                     Fill
@@ -161,7 +174,7 @@ function PostingTimes({ timeZone }: { timeZone: string }) {
       ),
     );
 
-  if (slotsQuery.isLoading) return <Skeleton className="h-80 w-full rounded-lg" />;
+  if (slotsQuery.isLoading) return <Skeleton className="h-80 w-full rounded-xl" />;
   if (slotsQuery.error) {
     return (
       <ErrorState
@@ -175,16 +188,16 @@ function PostingTimes({ timeZone }: { timeZone: string }) {
   return (
     <div className="space-y-4 rounded-xl bg-muted p-4">
       <div className="space-y-1">
-        <h3 className="text-sm font-medium">Posting times</h3>
+        <h3 className="text-sm font-semibold">Posting times</h3>
         <p className="text-sm text-muted-foreground">
           Add to queue puts a post in the next open time. Agents use these too when they
           don&apos;t pick a time.
         </p>
       </div>
 
-      <TimezoneCombobox value={activeZone} onChange={setZone} size="sm" className="w-full" />
+      <TimezoneCombobox value={activeZone} onChange={setZone} className="w-full" />
 
-      <div className="space-y-2 rounded-md bg-card p-3">
+      <div className="space-y-2 border-t border-border pt-4">
         <p className="text-xs font-medium text-muted-foreground">Add a time</p>
         <div className="flex items-center gap-2">
           <Input
@@ -192,11 +205,10 @@ function PostingTimes({ timeZone }: { timeZone: string }) {
             step={300}
             value={newTime}
             onChange={(event) => setNewTime(event.target.value)}
-            className="w-32"
+            className="min-w-36 flex-1"
             aria-label="Time"
           />
           <Button
-            size="sm"
             variant="outline"
             disabled={!newTime || !newDays.length}
             onClick={() =>
@@ -207,43 +219,42 @@ function PostingTimes({ timeZone }: { timeZone: string }) {
             Add
           </Button>
         </div>
-        <div className="flex flex-wrap gap-1" role="group" aria-label="Days">
-          {order.map((weekday) => {
-            const on = newDays.includes(weekday);
-            return (
-              <button
-                key={weekday}
-                type="button"
-                aria-pressed={on}
-                onClick={() =>
-                  setNewDays((prev) =>
-                    on ? prev.filter((d) => d !== weekday) : [...prev, weekday],
-                  )
-                }
-                className={cn(
-                  "h-7 w-10 rounded-md text-xs transition-colors",
-                  on ? "bg-accent font-medium text-accent-foreground" : "bg-secondary text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {WEEKDAYS[weekday]}
-              </button>
-            );
-          })}
-        </div>
+        <ToggleGroup
+          multiple
+          variant="outline"
+          size="sm"
+          spacing={1}
+          aria-label="Days"
+          value={newDays.map(String)}
+          onValueChange={(value) => setNewDays(value.map(Number))}
+          className="grid w-full grid-cols-7 gap-1"
+        >
+          {order.map((weekday) => (
+            <ToggleGroupItem
+              key={weekday}
+              value={String(weekday)}
+              className="min-w-0 px-0 text-xs aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 data-pressed:bg-primary"
+            >
+              {WEEKDAYS[weekday]}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
       </div>
 
-      <ul className="space-y-2">
+      <ul className="space-y-1 border-t border-border pt-4">
         {order.map((weekday) => {
           const times = slots.filter((s) => s.weekday === weekday);
           return (
             <li key={weekday} className="flex items-start gap-3">
-              <span className="w-10 pt-1 text-sm text-muted-foreground">{WEEKDAYS[weekday]}</span>
-              <div className="flex flex-1 flex-wrap gap-1.5">
+              <span className="h-8 w-10 shrink-0 text-sm leading-8 text-muted-foreground">
+                {WEEKDAYS[weekday]}
+              </span>
+              <div className="flex min-h-8 flex-1 flex-wrap items-center gap-1.5">
                 {times.length ? (
                   times.map((slot) => (
                     <span
                       key={slot.time}
-                      className="inline-flex h-7 items-center gap-1 rounded-md bg-card pr-1 pl-2 text-xs tabular-nums"
+                      className="inline-flex h-7 items-center gap-0.5 rounded-full bg-card pr-0.5 pl-2.5 text-xs tabular-nums"
                     >
                       {format(new Date(`2000-01-01T${slot.time}:00`), "h:mm a")}
                       <button
@@ -252,14 +263,14 @@ function PostingTimes({ timeZone }: { timeZone: string }) {
                         onClick={() =>
                           edit(slots.filter((s) => !(s.weekday === weekday && s.time === slot.time)))
                         }
-                        className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                        className="relative flex size-6 items-center justify-center rounded-full text-muted-foreground outline-none after:absolute after:-inset-1 hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
                       >
                         <X className="size-3" />
                       </button>
                     </span>
                   ))
                 ) : (
-                  <span className="pt-1 text-xs text-muted-foreground">No times</span>
+                  <span className="text-xs text-muted-foreground">No times</span>
                 )}
               </div>
             </li>
@@ -308,8 +319,10 @@ export function QueueView() {
   const timeZone = useSchedulerTimezone();
   const [openPostId, setOpenPostId] = useState<string | null>(null);
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <Upcoming timeZone={timeZone} onOpen={setOpenPostId} />
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="min-w-0 lg:self-start">
+        <Upcoming timeZone={timeZone} onOpen={setOpenPostId} />
+      </div>
       <aside className="lg:sticky lg:top-20 lg:self-start">
         <PostingTimes timeZone={timeZone} />
       </aside>

@@ -231,7 +231,6 @@ function LibraryView() {
     content = (
       <ErrorState
         title="Couldn't load your Library"
-        description={library.error?.message}
         onRetry={() => void library.refetch()}
       />
     );
@@ -276,10 +275,10 @@ function LibraryView() {
           icon={FolderOpen}
           title={copy.title}
           description={copy.description}
-          action={{ label: "Connect an agent", href: "/connect-agent" }}
+          action={{ label: "Upload", onClick: openFilePicker }}
           secondaryAction={
             tab === "all"
-              ? { label: "Upload a file", onClick: openFilePicker }
+              ? { label: "Connect an agent", href: "/connect-agent" }
               : { label: copy.tool ?? "Open a tool", href: LIBRARY_TOOL_HREF[tab] }
           }
         />
@@ -348,6 +347,7 @@ function LibraryView() {
             />
             <ImportMenu
               variant="default"
+              compact
               onUploadClick={openFilePicker}
               onImport={(items) => void transfers.importItems(items)}
             />

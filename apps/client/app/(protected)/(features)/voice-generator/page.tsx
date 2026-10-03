@@ -1,7 +1,12 @@
 "use client";
 
 import { Microphone } from "@phosphor-icons/react";
-import { ToolEmpty, ToolPage } from "@/components/generator/tool-layout";
+import {
+  ToolEmpty,
+  ToolPage,
+  ToolPane,
+  ToolSidebar,
+} from "@/components/generator/tool-layout";
 import { ErrorState } from "@/components/shared/states";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -9,7 +14,6 @@ import {
   VoiceRowSkeleton,
   type VoiceCardData,
 } from "@/components/voice-generator/generation-card";
-import { VoiceCloneList } from "@/components/voice-generator/voice-clone-list";
 import { VoiceGenerationForm } from "@/components/voice-generator/voice-generation-form";
 import { usePagedList } from "@/hooks/use-paged-list";
 import { useVoiceClones } from "@/hooks/use-voice-clones";
@@ -30,7 +34,7 @@ interface VoiceGeneration {
   createdAt: string;
 }
 
-const LIST_CLASS = "grid gap-2 @3xl:grid-cols-2 @7xl:grid-cols-3";
+const LIST_CLASS = "grid grid-cols-1 gap-2 @3xl:grid-cols-2 @7xl:grid-cols-3";
 
 export default function VoiceGeneratorPage() {
   const { catalog } = useVoiceClones();
@@ -103,24 +107,16 @@ export default function VoiceGeneratorPage() {
   const isEmpty = activeCards.length === 0 && historyCards.length === 0;
 
   return (
-    <ToolPage className="p-0 sm:p-0 lg:flex lg:items-start">
-      <aside className="border-b lg:sticky lg:top-14 lg:h-[calc(100svh-3.5rem)] lg:w-95 lg:shrink-0 lg:border-r lg:border-b-0">
+    <ToolPage className="p-0 sm:p-0 lg:flex-row lg:items-start">
+      <ToolSidebar>
         <VoiceGenerationForm
           onSubmit={async (payload) => {
             await submitGeneration(payload);
           }}
-        >
-          <section className="space-y-3">
-            <h2 className="text-sm font-medium">Your cloned voices</h2>
-            <VoiceCloneList />
-          </section>
-        </VoiceGenerationForm>
-      </aside>
+        />
+      </ToolSidebar>
 
-      <section
-        aria-label="Voiceovers"
-        className="@container min-w-0 flex-1 px-3 py-4 sm:px-6 sm:py-6"
-      >
+      <ToolPane label="Voiceovers">
         {isLoading && activeCards.length === 0 ? (
           <div className={LIST_CLASS}>
             {Array.from({ length: 8 }).map((_, i) => (
@@ -166,7 +162,7 @@ export default function VoiceGeneratorPage() {
             ) : null}
           </>
         )}
-      </section>
+      </ToolPane>
     </ToolPage>
   );
 }

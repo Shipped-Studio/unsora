@@ -180,7 +180,7 @@ function FolderPicker({ item }: { item: LibraryItem }) {
   return (
     <LibraryFolderSelect
       value={item.folderId ?? "none"}
-      className="h-8 w-full"
+      className="w-full"
       onChange={(value) => {
         if (value === "all") return;
         const folderId = value === "none" ? null : value;
@@ -245,8 +245,8 @@ export function LibraryItemDialog({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-h-[calc(100svh-2rem)] gap-0 overflow-y-auto p-0 sm:max-w-4xl">
-          <div className="grid md:grid-cols-[minmax(0,1fr)_19rem]">
-            <div className="flex min-h-56 items-center justify-center bg-muted p-4 max-md:rounded-t-xl md:rounded-l-xl">
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_19rem]">
+            <div className="flex min-h-56 items-center justify-center bg-muted p-4 max-md:rounded-t-2xl md:rounded-l-2xl">
               <Preview item={current} />
             </div>
 

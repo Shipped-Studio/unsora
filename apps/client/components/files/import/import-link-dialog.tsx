@@ -119,7 +119,7 @@ function LinkForm({
           value={text}
           placeholder="https://example.com/video.mp4"
           aria-invalid={error ? true : undefined}
-          className="max-h-48 font-mono text-xs"
+          className="max-h-48 font-mono text-base md:text-xs"
           onChange={(event) => {
             setText(event.target.value);
             if (error) setError(null);

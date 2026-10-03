@@ -13,6 +13,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useVoiceClones, type VoiceClone } from "@/hooks/use-voice-clones";
 
@@ -51,7 +58,7 @@ export function VoiceCloneList() {
 
   return (
     <>
-      <ul className="divide-y divide-card rounded-xl bg-muted">
+      <ul className="divide-y rounded-xl border">
         {catalog.clones.map((clone) => (
           <li
             key={clone.id}
@@ -108,6 +115,38 @@ export function VoiceCloneList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </>
+  );
+}
+
+/** "Manage voices" link beside the voice picker: lists cloned voices with delete. */
+export function ManageVoicesButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button
+        type="button"
+        variant="ghost"
+        size="xs"
+        className="-mr-1.5 text-muted-foreground"
+        onClick={() => setOpen(true)}
+      >
+        Manage voices
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Your cloned voices</DialogTitle>
+            <DialogDescription>
+              Voices you cloned show up in the voice picker. Deleting one
+              removes it everywhere.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60svh] overflow-y-auto">
+            <VoiceCloneList />
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

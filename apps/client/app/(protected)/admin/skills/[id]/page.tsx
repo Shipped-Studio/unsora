@@ -619,7 +619,7 @@ function SkillEditor({ id, skill }: { id: string; skill: AdminSkill }) {
                 {draft.steps.map((step, i) => (
                   <div
                     key={i}
-                    className="grid gap-2 rounded-lg bg-muted p-3 sm:grid-cols-[70px_1fr_auto]"
+                    className="grid gap-2 rounded-lg border bg-card p-3 sm:grid-cols-[70px_1fr_auto]"
                   >
                     <Input
                       aria-label={`Step ${i + 1} number`}
@@ -678,7 +678,7 @@ function MediaCard({
 
   return (
     <div className="overflow-hidden rounded-xl bg-muted">
-      <div className="relative aspect-9/16 bg-muted">
+      <div className="relative aspect-9/16">
         {media.type === "VIDEO" ? (
           <video
             src={media.url}
@@ -710,7 +710,6 @@ function MediaCard({
       </div>
       <div className="space-y-1.5 p-2">
         <Input
-          className="h-8 text-xs"
           aria-label="Media label"
           value={label}
           placeholder="Label"

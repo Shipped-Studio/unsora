@@ -65,7 +65,10 @@ export function SessionsSection() {
   };
 
   return (
-    <PageSection title="Sessions" description="Devices signed in to your account.">
+    <PageSection
+      title="Sessions"
+      description="Devices signed in to your account."
+    >
       <ItemGroup className="gap-0 rounded-xl bg-muted">
         <Item>
           <ItemContent>

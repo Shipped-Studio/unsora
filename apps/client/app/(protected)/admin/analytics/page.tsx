@@ -31,8 +31,8 @@ export default function AdminAnalyticsPage() {
     <AdminPage
       title="Analytics"
       description="Feature usage, completion rates and credit spend"
-      actions={<RangeSelect value={days} onChange={setDays} />}
     >
+      <RangeSelect value={days} onChange={setDays} />
       {error && !data ? (
         <ErrorState
           title="Couldn't load analytics"
@@ -127,8 +127,8 @@ function AnalyticsBody({ data, days }: { data: AdminAnalyticsData; days: number 
             <TableRow className="hover:bg-transparent">
               <Th>Feature</Th>
               <Th className="text-right">Total</Th>
-              <Th className="text-right">Done</Th>
-              <Th className="text-right">Failed</Th>
+              <Th className="hidden text-right md:table-cell">Done</Th>
+              <Th className="hidden text-right md:table-cell">Failed</Th>
               <Th>Success rate</Th>
               <Th className="text-right">Credits</Th>
             </TableRow>
@@ -141,7 +141,7 @@ function AnalyticsBody({ data, days }: { data: AdminAnalyticsData; days: number 
                   <Td>
                     <span className="flex items-center gap-2">
                       <span
-                        className={cn("size-2.5 shrink-0 rounded-xs", !color && "bg-muted")}
+                        className={cn("size-2.5 shrink-0 rounded-xs", !color && "bg-input")}
                         style={color ? { backgroundColor: color } : undefined}
                       />
                       {kindLabel(k.kind)}
@@ -150,27 +150,32 @@ function AnalyticsBody({ data, days }: { data: AdminAnalyticsData; days: number 
                   <Td className="text-right font-medium tabular-nums">
                     {k.total.toLocaleString()}
                   </Td>
-                  <Td className="text-right text-muted-foreground tabular-nums">
+                  <Td className="hidden text-right text-muted-foreground tabular-nums md:table-cell">
                     {k.completed.toLocaleString()}
                   </Td>
-                  <Td className="text-right text-muted-foreground tabular-nums">
+                  <Td className="hidden text-right text-muted-foreground tabular-nums md:table-cell">
                     {k.failed.toLocaleString()}
                   </Td>
                   <Td>
                     <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
+                      <div className="hidden h-1.5 w-24 overflow-hidden rounded-full bg-input sm:block">
                         <div
                           className={cn("h-full rounded-full", successTone(k.successRate))}
                           style={{ width: `${k.successRate}%` }}
                         />
                       </div>
-                      <span className="text-xs text-muted-foreground tabular-nums">
+                      <span className="text-sm text-muted-foreground tabular-nums">
                         {k.successRate}%
                       </span>
                     </div>
                   </Td>
-                  <Td className="text-right tabular-nums">
-                    {compactNumber(k.credits)}
+                  <Td
+                    className={cn(
+                      "text-right tabular-nums",
+                      k.credits === 0 && "text-muted-foreground",
+                    )}
+                  >
+                    {k.credits.toLocaleString()}
                   </Td>
                 </TableRow>
               );

@@ -185,7 +185,7 @@ export default function AiAvatarMakerPage() {
                 controls
                 autoPlay
                 playsInline
-                className="aspect-square w-full border-y bg-muted object-contain"
+                className="aspect-square w-full border-y bg-media object-contain"
               />
               <DialogFooter className="p-4">
                 <a

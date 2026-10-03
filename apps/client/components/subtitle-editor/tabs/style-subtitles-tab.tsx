@@ -83,7 +83,7 @@ export function StyleSubtitlesTab({
           </Button>
         }
       >
-        <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2">
           {FIELDS.map(({ key, label, unit, min, max }) => (
             <SliderField
               key={key}

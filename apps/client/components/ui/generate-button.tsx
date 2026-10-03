@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 
 interface GenerateButtonProps {
   credits?: number;
+  /** Free-form cost shown instead of `credits`, e.g. "4 credits/min". */
+  costLabel?: string;
   disabled?: boolean;
   onClick?: () => void;
   submitting?: boolean;
@@ -17,6 +19,7 @@ interface GenerateButtonProps {
 /** The primary action on every tool composer: label plus the credit cost. */
 export function GenerateButton({
   credits,
+  costLabel,
   disabled,
   onClick,
   submitting,
@@ -42,9 +45,9 @@ export function GenerateButton({
       ) : (
         <>
           {label}
-          {credits !== undefined ? (
-            <span className="font-normal tabular-nums opacity-70">
-              {credits} {credits === 1 ? "credit" : "credits"}
+          {costLabel || credits !== undefined ? (
+            <span className="font-normal tabular-nums opacity-70 group-disabled/button:opacity-100">
+              {costLabel ?? `${credits} ${credits === 1 ? "credit" : "credits"}`}
             </span>
           ) : null}
         </>

@@ -5,12 +5,20 @@ import Link from "next/link";
 import { useInView } from "react-intersection-observer";
 import {
   ArrowSquareOut,
-  DotsThreeVertical,
+  DotsThree,
   DownloadSimple,
-  Play,
+  FileVideo,
   Trash,
-  WarningCircle,
 } from "@phosphor-icons/react";
+import {
+  FailedState,
+  MEDIA_ICON_BUTTON_CLASS,
+  TILE_GHOST_BUTTON_CLASS,
+  PlayBadge,
+  TILE_CLASS,
+  TILE_SKELETON_BAR_CLASS,
+  TILE_SKELETON_CLASS,
+} from "@/components/generator/result-tile";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,7 +39,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { ScheduleLink } from "@/components/generator/tool-layout";
 import {
-  asSentence,
   downloadUrl,
   exportFileName,
   formatClock,
@@ -39,9 +46,7 @@ import {
 } from "@/components/subtitle-editor/format";
 import { getExportStatus } from "@/hooks/subtitle/use-subtitle-queries";
 import type { ExportListItem } from "@/hooks/subtitle/use-subtitle-api";
-
-export const EXPORT_GRID_CLASS =
-  "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
+import { cn } from "@/lib/utils";
 
 function exportMeta(item: ExportListItem): string {
   return [
@@ -88,35 +93,38 @@ export function ExportCard({
   const meta = exportMeta(item);
 
   return (
-    <article className="flex flex-col overflow-hidden rounded-xl bg-muted">
-      <div className="relative aspect-video bg-muted">
+    <article className={cn("group relative flex flex-col", TILE_CLASS)}>
+      <div className="relative aspect-video bg-card">
         {url ? (
           <button
             type="button"
             onClick={() => setPreviewOpen(true)}
             aria-label={`Play ${fileName}`}
-            className="group absolute inset-0 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
+            className="absolute inset-0 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
           >
             <VideoFrame url={url} />
-            <span className="absolute inset-0 flex items-center justify-center">
-              <span className="flex size-10 items-center justify-center rounded-full bg-background/90 text-foreground shadow-xs">
-                <Play weight="fill" className="size-4" />
-              </span>
-            </span>
+            <PlayBadge />
           </button>
-        ) : status === "failed" || status === "completed" ? (
-          <div className="flex size-full flex-col items-center justify-center gap-2 bg-muted px-4 text-center">
-            <WarningCircle className="size-6 text-destructive" />
+        ) : status === "failed" ? (
+          <FailedState
+            error={item.error}
+            kind="file"
+            title="Render failed"
+          />
+        ) : status === "completed" ? (
+          <div className="flex size-full flex-col items-center justify-center gap-1.5 px-4 text-center">
+            <FileVideo className="size-5 text-muted-foreground" />
+            <p className="text-sm font-medium">Video unavailable</p>
             <p className="text-xs text-muted-foreground">
-              {status === "failed" ? "Render failed" : "Video unavailable"}
+              The file for this export is missing.
             </p>
           </div>
         ) : (
           <div
             role="status"
-            className="flex size-full flex-col items-center justify-center gap-2 bg-muted"
+            className="flex size-full flex-col items-center justify-center gap-2"
           >
-            <Spinner aria-hidden className="size-5 text-muted-foreground" />
+            <Spinner aria-hidden className="text-muted-foreground" />
             <p className="text-xs text-muted-foreground">
               {status === "processing" ? "Rendering" : "Queued"}
             </p>
@@ -124,81 +132,75 @@ export function ExportCard({
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 p-4">
-        <div className="flex items-start gap-2">
-          <div className="min-w-0 flex-1 space-y-1">
-            <p className="truncate text-sm font-medium">{fileName}</p>
-            <p className="truncate text-xs tabular-nums text-muted-foreground">
-              {meta}
-            </p>
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="-mt-1 -mr-2"
-                  aria-label={`Actions for ${fileName}`}
-                />
-              }
-            >
-              <DotsThreeVertical />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              {showProjectLink && item.transcription ? (
-                <>
-                  <DropdownMenuItem
-                    render={
-                      <Link href={`/subtitle-editor/${item.transcription.id}`} />
-                    }
-                  >
-                    <ArrowSquareOut />
-                    Open project
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
-              ) : null}
-              <DropdownMenuItem
-                variant="destructive"
-                onClick={() => onDelete(item)}
-              >
-                <Trash />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {status === "failed" ? (
-          <>
-            <p className="line-clamp-3 text-xs text-destructive">
-              {item.error
-                ? asSentence(item.error)
-                : "The render failed. Delete it and export again."}
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-auto self-start"
+      <div className="absolute top-2 right-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className={MEDIA_ICON_BUTTON_CLASS}
+                aria-label={`Actions for ${fileName}`}
+              />
+            }
+          >
+            <DotsThree weight="bold" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            {showProjectLink && item.transcription ? (
+              <>
+                <DropdownMenuItem
+                  render={
+                    <Link href={`/subtitle-editor/${item.transcription.id}`} />
+                  }
+                >
+                  <ArrowSquareOut />
+                  Open project
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            ) : null}
+            <DropdownMenuItem
+              variant="destructive"
               onClick={() => onDelete(item)}
             >
               <Trash />
               Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <div className="flex flex-1 flex-col gap-2 p-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{fileName}</p>
+          <p className="truncate text-xs tabular-nums text-muted-foreground">
+            {meta}
+          </p>
+        </div>
+
+        {status === "failed" ? (
+          <div className="mt-auto flex">
+            <Button variant="outline" size="xs" onClick={() => onDelete(item)}>
+              <Trash />
+              Delete
             </Button>
-          </>
+          </div>
         ) : null}
 
         {url ? (
-          <div className="mt-auto flex flex-wrap gap-2">
+          <div className="mt-auto flex items-center gap-1">
+            <ScheduleLink url={url} mediaType="video" size="xs" variant="outline" />
             <a
               href={downloadUrl(url, fileName)}
-              className={buttonVariants({ variant: "outline", size: "sm" })}
+              className={cn(
+                buttonVariants({ variant: "ghost", size: "icon-xs" }),
+                TILE_GHOST_BUTTON_CLASS,
+              )}
+              aria-label={`Download ${fileName}`}
             >
               <DownloadSimple />
-              Download
             </a>
-            <ScheduleLink url={url} mediaType="video" />
           </div>
         ) : null}
       </div>
@@ -215,7 +217,7 @@ export function ExportCard({
               controls
               autoPlay
               playsInline
-              className="max-h-[65svh] w-full rounded-lg bg-muted"
+              className="max-h-[65svh] w-full rounded-lg bg-media"
             />
             <DialogFooter>
               <ScheduleLink url={url} mediaType="video" size="default" />
@@ -236,17 +238,16 @@ export function ExportCard({
 
 export function ExportCardSkeleton() {
   return (
-    <div className="overflow-hidden rounded-xl bg-muted">
-      <Skeleton className="aspect-video w-full rounded-none" />
-      <div className="space-y-3 p-4">
+    <div className={TILE_SKELETON_CLASS}>
+      <Skeleton
+        className={cn("aspect-video w-full rounded-none", TILE_SKELETON_BAR_CLASS)}
+      />
+      <div className="space-y-3 p-3">
         <div className="space-y-2">
-          <Skeleton className="h-4 w-2/3" />
-          <Skeleton className="h-3 w-1/2" />
+          <Skeleton className={cn("h-4 w-2/3", TILE_SKELETON_BAR_CLASS)} />
+          <Skeleton className={cn("h-3 w-1/2", TILE_SKELETON_BAR_CLASS)} />
         </div>
-        <div className="flex gap-2">
-          <Skeleton className="h-8 w-24" />
-          <Skeleton className="h-8 w-24" />
-        </div>
+        <Skeleton className={cn("h-7 w-24", TILE_SKELETON_BAR_CLASS)} />
       </div>
     </div>
   );

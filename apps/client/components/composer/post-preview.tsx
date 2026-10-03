@@ -25,6 +25,41 @@ const PREVIEWS: Record<string, (props: PreviewProps) => React.ReactNode> = {
   pinterest: PinterestPreview,
 };
 
+/** Placeholder shaped like the post, shown until an account is picked. */
+function PreviewSkeleton({ format }: { format: ComposerState["format"] }) {
+  const tall = format === "video" || format === "slideshow";
+  return (
+    <div className="space-y-3">
+      <div
+        aria-hidden
+        className={cn(
+          "mx-auto overflow-hidden rounded-xl border border-border bg-card shadow-xs",
+          tall ? "w-44" : "w-full max-w-64",
+        )}
+      >
+        <div className="flex items-center gap-2 p-2.5">
+          <span className="size-6 shrink-0 rounded-full bg-muted" />
+          <span className="h-2 w-20 rounded-full bg-muted" />
+        </div>
+        {format === "text" ? null : (
+          // Capped below lg, where the preview sits under the form and a full
+          // phone-height placeholder would just be empty space.
+          <div
+            className={cn("bg-muted max-lg:max-h-32", tall ? "aspect-9/16" : "aspect-square")}
+          />
+        )}
+        <div className="space-y-1.5 p-2.5">
+          <span className="block h-2 w-full rounded-full bg-muted" />
+          <span className="block h-2 w-2/3 rounded-full bg-muted" />
+        </div>
+      </div>
+      <p className="text-center text-sm text-muted-foreground">
+        Pick an account to see how the post will look.
+      </p>
+    </div>
+  );
+}
+
 /** A phone-sized preview of the post on each selected account's app. */
 export function PreviewPanel({
   state,
@@ -41,7 +76,7 @@ export function PreviewPanel({
   return (
     <div className="overflow-hidden rounded-xl bg-muted">
       <div className="flex items-center justify-between gap-2 px-4 pt-3">
-        <span className="text-sm font-medium">Preview</span>
+        <span className="text-sm font-semibold">Preview</span>
         {active ? (
           <span className="truncate text-xs text-muted-foreground">
             {platformName(active.provider)} · {accountLabel(active)}
@@ -59,8 +94,10 @@ export function PreviewPanel({
               title={`${platformName(account.provider)} · ${accountLabel(account)}`}
               onClick={() => setActiveId(account.id)}
               className={cn(
-                "flex size-9 shrink-0 items-center justify-center rounded-md transition-colors",
-                active?.id === account.id ? "bg-card" : "opacity-60 hover:bg-secondary hover:opacity-100",
+                "flex size-9 shrink-0 items-center justify-center rounded-lg outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
+                active?.id === account.id
+                  ? "bg-card"
+                  : "opacity-60 hover:bg-secondary hover:opacity-100",
               )}
             >
               <PlatformIcon provider={account.provider} className="size-5" />
@@ -77,9 +114,7 @@ export function PreviewPanel({
             caption={captionFor(state, active.id)}
           />
         ) : (
-          <p className="py-10 text-center text-sm text-muted-foreground">
-            Pick an account to see how the post will look.
-          </p>
+          <PreviewSkeleton format={state.format} />
         )}
       </div>
     </div>

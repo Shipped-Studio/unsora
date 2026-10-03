@@ -76,6 +76,7 @@ const orientationParam: ParamConfig = {
 const soundParam: ParamConfig = {
   key: "keep_sound",
   label: "Keep audio",
+  offLabel: "No audio",
   type: "toggle",
   defaultValue: "on",
   options: [

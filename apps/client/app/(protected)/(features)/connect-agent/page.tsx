@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowSquareOut } from "@phosphor-icons/react";
+import { ArrowRight, BookOpen, Key } from "@phosphor-icons/react";
 import {
   PageBody,
   PageHeader,
@@ -13,6 +13,9 @@ import { AgentToolList } from "@/components/agents/agent-tool-list";
 import { AgentActivity } from "@/components/agents/agent-activity";
 import { SetupVideos } from "@/components/agents/setup-videos";
 import { DOCS_URL } from "@/lib/navigation";
+import { cn } from "@/lib/utils";
+
+const ICON_ONLY_MOBILE = "max-sm:size-8 max-sm:p-0";
 
 export default function AgentsPage() {
   return (
@@ -20,20 +23,23 @@ export default function AgentsPage() {
       <PageHeader
         actions={
           <>
+            {/* Icon-only below sm so the page title keeps its room. */}
             <Link
               href="/api-keys"
-              className={buttonVariants({ variant: "outline" })}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), ICON_ONLY_MOBILE)}
             >
-              API keys
+              <Key />
+              <span className="max-sm:sr-only">API keys</span>
             </Link>
             <a
               href={DOCS_URL}
               target="_blank"
               rel="noreferrer"
-              className={buttonVariants({ variant: "ghost" })}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), ICON_ONLY_MOBILE)}
             >
-              API docs
-              <ArrowSquareOut />
+              <BookOpen />
+              <span className="max-sm:sr-only">API docs</span>
+              <span className="sr-only"> (opens in a new tab)</span>
             </a>
           </>
         }
@@ -59,9 +65,15 @@ export default function AgentsPage() {
           actions={
             <Link
               href="/files?source=api"
-              className={buttonVariants({ variant: "ghost" })}
+              // Ghost padding would indent the label when the action wraps
+              // under the description on phones; pull it back to the edge.
+              className={cn(
+                buttonVariants({ variant: "ghost", size: "sm" }),
+                "max-sm:-ml-3",
+              )}
             >
               View in Library
+              <ArrowRight />
             </Link>
           }
         >

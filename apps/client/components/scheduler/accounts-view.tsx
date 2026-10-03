@@ -8,6 +8,7 @@ import {
   Link as LinkIcon,
   LinkBreak,
   Plugs,
+  Plus,
   Warning,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
@@ -62,8 +63,6 @@ import {
 import { useUserUsage } from "@/hooks/use-user-usage";
 import { formatRelative } from "@/lib/scheduler/dates";
 import {
-  FORMATS,
-  FORMAT_ORDER,
   PLATFORMS,
   PLATFORM_ORDER,
   isProvider,
@@ -71,6 +70,7 @@ import {
   type Provider,
 } from "@/lib/scheduler/formats";
 import type { ConnectedAccount } from "@/lib/scheduler/types";
+import { cn } from "@/lib/utils";
 
 /** Set before leaving for OAuth so we can return to onboarding afterwards. */
 export const RETURN_AFTER_CONNECT_KEY = "unsora:return-after-connect";
@@ -78,7 +78,7 @@ export const RETURN_AFTER_CONNECT_KEY = "unsora:return-after-connect";
 function HealthNote({ account }: { account: ConnectedAccount }) {
   if (account.status === "ok") {
     return (
-      <span className="text-xs text-muted-foreground">
+      <span className="block truncate text-xs text-muted-foreground">
         {account.lastPublishedAt
           ? `Last post ${formatRelative(account.lastPublishedAt)}`
           : "No posts yet"}
@@ -89,8 +89,8 @@ function HealthNote({ account }: { account: ConnectedAccount }) {
     <span
       className={
         account.status === "reconnect"
-          ? "flex items-center gap-1 text-xs text-destructive"
-          : "flex items-center gap-1 text-xs text-warning"
+          ? "flex items-center gap-1 text-xs whitespace-nowrap text-destructive"
+          : "flex items-center gap-1 text-xs whitespace-nowrap text-warning"
       }
       title={account.statusReason ?? undefined}
     >
@@ -120,17 +120,20 @@ function AccountRow({
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{accountLabel(account)}</p>
         <p className="truncate text-xs text-muted-foreground">
-          {platformName(account.provider)}
-          {accountHandle(account) ? ` · ${accountHandle(account)}` : ""}
+          {accountHandle(account) || platformName(account.provider)}
         </p>
+        <div className="mt-0.5 sm:hidden">
+          <HealthNote account={account} />
+        </div>
       </div>
-      <div className="hidden sm:block">
+      <div className="hidden shrink-0 sm:block">
         <HealthNote account={account} />
       </div>
       {needsAttention && isProvider(account.provider) ? (
         <Button
           size="sm"
-          variant="outline"
+          // Broken accounts get the solid button; "expires soon" is a softer nudge.
+          variant={account.status === "reconnect" ? "default" : "outline"}
           disabled={connecting}
           onClick={() => onReconnect(account)}
         >
@@ -230,6 +233,11 @@ function ConnectChoiceDialog({
             Connect it here, or copy a link for whoever owns the account. The link works for 1
             hour.
           </DialogDescription>
+          {provider && PLATFORMS[provider].connectNote ? (
+            <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+              {PLATFORMS[provider].connectNote}
+            </p>
+          ) : null}
         </DialogHeader>
 
         <div className="flex flex-col gap-2">
@@ -399,37 +407,30 @@ export function ConnectGrid({
           to add more.
         </p>
       ) : null}
-      <div className={compact ? "grid gap-2 sm:grid-cols-2" : "grid gap-3 sm:grid-cols-2 xl:grid-cols-3"}>
+      <div
+        className={cn(
+          "grid grid-cols-1 gap-2 min-[420px]:grid-cols-2",
+          compact ? "sm:grid-cols-3" : "sm:grid-cols-3 lg:grid-cols-4",
+        )}
+      >
         {platforms.map((provider) => {
           const spec = PLATFORMS[provider];
-          const formats = FORMAT_ORDER.filter((f) => spec.formats[f]).map((f) =>
-            FORMATS[f].label.toLowerCase(),
-          );
           const pending = connect.isPending && target === provider;
           return (
-            <div
+            <button
               key={provider}
-              className="flex items-start gap-3 rounded-xl bg-muted p-4"
+              type="button"
+              disabled={atLimit || (connect.isPending && target !== provider)}
+              onClick={() => (isPaid ? setChoice(provider) : openPricing())}
+              aria-label={`Connect ${spec.name}`}
+              className="group flex min-w-0 items-center gap-3 rounded-xl bg-muted p-3 text-left transition-colors outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <PlatformIcon provider={provider} className="size-8" />
-              <div className="min-w-0 flex-1 space-y-1">
-                <p className="text-sm font-medium">{spec.name}</p>
-                {!compact ? (
-                  <p className="text-xs text-muted-foreground">
-                    Posts {formats.join(", ")}.{spec.connectNote ? ` ${spec.connectNote}` : ""}
-                  </p>
-                ) : null}
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={atLimit || (connect.isPending && target !== provider)}
-                onClick={() => (isPaid ? setChoice(provider) : openPricing())}
-              >
-                {pending ? <Spinner /> : null}
-                Connect
-              </Button>
-            </div>
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">{spec.name}</span>
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-card text-muted-foreground transition-colors group-hover:text-foreground">
+                {pending ? <Spinner /> : <Plus className="size-3.5" weight="bold" />}
+              </span>
+            </button>
           );
         })}
       </div>
@@ -479,11 +480,15 @@ export function AccountsView() {
         }
         actions={
           limit ? (
-            <div className="hidden w-48 space-y-1.5 sm:block">
-              <p className="text-right text-xs text-muted-foreground tabular-nums">
+            <div className="flex items-center gap-2.5">
+              <span className="text-xs text-muted-foreground tabular-nums">
                 {visible.length} of {limit} on your plan
-              </p>
-              <Progress value={Math.min(100, (visible.length / limit) * 100)} className="h-1" />
+              </span>
+              <Progress
+                aria-label="Accounts used on your plan"
+                value={Math.min(100, (visible.length / limit) * 100)}
+                className="h-1 w-20"
+              />
             </div>
           ) : null
         }
@@ -497,7 +502,7 @@ export function AccountsView() {
         ) : isLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-16 w-full rounded-lg" />
+              <Skeleton key={i} className="h-16 w-full rounded-xl" />
             ))}
           </div>
         ) : grouped.length === 0 ? (
@@ -505,17 +510,23 @@ export function AccountsView() {
             No accounts yet. Connect one below.
           </p>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {grouped.map((group) => (
-              <div key={group.provider} className="overflow-hidden rounded-xl bg-muted">
-                <div className="flex items-center gap-2 border-b bg-muted/30 px-4 py-2">
-                  <PlatformIcon provider={group.provider} />
-                  <span className="text-sm font-medium">{PLATFORMS[group.provider].name}</span>
+              <section
+                key={group.provider}
+                aria-label={PLATFORMS[group.provider].name}
+                className="overflow-hidden rounded-xl bg-muted"
+              >
+                <div className="flex items-center gap-2 border-b border-card px-4 py-2">
+                  <PlatformIcon provider={group.provider} className="size-4" />
+                  <span className="text-sm font-medium">
+                    {PLATFORMS[group.provider].name}
+                  </span>
                   <span className="text-xs text-muted-foreground tabular-nums">
                     {group.accounts.length}
                   </span>
                 </div>
-                <ul className="divide-y">
+                <ul className="divide-y divide-card">
                   {group.accounts.map((account) => (
                     <AccountRow
                       key={account.id}
@@ -532,7 +543,7 @@ export function AccountsView() {
                     />
                   ))}
                 </ul>
-              </div>
+              </section>
             ))}
           </div>
         )}

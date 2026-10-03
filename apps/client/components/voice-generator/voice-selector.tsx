@@ -13,8 +13,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { GHOST_TRIGGER_CLASS } from "@/components/generator/param-control";
 import { VoiceCloneDialog } from "@/components/voice-generator/voice-clone-dialog";
 import { useVoiceClones } from "@/hooks/use-voice-clones";
+import { cn } from "@/lib/utils";
 
 /** Play/stop toggle for a voice's sample clip. */
 function useVoicePreview() {
@@ -59,6 +61,8 @@ interface VoiceSelectorProps {
   compact?: boolean;
   /** Only list the user's cloned voices (voice changer, music vocals). */
   clonesOnly?: boolean;
+  /** Small action shown at the end of the label row, e.g. "Manage voices". */
+  labelAction?: React.ReactNode;
 }
 
 export function VoiceSelector({
@@ -69,6 +73,7 @@ export function VoiceSelector({
   showCloneButton = true,
   compact = false,
   clonesOnly = false,
+  labelAction,
 }: VoiceSelectorProps) {
   const triggerId = useId();
   const { catalog, loading, createClone } = useVoiceClones();
@@ -150,9 +155,19 @@ export function VoiceSelector({
 
   return (
     <>
-      <div className={compact ? "flex min-w-0 items-center gap-1.5" : "space-y-2"}>
-        {!compact ? <Label htmlFor={triggerId}>{label}</Label> : null}
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+      <div className={compact ? "flex min-w-0 items-center gap-0.5" : "space-y-2"}>
+        {!compact ? (
+          <div className="flex min-h-6 items-center justify-between gap-2">
+            <Label htmlFor={triggerId}>{label}</Label>
+            {labelAction}
+          </div>
+        ) : null}
+        <div
+          className={cn(
+            "flex min-w-0 flex-1 items-center",
+            compact ? "gap-0.5 text-muted-foreground" : "gap-2",
+          )}
+        >
           <Select
             items={voiceItems}
             value={value}
@@ -162,10 +177,15 @@ export function VoiceSelector({
             <SelectTrigger
               id={triggerId}
               aria-label={compact ? label : undefined}
+              variant={compact ? "ghost" : "default"}
               size={compact ? "sm" : "default"}
-              className={compact ? "min-w-0 max-w-48" : "min-w-0 flex-1"}
+              className={
+                compact
+                  ? cn(GHOST_TRIGGER_CLASS, "max-w-48 min-w-0")
+                  : "min-w-0 flex-1"
+              }
             >
-              {compact ? <UserSound className="text-muted-foreground" /> : null}
+              {compact ? <UserSound className="size-3.5" /> : null}
               <SelectValue
                 placeholder={loading ? "Loading voices" : "Choose a voice"}
               />
@@ -210,7 +230,7 @@ export function VoiceSelector({
           {previewUrl ? (
             <Button
               type="button"
-              variant="outline"
+              variant={compact ? "ghost" : "outline"}
               size={compact ? "icon-sm" : "icon"}
               disabled={disabled}
               onClick={() => toggle(previewUrl)}
@@ -223,7 +243,7 @@ export function VoiceSelector({
           {canClone ? (
             <Button
               type="button"
-              variant="outline"
+              variant={compact ? "ghost" : "outline"}
               size={compact ? "icon-sm" : "default"}
               disabled={disabled}
               onClick={() => setCloneOpen(true)}

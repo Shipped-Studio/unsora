@@ -133,20 +133,20 @@ export default function VideoGeneratorPage() {
         items={items}
         getKey={(item) => item.id}
         history={history}
-        shape="square"
-        aspectClassName="aspect-square"
+        shape="video"
+        aspectClassName="aspect-video"
         plural="videos"
         empty={{
           icon: VideoCamera,
           title: "No videos yet",
           description:
-            "Describe a video below. Finished videos show up here and in Files.",
+            "Describe a video below. Finished videos show up here and in your Library.",
         }}
         renderItem={(item) => (
           <MediaResultCard
             result={item}
             noun="video"
-            aspectClassName="aspect-square"
+            aspectClassName="aspect-video"
             onOpen={() => setSelectedId(item.id)}
             onDelete={handleDelete}
             onDismiss={dismiss}

@@ -1,5 +1,8 @@
 "use client";
 
+import { FilmStrip } from "@phosphor-icons/react";
+import { cn } from "@/lib/utils";
+
 import Image from "next/image";
 import { useInView } from "react-intersection-observer";
 
@@ -11,6 +14,8 @@ interface VideoThumbnailProps {
   alt: string;
   /** Seek the video to this time (seconds) to use as the poster frame. */
   seekTo?: number;
+  /** Placeholder surface, e.g. "bg-card" when the thumbnail sits on a muted tile. */
+  className?: string;
 }
 
 /**
@@ -23,6 +28,7 @@ export function VideoThumbnail({
   thumbnailUrl,
   alt,
   seekTo,
+  className,
 }: VideoThumbnailProps) {
   const { ref, inView } = useInView({ rootMargin: "300px 0px" });
 
@@ -40,14 +46,15 @@ export function VideoThumbnail({
   }
 
   return (
-    <div ref={ref} className="size-full bg-card">
+    <div ref={ref} className={cn("relative flex size-full items-center justify-center bg-muted", className)}>
+      <FilmStrip aria-hidden className="size-6 text-muted-foreground" />
       {inView && videoUrl && (
         <video
           src={videoUrl}
           muted
           playsInline
           preload="metadata"
-          className="size-full object-cover"
+          className="absolute inset-0 size-full object-cover"
           onLoadedMetadata={
             seekTo !== undefined
               ? (e) => {

@@ -10,13 +10,20 @@ const TABS = [
   { label: "Posts", href: "/scheduler/posts" },
 ];
 
-/** Switches between the three views of your schedule, which share one rail item. */
-export function PublishTabs() {
+/**
+ * Switches between the three views of your schedule, which share one rail item.
+ * `header` sits in the page header from sm up; `page` is the full-width row
+ * phones get at the top of the page body instead.
+ */
+export function PublishTabs({ placement = "header" }: { placement?: "header" | "page" }) {
   const pathname = usePathname();
   return (
     <nav
       aria-label="Schedule views"
-      className="hidden h-10 items-center gap-0.5 rounded-lg border border-border/70 bg-card p-1 sm:flex"
+      className={cn(
+        "h-9 items-center rounded-lg bg-muted p-1",
+        placement === "header" ? "hidden sm:flex" : "mb-4 flex w-full sm:hidden",
+      )}
     >
       {TABS.map((tab) => {
         const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`);
@@ -26,9 +33,9 @@ export function PublishTabs() {
             href={tab.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "flex h-full items-center rounded-md px-3 text-sm font-medium transition-colors",
+              "flex h-full flex-1 items-center justify-center rounded-md px-3 text-sm font-medium whitespace-nowrap outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
               active
-                ? "bg-accent text-accent-foreground"
+                ? "bg-card text-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >

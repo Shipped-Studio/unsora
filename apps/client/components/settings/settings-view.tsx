@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowSquareOut } from "@phosphor-icons/react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { CaretRight } from "@phosphor-icons/react";
 import { AppearanceSection } from "./appearance-section";
 import { ProfileSection } from "./profile-section";
 import { SchedulingSection } from "./scheduling-section";
@@ -26,37 +26,37 @@ const LINKS = [
 
 /** Settings with a section list on the left and one section at a time. */
 export function SettingsView() {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const current = SECTIONS.find((s) => s.id === searchParams.get("tab")) ?? SECTIONS[0];
 
+  // Same item style as the Library folder list.
   const itemClass = (active: boolean) =>
     cn(
-      "flex h-9 w-full items-center rounded-md px-3 text-left text-sm font-medium transition-colors",
+      "flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm font-medium outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
       active
-        ? "bg-secondary text-foreground"
+        ? "bg-accent text-foreground"
         : "text-muted-foreground hover:bg-secondary hover:text-foreground",
     );
 
   return (
     <div className="flex min-h-full flex-1 flex-col md:flex-row">
+      {/* Below md the list scrolls sideways; the right edge fades to show there's more. */}
       <nav
         aria-label="Settings sections"
-        className="flex shrink-0 gap-1 overflow-x-auto border-b p-3 no-scrollbar md:w-72 md:flex-col md:overflow-visible md:border-r md:border-b-0 md:p-5"
+        className="flex shrink-0 gap-1 overflow-x-auto border-b p-3 no-scrollbar max-md:pr-10 max-md:mask-r-from-85% md:w-72 md:flex-col md:overflow-visible md:border-r md:border-b-0 md:p-5"
       >
         {SECTIONS.map((section) => (
-          <button
+          <Link
             key={section.id}
-            type="button"
+            href={`${pathname}?tab=${section.id}`}
+            replace
+            scroll={false}
             aria-current={section.id === current.id ? "page" : undefined}
-            onClick={() =>
-              router.replace(`${pathname}?tab=${section.id}`, { scroll: false })
-            }
             className={cn(itemClass(section.id === current.id), "w-auto shrink-0 md:w-full")}
           >
             {section.label}
-          </button>
+          </Link>
         ))}
         <div className="mx-2 my-2 hidden h-px bg-border md:block" />
         {LINKS.map((link) => (
@@ -66,7 +66,7 @@ export function SettingsView() {
             className={cn(itemClass(false), "w-auto shrink-0 justify-between md:w-full")}
           >
             {link.label}
-            <ArrowSquareOut className="hidden size-4 md:block" />
+            <CaretRight className="hidden size-3.5 text-muted-foreground md:block" />
           </Link>
         ))}
       </nav>

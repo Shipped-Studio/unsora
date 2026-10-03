@@ -12,16 +12,18 @@ interface StatTileProps {
 
 /**
  * A single KPI. The number is the visualization; the sparkline is a glance,
- * so it carries no axis or legend.
+ * so it carries no axis or legend. It only shows when the series has data,
+ * and only from `sm` up so narrow tiles keep the hint readable.
  */
 export function StatTile({ label, value, hint, spark, className }: StatTileProps) {
+  const showSpark = !!spark && spark.length > 1 && spark.some((v) => v !== 0);
   return (
     <Card size="sm" className={className}>
-      <CardContent className="gap-2">
-        <span className="text-xs text-muted-foreground">{label}</span>
+      <CardContent className="gap-1">
+        <span className="truncate text-sm text-muted-foreground">{label}</span>
         <div className="flex items-end justify-between gap-2">
           <div className="min-w-0">
-            <div className="truncate text-2xl font-medium tabular-nums">
+            <div className="truncate text-2xl font-semibold tracking-tight tabular-nums">
               {value}
             </div>
             {hint ? (
@@ -30,7 +32,7 @@ export function StatTile({ label, value, hint, spark, className }: StatTileProps
               </div>
             ) : null}
           </div>
-          {spark && spark.length > 1 ? <Sparkline values={spark} /> : null}
+          {showSpark && spark ? <Sparkline values={spark} /> : null}
         </div>
       </CardContent>
     </Card>
@@ -56,7 +58,7 @@ function Sparkline({ values }: { values: number[] }) {
       width={w}
       height={h}
       viewBox={`0 0 ${w} ${h}`}
-      className="shrink-0 overflow-visible"
+      className="hidden shrink-0 overflow-visible sm:block"
       aria-hidden
     >
       <polyline

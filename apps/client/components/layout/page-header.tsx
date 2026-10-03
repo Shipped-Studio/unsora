@@ -51,7 +51,7 @@ export function PageHeader({
   return (
     <header
       className={cn(
-        "sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b bg-card/90 px-4 backdrop-blur supports-backdrop-filter:bg-card/80 md:h-[72px] md:px-6",
+        "sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b bg-card px-4 md:h-[72px] md:px-6",
         className,
       )}
     >
@@ -66,11 +66,10 @@ export function PageHeader({
       </Button>
 
       <div className="flex min-w-0 flex-1 items-center gap-5">
-        <nav
-          aria-label="Breadcrumb"
-          className="flex min-w-0 items-center gap-1.5 text-sm"
-        >
-          {parents?.map((crumb) => (
+        <div className="flex min-w-0 items-center gap-1.5 text-sm">
+          {parents?.length ? (
+          <nav aria-label="Breadcrumb" className="flex shrink-0 items-center gap-1.5">
+          {parents.map((crumb) => (
             <span key={crumb.href} className="flex shrink-0 items-center gap-1">
               <Link
                 href={crumb.href}
@@ -81,10 +80,12 @@ export function PageHeader({
               <CaretRight className="size-3 text-muted-foreground" />
             </span>
           ))}
+          </nav>
+          ) : null}
           <h1 className="truncate text-xl font-semibold tracking-tight text-foreground md:text-2xl">
             {resolvedTitle}
           </h1>
-        </nav>
+        </div>
         {tabs}
       </div>
 
@@ -142,9 +143,9 @@ export function PageSection({
 }) {
   return (
     <section className={cn("space-y-3", className)}>
-      <div className="flex items-end justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
-          <h2 className="text-sm font-medium text-foreground">{title}</h2>
+          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
           {description ? (
             <p className="mt-0.5 text-sm text-muted-foreground">
               {description}

@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowsClockwise,
+  ArrowsDownUp,
   Copy,
   DotsThree,
   Eye,
@@ -61,6 +62,8 @@ import { AccountStack, accountLabel } from "@/components/scheduler/account-avata
 import { PostSheet } from "@/components/scheduler/post-sheet";
 import { PostStatusBadge } from "@/components/scheduler/post-status-badge";
 import { PostThumb } from "@/components/scheduler/post-thumb";
+import { PublishNowDialog } from "@/components/scheduler/publish-now-dialog";
+import { readableError } from "@/components/scheduler/readable-error";
 import { useConnectedAccounts } from "@/hooks/use-connected-accounts";
 import { useDebounce } from "@/hooks/use-debounce";
 import {
@@ -139,6 +142,7 @@ function RowActions({ post, onOpen }: { post: Post; onOpen: () => void }) {
   const remove = useDeletePost();
   const router = useRouter();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmPublish, setConfirmPublish] = useState(false);
 
   return (
     <>
@@ -170,7 +174,7 @@ function RowActions({ post, onOpen }: { post: Post; onOpen: () => void }) {
             Duplicate
           </DropdownMenuItem>
           {canPublishNow(post.status) ? (
-            <DropdownMenuItem onClick={() => publish.mutate(post.id)}>
+            <DropdownMenuItem onClick={() => setConfirmPublish(true)}>
               <PaperPlaneTilt />
               Publish now
             </DropdownMenuItem>
@@ -192,6 +196,12 @@ function RowActions({ post, onOpen }: { post: Post; onOpen: () => void }) {
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
+      <PublishNowDialog
+        open={confirmPublish}
+        onOpenChange={setConfirmPublish}
+        accounts={post.postAccounts.length}
+        onConfirm={() => publish.mutate(post.id)}
+      />
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -292,7 +302,10 @@ export function PostsTable() {
   return (
     <div className="space-y-4">
       <Tabs value={tab} onValueChange={(value) => setParams({ status: value === "all" ? null : (value as string), sort: null })}>
-        <TabsList variant="line" className="w-full justify-start overflow-x-auto no-scrollbar">
+        <TabsList
+          variant="line"
+          className="w-full justify-start overflow-x-auto no-scrollbar max-sm:pr-8 max-sm:mask-r-from-85%"
+        >
           {STATUS_TABS.map((t) => {
             const count = countFor(t.statuses);
             return (
@@ -307,7 +320,7 @@ export function PostsTable() {
         </TabsList>
       </Tabs>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <InputGroup className="w-full sm:w-72">
           <InputGroupAddon>
             <MagnifyingGlass />
@@ -319,50 +332,59 @@ export function PostsTable() {
             aria-label="Search captions"
           />
         </InputGroup>
-        <Select value={accountId || "all"} onValueChange={(value) => setParams({ account: value === "all" ? null : (value as string) })}>
-          <SelectTrigger size="sm" className="w-44">
-            <SelectValue>
-              {(value: string) => {
-                const account = accounts?.find((a) => a.id === value);
-                return account ? accountLabel(account) : "All accounts";
-              }}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All accounts</SelectItem>
-            {(accounts ?? []).map((account) => (
-              <SelectItem key={account.id} value={account.id}>
-                {accountLabel(account)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={type} onValueChange={(value) => setParams({ type: value === "all" ? null : (value as string) })}>
-          <SelectTrigger size="sm" className="w-36">
-            <SelectValue>
-              {(value: string) => TYPE_FILTERS.find((t) => t.value === value)?.label ?? "All formats"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {TYPE_FILTERS.map((t) => (
-              <SelectItem key={t.value} value={t.value}>
-                {t.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={sortKey} onValueChange={(value) => setParams({ sort: value as string })}>
-          <SelectTrigger size="sm" variant="ghost" className="ml-auto w-auto">
-            <SelectValue>{(value: string) => SORTS[value]?.label ?? "Sort"}</SelectValue>
-          </SelectTrigger>
-          <SelectContent align="end">
-            {Object.entries(SORTS).map(([key, s]) => (
-              <SelectItem key={key} value={key}>
-                {s.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div
+          role="group"
+          aria-label="Filters"
+          className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 sm:flex sm:flex-1 sm:items-center"
+        >
+          <Select value={accountId || "all"} onValueChange={(value) => setParams({ account: value === "all" ? null : (value as string) })}>
+            <SelectTrigger aria-label="Account" className="w-full min-w-0 sm:w-44 sm:shrink-0">
+              <SelectValue>
+                {(value: string) => {
+                  const account = accounts?.find((a) => a.id === value);
+                  return account ? accountLabel(account) : "All accounts";
+                }}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All accounts</SelectItem>
+              {(accounts ?? []).map((account) => (
+                <SelectItem key={account.id} value={account.id}>
+                  {accountLabel(account)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={type} onValueChange={(value) => setParams({ type: value === "all" ? null : (value as string) })}>
+            <SelectTrigger aria-label="Format" className="w-full min-w-0 sm:w-36 sm:shrink-0">
+              <SelectValue>
+                {(value: string) => TYPE_FILTERS.find((t) => t.value === value)?.label ?? "All formats"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {TYPE_FILTERS.map((t) => (
+                <SelectItem key={t.value} value={t.value}>
+                  {t.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={sortKey} onValueChange={(value) => setParams({ sort: value as string })}>
+            <SelectTrigger aria-label="Sort" className="w-auto shrink-0 sm:ml-auto">
+              <ArrowsDownUp className="sm:hidden" />
+              <SelectValue className="max-sm:sr-only">
+                {(value: string) => SORTS[value]?.label ?? "Sort"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent align="end">
+              {Object.entries(SORTS).map(([key, s]) => (
+                <SelectItem key={key} value={key}>
+                  {s.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {selected.size > 0 ? (
@@ -387,7 +409,7 @@ export function PostsTable() {
       ) : isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-14 w-full rounded-lg" />
+            <Skeleton key={i} className="h-14 w-full rounded-xl" />
           ))}
         </div>
       ) : posts.length === 0 ? (
@@ -413,14 +435,15 @@ export function PostsTable() {
           />
         )
       ) : (
-        <div className="overflow-hidden rounded-xl">
+        <div className="overflow-hidden rounded-xl bg-muted">
           <Table>
             <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="w-10">
+              <TableRow className="border-card hover:bg-transparent">
+                <TableHead className="w-10 pl-3">
                   <Checkbox
                     aria-label="Select all on this page"
                     checked={allSelected}
+                    className="bg-card"
                     disabled={!deletable.length}
                     onCheckedChange={(checked) =>
                       setSelected(checked ? new Set(deletable.map((p) => p.id)) : new Set())
@@ -431,17 +454,24 @@ export function PostsTable() {
                 <TableHead className="hidden md:table-cell">Accounts</TableHead>
                 <TableHead className="hidden sm:table-cell">Status</TableHead>
                 <TableHead className="hidden lg:table-cell">When</TableHead>
-                <TableHead className="w-10" />
+                <TableHead className="w-10">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className={isFetching ? "opacity-70 transition-opacity" : undefined}>
               {posts.map((post) => {
                 const when = whenFor(post, post.scheduledTimezone || zone);
                 return (
-                  <TableRow key={post.id} data-state={selected.has(post.id) ? "selected" : undefined}>
-                    <TableCell>
+                  <TableRow
+                    key={post.id}
+                    data-state={selected.has(post.id) ? "selected" : undefined}
+                    className="border-card data-[state=selected]:bg-accent"
+                  >
+                    <TableCell className="pl-3">
                       <Checkbox
-                        aria-label="Select post"
+                        className="bg-card"
+                        aria-label={`Select "${post.mainCaption.trim().slice(0, 60) || "No caption"}"`}
                         checked={selected.has(post.id)}
                         disabled={!canDelete(post.status)}
                         onCheckedChange={() => toggle(post.id)}
@@ -449,11 +479,11 @@ export function PostsTable() {
                     </TableCell>
                     <TableCell className="max-w-0 w-full">
                       <div className="flex items-center gap-3">
-                        <PostThumb post={post} />
-                        <div className="min-w-0">
+                        <PostThumb post={post} className="bg-card" />
+                        <div className="min-w-0 flex-1">
                           <Link
                             href={`/scheduler/posts/${post.id}`}
-                            className="line-clamp-1 font-medium text-foreground hover:underline"
+                            className="block truncate font-medium text-foreground hover:underline"
                           >
                             {post.mainCaption.trim() || "No caption"}
                           </Link>
@@ -468,7 +498,9 @@ export function PostsTable() {
                             <span className="sm:hidden">· <PostStatusBadge status={post.status} /></span>
                           </p>
                           {post.error && (post.status === "FAILED" || post.status === "PARTIALLY_PUBLISHED") ? (
-                            <p className="line-clamp-1 text-xs text-destructive">{post.error}</p>
+                            <p title={post.error} className="truncate text-xs text-destructive">
+                              {readableError(post.error)}
+                            </p>
                           ) : null}
                         </div>
                       </div>

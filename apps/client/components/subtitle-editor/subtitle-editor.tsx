@@ -84,9 +84,9 @@ export const EDITOR_PARENTS = [{ label: "Subtitles", href: "/subtitle-editor" }]
 
 const PANEL_CLASS = "max-w-3xl px-4 py-6 md:px-6";
 const PREVIEW_CLASS =
-  "border-t p-4 md:p-6 lg:sticky lg:top-14 lg:h-[calc(100svh-3.5rem)] lg:self-start lg:border-t-0 lg:border-l";
+  "border-t p-4 md:p-6 lg:sticky lg:top-[72px] lg:h-[calc(100svh-72px-1rem)] lg:self-start lg:border-t-0 lg:border-l";
 const LAYOUT_CLASS =
-  "grid lg:min-h-[calc(100svh-3.5rem)] lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]";
+  "grid grid-cols-1 lg:min-h-[calc(100svh-72px-1rem)] lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]";
 
 interface StoredSettings {
   selectedPresetId?: string;

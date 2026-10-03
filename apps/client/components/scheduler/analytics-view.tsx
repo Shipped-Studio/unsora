@@ -67,8 +67,8 @@ function StatTile({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "rounded-xl bg-muted p-4 text-left transition-colors hover:bg-secondary",
-        active && "border-foreground/30 bg-muted",
+        "rounded-xl border border-transparent p-4 text-left outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
+        active ? "border-border bg-card" : "bg-muted hover:bg-secondary",
       )}
     >
       <p className="text-sm text-muted-foreground">{label}</p>
@@ -124,10 +124,28 @@ export function AnalyticsView() {
   );
 
   const metricLabel = METRICS.find((m) => m.key === metric)!.label;
+  const chartEmpty = series.every((point) => point.value === 0);
+
+  const modeTabs = (className: string) => (
+    <Tabs
+      value={mode}
+      onValueChange={(v) => setParam("mode", v as string)}
+      className={className}
+    >
+      <TabsList className="max-sm:w-full">
+        <TabsTrigger value="daily">Per day</TabsTrigger>
+        <TabsTrigger value="total">Running total</TabsTrigger>
+      </TabsList>
+    </Tabs>
+  );
 
   const toolbar = (
-    <div className="flex flex-wrap items-center gap-2">
-      <Tabs value={String(days)} onValueChange={(v) => setParam("days", v as string)}>
+    <div className="flex items-center gap-2">
+      <Tabs
+        value={String(days)}
+        onValueChange={(v) => setParam("days", v as string)}
+        aria-label="Date range"
+      >
         <TabsList>
           <TabsTrigger value="7">7 days</TabsTrigger>
           <TabsTrigger value="30">30 days</TabsTrigger>
@@ -136,13 +154,15 @@ export function AnalyticsView() {
       </Tabs>
       <Button
         variant="outline"
-        size="sm"
-        className="ml-auto"
+        className="ml-auto max-sm:w-9 max-sm:px-0"
         disabled={refresh.isPending}
         onClick={() => refresh.mutate()}
+        aria-label={refresh.isPending ? "Updating stats" : "Update stats"}
       >
         {refresh.isPending ? <Spinner /> : <ArrowsClockwise />}
-        {refresh.isPending ? "Updating stats" : "Update stats"}
+        <span className="hidden sm:inline">
+          {refresh.isPending ? "Updating stats" : "Update stats"}
+        </span>
       </Button>
     </div>
   );
@@ -162,10 +182,10 @@ export function AnalyticsView() {
         {toolbar}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {METRICS.map((m) => (
-            <Skeleton key={m.key} className="h-24 rounded-lg" />
+            <Skeleton key={m.key} className="h-24 rounded-xl" />
           ))}
         </div>
-        <Skeleton className="h-72 rounded-lg" />
+        <Skeleton className="h-72 rounded-xl" />
       </div>
     );
   }
@@ -203,21 +223,22 @@ export function AnalyticsView() {
       <PageSection
         title={`${metricLabel} ${mode === "total" ? "to date" : "per day"}`}
         description={`Across ${data.postCount} published ${data.postCount === 1 ? "post" : "posts"} from the last ${days} days.`}
-        actions={
-          <Tabs value={mode} onValueChange={(v) => setParam("mode", v as string)}>
-            <TabsList>
-              <TabsTrigger value="daily">Per day</TabsTrigger>
-              <TabsTrigger value="total">Running total</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        }
+        actions={modeTabs("hidden sm:flex")}
       >
-        <div className="rounded-xl bg-muted p-4">
+        {modeTabs("sm:hidden")}
+        <div className="relative rounded-xl bg-muted p-4">
           <TrendChart points={series} label={metricLabel} />
+          {chartEmpty ? (
+            <div className="absolute inset-0 flex items-center justify-center p-4">
+              <p className="rounded-full border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground shadow-xs">
+                No {metricLabel.toLowerCase()} yet in this range
+              </p>
+            </div>
+          ) : null}
         </div>
       </PageSection>
 
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
         <PageSection title={`${metricLabel} by platform`}>
           <ul className="space-y-3 rounded-xl bg-muted p-4">
             {platforms.map((row) => {
@@ -226,7 +247,7 @@ export function AnalyticsView() {
                 <li key={row.platform} className="space-y-1.5">
                   <div className="flex items-center gap-2 text-sm">
                     <PlatformIcon provider={row.platform} />
-                    <span className="flex-1">{platformName(row.platform)}</span>
+                    <span className="min-w-0 flex-1 truncate">{platformName(row.platform)}</span>
                     <span className="text-xs text-muted-foreground">
                       {row.posts} {row.posts === 1 ? "post" : "posts"}
                     </span>
@@ -234,11 +255,13 @@ export function AnalyticsView() {
                       {missing ? "n/a" : compact(row[metric])}
                     </span>
                   </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-chart-1"
-                      style={{ width: `${missing ? 0 : Math.max(2, row.share * 100)}%` }}
-                    />
+                  <div className="h-1.5 overflow-hidden rounded-full bg-card">
+                    {!missing && row.share > 0 ? (
+                      <div
+                        className="h-full rounded-full bg-chart-1"
+                        style={{ width: `${Math.max(2, row.share * 100)}%` }}
+                      />
+                    ) : null}
                   </div>
                 </li>
               );
@@ -251,11 +274,11 @@ export function AnalyticsView() {
         </PageSection>
 
         <PageSection title={`Top posts by ${metricLabel.toLowerCase()}`}>
-          <div className="overflow-hidden rounded-xl">
+          <div className="overflow-hidden rounded-xl bg-muted">
             <Table>
               <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead>Post</TableHead>
+                <TableRow className="border-card hover:bg-transparent">
+                  <TableHead className="pl-3">Post</TableHead>
                   {METRICS.map((m) => (
                     <TableHead
                       key={m.key}
@@ -264,13 +287,15 @@ export function AnalyticsView() {
                       {m.label}
                     </TableHead>
                   ))}
-                  <TableHead className="w-10" />
+                  <TableHead className="w-10">
+                    <span className="sr-only">Link</span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {topPosts.map((post) => (
-                  <TableRow key={post.postAccountId}>
-                    <TableCell className="max-w-0 w-full">
+                  <TableRow key={post.postAccountId} className="border-card">
+                    <TableCell className="max-w-0 w-full pl-3">
                       <div className="flex items-center gap-2.5">
                         <PlatformIcon provider={post.platform} />
                         <div className="min-w-0">
@@ -315,7 +340,8 @@ export function AnalyticsView() {
           </div>
           <p className="text-xs text-muted-foreground">
             Stats refresh every 6 hours.{" "}
-            <Link href="/scheduler/posts?status=published" className="underline-offset-2 hover:underline">
+            <Link href="/scheduler/posts?status=published" className="text-foreground underline underline-offset-2"
+            >
               See all published posts
             </Link>
           </p>

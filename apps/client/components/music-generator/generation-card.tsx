@@ -33,6 +33,13 @@ import { Spinner } from "@/components/ui/spinner";
 import { useMusicPlayer } from "@/contexts/music-player-context";
 import { parseLyricLines } from "@/lib/music-lyrics";
 import { formatDownloadFilename, formatTrackLabel } from "@/lib/music-track";
+import { friendlyGenerationError } from "@/components/generator/generation-error";
+import {
+  TILE_CLASS,
+  TILE_GHOST_BUTTON_CLASS,
+  TILE_SKELETON_BAR_CLASS,
+  TILE_SKELETON_CLASS,
+} from "@/components/generator/result-tile";
 import { cn } from "@/lib/utils";
 import { getCdnUrl } from "@/lib/video-utils";
 
@@ -114,7 +121,7 @@ export function MusicGenerationCard({
         ? "Starting"
         : "Generating"
     : failed
-      ? generation.error || "Generation failed."
+      ? friendlyGenerationError(generation.error)
       : [trackLabel, modelLabel].filter(Boolean).join(" · ");
 
   function handlePlay() {
@@ -135,13 +142,14 @@ export function MusicGenerationCard({
   return (
     <article
       className={cn(
-        "flex items-start gap-3 rounded-xl bg-muted p-3",
-        isCurrent && "border-foreground/20",
+        "flex items-start gap-3 p-3",
+        TILE_CLASS,
+        isCurrent && "ring-2 ring-ring/50",
       )}
     >
       {audioUrl ? (
         <Button
-          variant="secondary"
+          variant="outline"
           size="icon"
           onClick={handlePlay}
           aria-label={
@@ -160,7 +168,7 @@ export function MusicGenerationCard({
         <div
           className={cn(
             "flex size-9 shrink-0 items-center justify-center rounded-md",
-            failed ? "bg-destructive/10" : "bg-muted",
+            failed ? "bg-destructive-subtle" : "bg-card",
           )}
         >
           {failed ? (
@@ -176,12 +184,10 @@ export function MusicGenerationCard({
           {title}
         </p>
         <p
-          className={cn(
-            "truncate text-xs",
-            failed ? "text-destructive" : "text-muted-foreground",
-          )}
+          className="truncate text-xs text-muted-foreground"
           title={failed ? (generation.error ?? undefined) : undefined}
         >
+          {failed ? <span className="sr-only">Generation failed. </span> : null}
           {status}
         </p>
         {showSyncedLyrics ? (
@@ -212,7 +218,10 @@ export function MusicGenerationCard({
                 : true,
             })}
             download
-            className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+            className={cn(
+              buttonVariants({ variant: "ghost", size: "icon-sm" }),
+              TILE_GHOST_BUTTON_CLASS,
+            )}
             aria-label={`Download ${title}`}
           >
             <DownloadSimple />
@@ -223,6 +232,7 @@ export function MusicGenerationCard({
           <Button
             variant="ghost"
             size="icon-sm"
+            className={TILE_GHOST_BUTTON_CLASS}
             onClick={() => onDismiss(generation.id)}
             aria-label={`Dismiss ${title}`}
           >
@@ -230,7 +240,7 @@ export function MusicGenerationCard({
           </Button>
         ) : onDelete && failed ? (
           <Button
-            variant="ghost"
+            variant="outline"
             size="icon-sm"
             onClick={() => setConfirmOpen(true)}
             aria-label={`Delete ${title}`}
@@ -244,6 +254,7 @@ export function MusicGenerationCard({
                 <Button
                   variant="ghost"
                   size="icon-sm"
+                  className={TILE_GHOST_BUTTON_CLASS}
                   aria-label={`More actions for ${title}`}
                 />
               }
@@ -294,11 +305,11 @@ export function MusicGenerationCard({
 
 export function AudioRowSkeleton() {
   return (
-    <div className="flex items-center gap-3 rounded-xl bg-muted p-3">
-      <Skeleton className="size-9 rounded-md" />
+    <div className={cn("flex items-center gap-3 p-3", TILE_SKELETON_CLASS)}>
+      <Skeleton className={cn("size-9 rounded-md", TILE_SKELETON_BAR_CLASS)} />
       <div className="flex-1 space-y-2">
-        <Skeleton className="h-4 w-1/2" />
-        <Skeleton className="h-3 w-1/3" />
+        <Skeleton className={cn("h-4 w-1/2", TILE_SKELETON_BAR_CLASS)} />
+        <Skeleton className={cn("h-3 w-1/3", TILE_SKELETON_BAR_CLASS)} />
       </div>
     </div>
   );

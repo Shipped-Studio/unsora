@@ -4,11 +4,18 @@ import { useState } from "react";
 import {
   DotsThree,
   DownloadSimple,
-  Play,
   Trash,
-  WarningCircle,
   X,
 } from "@phosphor-icons/react";
+import {
+  FailedState,
+  MEDIA_ICON_BUTTON_CLASS,
+  TILE_GHOST_BUTTON_CLASS,
+  PlayBadge,
+  TILE_CLASS,
+  TILE_SKELETON_BAR_CLASS,
+  TILE_SKELETON_CLASS,
+} from "@/components/generator/result-tile";
 import { ScheduleLink } from "@/components/generator/tool-layout";
 import {
   AlertDialog,
@@ -30,6 +37,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { VideoThumbnail } from "@/components/ui/video-thumbnail";
+import { cn } from "@/lib/utils";
 import { getCdnUrl } from "@/lib/video-utils";
 
 export interface AvatarCardData {
@@ -91,84 +99,73 @@ export function AvatarGenerationCard({
           .join(" · ");
 
   return (
-    <article className="flex flex-col overflow-hidden rounded-xl bg-muted">
+    <article className={cn("group relative flex flex-col", TILE_CLASS)}>
       {videoUrl ? (
         <button
           type="button"
           onClick={() => onPlay(generation)}
           aria-label={`Play ${title}`}
-          className="group relative block aspect-square w-full overflow-hidden bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
+          className="relative block aspect-square w-full overflow-hidden bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
         >
-          <VideoThumbnail videoUrl={getCdnUrl(videoUrl)} alt={title} />
-          <span className="absolute inset-0 flex items-center justify-center">
-            <span className="flex size-10 items-center justify-center rounded-full bg-background/90 text-foreground shadow-xs transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100">
-              <Play weight="fill" className="size-4" />
-            </span>
-          </span>
+          <VideoThumbnail
+            videoUrl={getCdnUrl(videoUrl)}
+            alt={title}
+            className="bg-card"
+          />
+          <PlayBadge />
         </button>
+      ) : failed ? (
+        <div className="aspect-square bg-card">
+          <FailedState error={generation.error} />
+        </div>
       ) : (
-        <div className="flex aspect-square flex-col items-center justify-center gap-2 bg-muted px-4 text-center">
-          {failed ? (
-            <>
-              <WarningCircle className="size-5 text-destructive" />
-              <p className="line-clamp-3 text-xs text-destructive">
-                {generation.error || "Generation failed."}
-              </p>
-            </>
-          ) : (
-            <>
-              <Spinner className="text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">{status}</span>
-            </>
-          )}
+        <div className="flex aspect-square flex-col items-center justify-center gap-2 bg-card px-4 text-center">
+          <Spinner className="text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">{status}</span>
         </div>
       )}
 
-      <div className="flex flex-1 flex-col gap-3 p-3">
-        <div className="flex items-start gap-2">
-          <div className="min-w-0 flex-1">
-            <p className="line-clamp-2 text-sm font-medium" title={title}>
-              {title}
-            </p>
-            <p
-              className={
-                failed
-                  ? "truncate text-xs text-destructive"
-                  : "truncate text-xs text-muted-foreground"
+      {onDelete && videoUrl ? (
+        <div className="absolute top-2 right-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className={MEDIA_ICON_BUTTON_CLASS}
+                  aria-label="More actions"
+                />
               }
             >
-              {status}
-            </p>
-          </div>
-          {onDelete && videoUrl ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="-mt-1 -mr-1"
-                    aria-label="More actions"
-                  />
-                }
+              <DotsThree weight="bold" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-36">
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => setConfirmOpen(true)}
               >
-                <DotsThree weight="bold" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-36">
-                <DropdownMenuItem
-                  variant="destructive"
-                  onClick={() => setConfirmOpen(true)}
-                >
-                  <Trash />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : onDismiss && (inProgress || failed) ? (
+                <Trash />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ) : null}
+
+      <div className="flex flex-1 flex-col gap-2 p-3">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium" title={title}>
+              {title}
+            </p>
+            <p className="truncate text-xs text-muted-foreground">{status}</p>
+          </div>
+          {onDismiss && (inProgress || failed) ? (
             <Button
               variant="ghost"
-              size="icon-sm"
-              className="-mt-1 -mr-1"
+              size="icon-xs"
+              className={cn("-mt-0.5 -mr-1", TILE_GHOST_BUTTON_CLASS)}
               onClick={() => onDismiss(generation.id)}
               aria-label="Dismiss"
             >
@@ -178,27 +175,27 @@ export function AvatarGenerationCard({
         </div>
 
         {videoUrl ? (
-          <div className="mt-auto flex gap-2">
-            <ScheduleLink url={videoUrl} mediaType="video" className="flex-1" />
+          <div className="mt-auto flex items-center gap-1">
+            <ScheduleLink url={videoUrl} mediaType="video" size="xs" variant="outline" />
             <a
               href={getCdnUrl(videoUrl, { download: true })}
               download
-              className={buttonVariants({ variant: "outline", size: "icon-sm" })}
+              className={cn(
+                buttonVariants({ variant: "ghost", size: "icon-xs" }),
+                TILE_GHOST_BUTTON_CLASS,
+              )}
               aria-label="Download video"
             >
               <DownloadSimple />
             </a>
           </div>
         ) : failed && onDelete ? (
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-auto"
-            onClick={() => setConfirmOpen(true)}
-          >
-            <Trash />
-            Delete
-          </Button>
+          <div className="mt-auto flex">
+            <Button variant="outline" size="xs" onClick={() => setConfirmOpen(true)}>
+              <Trash />
+              Delete
+            </Button>
+          </div>
         ) : null}
       </div>
 
@@ -233,12 +230,12 @@ export function AvatarGenerationCard({
 
 export function AvatarCardSkeleton() {
   return (
-    <div className="overflow-hidden rounded-xl bg-muted">
-      <Skeleton className="aspect-square rounded-none" />
+    <div className={TILE_SKELETON_CLASS}>
+      <Skeleton className={cn("aspect-square rounded-none", TILE_SKELETON_BAR_CLASS)} />
       <div className="space-y-2 p-3">
-        <Skeleton className="h-4 w-3/4" />
-        <Skeleton className="h-3 w-1/3" />
-        <Skeleton className="h-8 w-full" />
+        <Skeleton className={cn("h-4 w-3/4", TILE_SKELETON_BAR_CLASS)} />
+        <Skeleton className={cn("h-3 w-1/3", TILE_SKELETON_BAR_CLASS)} />
+        <Skeleton className={cn("h-7 w-24", TILE_SKELETON_BAR_CLASS)} />
       </div>
     </div>
   );

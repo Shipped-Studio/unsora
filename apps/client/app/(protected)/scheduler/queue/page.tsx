@@ -21,6 +21,7 @@ export default function QueuePage() {
         }
       />
       <PageBody>
+        <PublishTabs placement="page" />
         <QueueView />
       </PageBody>
     </>

@@ -112,6 +112,7 @@ const SORA_DURATIONS: ParamOption[] = [
 const SOUND_PARAM: ParamConfig = {
   key: "sound",
   label: "Audio",
+  offLabel: "No audio",
   type: "toggle",
   options: [
     { value: "enabled", label: "On" },

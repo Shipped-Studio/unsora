@@ -35,6 +35,8 @@ import {
   accountLabel,
 } from "@/components/scheduler/account-avatar";
 import { PostStatusBadge } from "@/components/scheduler/post-status-badge";
+import { PublishNowDialog } from "@/components/scheduler/publish-now-dialog";
+import { readableError } from "@/components/scheduler/readable-error";
 import {
   useDeletePost,
   useDuplicatePost,
@@ -119,7 +121,7 @@ function PostMediaPreview({ post }: { post: Post }) {
             href={image.asset.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="block overflow-hidden rounded-md bg-muted"
+            className="block overflow-hidden rounded-lg bg-muted"
           >
             <img
               src={image.asset.url}
@@ -157,6 +159,7 @@ export function PostDetails({
   const remove = useDeletePost();
   const reschedule = useReschedulePost();
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [confirmPublish, setConfirmPublish] = useState(false);
   const [draftTime, setDraftTime] = useState<Date | null>(
     post.scheduledFor ? new Date(post.scheduledFor) : null,
   );
@@ -175,7 +178,7 @@ export function PostDetails({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <PostStatusBadge status={post.status} className="text-sm" />
+        <PostStatusBadge status={post.status} />
         <span className="text-sm text-muted-foreground">
           {whenLabel}
           {when ? ` ${zoneLabel(zone, new Date(when))}` : ""}
@@ -190,9 +193,15 @@ export function PostDetails({
       </div>
 
       {post.error && post.status !== "PUBLISHED" ? (
-        <div className="flex items-start gap-2 rounded-lg bg-destructive/10 p-3 text-sm">
+        <div
+          title={post.error}
+          className="flex items-start gap-2 rounded-xl bg-destructive-subtle p-3 text-sm"
+        >
           <WarningCircle className="mt-0.5 size-4 shrink-0 text-destructive" />
-          <span>{post.error}</span>
+          <span className="min-w-0 break-words">{readableError(
+              post.error,
+              "Couldn't publish. Try again, or reconnect the account if it keeps failing.",
+            )}</span>
         </div>
       ) : null}
 
@@ -222,12 +231,18 @@ export function PostDetails({
             size="sm"
             variant="outline"
             disabled={publish.isPending}
-            onClick={() => publish.mutate(post.id)}
+            onClick={() => setConfirmPublish(true)}
           >
             {publish.isPending ? <Spinner /> : <PaperPlaneTilt />}
             Publish now
           </Button>
         ) : null}
+        <PublishNowDialog
+          open={confirmPublish}
+          onOpenChange={setConfirmPublish}
+          accounts={post.postAccounts.length}
+          onConfirm={() => publish.mutate(post.id)}
+        />
         {canEdit(post.status) ? (
           <Popover open={rescheduleOpen} onOpenChange={setRescheduleOpen}>
             <PopoverTrigger render={<Button size="sm" variant="outline" />}>
@@ -333,7 +348,7 @@ export function PostDetails({
 
       <section className="space-y-2">
         <h3 className="text-sm font-medium">Accounts</h3>
-        <ul className="divide-y divide-card rounded-xl bg-muted">
+        <ul className="divide-y divide-border rounded-xl border border-border">
           {post.postAccounts.map((leg) => {
             const legMetrics = metrics?.[leg.id];
             return (
@@ -369,7 +384,9 @@ export function PostDetails({
                   </p>
                 ) : null}
                 {leg.error && !leg.published ? (
-                  <p className="pl-12 text-xs text-destructive">{leg.error}</p>
+                  <p title={leg.error} className="pl-12 text-xs break-words text-destructive">
+                    {readableError(leg.error, "Couldn't publish to this account.")}
+                  </p>
                 ) : null}
                 {legMetrics ? (
                   <div className="flex flex-wrap gap-x-4 gap-y-1 pl-12 text-xs text-muted-foreground tabular-nums">

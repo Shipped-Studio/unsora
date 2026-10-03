@@ -2,9 +2,15 @@
 
 import { useRef, useState } from "react";
 import { FileVideo, UploadSimple, WarningCircle, X } from "@phosphor-icons/react";
+import { MEDIA_ICON_BUTTON_CLASS } from "@/components/generator/result-tile";
+import {
+  ToolSidebarBody,
+  ToolSidebarFooter,
+} from "@/components/generator/tool-layout";
 import { Button } from "@/components/ui/button";
 import { GenerateButton } from "@/components/ui/generate-button";
 import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 import { useVideoManager } from "@/hooks/use-video-manager";
 import type { VideoAction } from "@/lib/video-utils";
 import type { VideoFile } from "@/types/video";
@@ -68,8 +74,8 @@ export function VideoJobForm({
   }
 
   return (
-    <div className="flex flex-col lg:h-full">
-      <div className="flex-1 space-y-6 p-4 sm:p-5 lg:overflow-y-auto">
+    <>
+      <ToolSidebarBody>
         <section className="space-y-3">
           <div className="flex h-6 items-center justify-between gap-2">
             <h2 className="text-sm font-medium">Videos</h2>
@@ -97,7 +103,7 @@ export function VideoJobForm({
               }
             }}
             data-dragging={dragging || undefined}
-            className="flex w-full flex-col items-center gap-1.5 rounded-xl border border-dashed px-4 py-6 text-center transition-colors outline-none hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-dragging:border-foreground/30 data-dragging:bg-muted"
+            className="flex w-full flex-col items-center gap-1.5 rounded-xl border border-dashed px-4 py-6 text-center transition-colors outline-none hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-dragging:border-ring data-dragging:bg-muted"
           >
             <UploadSimple className="mb-1 size-5 text-muted-foreground" />
             <span className="text-sm font-medium">
@@ -134,9 +140,9 @@ export function VideoJobForm({
         </section>
 
         {settings}
-      </div>
+      </ToolSidebarBody>
 
-      <div className="border-t p-4 sm:p-5">
+      <ToolSidebarFooter>
         <GenerateButton
           label={submitLabel}
           credits={totalCredits}
@@ -146,8 +152,8 @@ export function VideoJobForm({
           onClick={handleSubmit}
           className="w-full"
         />
-      </div>
-    </div>
+      </ToolSidebarFooter>
+    </>
   );
 }
 
@@ -164,7 +170,7 @@ function QueuedVideo({
 
   return (
     <li
-      className="relative aspect-square overflow-hidden rounded-md bg-muted"
+      className="relative aspect-square overflow-hidden rounded-lg bg-muted"
       title={failed ? video.uploadError : video.name}
     >
       {video.previewUrl ? (
@@ -183,7 +189,7 @@ function QueuedVideo({
       )}
 
       {busy ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/70 text-xs font-medium tabular-nums">
+        <div className="absolute inset-0 flex items-center justify-center bg-scrim/50 text-2xs font-medium text-media-foreground tabular-nums">
           {video.uploadStatus === "uploading" ? (
             `${video.uploadProgress}%`
           ) : (
@@ -193,7 +199,7 @@ function QueuedVideo({
       ) : null}
 
       {failed ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/80">
+        <div className="absolute inset-0 flex items-center justify-center bg-card/80">
           <WarningCircle className="size-5 text-destructive" />
           <span className="sr-only">Upload failed</span>
         </div>
@@ -201,9 +207,9 @@ function QueuedVideo({
 
       <Button
         type="button"
-        variant="secondary"
+        variant="ghost"
         size="icon-xs"
-        className="absolute top-1 right-1"
+        className={cn("absolute top-1 right-1", MEDIA_ICON_BUTTON_CLASS)}
         aria-label={`Remove ${video.name}`}
         onClick={onRemove}
       >

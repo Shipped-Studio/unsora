@@ -11,7 +11,7 @@ export default function AnalyticsPage() {
     <>
       <PageHeader />
       <PageBody>
-        <Suspense fallback={<Skeleton className="h-96 w-full rounded-lg" />}>
+        <Suspense fallback={<Skeleton className="h-96 w-full rounded-xl" />}>
           <AnalyticsView />
         </Suspense>
       </PageBody>

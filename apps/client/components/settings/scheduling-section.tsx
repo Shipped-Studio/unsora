@@ -45,7 +45,6 @@ export function SchedulingSection() {
         {error && !loading ? (
           <ErrorState
             title="Couldn't load your preferences"
-            description={error}
             onRetry={() => void refetch()}
           />
         ) : (
@@ -86,8 +85,11 @@ export function SchedulingSection() {
           <form onSubmit={save}>
             <FieldGroup className="gap-5">
               <Field>
-                <FieldLabel>Time zone</FieldLabel>
-                <TimezoneCombobox value={zone} onChange={setTimezone} className="w-full" />
+                <FieldLabel id="settings-timezone-label">Time zone</FieldLabel>
+                {/* The combobox doesn't take an id, so the group carries the label. */}
+                <div role="group" aria-labelledby="settings-timezone-label">
+                  <TimezoneCombobox value={zone} onChange={setTimezone} className="w-full" />
+                </div>
                 <FieldDescription>
                   {savedZone
                     ? "Used for the calendar and for scheduled post times."
@@ -96,8 +98,11 @@ export function SchedulingSection() {
               </Field>
 
               <FieldSet>
-                <FieldLegend variant="label">Week starts on</FieldLegend>
+                <FieldLegend id="settings-week-start-label" variant="label">
+                  Week starts on
+                </FieldLegend>
                 <RadioGroup
+                  aria-labelledby="settings-week-start-label"
                   value={String(week)}
                   onValueChange={(value) =>
                     setWeekStartsOn(value === "1" ? 1 : 0)

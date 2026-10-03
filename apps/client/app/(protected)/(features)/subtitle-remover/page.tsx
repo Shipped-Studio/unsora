@@ -3,7 +3,13 @@
 import { useState } from "react";
 import { Eraser } from "@phosphor-icons/react";
 import { toast } from "sonner";
-import { ToolEmpty, ToolPage } from "@/components/generator/tool-layout";
+import {
+  ToolEmpty,
+  ToolGrid,
+  ToolPage,
+  ToolPane,
+  ToolSidebar,
+} from "@/components/generator/tool-layout";
 import { ErrorState } from "@/components/shared/states";
 import {
   SubtitleRemoverForm,
@@ -46,21 +52,18 @@ export default function SubtitleRemoverPage() {
   }
 
   return (
-    <ToolPage className="p-0 sm:p-0 lg:flex lg:items-start">
-      <aside className="border-b lg:sticky lg:top-14 lg:h-[calc(100svh-3.5rem)] lg:w-95 lg:shrink-0 lg:border-r lg:border-b-0">
+    <ToolPage className="p-0 sm:p-0 lg:flex-row lg:items-start">
+      <ToolSidebar>
         <SubtitleRemoverForm onSubmit={handleSubmit} />
-      </aside>
+      </ToolSidebar>
 
-      <section
-        aria-label="Results"
-        className="@container min-w-0 flex-1 px-3 py-4 sm:px-6 sm:py-6"
-      >
+      <ToolPane label="Results">
         {jobs.isLoading ? (
-          <div className="grid grid-cols-1 gap-3 @lg:grid-cols-2 @4xl:grid-cols-3 @7xl:grid-cols-4">
+          <ToolGrid shape="video">
             {Array.from({ length: 6 }).map((_, i) => (
               <VideoJobCardSkeleton key={i} />
             ))}
-          </div>
+          </ToolGrid>
         ) : jobs.isError ? (
           <ErrorState
             title="Couldn't load your videos"
@@ -75,7 +78,7 @@ export default function SubtitleRemoverPage() {
           />
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-3 @lg:grid-cols-2 @4xl:grid-cols-3 @7xl:grid-cols-4">
+            <ToolGrid shape="video">
               {jobs.items.map((job) => (
                 <VideoJobCard
                   key={job.id}
@@ -85,7 +88,7 @@ export default function SubtitleRemoverPage() {
                   onDelete={() => void jobs.deleteItem(job.id)}
                 />
               ))}
-            </div>
+            </ToolGrid>
             {hasNextPage ? (
               <div ref={loadMoreSentinel} className="flex justify-center py-6">
                 {isFetchingNextPage ? (
@@ -95,7 +98,7 @@ export default function SubtitleRemoverPage() {
             ) : null}
           </>
         )}
-      </section>
+      </ToolPane>
 
       <VideoCompareDialog
         job={selected}

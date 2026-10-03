@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   DotsThree,
   Folder,
@@ -215,7 +215,9 @@ export function DeleteFolderDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={remove.isPending}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={remove.isPending}>
+            Cancel
+          </AlertDialogCancel>
           <AlertDialogAction
             variant="destructive"
             disabled={remove.isPending}
@@ -249,31 +251,45 @@ function RailButton({
   icon: Icon,
   label,
   count,
+  menu,
 }: {
   active: boolean;
   onClick: () => void;
   icon: typeof Folder;
   label: string;
   count?: number;
+  /** Options trigger shown after the count, always visible. */
+  menu?: ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-current={active ? "true" : undefined}
+    <div
       className={cn(
-        "flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-sm outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
+        "flex h-9 w-full min-w-0 items-center rounded-lg transition-colors",
         active
-          ? "bg-muted font-medium text-foreground"
-          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+          ? "bg-accent text-foreground"
+          : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+        menu && "pr-1",
       )}
     >
-      <Icon className="size-4 shrink-0" />
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      {count !== undefined ? (
-        <span className="text-xs text-muted-foreground tabular-nums">{count}</span>
-      ) : null}
-    </button>
+      <button
+        type="button"
+        onClick={onClick}
+        aria-current={active ? "true" : undefined}
+        className={cn(
+          "flex h-full min-w-0 flex-1 items-center gap-2 rounded-lg px-3 text-left text-sm font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+          menu && "pr-2",
+        )}
+      >
+        <Icon className="size-4 shrink-0" />
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        {count !== undefined ? (
+          <span className="text-xs font-normal text-muted-foreground tabular-nums">
+            {count}
+          </span>
+        ) : null}
+      </button>
+      {menu}
+    </div>
   );
 }
 
@@ -318,54 +334,62 @@ export function LibraryFolderRail({
 
       {folders.isPending ? (
         <div className="space-y-1 pt-1" aria-hidden>
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-8 w-4/5" />
+          <Skeleton className="h-9 w-full rounded-lg" />
+          <Skeleton className="h-9 w-4/5 rounded-lg" />
         </div>
       ) : folders.isError ? (
         <div className="space-y-1 px-2 pt-1">
-          <p className="text-xs text-muted-foreground">Couldn&apos;t load folders.</p>
-          <Button variant="link" size="xs" className="px-0" onClick={() => void folders.refetch()}>
+          <p className="text-xs text-muted-foreground">
+            Couldn&apos;t load folders.
+          </p>
+          <Button
+            variant="link"
+            size="xs"
+            className="px-0"
+            onClick={() => void folders.refetch()}
+          >
             Try again
           </Button>
         </div>
       ) : (
         folders.data.map((folder) => (
-          <div key={folder.id} className="group/folder relative">
-            <RailButton
-              active={value === folder.id}
-              onClick={() => onChange(folder.id)}
-              icon={Folder}
-              label={folder.name}
-              count={folder.count}
-            />
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label={`Options for ${folder.name}`}
-                    className="absolute top-1 right-1 bg-muted opacity-0 group-hover/folder:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100"
-                  />
-                }
-              >
-                <DotsThree weight="bold" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40">
-                <DropdownMenuItem onClick={() => setRenaming(folder)}>
-                  <PencilSimple />
-                  Rename
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  variant="destructive"
-                  onClick={() => setDeleting(folder)}
+          <RailButton
+            key={folder.id}
+            active={value === folder.id}
+            onClick={() => onChange(folder.id)}
+            icon={Folder}
+            label={folder.name}
+            count={folder.count}
+            menu={
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={`Options for ${folder.name}`}
+                      className="shrink-0 text-muted-foreground hover:text-foreground"
+                    />
+                  }
                 >
-                  <Trash />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+                  <DotsThree weight="bold" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem onClick={() => setRenaming(folder)}>
+                    <PencilSimple />
+                    Rename
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => setDeleting(folder)}
+                  >
+                    <Trash />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            }
+          />
         ))
       )}
 
@@ -417,7 +441,11 @@ export function LibraryFolderSelect({
       value={value}
       onValueChange={(next) => onChange((next as string | null) ?? "all")}
     >
-      <SelectTrigger size="sm" className={cn("min-w-36", className)} aria-label="Folder">
+      <SelectTrigger
+        size="sm"
+        className={cn("min-w-36", className)}
+        aria-label="Folder"
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -453,7 +481,13 @@ export function LibraryFolderBar({
       <LibraryFolderSelect value={value} onChange={onChange} />
       <DropdownMenu>
         <DropdownMenuTrigger
-          render={<Button variant="ghost" size="icon-sm" aria-label="Folder actions" />}
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Folder actions"
+            />
+          }
         >
           <DotsThree weight="bold" />
         </DropdownMenuTrigger>

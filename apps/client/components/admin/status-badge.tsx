@@ -23,7 +23,7 @@ export function StatusDot({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 text-xs whitespace-nowrap",
+        "inline-flex items-center gap-1.5 text-sm whitespace-nowrap",
         className,
       )}
     >

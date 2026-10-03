@@ -15,7 +15,7 @@ import {
 import { ErrorState } from "@/components/shared/states";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAdminOverview } from "@/hooks/admin/use-admin-data";
-import { compactNumber, titleCase } from "@/lib/admin-format";
+import { compactNumber, providerLabel, titleCase } from "@/lib/admin-format";
 
 export default function AdminOverviewPage() {
   const [days, setDays] = useState(30);
@@ -26,8 +26,8 @@ export default function AdminOverviewPage() {
       isRoot
       title="Admin"
       description="Activity across Unsora"
-      actions={<RangeSelect value={days} onChange={setDays} />}
     >
+      <RangeSelect value={days} onChange={setDays} />
       {error && !data ? (
         <ErrorState
           title="Couldn't load the overview"
@@ -59,7 +59,7 @@ export default function AdminOverviewPage() {
             <StatTile
               label="Credits consumed"
               value={compactNumber(data.kpis.creditsConsumed)}
-              hint={`In the last ${days} days`}
+              hint="All time"
               spark={data.series.credits.map((d) => d.count)}
             />
             <StatTile
@@ -68,14 +68,14 @@ export default function AdminOverviewPage() {
               hint={`In the last ${days} days`}
             />
             <StatTile
-              label="Completed"
+              label="Completed tasks"
               value={compactNumber(data.kpis.completedTasks)}
-              hint="Successful generations"
+              hint="All time"
             />
             <StatTile
-              label="Failed"
+              label="Failed tasks"
               value={compactNumber(data.kpis.failedTasks)}
-              hint="Generations that errored"
+              hint="All time"
             />
             <StatTile
               label="Connected accounts"
@@ -100,13 +100,13 @@ export default function AdminOverviewPage() {
             >
               <AreaChart
                 data={data.series.newUsers}
-                series={[{ key: "count", label: "Sign-ups", color: "var(--chart-2)" }]}
+                series={[{ key: "count", label: "Sign-ups", color: "var(--chart-1)" }]}
               />
             </ChartCard>
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <ChartCard title="Task status">
+            <ChartCard title="Task status" description="All time">
               <DonutChart
                 slices={data.taskStatus.map((s) => ({
                   label: titleCase(s.status.toLowerCase()),
@@ -115,7 +115,7 @@ export default function AdminOverviewPage() {
                 }))}
               />
             </ChartCard>
-            <ChartCard title="Feature usage" description="Tasks by feature">
+            <ChartCard title="Feature usage" description="All time">
               <BarList
                 items={data.kindCounts.map((k) => ({
                   label: kindLabel(k.kind),
@@ -125,14 +125,15 @@ export default function AdminOverviewPage() {
             </ChartCard>
             <ChartCard
               title="Connected platforms"
-              description="Linked social accounts"
+              description="All time"
             >
               <BarList
                 items={data.providers.map((p) => ({
-                  label: titleCase(p.provider),
+                  label: providerLabel(p.provider),
                   value: p.count,
                 }))}
                 emptyLabel="No connected accounts yet"
+                scale="share"
               />
             </ChartCard>
           </div>

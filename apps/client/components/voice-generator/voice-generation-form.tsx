@@ -1,6 +1,10 @@
 "use client";
 
 import { useId, useState } from "react";
+import {
+  ToolSidebarBody,
+  ToolSidebarFooter,
+} from "@/components/generator/tool-layout";
 import { GenerateButton } from "@/components/ui/generate-button";
 import { Label } from "@/components/ui/label";
 import {
@@ -12,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
+import { ManageVoicesButton } from "@/components/voice-generator/voice-clone-list";
 import {
   VoiceSelector,
   isClonedVoiceId,
@@ -86,11 +91,8 @@ function SliderField({
 
 export function VoiceGenerationForm({
   onSubmit,
-  children,
 }: {
   onSubmit: (payload: VoiceGenerationPayload) => Promise<void>;
-  /** Extra sections shown under the fields, above the submit button. */
-  children?: React.ReactNode;
 }) {
   const { catalog } = useVoiceClones();
   const [text, setText] = useState("");
@@ -128,12 +130,31 @@ export function VoiceGenerationForm({
   }
 
   return (
-    <div className="flex flex-col lg:h-full">
-      <div className="flex-1 space-y-6 p-4 sm:p-5 lg:overflow-y-auto">
+    <>
+      <ToolSidebarBody>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="voice-text">Script</Label>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {charCount.toLocaleString()} characters
+            </span>
+          </div>
+          <Textarea
+            id="voice-text"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            disabled={submitting}
+            placeholder="What should the voice say?"
+            rows={8}
+            className="field-sizing-fixed min-h-40 resize-y leading-relaxed"
+          />
+        </div>
+
         <VoiceSelector
           value={voiceId}
           onChange={setVoiceId}
           disabled={submitting}
+          labelAction={<ManageVoicesButton />}
         />
 
         {!isClone && !isElevenV3 ? (
@@ -196,29 +217,9 @@ export function VoiceGenerationForm({
             />
           </>
         )}
+      </ToolSidebarBody>
 
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <Label htmlFor="voice-text">Script</Label>
-            <span className="text-xs text-muted-foreground tabular-nums">
-              {charCount.toLocaleString()} characters
-            </span>
-          </div>
-          <Textarea
-            id="voice-text"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            disabled={submitting}
-            placeholder="What should the voice say?"
-            rows={8}
-            className="field-sizing-fixed min-h-40 resize-y text-sm leading-relaxed"
-          />
-        </div>
-
-        {children}
-      </div>
-
-      <div className="border-t p-4 sm:p-5">
+      <ToolSidebarFooter>
         <GenerateButton
           label="Generate voiceover"
           credits={credits}
@@ -227,7 +228,7 @@ export function VoiceGenerationForm({
           onClick={handleSubmit}
           className="w-full"
         />
-      </div>
-    </div>
+      </ToolSidebarFooter>
+    </>
   );
 }

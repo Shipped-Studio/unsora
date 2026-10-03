@@ -7,8 +7,17 @@ import {
   DownloadSimple,
   ImageSquare,
   Trash,
-  WarningCircle,
 } from "@phosphor-icons/react";
+import {
+  FailedState,
+  MEDIA_ICON_BUTTON_CLASS,
+  TILE_GHOST_BUTTON_CLASS,
+  TILE_CLASS,
+  TILE_SKELETON_BAR_CLASS,
+  TILE_SKELETON_CLASS,
+  UnavailableState,
+  useImageFade,
+} from "@/components/generator/result-tile";
 import { ScheduleLink } from "@/components/generator/tool-layout";
 import {
   AlertDialog,
@@ -34,11 +43,13 @@ import {
   isImageUpscaleActive,
   type ImageUpscale,
 } from "@/hooks/use-image-upscales-query";
+import { cn } from "@/lib/utils";
 import { getCdnUrl } from "@/lib/video-utils";
 
 interface UpscaleCardProps {
   job: ImageUpscale;
-  name: string;
+  /** The uploaded file name, when this visit still remembers it. */
+  name?: string;
   onOpen: () => void;
   onDelete: () => void;
 }
@@ -50,11 +61,38 @@ function formatDate(value: string) {
   });
 }
 
+/**
+ * A readable name from a storage URL ("beach-photo.png"), or null when the
+ * last path segment is only a generated id.
+ */
+export function upscaleName(url?: string | null): string | null {
+  if (!url) return null;
+  let segment: string;
+  try {
+    segment = decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "");
+  } catch {
+    return null;
+  }
+  const cleaned = segment
+    // Upload prefixes: timestamps and uuids.
+    .replace(/^\d{10,}[-_]/, "")
+    .replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[-_]?/i, "");
+  const base = cleaned.replace(/\.[a-z0-9]+$/i, "");
+  if (!base || /^[0-9a-f_-]{12,}$/i.test(base)) return null;
+  return cleaned;
+}
+
 export function UpscaleCard({ job, name, onOpen, onDelete }: UpscaleCardProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   const active = isImageUpscaleActive(job);
   const failed = job.status === "FAILED";
   const outputUrl = job.status === "COMPLETED" ? job.outputUrl : null;
+  const fade = useImageFade(outputUrl);
+  const title =
+    name ??
+    upscaleName(job.inputUrl) ??
+    (size ? `${size.w} × ${size.h} image` : "Upscaled image");
 
   const status = active
     ? job.status === "QUEUED"
@@ -62,26 +100,51 @@ export function UpscaleCard({ job, name, onOpen, onDelete }: UpscaleCardProps) {
       : "Upscaling"
     : failed
       ? "Failed"
-      : formatDate(job.createdAt);
+      : [
+          name || upscaleName(job.inputUrl)
+            ? size
+              ? `${size.w} × ${size.h}`
+              : null
+            : null,
+          formatDate(job.createdAt),
+        ]
+          .filter(Boolean)
+          .join(" · ");
 
   return (
-    <article className="flex flex-col overflow-hidden rounded-xl bg-muted">
-      {outputUrl ? (
+    <article className={cn("group relative flex flex-col", TILE_CLASS)}>
+      {outputUrl && fade.failed ? (
+        <div className="aspect-square bg-card">
+          <UnavailableState />
+        </div>
+      ) : outputUrl ? (
         <button
           type="button"
           onClick={onOpen}
-          aria-label={`Compare ${name}`}
-          className="relative block aspect-square w-full overflow-hidden bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
+          aria-label={`Compare ${title}`}
+          className="relative block aspect-square w-full overflow-hidden bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
         >
           <img
             src={getCdnUrl(outputUrl)}
-            alt={name}
+            alt={title}
             loading="lazy"
-            className="size-full object-cover"
+            onLoad={(event) => {
+              fade.onLoad();
+              const img = event.currentTarget;
+              if (img.naturalWidth > 0) {
+                setSize({ w: img.naturalWidth, h: img.naturalHeight });
+              }
+            }}
+            onError={fade.onError}
+            className={cn("size-full object-cover", fade.className)}
           />
         </button>
+      ) : failed ? (
+        <div className="aspect-square bg-card">
+          <FailedState error={job.error} kind="file" title="Upscaling failed" />
+        </div>
       ) : (
-        <div className="relative flex aspect-square flex-col items-center justify-center gap-2 overflow-hidden bg-muted px-4 text-center">
+        <div className="relative flex aspect-square flex-col items-center justify-center gap-2 overflow-hidden bg-card px-4 text-center">
           {active && job.inputUrl ? (
             <img
               src={getCdnUrl(job.inputUrl)}
@@ -96,89 +159,77 @@ export function UpscaleCard({ job, name, onOpen, onDelete }: UpscaleCardProps) {
                 {status}
               </span>
             </>
-          ) : failed ? (
-            <>
-              <WarningCircle className="size-5 text-destructive" />
-              <p className="line-clamp-3 text-xs text-destructive">
-                {job.error || "Upscaling failed."}
-              </p>
-            </>
           ) : (
             <ImageSquare className="size-6 text-muted-foreground" />
           )}
         </div>
       )}
 
-      <div className="flex flex-1 flex-col gap-3 p-3">
-        <div className="flex items-start gap-2">
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium" title={name}>
-              {name}
-            </p>
-            <p
-              className={
-                failed
-                  ? "truncate text-xs text-destructive"
-                  : "truncate text-xs text-muted-foreground"
+      {outputUrl ? (
+        <div className="absolute top-2 right-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className={MEDIA_ICON_BUTTON_CLASS}
+                  aria-label={`More actions for ${title}`}
+                />
               }
             >
-              {status}
-            </p>
-          </div>
-          {outputUrl ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="-mt-1 -mr-1"
-                    aria-label={`More actions for ${name}`}
-                  />
-                }
+              <DotsThree weight="bold" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuItem onClick={onOpen}>
+                <ArrowsLeftRight />
+                Compare
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => setConfirmOpen(true)}
               >
-                <DotsThree weight="bold" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40">
-                <DropdownMenuItem onClick={onOpen}>
-                  <ArrowsLeftRight />
-                  Compare
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  variant="destructive"
-                  onClick={() => setConfirmOpen(true)}
-                >
-                  <Trash />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
+                <Trash />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ) : null}
+
+      <div className="flex flex-1 flex-col gap-2 p-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium" title={title}>
+            {title}
+          </p>
+          <p className="truncate text-xs text-muted-foreground tabular-nums">
+            {status}
+          </p>
         </div>
 
         {outputUrl ? (
-          <div className="mt-auto flex gap-2">
-            <ScheduleLink url={outputUrl} mediaType="image" className="flex-1" />
+          <div className="mt-auto flex items-center gap-1">
+            <ScheduleLink url={outputUrl} mediaType="image" size="xs" variant="outline" />
             <a
               href={getCdnUrl(outputUrl, { download: true })}
               download
-              className={buttonVariants({ variant: "outline", size: "icon-sm" })}
-              aria-label={`Download ${name}`}
+              className={cn(
+                buttonVariants({ variant: "ghost", size: "icon-xs" }),
+                TILE_GHOST_BUTTON_CLASS,
+              )}
+              aria-label={`Download ${title}`}
             >
               <DownloadSimple />
             </a>
           </div>
         ) : failed ? (
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-auto"
-            onClick={() => setConfirmOpen(true)}
-          >
-            <Trash />
-            Delete
-          </Button>
+          <div className="mt-auto flex">
+            <Button variant="outline" size="xs" onClick={() => setConfirmOpen(true)}>
+              <Trash />
+              Delete
+            </Button>
+          </div>
         ) : null}
       </div>
 
@@ -211,12 +262,12 @@ export function UpscaleCard({ job, name, onOpen, onDelete }: UpscaleCardProps) {
 
 export function UpscaleCardSkeleton() {
   return (
-    <div className="overflow-hidden rounded-xl bg-muted">
-      <Skeleton className="aspect-square rounded-none" />
+    <div className={TILE_SKELETON_CLASS}>
+      <Skeleton className={cn("aspect-square rounded-none", TILE_SKELETON_BAR_CLASS)} />
       <div className="space-y-2 p-3">
-        <Skeleton className="h-4 w-2/3" />
-        <Skeleton className="h-3 w-1/3" />
-        <Skeleton className="h-8 w-full" />
+        <Skeleton className={cn("h-4 w-2/3", TILE_SKELETON_BAR_CLASS)} />
+        <Skeleton className={cn("h-3 w-1/3", TILE_SKELETON_BAR_CLASS)} />
+        <Skeleton className={cn("h-7 w-24", TILE_SKELETON_BAR_CLASS)} />
       </div>
     </div>
   );

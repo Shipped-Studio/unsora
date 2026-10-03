@@ -111,7 +111,7 @@ function CreateKeyBody({
               id="new-api-key"
               readOnly
               value={created.key}
-              className="font-mono text-xs"
+              className="font-mono text-base md:text-xs"
               onFocus={(event) => event.currentTarget.select()}
             />
             <CopyButton
@@ -167,7 +167,7 @@ function CreateKeyBody({
           Cancel
         </DialogClose>
         <Button type="submit" disabled={createKey.isPending}>
-          {createKey.isPending ? "Creating…" : "Create key"}
+          {createKey.isPending ? "Creating…" : "Create API key"}
         </Button>
       </DialogFooter>
     </form>

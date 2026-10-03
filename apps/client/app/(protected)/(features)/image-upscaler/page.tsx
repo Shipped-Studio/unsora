@@ -3,7 +3,13 @@
 import { useState } from "react";
 import { FrameCorners } from "@phosphor-icons/react";
 import { toast } from "sonner";
-import { ToolEmpty, ToolPage } from "@/components/generator/tool-layout";
+import {
+  ToolEmpty,
+  ToolGrid,
+  ToolPage,
+  ToolPane,
+  ToolSidebar,
+} from "@/components/generator/tool-layout";
 import {
   ImageUpscalerForm,
   type ImageUpscaleInput,
@@ -11,6 +17,7 @@ import {
 import {
   UpscaleCard,
   UpscaleCardSkeleton,
+  upscaleName,
 } from "@/components/image-upscaler/upscale-card";
 import { UpscaleDetailDialog } from "@/components/image-upscaler/upscale-detail-dialog";
 import { ErrorState } from "@/components/shared/states";
@@ -21,9 +28,6 @@ import {
   type ImageUpscale,
 } from "@/hooks/use-image-upscales-query";
 
-const GRID_CLASS =
-  "grid grid-cols-2 gap-3 @2xl:grid-cols-3 @5xl:grid-cols-4 @7xl:grid-cols-5";
-
 export default function ImageUpscalerPage() {
   const { authFetch } = useAuthFetch();
   const upscales = useImageUpscales();
@@ -32,7 +36,8 @@ export default function ImageUpscalerPage() {
   // The server doesn't store file names, so remember the ones from this visit.
   const [names, setNames] = useState<Record<string, string>>({});
 
-  const nameFor = (job: ImageUpscale) => names[job.id] ?? "Upscaled image";
+  const nameFor = (job: ImageUpscale) =>
+    names[job.id] ?? upscaleName(job.inputUrl) ?? "Upscaled image";
 
   async function handleSubmit(items: ImageUpscaleInput[]) {
     let started = 0;
@@ -66,21 +71,18 @@ export default function ImageUpscalerPage() {
   }
 
   return (
-    <ToolPage className="p-0 sm:p-0 lg:flex lg:items-start">
-      <aside className="border-b lg:sticky lg:top-14 lg:h-[calc(100svh-3.5rem)] lg:w-95 lg:shrink-0 lg:border-r lg:border-b-0">
+    <ToolPage className="p-0 sm:p-0 lg:flex-row lg:items-start">
+      <ToolSidebar>
         <ImageUpscalerForm onSubmit={handleSubmit} />
-      </aside>
+      </ToolSidebar>
 
-      <section
-        aria-label="Results"
-        className="@container min-w-0 flex-1 px-3 py-4 sm:px-6 sm:py-6"
-      >
+      <ToolPane label="Results">
         {upscales.isLoading ? (
-          <div className={GRID_CLASS}>
+          <ToolGrid shape="square">
             {Array.from({ length: 8 }).map((_, i) => (
               <UpscaleCardSkeleton key={i} />
             ))}
-          </div>
+          </ToolGrid>
         ) : upscales.isError ? (
           <ErrorState
             title="Couldn't load your images"
@@ -95,17 +97,17 @@ export default function ImageUpscalerPage() {
           />
         ) : (
           <>
-            <div className={GRID_CLASS}>
+            <ToolGrid shape="square">
               {upscales.items.map((job) => (
                 <UpscaleCard
                   key={job.id}
                   job={job}
-                  name={nameFor(job)}
+                  name={names[job.id]}
                   onOpen={() => setSelected(job)}
                   onDelete={() => void upscales.deleteItem(job.id)}
                 />
               ))}
-            </div>
+            </ToolGrid>
             {hasNextPage ? (
               <div
                 ref={loadMoreSentinel}
@@ -118,7 +120,7 @@ export default function ImageUpscalerPage() {
             ) : null}
           </>
         )}
-      </section>
+      </ToolPane>
 
       <UpscaleDetailDialog
         job={selected}

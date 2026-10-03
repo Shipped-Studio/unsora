@@ -51,15 +51,15 @@ export function VideoEditor({
 
   return (
     <div className="overflow-hidden rounded-xl bg-muted">
-      <div className="grid gap-4 p-3 sm:grid-cols-[minmax(0,220px)_1fr]">
-        <div className="relative overflow-hidden rounded-md bg-media">
+      <div className="grid grid-cols-1 gap-4 p-3 sm:grid-cols-[minmax(0,220px)_1fr]">
+        <div className="relative overflow-hidden rounded-lg bg-media">
           <video
             key={video.previewUrl}
             src={video.previewUrl}
             controls
             playsInline
             preload="metadata"
-            className="aspect-[9/16] w-full object-contain"
+            className="aspect-9/16 w-full object-contain"
           />
         </div>
 
@@ -92,7 +92,7 @@ export function VideoEditor({
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground">Cover</p>
               <div className="flex items-center gap-3">
-                <div className="flex size-16 items-center justify-center overflow-hidden rounded-md bg-muted">
+                <div className="flex size-16 items-center justify-center overflow-hidden rounded-lg border border-border bg-card">
                   {state.cover ? (
                     <img src={state.cover.previewUrl} alt="Cover" className="size-full object-cover" />
                   ) : (
@@ -116,7 +116,7 @@ export function VideoEditor({
                   ) : state.cover ? (
                     <button
                       type="button"
-                      className="text-xs text-muted-foreground hover:text-foreground"
+                      className="rounded-md text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
                       onClick={() => void setCover(null)}
                     >
                       Remove cover

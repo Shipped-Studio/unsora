@@ -102,7 +102,7 @@ export function EditTitleTab({ config, onChange }: EditTitleTabProps) {
       </EditorSection>
 
       <EditorSection title="Size and position">
-        <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2">
           <SliderField
             label="Font size"
             unit="px"
