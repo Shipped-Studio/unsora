@@ -2,6 +2,7 @@ import prisma from "../lib/db";
 import { Request, Response } from "express";
 import { verifyWebhook } from "@clerk/express/webhooks";
 import { clerkClient } from "@clerk/express";
+import { onNewSignup } from "../emails";
 
 const rejectedDomains = [
   "delaeb.com",
@@ -41,8 +42,8 @@ export class ClerkController {
         }
 
         // Use transaction to ensure consistency
-        await prisma.$transaction(async (tx) => {
-          await tx.user.create({
+        const user = await prisma.$transaction(async (tx) => {
+          const created = await tx.user.create({
             data: {
               clerkId: id as string,
               email: evt.data.email_addresses[0].email_address,
@@ -55,6 +56,18 @@ export class ClerkController {
               onboardingCompleted: false,
             },
           });
+
+          return created;
+        });
+
+        void onNewSignup({
+          userId: user.id,
+          clerkId: id as string,
+          email: user.email,
+          firstName: evt.data.first_name ?? null,
+          lastName: evt.data.last_name ?? null,
+          username: evt.data.username ?? null,
+          providers: (evt.data.external_accounts ?? []).map((a) => a.provider),
         });
       }
 

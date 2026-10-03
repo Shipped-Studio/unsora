@@ -11,6 +11,7 @@ import { threadsService } from "./platforms/threads.service";
 import { tiktokService } from "./platforms/tiktok.service";
 import { youtubeService } from "./platforms/youtube.service";
 import { tokenRefreshService } from "./token-refresh.service";
+import { onPostPublishFailed } from "../emails";
 
 dotenv.config();
 
@@ -121,6 +122,22 @@ export class PostService {
             : `Failed to publish to ${failed.length} of ${publishResults.length} account(s)`,
         },
       });
+
+      if (!allSucceeded) {
+        const byAccount = new Map(publishResults.map((r) => [r.accountId, r]));
+        void onPostPublishFailed({
+          userId: post.userId,
+          postId: post.id,
+          caption: post.mainCaption,
+          targets: post.postAccounts.map((pa) => ({
+            accountName: pa.account.accountName ?? pa.account.accountUsername,
+            provider: pa.account.provider,
+            error: byAccount.get(pa.accountId)?.success
+              ? null
+              : (byAccount.get(pa.accountId)?.error ?? "Unknown error"),
+          })),
+        });
+      }
 
       return {
         success: allSucceeded,

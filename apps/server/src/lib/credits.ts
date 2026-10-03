@@ -5,6 +5,7 @@ import {
   PrismaClient,
 } from "@prisma/client";
 import prisma from "./db";
+import { onCreditsSpent } from "../emails";
 
 /**
  * Credit bucket service.
@@ -256,7 +257,7 @@ export async function consumeCredits(opts: ConsumeOptions): Promise<ConsumeResul
     throw new Error(`consumeCredits: amount must be > 0 (got ${opts.amount})`);
   }
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     // Lock the candidate grants so no other transaction can race us.
     const rows = await tx.$queryRaw<LockedGrantRow[]>`
       SELECT id, amount, used, "expiresAt" AS expires_at, "createdAt" AS created_at
@@ -312,6 +313,15 @@ export async function consumeCredits(opts: ConsumeOptions): Promise<ConsumeResul
       balanceAfter: available - opts.amount,
     };
   });
+
+  // Emails only when this spend crossed the low-credit line.
+  void onCreditsSpent({
+    userId: opts.userId,
+    before: result.balanceAfter + opts.amount,
+    after: result.balanceAfter,
+  });
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------

@@ -9,6 +9,7 @@ import * as Sentry from "@sentry/node";
 import express, { Application, Request, Response } from "express";
 import cors from "cors";
 import routes from "./routes";
+import devEmailRoutes from "./routes/dev-emails.routes";
 import apiV1Routes from "./api/v1/routes";
 import { errorHandler } from "./middleware/errorHandler";
 import openApiDocument from "./docs/openapi";
@@ -126,6 +127,11 @@ app.get("/api-docs", (_req: Request, res: Response) => {
 // v1 route fall through to the internal routes mounted below.
 app.use("/api/v1", apiV1Routes);
 app.use("/api", routes);
+
+// Email template preview for development (see routes/dev-emails.routes.ts).
+if (process.env.NODE_ENV !== "production") {
+  app.use("/dev/emails", devEmailRoutes);
+}
 
 app.get("/health", (_req: Request, res: Response) => {
   res.status(200).json({ status: "OK" });

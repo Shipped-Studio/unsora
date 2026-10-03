@@ -4,6 +4,7 @@ import prisma from "../lib/db";
 import { stripe } from "../lib/stripe";
 import { clerkClient } from "@clerk/express";
 import Stripe from "stripe";
+import { onCreditsPurchased, onPaymentFailed, onSubscriptionStarted } from "../emails";
 import {
   expireSubscriptionGrants,
   getSubscriptionCreditsRemaining,
@@ -359,6 +360,26 @@ export class StripeController {
                   `subscription:${planName.toLowerCase()}:zero-credit-plan:${invoice.id}`,
                 );
               }
+
+              // First invoice of a new subscription (trial, paid or upgrade).
+              // Inside the idempotency guard, so a webhook retry sends nothing.
+              if (billingReason === "subscription_create") {
+                void onSubscriptionStarted({
+                  userId: user.id,
+                  email: user.email,
+                  invoiceId: invoice.id ?? subscription.id,
+                  planName,
+                  credits: credits + carryover,
+                  kind: isTrial ? "trial" : isPlanUpgrade ? "upgraded" : "paid",
+                  trialEndsAt: subscription.trial_end
+                    ? new Date(subscription.trial_end * 1000)
+                    : null,
+                  amountPaidCents: invoice.amount_paid,
+                  currency: invoice.currency,
+                  interval: subscription.items.data[0].price.recurring?.interval ?? null,
+                  signupAt: user.createdAt,
+                });
+              }
             }
           }
 
@@ -443,6 +464,17 @@ export class StripeController {
             },
           });
 
+          // Stripe sends this on every retry of the charge; email once.
+          if ((invoice.attempt_count ?? 1) <= 1) {
+            void onPaymentFailed({
+              email: user.email,
+              invoiceId: invoice.id ?? subscription.id,
+              planName: user.plan ?? "paid",
+              amountCents: invoice.amount_due,
+              currency: invoice.currency,
+            });
+          }
+
           break;
         }
 
@@ -506,6 +538,14 @@ export class StripeController {
               amountTotal: session.amount_total,
               currency: session.currency,
             },
+          });
+
+          void onCreditsPurchased({
+            userId,
+            credits: topupAmount,
+            amountCents: session.amount_total,
+            currency: session.currency,
+            sessionId: session.id,
           });
 
           break;

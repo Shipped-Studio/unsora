@@ -102,6 +102,13 @@ const schema = z.object({
   // Monitoring / admin
   SENTRY_DSN: optional,
   ADMIN_EMAILS: optional,
+
+  // Transactional email (src/emails). Unset = no mail is sent.
+  PLUNK_SECRET_KEY: optional,
+  PLUNK_FROM_EMAIL: optional,
+  PLUNK_API_URL: optional,
+  SIGNUP_NOTIFICATION_EMAIL: optional,
+  LOW_CREDITS_THRESHOLD: optional,
 });
 
 const parsed = schema.safeParse(process.env);
