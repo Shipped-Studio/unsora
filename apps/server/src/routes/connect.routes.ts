@@ -64,6 +64,20 @@ router.get(
   checkSocialAccountLimit,
   connectController.getLinkedInAuthUrl
 );
+router.get(
+  "/x",
+  requireAuth,
+  requirePaidPlan,
+  checkSocialAccountLimit,
+  connectController.getXAuthUrl
+);
+router.get(
+  "/google_business",
+  requireAuth,
+  requirePaidPlan,
+  checkSocialAccountLimit,
+  connectController.getGoogleBusinessAuthUrl
+);
 
 // BLUESKY (AT PROTOCOL) CLIENT DISCOVERY — must be public: the URL of
 // client-metadata.json is the OAuth client_id, and authorization servers
@@ -88,6 +102,11 @@ router.get("/bluesky/callback", connectController.handleBlueskyCallback);
 router.get("/threads/callback", connectController.handleThreadsCallback);
 router.get("/pinterest/callback", connectController.handlePinterestCallback);
 router.get("/linkedin/callback", connectController.handleLinkedInCallback);
+router.get("/x/callback", connectController.handleXCallback);
+router.get(
+  "/google_business/callback",
+  connectController.handleGoogleBusinessCallback
+);
 
 // ACCOUNT MANAGEMENT
 router.get(

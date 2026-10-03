@@ -39,11 +39,9 @@ const schema = z.object({
   REPLICATE_API_KEY: required,
   WAVESPEED_API_KEY: required,
   SEEDANCE_API_KEY: required,
-  KIE_API_KEY: required,
   WAYIN_API_KEY: required,
   SUPADATA_API_KEY: required,
   ELEVENLABS_API_KEY: optional,
-  KIE_SEEDANCE_CALLBACK_URL: optional,
 
   // Video rendering — Remotion (AWS Lambda)
   REMOTION_AWS_REGION: required,
@@ -92,6 +90,10 @@ const schema = z.object({
   PINTEREST_APP_ID: optional,
   PINTEREST_APP_SECRET: optional,
   PINTEREST_REDIRECT: optional,
+  X_CLIENT_ID: optional,
+  X_CLIENT_SECRET: optional,
+  X_REDIRECT: optional,
+  GOOGLE_BUSINESS_REDIRECT: optional,
 
   // Incoming platform webhooks
   FB_WEBHOOK_VERIFY_TOKEN: optional,

@@ -6,7 +6,7 @@ export type ModelCategory =
   | "music"
   | "avatar"
   | "voice";
-export type Provider = "wavespeed" | "kie" | "seedance" | "elevenlabs";
+export type Provider = "wavespeed" | "seedance" | "elevenlabs";
 
 export interface VideoModelConfig {
   key: string;

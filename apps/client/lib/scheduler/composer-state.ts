@@ -62,6 +62,22 @@ export interface PinterestOptions {
   link: string;
 }
 
+/** The call-to-action button under a Google Business post. */
+export type GoogleBusinessCta =
+  | "LEARN_MORE"
+  | "BOOK"
+  | "ORDER"
+  | "SHOP"
+  | "SIGN_UP"
+  | "CALL";
+
+export interface GoogleBusinessOptions {
+  /** Missing means no button. */
+  ctaType?: GoogleBusinessCta;
+  /** Where the button goes. Unused for CALL, which dials the business. */
+  ctaUrl: string;
+}
+
 export interface TikTokOptions extends TikTokOptionsState {
   autoAddMusic: boolean;
 }
@@ -77,6 +93,7 @@ export interface ComposerState {
   youtube: Record<string, YouTubeOptions>;
   tiktok: Record<string, TikTokOptions>;
   pinterest: Record<string, PinterestOptions>;
+  googleBusiness: Record<string, GoogleBusinessOptions>;
   media: MediaItem[];
   cover: CoverState | null;
   /** Slideshow cover, as an index into media. */
@@ -94,6 +111,17 @@ export const DEFAULT_YOUTUBE: YouTubeOptions = {
 
 export const DEFAULT_PINTEREST: PinterestOptions = { title: "", link: "" };
 
+export const DEFAULT_GOOGLE_BUSINESS: GoogleBusinessOptions = { ctaUrl: "" };
+
+export const GOOGLE_BUSINESS_CTA_LABELS: Record<GoogleBusinessCta, string> = {
+  LEARN_MORE: "Learn more",
+  BOOK: "Book",
+  ORDER: "Order online",
+  SHOP: "Buy",
+  SIGN_UP: "Sign up",
+  CALL: "Call now",
+};
+
 export function defaultTikTok(): TikTokOptions {
   return { ...defaultTikTokOptionsState(), autoAddMusic: true };
 }
@@ -108,6 +136,7 @@ export function emptyState(format: PostFormat, timezone: string): ComposerState 
     youtube: {},
     tiktok: {},
     pinterest: {},
+    googleBusiness: {},
     media: [],
     cover: null,
     coverIndex: 0,
@@ -161,6 +190,15 @@ export function stateFromPost(
           link: (settings.link as string) ?? "",
         };
         break;
+      case "google_business":
+        state.googleBusiness[id] = {
+          ctaType:
+            typeof settings.ctaType === "string" && settings.ctaType in GOOGLE_BUSINESS_CTA_LABELS
+              ? (settings.ctaType as GoogleBusinessCta)
+              : undefined,
+          ctaUrl: (settings.ctaUrl as string) ?? "",
+        };
+        break;
     }
   }
 
@@ -204,6 +242,12 @@ export function withAccountDefaults(
     }
     if (account.provider === "pinterest" && !next.pinterest[id]) {
       next.pinterest = { ...next.pinterest, [id]: { ...DEFAULT_PINTEREST } };
+    }
+    if (account.provider === "google_business" && !next.googleBusiness[id]) {
+      next.googleBusiness = {
+        ...next.googleBusiness,
+        [id]: { ...DEFAULT_GOOGLE_BUSINESS },
+      };
     }
   }
   return next;
@@ -319,7 +363,7 @@ export function validate(
           level: "error",
           field: "media",
           accountId: account.id,
-          message: `${name} takes up to ${rule.maxImages} images. You have ${images.length}.`,
+          message: `${name} takes ${rule.maxImages === 1 ? "one image" : `up to ${rule.maxImages} images`}. You have ${images.length}.`,
         });
       }
       if (rule.minImages && images.length < rule.minImages) {
@@ -445,6 +489,18 @@ export function validate(
         });
       }
     }
+
+    if (account.provider === "google_business") {
+      const gbp = state.googleBusiness[account.id];
+      if (gbp?.ctaType && gbp.ctaType !== "CALL" && !/^https?:\/\/\S+$/i.test(gbp.ctaUrl.trim())) {
+        issues.push({
+          level: "error",
+          field: "options",
+          accountId: account.id,
+          message: `Add a link for the "${GOOGLE_BUSINESS_CTA_LABELS[gbp.ctaType]}" button, starting with https://`,
+        });
+      }
+    }
   }
 
   return issues;
@@ -522,6 +578,15 @@ export function toPayload(
         ...(pin.title.trim() ? { title: pin.title.trim() } : {}),
         ...(pin.link.trim() ? { link: pin.link.trim() } : {}),
       };
+    } else if (provider === "google_business") {
+      const gbp = state.googleBusiness[accountId] ?? DEFAULT_GOOGLE_BUSINESS;
+      // CALL uses the business phone number, so it never sends a link.
+      settings = gbp.ctaType
+        ? {
+            ctaType: gbp.ctaType,
+            ...(gbp.ctaType !== "CALL" ? { ctaUrl: gbp.ctaUrl.trim() } : {}),
+          }
+        : {};
     }
 
     const override = state.overrides[accountId];

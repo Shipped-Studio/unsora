@@ -1,5 +1,4 @@
 import { task } from "@trigger.dev/sdk";
-import { KieAPI, getKieClient } from "../lib/kie-api";
 import { WavespeedAPI, getWavespeedClient } from "../lib/wavespeed-api";
 import { IMAGE_MODELS } from "../config/models";
 import prisma from "../lib/db";
@@ -19,6 +18,7 @@ export interface ImageGenerationJobData {
   resolution: string;
   referenceImageUrls: string[];
   modelKey?: string;
+  /** Accepted for API compatibility; WaveSpeed has no NSFW toggle. */
   nsfwChecker?: boolean;
 }
 
@@ -44,14 +44,13 @@ export const imageGenerationTask = task({
       resolution,
       referenceImageUrls,
       modelKey,
-      nsfwChecker,
     } = payload;
 
-    // Route by the model config's provider. Falls back to Kie for unknown
-    // model keys to preserve the previous default behavior.
-    const provider = (modelKey && IMAGE_MODELS[modelKey]?.provider) || "kie";
-    const client =
-      provider === "wavespeed" ? getWavespeedClient() : getKieClient();
+    // Every image model runs on WaveSpeed; an unknown key is a caller bug.
+    if (modelKey && !IMAGE_MODELS[modelKey]) {
+      throw new Error(`Unknown image model: ${modelKey}`);
+    }
+    const client = getWavespeedClient();
 
     const record = await prisma.imageGeneration.findUnique({
       where: { id: generationId },
@@ -66,19 +65,14 @@ export const imageGenerationTask = task({
     let taskId = record.taskId;
 
     if (!taskId) {
-      const builderParams = {
+      const { model, input } = WavespeedAPI.imageGenerationInput({
         prompt,
         aspectRatio: ratio,
         resolution,
         referenceImages:
           referenceImageUrls.length > 0 ? referenceImageUrls : undefined,
         modelKey,
-        nsfwChecker,
-      };
-      const { model, input } =
-        provider === "wavespeed"
-          ? WavespeedAPI.imageGenerationInput(builderParams)
-          : KieAPI.imageGenerationInput(builderParams);
+      });
 
       taskId = await client.submit(model, input);
 

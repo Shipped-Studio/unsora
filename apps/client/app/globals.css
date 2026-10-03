@@ -61,9 +61,13 @@
   --color-platform-facebook: var(--platform-facebook);
   --color-platform-pinterest: var(--platform-pinterest);
   --color-platform-tiktok: var(--platform-tiktok);
+  --color-platform-x: var(--platform-x);
+  --color-platform-google-business: var(--platform-google-business);
   --color-link-instagram: var(--link-instagram);
   --color-link-facebook: var(--link-facebook);
   --color-link-linkedin: var(--link-linkedin);
+  --color-link-x: var(--link-x);
+  --color-link-google-business: var(--link-google-business);
   --color-link-social: var(--link-social);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
@@ -171,11 +175,15 @@
   --platform-facebook: #0866ff;
   --platform-pinterest: #e60023;
   --platform-tiktok: #fe2c55;
+  --platform-x: #000000;
+  --platform-google-business: #1a73e8;
 
   /* Hashtags, mentions and links inside the post previews. */
   --link-instagram: #00376b;
   --link-facebook: #0064d1;
   --link-linkedin: #0a66c2;
+  --link-x: #1d9bf0;
+  --link-google-business: #1a73e8;
   --link-social: #0a6fe8;
 
   --hatch: rgb(18 18 24 / 0.045);
@@ -271,6 +279,8 @@
   --link-instagram: #e0f1ff;
   --link-facebook: #5aa7ff;
   --link-linkedin: #71b7fb;
+  --link-x: #1d9bf0;
+  --link-google-business: #8ab4f8;
   --link-social: #4ea1ff;
 }
 

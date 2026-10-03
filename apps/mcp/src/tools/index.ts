@@ -605,11 +605,18 @@ const workflowGuide = `# Unsora API workflows (polling only — no webhooks)
 
 ## Supported social platforms
 Posts can target any connected account on: YouTube, TikTok, Instagram,
-Facebook, LinkedIn, Pinterest, Threads and Bluesky. Connect accounts in the
-Unsora app; get_accounts returns them with a "provider" field.
+Facebook, LinkedIn, Pinterest, Threads, Bluesky, X and Google Business Profile.
+Connect accounts in the Unsora app; get_accounts returns them with a "provider"
+field. One Google login connects every Business Profile location as its own
+account (provider "google_business").
 - YouTube: video only; title via title / accountOverrides.
 - Pinterest: 1 image, 2–5 images or a video; no text-only pins.
 - Instagram and TikTok: no text-only posts.
+- X: text, 1 image, 2–4 images or 1 video (up to 140 s, 512 MB); caption max
+  280 characters.
+- Google Business Profile: text or exactly 1 JPG/PNG image (max 5 MB); no video
+  or carousels; summary max 1500 characters. Optional call-to-action button via
+  google_business settings.
 
 ## Composing posts in app-capable hosts
 compose_post opens an editable composer (accounts, caption, media, per-platform
@@ -692,6 +699,7 @@ publish_post with an existing draft/scheduled post id.
 ## Analytics
 get_post_analytics — views, likes, comments and shares of published posts
 over 7–90 days. Pass refresh: true to pull fresh numbers from the platforms.
+X also reports saves (bookmarks); Google Business Profile reports views only.
 
 ## Library
 list_generations (by type) browses past results — images, videos, music,
@@ -1006,7 +1014,8 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
       title: "Connected Accounts",
       description:
         "List connected social accounts for scheduling. Supported platforms: " +
-        "YouTube, TikTok, Instagram, Facebook, LinkedIn, Pinterest, Threads and Bluesky. " +
+        "YouTube, TikTok, Instagram, Facebook, LinkedIn, Pinterest, Threads, Bluesky, X and " +
+        "Google Business Profile (one account per business location). " +
         "Each account has a provider field identifying its platform " +
         "(YouTube accounts have provider \"google\")." +
         SHOWN_IN_UI,
@@ -1988,7 +1997,8 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
         "Create, schedule, queue, publish or cross-post content to connected social accounts. " +
         "Use this for any request to post now, schedule for later, publish to multiple " +
         "platforms at once, or add something to the posting queue. Supported platforms: " +
-        "YouTube, TikTok, Instagram, Facebook, LinkedIn, Pinterest, Threads and Bluesky. " +
+        "YouTube, TikTok, Instagram, Facebook, LinkedIn, Pinterest, Threads, Bluesky, X and " +
+        "Google Business Profile. " +
         "When the user wants to set the post up themselves or per-platform options are " +
         "still open (TikTok privacy, YouTube title, Pinterest board), prefer compose_post, " +
         "which opens an editable composer in app-capable hosts. " +
@@ -1998,7 +2008,10 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
         "between 4:5 (e.g. 1080x1350) and 1.91:1 (e.g. 1080x566) — 9:16 images are rejected " +
         "for Instagram (use 9:16 only for TikTok slideshows and video reels). " +
         "YouTube only takes video and uses `title` (video title). Pinterest needs media " +
-        "(1 image, 2–5 images or a video)." +
+        "(1 image, 2–5 images or a video). X takes text, 1 image, 2–4 images or 1 video " +
+        "(up to 140 s, 512 MB) with a caption of at most 280 characters. Google Business " +
+        "Profile takes text or exactly 1 JPG/PNG image (max 5 MB), no video, summary max " +
+        "1500 characters, with an optional call-to-action button (google_business)." +
         SHOWN_IN_UI,
       inputSchema: {
         caption: z.string(),
@@ -2106,6 +2119,20 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
           })
           .optional()
           .describe("Pinterest pin settings (applies to pinterest accounts)."),
+        google_business: z
+          .object({
+            cta_type: z
+              .enum(["LEARN_MORE", "BOOK", "ORDER", "SHOP", "SIGN_UP", "CALL"])
+              .optional()
+              .describe("Call-to-action button. CALL uses the business phone number."),
+            cta_url: z
+              .string()
+              .url()
+              .optional()
+              .describe("Button link (http/https). Required for every cta_type except CALL; omit for CALL."),
+          })
+          .optional()
+          .describe("Google Business Profile post settings (applies to google_business accounts)."),
       },
       _meta: { ui: { resourceUri: POSTS_UI_URI } },
     },
@@ -2148,6 +2175,9 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
       if (args.tiktok && Object.keys(args.tiktok).length) settings.tiktok = args.tiktok;
       if (args.youtube && Object.keys(args.youtube).length) settings.youtube = args.youtube;
       if (args.pinterest && Object.keys(args.pinterest).length) settings.pinterest = args.pinterest;
+      if (args.google_business && Object.keys(args.google_business).length) {
+        settings.google_business = args.google_business;
+      }
       if (Object.keys(settings).length) body.settings = settings;
 
       const created = await unsora.request<{ data?: { id?: string } }>(
@@ -2181,7 +2211,7 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
         "Open the interactive post composer: the user picks accounts, edits the caption and " +
         "media, sets per-platform options (YouTube title/visibility/category/tags, TikTok " +
         "privacy/comments/duet/stitch/branded content/AI label, Pinterest board/title/link, " +
-        "video cover) and posts now, schedules or saves a draft — the composer creates the " +
+        "Google Business call-to-action button, video cover) and posts now, schedules or saves a draft — the composer creates the " +
         "post itself. Use it whenever the user wants to create or schedule a post and the host " +
         "can show apps; prefill everything the user already gave (caption, media URLs, " +
         "accounts, time). After it opens, do NOT call create_post yourself; tell the user to " +

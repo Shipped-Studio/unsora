@@ -10,6 +10,8 @@ import { pinterestService } from "./platforms/pinterest.service";
 import { threadsService } from "./platforms/threads.service";
 import { tiktokService } from "./platforms/tiktok.service";
 import { youtubeService } from "./platforms/youtube.service";
+import { xService } from "./platforms/x.service";
+import { googleBusinessService } from "./platforms/google-business.service";
 import { tokenRefreshService } from "./token-refresh.service";
 import { onPostPublishFailed } from "../emails";
 
@@ -144,49 +146,11 @@ export class PostService {
         results: publishResults,
       };
     } catch (error) {
+      // Leave the post in PUBLISHING: the publishing task retries, and its
+      // onFailure hook settles the post once attempts run out.
       console.error("Error publishing post:", error);
-
-      // Update post status to FAILED
-      await prisma.post.update({
-        where: { id: postId },
-        data: {
-          status: "FAILED",
-          error: error instanceof Error ? error.message : "Unknown error",
-        },
-      });
-
       throw error;
     }
-  }
-
-  /**
-   * Retry a failed or partially published post. Only the accounts that have
-   * not published yet are attempted; published legs are left untouched.
-   */
-  async retryPost(postId: string): Promise<{
-    success: boolean;
-    results: PublishResult[];
-  }> {
-    const post = await prisma.post.findUnique({
-      where: { id: postId },
-      select: { status: true, postAccounts: { select: { published: true } } },
-    });
-
-    if (!post) {
-      throw new Error("Post not found");
-    }
-
-    if (post.status !== "FAILED" && post.status !== "PARTIALLY_PUBLISHED") {
-      throw new Error(
-        `Only failed or partially published posts can be retried (status: ${post.status})`
-      );
-    }
-
-    if (post.postAccounts.every((pa) => pa.published)) {
-      throw new Error("All accounts already published");
-    }
-
-    return this.publishPost(postId);
   }
 
   private async publishToAccount(
@@ -297,6 +261,29 @@ export class PostService {
           platformPostUrl = tiktokResult.postUrl;
           break;
 
+        case "x":
+          const xResult = await xService.publishPost(
+            post.type,
+            post.media,
+            account,
+            caption,
+          );
+          platformPostId = xResult.postId;
+          platformPostUrl = xResult.postUrl;
+          break;
+
+        case "google_business":
+          const googleBusinessResult = await googleBusinessService.publishPost(
+            post.type,
+            post.media,
+            account,
+            caption,
+            postAccount.settings as Record<string, unknown> | null,
+          );
+          platformPostId = googleBusinessResult.postId;
+          platformPostUrl = googleBusinessResult.postUrl;
+          break;
+
         default:
           throw new Error(`Unsupported platform: ${account.provider}`);
       }
@@ -339,49 +326,6 @@ export class PostService {
         accountId: postAccount.accountId,
         error: error instanceof Error ? error.message : "Unknown error",
       };
-    }
-  }
-
-  async getScheduledPosts(): Promise<Post[]> {
-    const now = new Date();
-
-    return prisma.post.findMany({
-      where: {
-        status: "SCHEDULED",
-        scheduledFor: {
-          lte: now,
-        },
-      },
-      include: {
-        media: {
-          orderBy: { order: "asc" },
-        },
-        postAccounts: {
-          include: {
-            account: true,
-          },
-        },
-      },
-    });
-  }
-
-  async processScheduledPosts(): Promise<void> {
-    try {
-      const posts = await this.getScheduledPosts();
-
-      if (posts.length === 0) {
-        return;
-      }
-
-      for (const post of posts) {
-        try {
-          await this.publishPost(post.id);
-        } catch (error) {
-          console.error(`Error processing post ${post.id}:`, error);
-        }
-      }
-    } catch (error) {
-      console.error("Error in processScheduledPosts:", error);
     }
   }
 }

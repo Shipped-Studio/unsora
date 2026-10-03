@@ -24,6 +24,12 @@ import {
   getPinterestUser,
   refreshPinterestToken,
 } from "../../../oauth/pinterest";
+import { getXUser, revokeXToken } from "../../../oauth/x";
+import {
+  getGoogleBusinessLocation,
+  getGoogleBusinessLocationPicture,
+} from "../../../oauth/google-business";
+import { tokenRefreshService } from "../../../services/token-refresh.service";
 import { getUserIdFromClerkId } from "../shared/user";
 
 const EXPIRING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -362,6 +368,45 @@ export class SchedulerAccountsController {
           break;
         }
 
+        case "x": {
+          // Through the locked refresh path: X rotates refresh tokens, so an
+          // unsynchronized refresh here could race a publish and lose one.
+          const fresh = await tokenRefreshService.getAccountWithFreshToken(
+            account.id,
+          );
+          const user = await getXUser(fresh.accessToken);
+
+          updatedData = {
+            accountName: user?.name || account.accountName,
+            accountUsername: user?.username || account.accountUsername,
+            profilePicture: user?.profilePicture || account.profilePicture,
+          };
+          break;
+        }
+
+        case "google_business": {
+          const fresh = await tokenRefreshService.getAccountWithFreshToken(
+            account.id,
+          );
+          const [location, profilePicture] = await Promise.all([
+            getGoogleBusinessLocation(
+              fresh.accessToken,
+              account.providerAccountId,
+            ),
+            getGoogleBusinessLocationPicture(
+              fresh.accessToken,
+              account.providerAccountId,
+            ),
+          ]);
+
+          updatedData = {
+            accountName: location?.title || account.accountName,
+            accountUsername: location?.address ?? account.accountUsername,
+            profilePicture: profilePicture || account.profilePicture,
+          };
+          break;
+        }
+
         default:
           return res.status(400).json({
             success: false,
@@ -430,6 +475,11 @@ export class SchedulerAccountsController {
       if (account.provider === "bluesky") {
         // Also revoke/remove the stored AT Protocol OAuth session.
         await revokeBlueskySession(account.providerAccountId);
+      }
+      if (account.provider === "x" && account.refreshToken) {
+        // Revoking the refresh token ends the whole grant. Google Business
+        // isn't revoked: sibling locations share the same Google grant.
+        await revokeXToken(account.refreshToken);
       }
 
       res.json({ success: true, message: "Account disconnected" });

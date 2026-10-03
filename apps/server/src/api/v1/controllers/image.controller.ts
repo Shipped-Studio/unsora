@@ -8,6 +8,7 @@ import {
   consumeCredits,
   getCreditBalance,
   InsufficientCreditsError,
+  refundConsumption,
 } from "../../../lib/credits";
 import { getApiKeyId, mergeApiContext } from "../../../lib/api-public";
 import { withPublicCreate } from "../helpers/public-create";
@@ -342,6 +343,8 @@ export class PublicImageController {
       });
     }
 
+    // Set once credits are taken, so a failed enqueue can hand them back.
+    let consumedTxnId: string | undefined;
     try {
       const consumption = await consumeCredits({
         userId: user.id,
@@ -350,6 +353,7 @@ export class PublicImageController {
         apiKeyId,
         metadata: { generationId: generation.id, model: modelConfig.dbModel },
       });
+      consumedTxnId = consumption.transactionId;
 
       await addImageGenerationJob({
         userId: user.id,
@@ -374,6 +378,16 @@ export class PublicImageController {
         },
       };
     } catch (err) {
+      if (consumedTxnId) {
+        await refundConsumption(consumedTxnId, "image.generation.enqueue_failed", {
+          generationId: generation.id,
+        }).catch((refundError) =>
+          console.error(
+            `[v1] Refund after failed enqueue for ${generation.id} failed:`,
+            refundError,
+          ),
+        );
+      }
       await prisma.imageGeneration
         .delete({ where: { id: generation.id } })
         .catch(() => {});

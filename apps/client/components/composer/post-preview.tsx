@@ -7,7 +7,14 @@ import { captionFor, type ComposerState } from "@/lib/scheduler/composer-state";
 import { platformName } from "@/lib/scheduler/formats";
 import type { ConnectedAccount } from "@/lib/scheduler/types";
 import { cn } from "@/lib/utils";
-import { BlueskyPreview, FacebookPreview, LinkedInPreview, ThreadsPreview } from "./preview/feeds";
+import {
+  BlueskyPreview,
+  FacebookPreview,
+  LinkedInPreview,
+  ThreadsPreview,
+  XPreview,
+} from "./preview/feeds";
+import { GoogleBusinessPreview } from "./preview/google-business";
 import { InstagramPreview } from "./preview/instagram";
 import { PinterestPreview } from "./preview/pinterest";
 import type { PreviewProps } from "./preview/shared";
@@ -23,6 +30,8 @@ const PREVIEWS: Record<string, (props: PreviewProps) => React.ReactNode> = {
   threads: ThreadsPreview,
   bluesky: BlueskyPreview,
   pinterest: PinterestPreview,
+  x: XPreview,
+  google_business: GoogleBusinessPreview,
 };
 
 /** Placeholder shaped like the post, shown until an account is picked. */

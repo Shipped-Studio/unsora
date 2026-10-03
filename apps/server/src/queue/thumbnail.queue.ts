@@ -1,5 +1,5 @@
 import { task } from "@trigger.dev/sdk";
-import { KieAPI, getKieClient } from "../lib/kie-api";
+import { WavespeedAPI, getWavespeedClient } from "../lib/wavespeed-api";
 import prisma from "../lib/db";
 import { uploadUrlToStorage } from "../lib/upload";
 import { createAsset } from "../lib/asset-utils";
@@ -225,12 +225,12 @@ export const thumbnailGenerationTask = task({
       ],
     });
 
-    const client = getKieClient();
+    const client = getWavespeedClient();
 
     let taskId = record.taskId;
 
     if (!taskId) {
-      const { model, input } = KieAPI.imageGenerationInput({
+      const { model, input } = WavespeedAPI.imageGenerationInput({
         prompt: providerPrompt.text.trim(),
         aspectRatio: ratio,
         resolution,

@@ -1,4 +1,4 @@
-import { PostAccount, SocialAccount } from "@prisma/client";
+import { PostAccount, Prisma, SocialAccount } from "@prisma/client";
 import axios from "axios";
 import { prisma } from "../lib/db";
 import { tokenRefreshService } from "./token-refresh.service";
@@ -23,6 +23,10 @@ import { tokenRefreshService } from "./token-refresh.service";
  *     threads_manage_insights)
  *   - Pinterest: batched pin analytics, up to 100 pins per request
  *     (impressions/saves/clicks via pins:read)
+ *   - X: tweets lookup public_metrics, up to 100 posts per request
+ *     (impressions/likes/replies/reposts+quotes/bookmarks)
+ *   - Google Business Profile: localPosts:reportInsights, up to 100 posts
+ *     per request per location (search views only)
  *   - LinkedIn: socialMetadata reaction summaries per post ("likes" is the
  *     subtotal of ALL reaction types: LIKE/PRAISE/EMPATHY/INTEREST/
  *     APPRECIATION/ENTERTAINMENT); impressions need partner-level API
@@ -53,37 +57,49 @@ const METRICS_WINDOW_DAYS = 90;
 
 type PublishedPostAccount = PostAccount & { account: SocialAccount };
 
+const METRICS_PROVIDERS = [
+  "tiktok",
+  "instagram",
+  "bluesky",
+  "google",
+  "facebook",
+  "threads",
+  "pinterest",
+  "linkedin",
+  "x",
+  "google_business",
+];
+
+/** Published legs inside the metrics window on a provider we can poll. */
+function recentPublishedWhere(): Prisma.PostAccountWhereInput {
+  return {
+    published: true,
+    publishedPostId: { not: null },
+    publishedAt: {
+      gte: new Date(Date.now() - METRICS_WINDOW_DAYS * 24 * 60 * 60 * 1000),
+    },
+    account: { provider: { in: METRICS_PROVIDERS } },
+  };
+}
+
 export class AnalyticsService {
   /**
-   * Poll fresh metrics for every published TikTok/Instagram post in the
-   * window and store a snapshot per post. Safe to call repeatedly.
-   * Returns the number of posts refreshed.
+   * Accounts with at least one published post in the metrics window. The
+   * scheduled refresh fans out one run per account from this list.
    */
-  async refreshAllMetrics(): Promise<number> {
-    const since = new Date(
-      Date.now() - METRICS_WINDOW_DAYS * 24 * 60 * 60 * 1000,
-    );
+  async listAccountsToRefresh(): Promise<string[]> {
+    const rows = await prisma.postAccount.findMany({
+      where: recentPublishedWhere(),
+      distinct: ["accountId"],
+      select: { accountId: true },
+    });
+    return rows.map((row) => row.accountId);
+  }
 
+  /** Poll fresh metrics for one account's published posts in the window. */
+  async refreshAccountMetrics(accountId: string): Promise<number> {
     const postAccounts = (await prisma.postAccount.findMany({
-      where: {
-        published: true,
-        publishedPostId: { not: null },
-        publishedAt: { gte: since },
-        account: {
-          provider: {
-            in: [
-              "tiktok",
-              "instagram",
-              "bluesky",
-              "google",
-              "facebook",
-              "threads",
-              "pinterest",
-              "linkedin",
-            ],
-          },
-        },
-      },
+      where: { ...recentPublishedWhere(), accountId },
       include: { account: true },
     })) as PublishedPostAccount[];
 
@@ -92,31 +108,8 @@ export class AnalyticsService {
 
   /** Poll metrics for a single user's published posts (on-demand refresh). */
   async refreshUserMetrics(userId: string): Promise<number> {
-    const since = new Date(
-      Date.now() - METRICS_WINDOW_DAYS * 24 * 60 * 60 * 1000,
-    );
-
     const postAccounts = (await prisma.postAccount.findMany({
-      where: {
-        published: true,
-        publishedPostId: { not: null },
-        publishedAt: { gte: since },
-        post: { userId },
-        account: {
-          provider: {
-            in: [
-              "tiktok",
-              "instagram",
-              "bluesky",
-              "google",
-              "facebook",
-              "threads",
-              "pinterest",
-              "linkedin",
-            ],
-          },
-        },
-      },
+      where: { ...recentPublishedWhere(), post: { userId } },
       include: { account: true },
     })) as PublishedPostAccount[];
 
@@ -169,6 +162,15 @@ export class AnalyticsService {
             break;
           case "linkedin":
             metricsByPost = await this.fetchLinkedInMetrics(account, group);
+            break;
+          case "x":
+            metricsByPost = await this.fetchXMetrics(account, group);
+            break;
+          case "google_business":
+            metricsByPost = await this.fetchGoogleBusinessMetrics(
+              account,
+              group,
+            );
             break;
           default:
             metricsByPost = await this.fetchInstagramMetrics(account, group);
@@ -448,6 +450,117 @@ export class AnalyticsService {
 
       if (fetchedAnything) {
         result.set(pa.id, metrics);
+      }
+    }
+
+    return result;
+  }
+
+  // ─── X ───
+
+  /**
+   * Fetch metrics for X posts via the tweets lookup (up to 100 ids per
+   * request). Reposts and quotes both count as shares.
+   */
+  private async fetchXMetrics(
+    account: SocialAccount,
+    postAccounts: PublishedPostAccount[],
+  ): Promise<Map<string, PostMetrics>> {
+    const result = new Map<string, PostMetrics>();
+    const byPostId = new Map(
+      postAccounts.map((pa) => [pa.publishedPostId as string, pa.id]),
+    );
+    const postIds = [...byPostId.keys()];
+
+    for (let i = 0; i < postIds.length; i += 100) {
+      const batch = postIds.slice(i, i + 100);
+
+      try {
+        const response = await axios.get("https://api.x.com/2/tweets", {
+          headers: { Authorization: `Bearer ${account.accessToken}` },
+          params: { ids: batch.join(","), "tweet.fields": "public_metrics" },
+        });
+
+        for (const post of (response.data?.data ?? []) as any[]) {
+          const postAccountId = byPostId.get(post.id);
+          if (!postAccountId) continue;
+
+          const m = post.public_metrics ?? {};
+          result.set(postAccountId, {
+            views: m.impression_count ?? 0,
+            likes: m.like_count ?? 0,
+            comments: m.reply_count ?? 0,
+            shares: (m.retweet_count ?? 0) + (m.quote_count ?? 0),
+            saves: m.bookmark_count ?? 0,
+          });
+        }
+      } catch (error: any) {
+        console.error("X metrics query failed:", {
+          accountId: account.id,
+          message: error.message,
+          response: error.response?.data,
+        });
+      }
+    }
+
+    return result;
+  }
+
+  // ─── Google Business Profile ───
+
+  /**
+   * Fetch search views for local posts (up to 100 per request). Google
+   * reports views and button clicks only; there are no likes or comments.
+   */
+  private async fetchGoogleBusinessMetrics(
+    account: SocialAccount,
+    postAccounts: PublishedPostAccount[],
+  ): Promise<Map<string, PostMetrics>> {
+    const result = new Map<string, PostMetrics>();
+    const byPostName = new Map(
+      postAccounts.map((pa) => [pa.publishedPostId as string, pa.id]),
+    );
+    const postNames = [...byPostName.keys()];
+
+    const endTime = new Date().toISOString();
+    const startTime = new Date(
+      Date.now() - METRICS_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+    ).toISOString();
+
+    for (let i = 0; i < postNames.length; i += 100) {
+      const batch = postNames.slice(i, i + 100);
+
+      try {
+        const response = await axios.post(
+          `https://mybusiness.googleapis.com/v4/${account.providerAccountId}/localPosts:reportInsights`,
+          {
+            localPostNames: batch,
+            basicRequest: {
+              metricRequests: [{ metric: "LOCAL_POST_VIEWS_SEARCH" }],
+              timeRange: { startTime, endTime },
+            },
+          },
+          { headers: { Authorization: `Bearer ${account.accessToken}` } },
+        );
+
+        for (const entry of (response.data?.localPostMetrics ?? []) as any[]) {
+          const postAccountId = byPostName.get(entry.localPostName);
+          if (!postAccountId) continue;
+
+          const views = (entry.metricValues ?? []).find(
+            (v: any) => v.metric === "LOCAL_POST_VIEWS_SEARCH",
+          );
+          result.set(postAccountId, {
+            ...EMPTY_METRICS,
+            views: Number(views?.totalValue?.value ?? 0),
+          });
+        }
+      } catch (error: any) {
+        console.error("Google Business insights query failed:", {
+          accountId: account.id,
+          message: error.message,
+          response: error.response?.data,
+        });
       }
     }
 

@@ -426,7 +426,9 @@ export function ConnectGrid({
               className="group flex min-w-0 items-center gap-3 rounded-xl bg-muted p-3 text-left transition-colors outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <PlatformIcon provider={provider} className="size-8" />
-              <span className="min-w-0 flex-1 truncate text-sm font-medium">{spec.name}</span>
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                {spec.shortName ?? spec.name}
+              </span>
               <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-card text-muted-foreground transition-colors group-hover:text-foreground">
                 {pending ? <Spinner /> : <Plus className="size-3.5" weight="bold" />}
               </span>

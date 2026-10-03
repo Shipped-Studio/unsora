@@ -20,6 +20,8 @@ export const ACCOUNTS = [
   { id: "acc_li", provider: "linkedin", providerAccountId: "li1", accountName: "Sadek Irfan", accountUsername: null, profilePicture: null, expiresAt: null },
   { id: "acc_pin", provider: "pinterest", providerAccountId: "pin1", accountName: "Unsora Ideas", accountUsername: "unsoraideas", profilePicture: avatar(20), expiresAt: null },
   { id: "acc_bs", provider: "bluesky", providerAccountId: "bs1", accountName: "unsora.bsky.social", accountUsername: "unsora.bsky.social", profilePicture: avatar(60), expiresAt: null },
+  { id: "acc_x", provider: "x", providerAccountId: "x1", accountName: "Unsora", accountUsername: "unsora_ai", profilePicture: avatar(15), expiresAt: null },
+  { id: "acc_gbp", provider: "google_business", providerAccountId: "locations/123", accountName: "Unsora Studio Dhaka", accountUsername: null, profilePicture: null, expiresAt: null },
 ];
 
 const accountRef = (id: string) => {

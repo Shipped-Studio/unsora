@@ -107,7 +107,7 @@
     if (!accounts.length) {
       return el("div", { class: "card stack" }, [
         el("div", { class: "title" }, "No social accounts connected yet"),
-        el("div", { class: "muted" }, "Connect YouTube, TikTok, Instagram, Facebook, LinkedIn, Pinterest, Threads or Bluesky in Unsora to start posting."),
+        el("div", { class: "muted" }, "Connect YouTube, TikTok, Instagram, Facebook, LinkedIn, Pinterest, Threads, Bluesky, X or Google Business Profile in Unsora to start posting."),
         el("div", { class: "actions" }, button("Connect accounts", () => Kit.appLink("/scheduler/accounts"), { primary: true })),
       ]);
     }

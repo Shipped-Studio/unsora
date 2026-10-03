@@ -15,6 +15,8 @@ export function accountLabel(account: AccountSummary) {
 export function accountHandle(account: AccountSummary) {
   const username = account.accountUsername;
   if (!username) return null;
+  // Google Business stores the location's address, not a handle.
+  if (account.provider === "google_business") return username;
   // LinkedIn stores an email; YouTube handles already start with "@".
   if (username.includes("@") && !username.startsWith("@")) return username;
   return `@${username.replace(/^@+/, "")}`;

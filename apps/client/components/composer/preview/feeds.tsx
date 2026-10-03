@@ -3,11 +3,14 @@
 import {
   ArrowsClockwise,
   Bell,
+  BookmarkSimple,
   Briefcase,
   CaretLeft,
+  ChartBar,
   ChatCircle,
   ChatTeardrop,
   DotsThree,
+  EnvelopeSimple,
   GlobeHemisphereWest,
   Hash,
   Heart,
@@ -22,6 +25,7 @@ import {
   Users,
   X,
 } from "@phosphor-icons/react";
+import { XIcon } from "@/components/icons";
 import { PlatformIcon } from "@/components/scheduler/platform-icon";
 import {
   BottomNav,
@@ -289,6 +293,74 @@ export function BlueskyPreview({ account, state, caption }: PreviewProps) {
           { icon: Bell },
           { icon: Hash },
         ]}
+      />
+    </Phone>
+  );
+}
+
+export function XPreview({ account, state, caption }: PreviewProps) {
+  const { name, handle } = names(account);
+  const { video, images, poster } = mediaOf(state);
+
+  return (
+    <Phone dark>
+      <div className="relative flex h-11 shrink-0 items-center justify-center px-3">
+        <ProfilePic account={account} className="absolute left-3 size-6" />
+        <XIcon className="size-5" />
+      </div>
+      <div className="flex shrink-0 border-b border-media-foreground/15 text-[13px]">
+        <span className="flex flex-1 justify-center">
+          <span className="relative py-2 font-semibold">
+            For you
+            <span className="absolute inset-x-0 bottom-0 h-1 rounded-full bg-link-x" />
+          </span>
+        </span>
+        <span className="flex flex-1 justify-center py-2 text-media-foreground/55">Following</span>
+      </div>
+      <Screen>
+        <div className="flex gap-2.5 border-b border-media-foreground/15 px-3 py-3">
+          <ProfilePic account={account} className="size-10" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <p className="flex min-w-0 items-baseline gap-1 text-[13px] leading-tight">
+              <span className="truncate font-bold">{name}</span>
+              <span className="truncate text-media-foreground/55">{handle} · now</span>
+              <DotsThree weight="bold" className="ml-auto size-4.5 shrink-0 self-center text-media-foreground/55" />
+            </p>
+            <Caption
+              text={caption}
+              chars={280}
+              linkClassName="text-link-x"
+              className="-mt-1 text-[13px] leading-snug"
+            />
+            {video ? (
+              <div className="overflow-hidden rounded-2xl border border-media-foreground/15 bg-media" style={{ aspectRatio: ratioOf(video, 0.75, 1.91, 0.8) }}>
+                <MediaFill item={video} poster={poster} />
+              </div>
+            ) : images.length ? (
+              <div className="overflow-hidden rounded-2xl border border-media-foreground/15">
+                <PhotoGrid items={images.slice(0, 4)} gap="gap-0.5" single={{ min: 0.75, max: 1.91 }} />
+              </div>
+            ) : null}
+            <div className="flex justify-between pt-0.5 text-media-foreground/55">
+              <ChatCircle className="size-4.5" />
+              <Repeat className="size-4.5" />
+              <Heart className="size-4.5" />
+              <ChartBar className="size-4.5" />
+              <BookmarkSimple className="size-4.5" />
+            </div>
+          </div>
+        </div>
+      </Screen>
+      <BottomNav
+        dark
+        items={[
+          { icon: House, active: true },
+          { icon: MagnifyingGlass },
+          { icon: Users },
+          { icon: Bell },
+          { icon: EnvelopeSimple },
+        ]}
+        className="border-t border-media-foreground/15"
       />
     </Phone>
   );

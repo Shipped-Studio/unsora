@@ -1,4 +1,4 @@
-import { SocialAccount } from "@prisma/client";
+import { Prisma, PrismaClient, SocialAccount } from "@prisma/client";
 import { prisma } from "../lib/db";
 import { refreshGoogleToken } from "../oauth/google";
 import { refreshFacebookToken } from "../oauth/facebook";
@@ -7,14 +7,19 @@ import { refreshLinkedInToken } from "../oauth/linkedin";
 import { refreshPinterestToken } from "../oauth/pinterest";
 import { refreshThreadsToken } from "../oauth/threads";
 import { refreshTikTokToken } from "../oauth/tiktok";
+import { refreshXToken } from "../oauth/x";
 
 export class TokenRefreshService {
   /**
    * Refresh access token for a social account and update in database
    * @param account - The social account to refresh token for
+   * @param db - Client to write through (the caller's transaction, if any)
    * @returns Updated social account with new access token
    */
-  async refreshAndUpdateToken(account: SocialAccount): Promise<SocialAccount> {
+  async refreshAndUpdateToken(
+    account: SocialAccount,
+    db: PrismaClient | Prisma.TransactionClient = prisma
+  ): Promise<SocialAccount> {
     // Bluesky tokens are DPoP-bound and managed by @atproto/oauth-client-node
     // (refreshed transparently when the session is restored) — the
     // SocialAccount row only holds a marker, so there is nothing to refresh.
@@ -184,6 +189,43 @@ export class TokenRefreshService {
           }
           break;
 
+        case "x":
+          if (!account.refreshToken) {
+            throw new Error("No refresh token available for X account");
+          }
+
+          const xData = await refreshXToken(account.refreshToken);
+          newAccessToken = xData.access_token || null;
+          // X rotates the refresh token on every refresh — keep the new one.
+          newRefreshToken = xData.refresh_token || account.refreshToken;
+
+          if (xData.expires_in) {
+            newExpiresAt = new Date(Date.now() + xData.expires_in * 1000);
+          }
+          break;
+
+        case "google_business":
+          // Same Google OAuth client as YouTube, so the same refresh call.
+          if (!account.refreshToken) {
+            throw new Error(
+              "No refresh token available for Google Business account"
+            );
+          }
+
+          const googleBusinessData = await refreshGoogleToken(
+            account.refreshToken
+          );
+          newAccessToken = googleBusinessData.access_token;
+          newRefreshToken =
+            googleBusinessData.refresh_token || account.refreshToken;
+
+          if (googleBusinessData.expires_in) {
+            newExpiresAt = new Date(
+              Date.now() + googleBusinessData.expires_in * 1000
+            );
+          }
+          break;
+
         default:
           throw new Error(`Unsupported platform: ${account.provider}`);
       }
@@ -195,7 +237,7 @@ export class TokenRefreshService {
       }
 
       // Update the account in database with new token
-      const updatedAccount = await prisma.socialAccount.update({
+      const updatedAccount = await db.socialAccount.update({
         where: { id: account.id },
         data: {
           accessToken: newAccessToken,
@@ -253,12 +295,32 @@ export class TokenRefreshService {
       throw new Error(`Account not found: ${accountId}`);
     }
 
-    // Check if we need to refresh the token
-    if (this.shouldRefreshToken(account)) {
-      return await this.refreshAndUpdateToken(account);
+    if (!this.shouldRefreshToken(account)) {
+      return account;
     }
 
-    return account;
+    // Concurrent publishes for one account would otherwise refresh in
+    // parallel, and providers that rotate refresh tokens (TikTok, Pinterest)
+    // invalidate all but one of them. Serialize per account and re-check
+    // after the lock: the run that waited usually finds a fresh token.
+    return prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${accountId}))`;
+
+        const current = await tx.socialAccount.findUnique({
+          where: { id: accountId },
+        });
+        if (!current) {
+          throw new Error(`Account not found: ${accountId}`);
+        }
+        if (!this.shouldRefreshToken(current)) {
+          return current;
+        }
+
+        return this.refreshAndUpdateToken(current, tx);
+      },
+      { maxWait: 30_000, timeout: 30_000 }
+    );
   }
 }
 

@@ -2,11 +2,13 @@ import { SchedulerAccountsController } from "./accounts/connect.controller";
 import { BlueskySchedulerController } from "./bluesky/connect.controller";
 import { FacebookSchedulerController } from "./facebook/connect.controller";
 import { GoogleSchedulerController } from "./google/connect.controller";
+import { GoogleBusinessSchedulerController } from "./google-business/connect.controller";
 import { InstagramSchedulerController } from "./instagram/connect.controller";
 import { LinkedInSchedulerController } from "./linkedin/connect.controller";
 import { PinterestSchedulerController } from "./pinterest/connect.controller";
 import { ThreadsSchedulerController } from "./threads/connect.controller";
 import { TikTokSchedulerController } from "./tiktok/connect.controller";
+import { XSchedulerController } from "./x/connect.controller";
 
 export class ConnectController {
   private readonly googleController = new GoogleSchedulerController();
@@ -17,6 +19,8 @@ export class ConnectController {
   private readonly threadsController = new ThreadsSchedulerController();
   private readonly pinterestController = new PinterestSchedulerController();
   private readonly linkedInController = new LinkedInSchedulerController();
+  private readonly xController = new XSchedulerController();
+  private readonly googleBusinessController = new GoogleBusinessSchedulerController();
   private readonly accountsController = new SchedulerAccountsController();
 
   getGoogleAuthUrl = this.googleController.getGoogleAuthUrl;
@@ -46,6 +50,13 @@ export class ConnectController {
 
   getLinkedInAuthUrl = this.linkedInController.getLinkedInAuthUrl;
   handleLinkedInCallback = this.linkedInController.handleLinkedInCallback;
+
+  getXAuthUrl = this.xController.getXAuthUrl;
+  handleXCallback = this.xController.handleXCallback;
+
+  getGoogleBusinessAuthUrl = this.googleBusinessController.getGoogleBusinessAuthUrl;
+  handleGoogleBusinessCallback =
+    this.googleBusinessController.handleGoogleBusinessCallback;
 
   getConnectedAccounts = this.accountsController.getConnectedAccounts;
   refreshAccount = this.accountsController.refreshAccount;

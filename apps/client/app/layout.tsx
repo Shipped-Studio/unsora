@@ -15,7 +15,7 @@ const dmMono = DM_Mono({
 });
 
 const DESCRIPTION =
-  "Plan, schedule and publish posts to Instagram, TikTok, YouTube, LinkedIn, Facebook, Pinterest and Bluesky. Create content in the app or with your AI agent over MCP.";
+  "Plan, schedule and publish posts to Instagram, TikTok, YouTube, LinkedIn, X, Facebook, Pinterest, Bluesky and Google Business Profile. Create content in the app or with your AI agent over MCP.";
 
 export const metadata: Metadata = {
   title: {

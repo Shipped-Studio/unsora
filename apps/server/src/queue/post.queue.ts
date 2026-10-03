@@ -1,4 +1,9 @@
-import { task, schedules } from "@trigger.dev/sdk";
+import {
+  task,
+  schedules,
+  idempotencyKeys,
+  BatchTriggerError,
+} from "@trigger.dev/sdk";
 import prisma from "../lib/db";
 import { STANDARD_RETRY, CANCELLED_ERROR } from "./task-utils";
 import { postService } from "../services/post.service";
@@ -26,76 +31,54 @@ export interface PostPublishingResult {
 
 export const postPublishingTask = task({
   id: "post-publishing",
-  queue: { concurrencyLimit: 10 },
+  // Platform publishes poll media processing in-process, so each run holds its
+  // slot for the whole publish. Capped by the environment concurrency limit.
+  queue: { concurrencyLimit: 100 },
   retry: STANDARD_RETRY,
-  run: async (
-    payload: PostPublishingJobData,
-    { ctx },
-  ): Promise<PostPublishingResult> => {
+  run: async (payload: PostPublishingJobData): Promise<PostPublishingResult> => {
     const { postId } = payload;
 
-    try {
-      const post = await prisma.post.findUnique({
-        where: { id: postId },
-        include: {
-          postAccounts: {
-            include: {
-              account: true,
-            },
-          },
-        },
-      });
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      select: { status: true, publishedAt: true },
+    });
 
-      if (!post) {
-        throw new Error(`Post not found: ${postId}`);
-      }
-
-      // Check if post is already published or in wrong state
-      if (post.status === "PUBLISHED") {
-        return {
-          success: true,
-          postId,
-          publishedAt: post.publishedAt || undefined,
-          results: [],
-        };
-      }
-
-      if (post.status !== "SCHEDULED" && post.status !== "PUBLISHING") {
-        throw new Error(
-          `Post ${postId} is in invalid state: ${post.status}. Expected SCHEDULED or PUBLISHING.`
-        );
-      }
-
-      const result = await postService.publishPost(postId);
-
-      return {
-        success: result.success,
-        postId,
-        publishedAt: result.success ? new Date() : undefined,
-        results: result.results,
-      };
-    } catch (error) {
-      console.error(`[Post ${ctx.run.id}] Post publishing error:`, error);
-
-      // Try to update post status to FAILED
-      try {
-        await prisma.post.update({
-          where: { id: postId },
-          data: {
-            status: "FAILED",
-            error:
-              error instanceof Error ? error.message : "Publishing failed",
-          },
-        });
-      } catch (updateError) {
-        console.error(
-          `[Post ${ctx.run.id}] Failed to update post status:`,
-          updateError
-        );
-      }
-
-      throw error; // Re-throw to mark run as failed and trigger retry
+    // Deleted while queued: nothing to publish.
+    if (!post) {
+      return { success: false, postId, error: "Post not found" };
     }
+
+    if (post.status === "PUBLISHED") {
+      return {
+        success: true,
+        postId,
+        publishedAt: post.publishedAt || undefined,
+        results: [],
+      };
+    }
+
+    // Someone else settled the post while this run waited (sweeper, the user
+    // unscheduling or editing it). Leave their state alone.
+    if (post.status !== "SCHEDULED" && post.status !== "PUBLISHING") {
+      return {
+        success: false,
+        postId,
+        error: `Skipped: post is ${post.status}`,
+      };
+    }
+
+    // Per-account errors are settled inside publishPost; anything it throws is
+    // infrastructure (DB, network) and is left to the retry policy. Legs that
+    // already published are skipped on the retry, and onFailure settles the
+    // post once attempts run out.
+    const result = await postService.publishPost(postId);
+
+    return {
+      success: result.success,
+      postId,
+      publishedAt: result.success ? new Date() : undefined,
+      results: result.results,
+    };
   },
   // Runs only after all retries are exhausted.
   onFailure: async ({ payload, error }) => {
@@ -109,17 +92,31 @@ export const postPublishingTask = task({
   },
 });
 
-// Shared terminal handler for onFailure/onCancel: mark the post FAILED so the
-// UI stops polling and the user can retry or reschedule it.
+// Shared terminal handler for onFailure/onCancel. Settles a post that is still
+// in flight from its legs: any published leg makes it PARTIALLY_PUBLISHED so
+// the user can retry just the rest.
 async function finalizePost(payload: PostPublishingJobData, message: string) {
   const { postId } = payload;
 
   try {
-    await prisma.post.update({
-      where: { id: postId },
+    const legs = await prisma.postAccount.findMany({
+      where: { postId },
+      select: { published: true },
+    });
+    const published = legs.filter((leg) => leg.published).length;
+    const status =
+      legs.length > 0 && published === legs.length
+        ? "PUBLISHED"
+        : published > 0
+          ? "PARTIALLY_PUBLISHED"
+          : "FAILED";
+
+    await prisma.post.updateMany({
+      where: { id: postId, status: { in: ["SCHEDULED", "PUBLISHING"] } },
       data: {
-        status: "FAILED",
-        error: message,
+        status,
+        error: status === "PUBLISHED" ? null : message,
+        ...(published > 0 ? { publishedAt: new Date() } : {}),
       },
     });
   } catch (updateError) {
@@ -130,8 +127,9 @@ async function finalizePost(payload: PostPublishingJobData, message: string) {
   }
 }
 
-// Helper function to add a post publishing job. `idempotencyKey` (the postId)
-// guards against the per-minute scheduler enqueueing the same post twice.
+// Helper function to add a post publishing job. Callers pass a `jobId` unique
+// to the attempt; it becomes a globally scoped idempotency key, so a repeated
+// request for the same attempt reuses the existing run.
 export const addPostPublishingJob = async (
   jobData: PostPublishingJobData,
   options?: {
@@ -142,59 +140,105 @@ export const addPostPublishingJob = async (
 ) => {
   const handle = await postPublishingTask.trigger(jobData, {
     delay: options?.delay ? new Date(Date.now() + options.delay) : undefined,
-    idempotencyKey: options?.jobId ?? jobData.postId,
+    idempotencyKey: await idempotencyKeys.create(
+      options?.jobId ?? jobData.postId,
+      { scope: "global" },
+    ),
     idempotencyKeyTTL: "10m",
   });
   return { id: handle.id };
 };
 
-// Function to queue scheduled posts that are due. Replaces the BullMQ
-// `isPostInQueue` dedup with a DB status flip (SCHEDULED → PUBLISHING) so the
-// next scheduler tick won't re-select the same post.
-export const queueScheduledPosts = async (): Promise<number> => {
+// Max posts claimed and enqueued per batchTrigger call (the API's ceiling).
+const CLAIM_BATCH_SIZE = 1000;
+// Stop claiming new batches after this long so one tick never runs into the
+// next. Overlap is safe anyway (claims use SKIP LOCKED), just wasteful.
+const TICK_BUDGET_MS = 45_000;
+
+interface ClaimedPost {
+  id: string;
+  userId: string;
+  scheduledFor: Date;
+}
+
+/**
+ * Atomically flip up to `limit` due posts SCHEDULED → PUBLISHING and return
+ * them. SKIP LOCKED lets overlapping ticks claim disjoint sets, and claiming
+ * before triggering means a fast run can never be overwritten by the flip.
+ */
+async function claimDuePosts(limit: number): Promise<ClaimedPost[]> {
   const now = new Date();
+  // Prisma stores DateTime as UTC in `timestamp` (no zone) columns; converting
+  // the parameter to UTC wall time keeps this independent of the session
+  // TimeZone and lets the (status, scheduledFor) index serve the filter.
+  return prisma.$queryRaw<ClaimedPost[]>`
+    UPDATE "posts"
+    SET "status" = 'PUBLISHING'::"PostStatus",
+        "updatedAt" = (${now}::timestamptz AT TIME ZONE 'UTC')
+    WHERE "id" IN (
+      SELECT "id" FROM "posts"
+      WHERE "status" = 'SCHEDULED'::"PostStatus"
+        AND "scheduledFor" <= (${now}::timestamptz AT TIME ZONE 'UTC')
+      ORDER BY "scheduledFor" ASC
+      LIMIT ${limit}
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING "id", "userId", "scheduledFor"
+  `;
+}
 
-  const scheduledPosts = await prisma.post.findMany({
-    where: {
-      status: "SCHEDULED",
-      scheduledFor: {
-        lte: now,
-      },
-    },
-    select: {
-      id: true,
-      userId: true,
-      scheduledFor: true,
-    },
+/** Hand claimed posts back to the scheduler after a failed enqueue. */
+async function releasePosts(ids: string[]) {
+  await prisma.post.updateMany({
+    where: { id: { in: ids }, status: "PUBLISHING" },
+    data: { status: "SCHEDULED" },
   });
+}
 
-  if (scheduledPosts.length === 0) {
-    return 0;
-  }
+async function enqueueClaimed(posts: ClaimedPost[]) {
+  const items = await Promise.all(
+    posts.map(async (post) => ({
+      payload: { postId: post.id, userId: post.userId },
+      options: {
+        // Keyed by the scheduled slot: if a batch call succeeds but its
+        // response is lost, the release + re-claim reuses the same runs.
+        idempotencyKey: await idempotencyKeys.create(
+          `scheduled:${post.id}:${post.scheduledFor.getTime()}`,
+          { scope: "global" },
+        ),
+        idempotencyKeyTTL: "1h",
+      },
+    })),
+  );
+  await postPublishingTask.batchTrigger(items);
+}
 
+// Function to queue scheduled posts that are due. Claims in batches and
+// enqueues each batch with a single batchTrigger call.
+export const queueScheduledPosts = async (): Promise<number> => {
+  const startedAt = Date.now();
   let queuedCount = 0;
 
-  for (const post of scheduledPosts) {
+  while (Date.now() - startedAt < TICK_BUDGET_MS) {
+    const claimed = await claimDuePosts(CLAIM_BATCH_SIZE);
+    if (claimed.length === 0) break;
+
     try {
-      await addPostPublishingJob(
-        {
-          postId: post.id,
-          userId: post.userId,
-        },
-        { jobId: post.id }
-      );
-
-      // Flip status so subsequent scheduler ticks skip this post. The worker
-      // accepts both SCHEDULED and PUBLISHING states.
-      await prisma.post.update({
-        where: { id: post.id },
-        data: { status: "PUBLISHING" },
-      });
-
-      queuedCount++;
+      await enqueueClaimed(claimed);
+      queuedCount += claimed.length;
     } catch (error) {
-      console.error(`Error queuing scheduled post ${post.id}:`, error);
+      await releasePosts(claimed.map((post) => post.id));
+      if (error instanceof BatchTriggerError && error.isRateLimited) {
+        console.warn(
+          `[Scheduler] Batch trigger rate limited; ${claimed.length} posts released for the next tick`,
+        );
+      } else {
+        console.error(`[Scheduler] Failed to enqueue ${claimed.length} posts:`, error);
+      }
+      break;
     }
+
+    if (claimed.length < CLAIM_BATCH_SIZE) break;
   }
 
   return queuedCount;

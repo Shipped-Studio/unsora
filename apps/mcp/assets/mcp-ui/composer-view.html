@@ -15,6 +15,7 @@
     TikTok    privacy (from the account's creator info), comments/duet/stitch,
               recommended music (photos), AI label, promotional content
     Pinterest board (from the account's boards), pin title, destination link
+    Google Business  call-to-action button and its link (none for Call now)
     Video     cover image (Instagram Reel cover, YouTube thumbnail, Pinterest)
   Settings apply per platform, so several accounts on one platform share them.
 -->
@@ -85,6 +86,8 @@
     pinterest: { formats: ["video", "images"], caption: 800, maxImages: 5 },
     threads: { formats: ["video", "images", "text"], caption: 500, maxImages: 20 },
     bluesky: { formats: ["video", "images", "text"], caption: 300, maxImages: 4 },
+    x: { formats: ["video", "images", "text"], caption: 280, maxImages: 4 },
+    google_business: { formats: ["images", "text"], caption: 1500, maxImages: 1 },
   };
   const NOTES = {
     instagram: "Videos post as Reels. Feed images need an aspect ratio between 4:5 and 1.91:1.",
@@ -92,7 +95,13 @@
     linkedin: "Posts publicly to your personal profile.",
     threads: "Up to 500 characters.",
     bluesky: "Up to 300 characters and 4 images.",
+    x: "Up to 280 characters and 4 images. Videos up to 140 seconds and 512 MB.",
+    google_business: "Text or one JPG/PNG image (max 5 MB). No video. Each location posts separately.",
   };
+  const GBP_CTA = [
+    ["", "No button"], ["LEARN_MORE", "Learn more"], ["BOOK", "Book"], ["ORDER", "Order online"],
+    ["SHOP", "Buy"], ["SIGN_UP", "Sign up"], ["CALL", "Call now"],
+  ];
   const YT_CATEGORIES = [
     ["22", "People & Blogs"], ["1", "Film & Animation"], ["2", "Autos & Vehicles"], ["10", "Music"],
     ["15", "Pets & Animals"], ["17", "Sports"], ["19", "Travel & Events"], ["20", "Gaming"], ["23", "Comedy"],
@@ -130,6 +139,7 @@
   const yt = { title: "", privacy: "public", category: "22", tags: "", madeForKids: false };
   const tt = { privacy: "", comment: true, duet: true, stitch: true, music: true, aigc: false, promo: false, yourBrand: false, branded: false, coverSec: "" };
   const pin = { boardId: "", title: "", link: "" };
+  const gbp = { cta: "", url: "" };
   let when = "now"; // now | schedule | draft
   let scheduleAt = "";
   let submitting = false;
@@ -224,7 +234,7 @@
       if (!images.length) errors.push("Add at least one image.");
       for (const p of plats) {
         const max = RULES[p] && RULES[p].maxImages;
-        if (max && images.length > max) errors.push(Kit.platformMeta(p).label + " allows up to " + max + " images.");
+        if (max && images.length > max) errors.push(Kit.platformMeta(p).label + " allows up to " + Kit.plural(max, "image") + ".");
       }
       if (images.length > 35) errors.push("A post can have up to 35 images.");
       if (plats.includes("instagram")) {
@@ -241,6 +251,7 @@
         if (max && d > max) errors.push("This video is longer than " + a.name + " can post on TikTok (" + Math.floor(max / 60) + " min).");
       }
       if (plats.includes("bluesky") && d > 180) errors.push("Bluesky videos can be up to 3 minutes.");
+      if (plats.includes("x") && d > 140) errors.push("X videos can be up to 140 seconds.");
     }
     if (format === "text" && !caption.trim()) errors.push("Write the post text.");
     if (!caption.trim() && format !== "text") warnings.push("No caption.");
@@ -272,6 +283,13 @@
       if (pin.title.length > 100) errors.push("Pin titles are limited to 100 characters.");
       if (pin.link && !/^https?:\/\/\S+$/i.test(pin.link.trim())) errors.push("The Pinterest link must start with http:// or https://.");
       if (format === "images" && images.length > 5) errors.push("Pinterest carousels take 2 to 5 images.");
+    }
+    if (plats.includes("google_business") && format === "images" && images.some((u) => /\.(gif|webp|heic|avif|bmp|tiff?)(\?|#|$)/i.test(u))) {
+      warnings.push("Google Business only accepts JPG or PNG images.");
+    }
+    if (plats.includes("google_business") && gbp.cta && gbp.cta !== "CALL") {
+      if (!gbp.url.trim()) errors.push("Add a link for the Google Business button.");
+      else if (!/^https?:\/\/\S+$/i.test(gbp.url.trim())) errors.push("The Google Business button link must start with http:// or https://.");
     }
     if (when === "schedule") {
       const t = new Date(scheduleAt).getTime();
@@ -465,6 +483,10 @@
       if (pin.link.trim()) p.link = pin.link.trim();
       if (Object.keys(p).length) a.pinterest = p;
     }
+    if (plats.includes("google_business") && gbp.cta) {
+      a.google_business = { cta_type: gbp.cta };
+      if (gbp.cta !== "CALL" && gbp.url.trim()) a.google_business.cta_url = gbp.url.trim();
+    }
     return a;
   }
 
@@ -640,7 +662,7 @@
         body.push(el("div", { class: "muted small" }, "The first image is the cover."));
       }
     } else {
-      body.push(el("div", { class: "muted" }, "Text-only post. Works on Facebook, LinkedIn, Threads and Bluesky."));
+      body.push(el("div", { class: "muted" }, "Text-only post. Works on Facebook, LinkedIn, Threads, Bluesky, X and Google Business."));
     }
 
     if (format !== "text") {
@@ -800,6 +822,19 @@
     ]);
   }
 
+  function googleBusinessPanel() {
+    const n = accountsOn("google_business").length;
+    const needsUrl = gbp.cta && gbp.cta !== "CALL";
+    return el("div", { class: "pf-panel" }, [
+      el("div", { class: "pf-head" }, [Kit.pfMark("google_business"), "Google Business Profile", n > 1 ? el("span", { class: "muted small" }, "applies to " + n + " locations") : null]),
+      el("div", { class: "fields" }, [
+        field("Button (optional)", selectBox(gbp, "cta", GBP_CTA),
+          gbp.cta === "CALL" ? "Calls the phone number on your Business Profile." : null),
+        needsUrl ? field("Button link", bound("input", gbp, "url", { type: "url", placeholder: "https://…", id: "gbp-url" }), "Where people go when they tap the button.") : null,
+      ]),
+    ]);
+  }
+
   function settingsSection() {
     const plats = platformsChosen();
     if (!plats.length) return null;
@@ -807,6 +842,7 @@
     if (plats.includes("youtube")) panels.push(youtubePanel());
     if (plats.includes("tiktok")) panels.push(tiktokPanel());
     if (plats.includes("pinterest")) panels.push(pinterestPanel());
+    if (plats.includes("google_business")) panels.push(googleBusinessPanel());
     const notes = plats.filter((p) => NOTES[p]).map((p) =>
       el("div", { class: "row", style: { gap: "8px", alignItems: "flex-start" } }, [Kit.pfMark(p), el("span", { class: "muted small", style: { paddingTop: "3px" } }, NOTES[p])]));
     return el("div", { class: "section" }, [

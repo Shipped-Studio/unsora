@@ -63,5 +63,16 @@ export function readConnectState(raw: unknown): ConnectState | null {
   }
 }
 
+/**
+ * PKCE code verifier bound to a connect state, for providers that require
+ * PKCE (X). Derived from the signed state with a separate label, so the
+ * verifier never has to be stored between the auth URL and the callback and
+ * can't be computed without the server secret. 43 base64url chars, within
+ * RFC 7636's 43–128.
+ */
+export function pkceVerifierForState(state: string): string {
+  return createHmac("sha256", secret()).update(`pkce-verifier:${state}`).digest("base64url");
+}
+
 export const EXPIRED_LINK_MESSAGE =
   "This connect link has expired or isn't valid. Start again from Unsora, or ask for a new link.";

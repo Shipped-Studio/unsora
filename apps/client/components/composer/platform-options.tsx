@@ -25,9 +25,13 @@ import { useTikTokCreatorInfo } from "@/hooks/use-tiktok-creator-info";
 import { usePinterestBoards } from "@/hooks/use-connected-accounts";
 import type { Composer } from "@/hooks/use-composer";
 import {
+  DEFAULT_GOOGLE_BUSINESS,
   DEFAULT_PINTEREST,
   DEFAULT_YOUTUBE,
+  GOOGLE_BUSINESS_CTA_LABELS,
   defaultTikTok,
+  type GoogleBusinessCta,
+  type GoogleBusinessOptions,
   type TikTokLimits,
   type TikTokOptions,
   type YouTubeOptions,
@@ -514,6 +518,70 @@ function PinterestOptionsForm({
   );
 }
 
+const NO_BUTTON = "NONE";
+
+function GoogleBusinessOptionsForm({
+  account,
+  composer,
+}: {
+  account: ConnectedAccount;
+  composer: Composer;
+}) {
+  const { state, update } = composer;
+  const options = state.googleBusiness[account.id] ?? DEFAULT_GOOGLE_BUSINESS;
+  const set = (patch: Partial<GoogleBusinessOptions>) =>
+    update((prev) => ({
+      ...prev,
+      googleBusiness: { ...prev.googleBusiness, [account.id]: { ...options, ...patch } },
+    }));
+  const needsLink = Boolean(options.ctaType && options.ctaType !== "CALL");
+
+  return (
+    <FieldGroup className="gap-4">
+      <Field>
+        <FieldLabel>Button</FieldLabel>
+        <Select
+          value={options.ctaType ?? NO_BUTTON}
+          items={{ [NO_BUTTON]: "No button", ...GOOGLE_BUSINESS_CTA_LABELS }}
+          onValueChange={(value) =>
+            value &&
+            set({ ctaType: value === NO_BUTTON ? undefined : (value as GoogleBusinessCta) })
+          }
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_BUTTON}>No button</SelectItem>
+            {Object.entries(GOOGLE_BUSINESS_CTA_LABELS).map(([value, label]) => (
+              <SelectItem key={value} value={value}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {options.ctaType === "CALL" ? (
+          <FieldDescription>Calls the phone number on your Business Profile.</FieldDescription>
+        ) : null}
+      </Field>
+      {needsLink ? (
+        <Field>
+          <FieldLabel htmlFor={`gbp-link-${account.id}`}>Button link</FieldLabel>
+          <Input
+            id={`gbp-link-${account.id}`}
+            type="url"
+            inputMode="url"
+            value={options.ctaUrl}
+            placeholder="https://"
+            aria-invalid={!/^https?:\/\/\S+$/i.test(options.ctaUrl.trim()) || undefined}
+            onChange={(event) => set({ ctaUrl: event.target.value })}
+          />
+        </Field>
+      ) : null}
+    </FieldGroup>
+  );
+}
+
 /** Settings for the selected accounts whose platforms have options. */
 export function PlatformOptions({
   composer,
@@ -529,7 +597,10 @@ export function PlatformOptions({
   const withOptions = selectedAccounts.filter(
     (a) =>
       !locked.includes(a.id) &&
-      (a.provider === "google" || a.provider === "tiktok" || a.provider === "pinterest"),
+      (a.provider === "google" ||
+        a.provider === "tiktok" ||
+        a.provider === "pinterest" ||
+        a.provider === "google_business"),
   );
   if (!withOptions.length) return null;
   const video = composer.state.media.find((m) => m.kind === "video");
@@ -547,8 +618,10 @@ export function PlatformOptions({
               videoSeconds={video?.duration}
               onLimits={onTikTokLimits}
             />
-          ) : (
+          ) : account.provider === "pinterest" ? (
             <PinterestOptionsForm account={account} composer={composer} />
+          ) : (
+            <GoogleBusinessOptionsForm account={account} composer={composer} />
           )}
         </OptionsCard>
       ))}

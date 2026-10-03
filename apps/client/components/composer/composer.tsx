@@ -435,7 +435,9 @@ export function Composer({
           </ComposerSection>
 
           <div id="composer-options" className="scroll-mt-20">
-            {selectedAccounts.some((a) => ["google", "tiktok", "pinterest"].includes(a.provider)) ? (
+            {selectedAccounts.some((a) =>
+              ["google", "tiktok", "pinterest", "google_business"].includes(a.provider),
+            ) ? (
               <ComposerSection title="Platform settings">
                 <PlatformOptions
                   composer={composer}

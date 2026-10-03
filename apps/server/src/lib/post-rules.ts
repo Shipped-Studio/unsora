@@ -14,6 +14,8 @@ export const PROVIDER_POST_TYPES: Record<string, readonly PostType[]> = {
   bluesky: ["VIDEO", "IMAGE", "CAROUSEL", "TEXT"],
   pinterest: ["VIDEO", "IMAGE", "CAROUSEL"],
   linkedin: ["VIDEO", "IMAGE", "CAROUSEL", "TEXT"],
+  x: ["VIDEO", "IMAGE", "CAROUSEL", "TEXT"],
+  google_business: ["IMAGE", "TEXT"],
 };
 
 const PROVIDER_NAMES: Record<string, string> = {
@@ -25,6 +27,8 @@ const PROVIDER_NAMES: Record<string, string> = {
   bluesky: "Bluesky",
   pinterest: "Pinterest",
   linkedin: "LinkedIn",
+  x: "X",
+  google_business: "Google Business Profile",
 };
 
 export const POST_TYPES: readonly PostType[] = [

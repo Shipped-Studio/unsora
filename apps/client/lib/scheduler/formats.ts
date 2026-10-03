@@ -12,7 +12,9 @@ export type Provider =
   | "threads"
   | "bluesky"
   | "pinterest"
-  | "linkedin";
+  | "linkedin"
+  | "x"
+  | "google_business";
 
 export type PostFormat = "video" | "photos" | "slideshow" | "text";
 export type PostType = "VIDEO" | "IMAGE" | "CAROUSEL" | "TEXT";
@@ -30,6 +32,8 @@ export interface FormatRule {
 export interface PlatformSpec {
   id: Provider;
   name: string;
+  /** For tight spots like counters and grid tiles. Defaults to name. */
+  shortName?: string;
   /** Shown on the Accounts page and in the composer. */
   enabled: boolean;
   /** What a connected account is on this platform. */
@@ -167,6 +171,35 @@ export const PLATFORMS: Record<Provider, PlatformSpec> = {
     },
     connectNote: "Publishes to your personal profile. Company pages aren't supported yet.",
   },
+  x: {
+    id: "x",
+    name: "X",
+    enabled: true,
+    accountNoun: "account",
+    captionLimit: 280,
+    videoCover: false,
+    formats: {
+      video: { maxVideoSeconds: 140, maxVideoBytes: 512 * MB },
+      photos: { minImages: 1, maxImages: 4 },
+      text: {},
+    },
+  },
+  google_business: {
+    id: "google_business",
+    name: "Google Business Profile",
+    shortName: "Google Business",
+    enabled: true,
+    // One sign-in connects every location the Google account manages.
+    accountNoun: "location",
+    captionLimit: 1500,
+    videoCover: false,
+    formats: {
+      photos: { minImages: 1, maxImages: 1 },
+      text: {},
+    },
+    connectNote:
+      "Connects every Business Profile location you manage. Posts appear on your Google Search and Maps listing.",
+  },
 };
 
 export const PLATFORM_ORDER: Provider[] = [
@@ -175,7 +208,9 @@ export const PLATFORM_ORDER: Provider[] = [
   "google",
   "facebook",
   "linkedin",
+  "x",
   "pinterest",
+  "google_business",
   "bluesky",
   "threads",
 ];
@@ -227,6 +262,12 @@ export function isProvider(value: string): value is Provider {
 
 export function platformName(provider: string) {
   return isProvider(provider) ? PLATFORMS[provider].name : provider;
+}
+
+export function platformShortName(provider: string) {
+  return isProvider(provider)
+    ? (PLATFORMS[provider].shortName ?? PLATFORMS[provider].name)
+    : provider;
 }
 
 /** The rule for a platform and format, or undefined when unsupported. */

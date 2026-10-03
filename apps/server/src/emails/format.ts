@@ -45,6 +45,8 @@ export function platformName(provider: string): string {
     pinterest: "Pinterest",
     threads: "Threads",
     bluesky: "Bluesky",
+    x: "X",
+    google_business: "Google Business Profile",
   };
   return names[provider.toLowerCase()] ?? provider;
 }

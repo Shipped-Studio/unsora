@@ -321,6 +321,7 @@ const Kit = (() => {
     threads: { label: "Threads", short: "@", color: "#222222" },
     bluesky: { label: "Bluesky", short: "B", color: "#1185fe" },
     x: { label: "X", short: "X", color: "#000000" },
+    google_business: { label: "Google Business", short: "G", color: "#1a73e8" },
   };
 
   /** Provider string from the API -> platform key ("google" is YouTube). */

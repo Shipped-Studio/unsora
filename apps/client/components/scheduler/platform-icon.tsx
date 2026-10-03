@@ -1,11 +1,13 @@
 import {
   BlueskyIcon,
   FacebookIcon,
+  GoogleBusinessIcon,
   InstagramIcon,
   LinkedInIcon,
   PinterestIcon,
   ThreadsIcon,
   TikTokIcon,
+  XIcon,
   YouTubeIcon,
 } from "@/components/icons";
 import { cn } from "@/lib/utils";
@@ -54,6 +56,30 @@ export function PlatformIcon({
           aria-hidden
         >
           <BlueskyIcon className="size-[58%] [&_path]:fill-platform-foreground" />
+        </span>
+      );
+    case "x":
+      return (
+        <span
+          className={cn(
+            base,
+            "flex items-center justify-center rounded-full bg-platform-x text-platform-foreground ring-1 ring-platform-foreground/15",
+          )}
+          aria-hidden
+        >
+          <XIcon className="size-[50%]" />
+        </span>
+      );
+    case "google_business":
+      return (
+        <span
+          className={cn(
+            base,
+            "flex items-center justify-center rounded-full bg-platform-google-business",
+          )}
+          aria-hidden
+        >
+          <GoogleBusinessIcon className="size-[55%] [&_path]:fill-platform-foreground" />
         </span>
       );
     case "threads":

@@ -1,3 +1,9 @@
+import {
+  GOOGLE_BUSINESS_CTA_TYPES,
+  type GoogleBusinessCtaType,
+  type GoogleBusinessPostSettings,
+} from "../../../services/platforms/google-business.service";
+
 export type TikTokPostSettings = {
   post_mode?: "DIRECT_POST" | "MEDIA_UPLOAD";
   privacy_level?: string;
@@ -38,6 +44,7 @@ export type PlatformSettings = {
   tiktok?: TikTokPostSettings;
   youtube?: YouTubePostSettings;
   pinterest?: PinterestPostSettings;
+  google_business?: GoogleBusinessPostSettings;
 };
 
 /** Public API supports optional settings for these providers only. */
@@ -46,6 +53,7 @@ export const SUPPORTED_PLATFORM_SETTING_KEYS = [
   "tiktok",
   "youtube",
   "pinterest",
+  "google_business",
 ] as const;
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -256,6 +264,55 @@ function parsePinterestSettings(
   return { ok: true, value: out };
 }
 
+/**
+ * Google Business button. Public keys are snake_case (cta_type / cta_url);
+ * stored as the publisher's ctaType / ctaUrl.
+ */
+function parseGoogleBusinessSettings(
+  raw: Record<string, unknown>,
+): Result<GoogleBusinessPostSettings | undefined> {
+  const ctaType = raw.cta_type ?? raw.ctaType;
+  const ctaUrl = raw.cta_url ?? raw.ctaUrl;
+
+  if (ctaType === undefined) {
+    if (ctaUrl !== undefined) {
+      return { ok: false, error: "google_business.cta_url needs google_business.cta_type" };
+    }
+    return { ok: true, value: undefined };
+  }
+
+  if (
+    typeof ctaType !== "string" ||
+    !GOOGLE_BUSINESS_CTA_TYPES.includes(ctaType as GoogleBusinessCtaType)
+  ) {
+    return {
+      ok: false,
+      error: `google_business.cta_type must be one of ${GOOGLE_BUSINESS_CTA_TYPES.join(", ")}`,
+    };
+  }
+
+  if (ctaType === "CALL") {
+    if (ctaUrl !== undefined) {
+      return {
+        ok: false,
+        error: "google_business.cta_url isn't used with CALL (it dials the profile's phone number)",
+      };
+    }
+    return { ok: true, value: { ctaType: "CALL" } };
+  }
+
+  if (typeof ctaUrl !== "string" || !/^https?:\/\/\S+$/i.test(ctaUrl.trim())) {
+    return {
+      ok: false,
+      error: `google_business.cta_url must be an http(s) URL when cta_type is ${ctaType}`,
+    };
+  }
+  return {
+    ok: true,
+    value: { ctaType: ctaType as GoogleBusinessCtaType, ctaUrl: ctaUrl.trim() },
+  };
+}
+
 function rejectUnknownPlatformKeys(
   obj: Record<string, unknown>,
   location: string,
@@ -340,6 +397,17 @@ export function parsePlatformSettings(
     if (parsed.value) merged.pinterest = parsed.value;
   }
 
+  const googleBusinessRaw = isPlainObject(settingsRoot.google_business)
+    ? settingsRoot.google_business
+    : isPlainObject(body.google_business)
+      ? body.google_business
+      : null;
+  if (googleBusinessRaw) {
+    const parsed = parseGoogleBusinessSettings(googleBusinessRaw);
+    if (!parsed.ok) return parsed;
+    if (parsed.value) merged.google_business = parsed.value;
+  }
+
   if (Object.keys(merged).length === 0) {
     return { ok: true, value: undefined };
   }
@@ -368,6 +436,9 @@ export function postAccountSettingsForProvider(
   }
   if (p === "pinterest" && platformSettings.pinterest) {
     return { ...platformSettings.pinterest };
+  }
+  if (p === "google_business" && platformSettings.google_business) {
+    return { ...platformSettings.google_business };
   }
   return undefined;
 }

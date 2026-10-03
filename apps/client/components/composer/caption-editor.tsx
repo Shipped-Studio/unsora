@@ -11,6 +11,7 @@ import {
   captionLength,
   isProvider,
   platformName,
+  platformShortName,
 } from "@/lib/scheduler/formats";
 import type { ConnectedAccount } from "@/lib/scheduler/types";
 import { cn } from "@/lib/utils";
@@ -29,7 +30,7 @@ function Counter({ provider, text }: { provider: string; text: string }) {
         over && "font-medium text-destructive",
       )}
     >
-      {platformName(provider)} {used.toLocaleString()}/{limit.toLocaleString()}
+      {platformShortName(provider)} {used.toLocaleString()}/{limit.toLocaleString()}
     </span>
   );
 }

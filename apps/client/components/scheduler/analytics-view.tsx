@@ -45,6 +45,7 @@ const MISSING: Record<string, MetricKey[]> = {
   bluesky: ["views"],
   linkedin: ["views", "shares"],
   google: ["shares"],
+  google_business: ["likes", "comments", "shares"],
 };
 
 const compact = (n: number) =>
@@ -269,7 +270,7 @@ export function AnalyticsView() {
           </ul>
           <p className="text-xs text-muted-foreground">
             Bluesky doesn&apos;t report views. LinkedIn doesn&apos;t report views or shares.
-            YouTube doesn&apos;t report shares.
+            YouTube doesn&apos;t report shares. Google Business Profile only reports views.
           </p>
         </PageSection>
 

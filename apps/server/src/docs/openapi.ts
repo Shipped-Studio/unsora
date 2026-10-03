@@ -1139,6 +1139,25 @@ const openApiDocument = {
           },
         },
       },
+      GoogleBusinessPostSettings: {
+        type: "object",
+        description:
+          "Options applied to Google Business Profile locations: an optional call-to-action button on the post.",
+        properties: {
+          cta_type: {
+            type: "string",
+            enum: ["LEARN_MORE", "BOOK", "ORDER", "SHOP", "SIGN_UP", "CALL"],
+            description:
+              "Button shown on the post. Alias: ctaType. CALL dials the location's phone number.",
+          },
+          cta_url: {
+            type: "string",
+            format: "uri",
+            description:
+              "Link (http or https) the button opens. Alias: ctaUrl. Required for every cta_type except CALL; must be omitted for CALL.",
+          },
+        },
+      },
       PostPlatformSettings: {
         type: "object",
         additionalProperties: false,
@@ -1149,6 +1168,9 @@ const openApiDocument = {
           tiktok: { $ref: "#/components/schemas/TikTokPostSettings" },
           youtube: { $ref: "#/components/schemas/YouTubePostSettings" },
           pinterest: { $ref: "#/components/schemas/PinterestPostSettings" },
+          google_business: {
+            $ref: "#/components/schemas/GoogleBusinessPostSettings",
+          },
         },
       },
       CreatePostRequest: {
@@ -1220,6 +1242,11 @@ const openApiDocument = {
             $ref: "#/components/schemas/PinterestPostSettings",
             description:
               "Same as settings.pinterest. Ignored when settings.pinterest is present.",
+          },
+          google_business: {
+            $ref: "#/components/schemas/GoogleBusinessPostSettings",
+            description:
+              "Same as settings.google_business. Ignored when settings.google_business is present.",
           },
           external_id: {
             type: "string",
@@ -1362,7 +1389,7 @@ const openApiDocument = {
               provider: {
                 type: "string",
                 description:
-                  "google (YouTube), tiktok, instagram, facebook, threads, bluesky, pinterest or linkedin.",
+                  "google (YouTube), tiktok, instagram, facebook, threads, bluesky, pinterest, linkedin, x or google_business (one account per Business Profile location).",
               },
               accountName: { anyOf: [{ type: "string" }, { type: "null" }] },
               accountUsername: { anyOf: [{ type: "string" }, { type: "null" }] },
@@ -1545,7 +1572,7 @@ const openApiDocument = {
       PostMetrics: {
         type: "object",
         description:
-          "Cumulative counters. Metrics a platform does not expose are 0 (e.g. Bluesky views, TikTok saves, YouTube shares and saves). Facebook and LinkedIn likes count every reaction type. Pinterest views are impressions and shares are outbound clicks.",
+          "Cumulative counters. Metrics a platform does not expose are 0 (e.g. Bluesky views, TikTok saves, YouTube shares and saves). Facebook and LinkedIn likes count every reaction type. Pinterest views are impressions and shares are outbound clicks. X shares are reposts plus quotes and saves are bookmarks. Google Business Profile reports search views only.",
         properties: {
           views: { type: "integer" },
           likes: { type: "integer" },
@@ -3695,7 +3722,7 @@ const openApiDocument = {
           "every minute. `scheduled_at` must be at least 2 minutes in the future. Without it " +
           "the post is saved as a DRAFT, which can be published with POST /posts/{id}/publish. " +
           "Per-platform options go in `settings` (or in top-level `instagram`, `tiktok`, " +
-          "`youtube` and `pinterest` objects); each account receives only the options for its " +
+          "`youtube`, `pinterest` and `google_business` objects); each account receives only the options for its " +
           "own platform. " +
           "Media, post type and account platforms are not cross-checked here. POST " +
           "/posts/{id}/publish and /retry check them before starting; a scheduled post is " +
@@ -3891,7 +3918,8 @@ const openApiDocument = {
         summary: "Refresh post metrics from the platforms",
         description:
           "Polls the platforms for current metrics of the caller's posts published in the last " +
-          "90 days (YouTube, TikTok, Instagram, Facebook, Threads, Pinterest, LinkedIn, Bluesky) " +
+          "90 days (YouTube, TikTok, Instagram, Facebook, Threads, Pinterest, LinkedIn, Bluesky, " +
+          "X, Google Business Profile) " +
           "and stores a snapshot for each. The response is returned after polling finishes. " +
           "Accounts whose platform request fails are skipped. Call GET " +
           "/posts/analytics/summary afterwards for the updated figures.",
@@ -4089,7 +4117,8 @@ const openApiDocument = {
           "no media and a non-empty caption; video and images can't be mixed (THUMBNAIL items " +
           "are not counted). The platform of every unpublished account must support the post " +
           "type: YouTube supports VIDEO; TikTok, Instagram and Pinterest support VIDEO, IMAGE " +
-          "and CAROUSEL; Facebook, Threads, Bluesky and LinkedIn support all four types. " +
+          "and CAROUSEL; Facebook, Threads, Bluesky, LinkedIn and X support all four types; " +
+          "Google Business Profile supports IMAGE and TEXT. " +
           "Requires an active paid plan.",
         security: [{ bearerAuth: [] }],
         parameters: [
