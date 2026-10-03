@@ -1,8 +1,10 @@
 "use client";
 
+import { Suspense } from "react";
 import { AppNavProvider, AppRail, MobileNav } from "@/components/layout/app-rail";
 import { CommandMenuProvider } from "@/components/layout/command-menu";
 import { MusicPlayerProvider } from "@/contexts/music-player-context";
+import { OnboardingDialog } from "@/components/onboarding/onboarding-dialog";
 
 /**
  * Gray canvas with the icon rail on the left and every page inside one
@@ -25,6 +27,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <MobileNav />
+        {/* Reads ?onboarding= from the URL, so it needs a Suspense boundary. */}
+        <Suspense fallback={null}>
+          <OnboardingDialog />
+        </Suspense>
       </CommandMenuProvider>
     </AppNavProvider>
   );

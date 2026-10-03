@@ -30,6 +30,11 @@ import {
 export const DOCS_URL = "https://tryunsora.com/docs";
 export const MCP_URL = "https://mcp.tryunsora.com/mcp";
 export const API_BASE = "https://mvp.tryunsora.com/api/v1";
+/**
+ * Video shown on the last onboarding step (a YouTube watch/share/embed URL).
+ * Empty: the step shows "what to try next" cards instead.
+ */
+export const TUTORIAL_VIDEO_URL = "";
 
 export interface NavItem {
   label: string;
