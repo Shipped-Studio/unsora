@@ -41,6 +41,22 @@ export const checkSocialAccountLimit = async (
     });
   }
 
+  // Reconnecting refreshes an existing account's tokens (the OAuth callbacks
+  // upsert by provider + providerAccountId), so it doesn't take a new slot.
+  // The client passes ?reconnect=<accountId>; it must be the caller's own
+  // account on the provider this route connects (/google, /linkedin, ...).
+  const reconnectId =
+    typeof req.query.reconnect === "string" ? req.query.reconnect : null;
+  if (reconnectId) {
+    const existing = await prisma.socialAccount.findFirst({
+      where: { id: reconnectId, userId: user.id },
+      select: { provider: true },
+    });
+    if (existing && req.path.split("/")[1] === existing.provider) {
+      return next();
+    }
+  }
+
   if (socialAccounts >= limit) {
     return res.status(403).json({
       error:

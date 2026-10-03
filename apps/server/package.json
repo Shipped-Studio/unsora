@@ -25,7 +25,7 @@
     "@atproto/api": "^0.20.32",
     "@atproto/oauth-client-node": "^0.4.9",
     "@azure/storage-blob": "^12.33.0",
-    "@clerk/express": "^1.7.31",
+    "@clerk/express": "^2.1.75",
     "@google/genai": "^1.51.0",
     "@openrouter/ai-sdk-provider": "^1.2.0",
     "@prisma/client": "^6.16.2",

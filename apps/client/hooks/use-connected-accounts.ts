@@ -29,12 +29,16 @@ export function useConnectAccount() {
     mutationFn: async ({
       provider,
       handle,
+      reconnectAccountId,
     }: {
       provider: string;
       handle?: string;
+      /** Set when re-authorizing an existing account, so it doesn't count as a new one against the plan limit. */
+      reconnectAccountId?: string;
     }) => {
       const params = new URLSearchParams();
       if (handle) params.set("handle", handle);
+      if (reconnectAccountId) params.set("reconnect", reconnectAccountId);
       const query = params.toString();
       const { authUrl } = await api<{ authUrl: string }>(
         `/api/connect/${provider}${query ? `?${query}` : ""}`,

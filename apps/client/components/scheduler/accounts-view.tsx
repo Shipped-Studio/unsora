@@ -103,7 +103,7 @@ function AccountRow({
   connecting,
 }: {
   account: ConnectedAccount;
-  onReconnect: (provider: Provider) => void;
+  onReconnect: (account: ConnectedAccount) => void;
   connecting: boolean;
 }) {
   const refresh = useRefreshAccount();
@@ -129,7 +129,7 @@ function AccountRow({
           size="sm"
           variant="outline"
           disabled={connecting}
-          onClick={() => onReconnect(account.provider as Provider)}
+          onClick={() => onReconnect(account)}
         >
           Reconnect
         </Button>
@@ -146,7 +146,7 @@ function AccountRow({
             Refresh profile
           </DropdownMenuItem>
           {isProvider(account.provider) ? (
-            <DropdownMenuItem onClick={() => onReconnect(account.provider as Provider)}>
+            <DropdownMenuItem onClick={() => onReconnect(account)}>
               <Plugs />
               Reconnect
             </DropdownMenuItem>
@@ -435,10 +435,13 @@ export function AccountsView() {
                       key={account.id}
                       account={account}
                       connecting={connect.isPending}
-                      onReconnect={(provider) =>
-                        provider === "bluesky"
+                      onReconnect={(account) =>
+                        account.provider === "bluesky"
                           ? toast.info("Use Connect on Bluesky below with the same handle.")
-                          : connect.mutate({ provider })
+                          : connect.mutate({
+                              provider: account.provider,
+                              reconnectAccountId: account.id,
+                            })
                       }
                     />
                   ))}
