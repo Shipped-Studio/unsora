@@ -14,6 +14,9 @@ import * as Sentry from "@sentry/node";
  */
 export default defineConfig({
   project: "proj_opcrvedpyakjcvelbdfl",
+  // Match the API's Node version (.node-version). The default "node" runtime
+  // is Node 21, which can't load undici 8 (via the Bluesky OAuth client).
+  runtime: "node-24",
   dirs: ["./src/queue"],
   // Native deps the tasks rely on inside the deployed container:
   //  - prismaExtension: runs `prisma generate` at build so @prisma/client works

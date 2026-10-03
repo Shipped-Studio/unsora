@@ -23,9 +23,3 @@ ignoredBuiltDependencies:
   - core-js
   - msw
   - protobufjs
-
-overrides:
-  # fetch-node imports undici 6, 7 and 8 at load time; undici 8 needs Node 22+
-  # and crashes on Node 20. npm resolved this alias to undici 7, so keep that
-  # until we move to Node 22.
-  '@atproto-labs/fetch-node>undici_v8': npm:undici@^7.28.0
