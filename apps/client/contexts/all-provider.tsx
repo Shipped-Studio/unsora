@@ -42,7 +42,7 @@ export default function AllProvider({
               options={{ showSpinner: false }}
               showOnShallow
             />
-            <Toaster position="bottom-right" />
+            <Toaster position="top-center" />
           </TooltipProvider>
         </ThemeProvider>
       </QueryClientProvider>

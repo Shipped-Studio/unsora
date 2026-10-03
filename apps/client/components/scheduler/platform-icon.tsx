@@ -34,7 +34,7 @@ export function PlatformIcon({
       return <FacebookIcon className={base} aria-hidden />;
     case "pinterest":
       return (
-        <span className={cn(base, "rounded-full bg-platform-foreground")} aria-hidden>
+        <span className={cn(base, "inline-block rounded-full bg-platform-foreground")} aria-hidden>
           <PinterestIcon className="size-full" />
         </span>
       );

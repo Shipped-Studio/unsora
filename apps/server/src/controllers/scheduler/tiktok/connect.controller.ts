@@ -6,7 +6,13 @@ import {
   getTikTokCreatorInfo,
   getTikTokUserInfo,
 } from "../../../oauth/tiktok";
-import { schedulerConnectionsRedirect } from "../shared/redirect";
+import { connectRedirect } from "../shared/redirect";
+import {
+  createConnectState,
+  EXPIRED_LINK_MESSAGE,
+  readConnectState,
+} from "../shared/state";
+import { canAddAccount, ACCOUNT_LIMIT_MESSAGE } from "../shared/limits";
 import { getUserIdFromClerkId } from "../shared/user";
 
 export class TikTokSchedulerController {
@@ -18,19 +24,25 @@ export class TikTokSchedulerController {
       return res.status(404).json({ success: false, error: "User not found" });
     }
 
-    const url = getTikTokAuthUrl(userId);
+    const url = getTikTokAuthUrl(createConnectState(userId, req));
     res.json({ authUrl: url });
   };
 
   handleTikTokCallback = async (req: Request, res: Response) => {
+    const connect = readConnectState(req.query.state);
+    const redirect = connectRedirect("tiktok", connect);
+
     try {
       const { code, state, error, error_description } = req.query;
+
+      if (!connect) {
+        return res.redirect(redirect("error", EXPIRED_LINK_MESSAGE));
+      }
 
       if (error) {
         console.error("TikTok OAuth error:", { error, error_description });
         return res.redirect(
-          schedulerConnectionsRedirect(
-            "tiktok",
+          redirect(
             "error",
             (error_description as string) ||
               (error as string) ||
@@ -41,8 +53,7 @@ export class TikTokSchedulerController {
 
       if (!code) {
         return res.redirect(
-          schedulerConnectionsRedirect(
-            "tiktok",
+          redirect(
             "error",
             "No authorization code received",
           ),
@@ -51,6 +62,10 @@ export class TikTokSchedulerController {
 
       const tokens = await exchangeTikTokCode(code as string);
       const userInfo = await getTikTokUserInfo(tokens.access_token);
+
+      if (!(await canAddAccount(connect.userId, "tiktok", tokens.open_id))) {
+        return res.redirect(redirect("error", ACCOUNT_LIMIT_MESSAGE));
+      }
 
       await prisma.socialAccount.upsert({
         where: {
@@ -69,7 +84,7 @@ export class TikTokSchedulerController {
           profilePicture: userInfo?.profilePicture || null,
         },
         create: {
-          userId: state as string,
+          userId: connect.userId,
           provider: "tiktok",
           providerAccountId: tokens.open_id,
           accessToken: tokens.access_token,
@@ -82,12 +97,12 @@ export class TikTokSchedulerController {
         },
       });
 
-      res.redirect(schedulerConnectionsRedirect("tiktok", "success"));
+      res.redirect(redirect("success"));
     } catch (error) {
       console.error("TikTok callback error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      res.redirect(schedulerConnectionsRedirect("tiktok", "error", errorMessage));
+      res.redirect(redirect("error", errorMessage));
     }
   };
 

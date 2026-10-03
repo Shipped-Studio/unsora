@@ -7,7 +7,13 @@ import {
   getFacebookPages,
   refreshFacebookToken,
 } from "../../../oauth/facebook";
-import { schedulerConnectionsRedirect } from "../shared/redirect";
+import { connectRedirect } from "../shared/redirect";
+import {
+  createConnectState,
+  EXPIRED_LINK_MESSAGE,
+  readConnectState,
+} from "../shared/state";
+import { canAddAccount, ACCOUNT_LIMIT_MESSAGE } from "../shared/limits";
 import { getUserIdFromClerkId } from "../shared/user";
 
 export class FacebookSchedulerController {
@@ -19,19 +25,25 @@ export class FacebookSchedulerController {
       return res.status(404).json({ success: false, error: "User not found" });
     }
 
-    const url = getFacebookAuthUrl(userId);
+    const url = getFacebookAuthUrl(createConnectState(userId, req));
     res.json({ authUrl: url });
   };
 
   handleFacebookCallback = async (req: Request, res: Response) => {
+    const connect = readConnectState(req.query.state);
+    const redirect = connectRedirect("facebook", connect);
+
     try {
       const { code, state, error, error_description } = req.query;
+
+      if (!connect) {
+        return res.redirect(redirect("error", EXPIRED_LINK_MESSAGE));
+      }
 
       if (error) {
         console.error("Facebook OAuth error:", { error, error_description });
         return res.redirect(
-          schedulerConnectionsRedirect(
-            "facebook",
+          redirect(
             "error",
             (error_description as string) ||
               (error === "access_denied"
@@ -43,8 +55,7 @@ export class FacebookSchedulerController {
 
       if (!code || !state) {
         return res.redirect(
-          schedulerConnectionsRedirect(
-            "facebook",
+          redirect(
             "error",
             "No authorization code received",
           ),
@@ -59,8 +70,7 @@ export class FacebookSchedulerController {
 
       if (!pages) {
         return res.redirect(
-          schedulerConnectionsRedirect(
-            "facebook",
+          redirect(
             "error",
             "No Facebook Pages found on this account. You need to be an admin of at least one Page.",
           ),
@@ -72,6 +82,10 @@ export class FacebookSchedulerController {
           page.id,
           page.access_token as string,
         );
+
+        if (!(await canAddAccount(connect.userId, "facebook", page.id))) {
+          return res.redirect(redirect("error", ACCOUNT_LIMIT_MESSAGE));
+        }
 
         await prisma.socialAccount.upsert({
           where: {
@@ -90,7 +104,7 @@ export class FacebookSchedulerController {
             profilePicture,
           },
           create: {
-            userId: state as string,
+            userId: connect.userId,
             provider: "facebook",
             providerAccountId: page.id,
             accessToken: page.access_token,
@@ -102,13 +116,13 @@ export class FacebookSchedulerController {
         });
       }
 
-      res.redirect(schedulerConnectionsRedirect("facebook", "success"));
+      res.redirect(redirect("success"));
     } catch (error) {
       console.error("Facebook callback error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       res.redirect(
-        schedulerConnectionsRedirect("facebook", "error", errorMessage),
+        redirect("error", errorMessage),
       );
     }
   };

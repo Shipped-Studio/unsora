@@ -6,7 +6,13 @@ import {
   getGoogleUser,
   getYouTubeChannelInfo,
 } from "../../../oauth/google";
-import { schedulerConnectionsRedirect } from "../shared/redirect";
+import { connectRedirect } from "../shared/redirect";
+import {
+  createConnectState,
+  EXPIRED_LINK_MESSAGE,
+  readConnectState,
+} from "../shared/state";
+import { canAddAccount, ACCOUNT_LIMIT_MESSAGE } from "../shared/limits";
 import { getUserIdFromClerkId } from "../shared/user";
 
 export class GoogleSchedulerController {
@@ -18,19 +24,25 @@ export class GoogleSchedulerController {
       return res.status(404).json({ success: false, error: "User not found" });
     }
 
-    const url = getGoogleAuthUrl(userId);
+    const url = getGoogleAuthUrl(createConnectState(userId, req));
     res.json({ authUrl: url });
   };
 
   handleGoogleCallback = async (req: Request, res: Response) => {
+    const connect = readConnectState(req.query.state);
+    const redirect = connectRedirect("youtube", connect);
+
     try {
       const { code, state, error } = req.query;
+
+      if (!connect) {
+        return res.redirect(redirect("error", EXPIRED_LINK_MESSAGE));
+      }
 
       if (error) {
         console.error("Google OAuth error:", error);
         return res.redirect(
-          schedulerConnectionsRedirect(
-            "youtube",
+          redirect(
             "error",
             error === "access_denied"
               ? "Authorization was cancelled"
@@ -41,8 +53,7 @@ export class GoogleSchedulerController {
 
       if (!code || !state) {
         return res.redirect(
-          schedulerConnectionsRedirect(
-            "youtube",
+          redirect(
             "error",
             "No authorization code received",
           ),
@@ -64,8 +75,7 @@ export class GoogleSchedulerController {
       if (missingScopes.length > 0) {
         console.error("Missing required scopes:", missingScopes);
         return res.redirect(
-          schedulerConnectionsRedirect(
-            "youtube",
+          redirect(
             "error",
             "Required permissions were not granted. Please allow all permissions to upload videos to YouTube.",
           ),
@@ -79,12 +89,15 @@ export class GoogleSchedulerController {
 
       if (!channelInfo) {
         return res.redirect(
-          schedulerConnectionsRedirect(
-            "youtube",
+          redirect(
             "error",
             "No YouTube channel found. Please create a YouTube channel first.",
           ),
         );
+      }
+
+      if (!(await canAddAccount(connect.userId, "google", userInfo.sub as string))) {
+        return res.redirect(redirect("error", ACCOUNT_LIMIT_MESSAGE));
       }
 
       await prisma.socialAccount.upsert({
@@ -105,7 +118,7 @@ export class GoogleSchedulerController {
           profilePicture: channelInfo.profilePicture || null,
         },
         create: {
-          userId: state as string,
+          userId: connect.userId,
           provider: "google",
           providerAccountId: userInfo.sub as string,
           accessToken: tokens.access_token as string,
@@ -118,12 +131,12 @@ export class GoogleSchedulerController {
         },
       });
 
-      res.redirect(schedulerConnectionsRedirect("youtube", "success"));
+      res.redirect(redirect("success"));
     } catch (error) {
       console.error("Google callback error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      res.redirect(schedulerConnectionsRedirect("youtube", "error", errorMessage));
+      res.redirect(redirect("error", errorMessage));
     }
   };
 }

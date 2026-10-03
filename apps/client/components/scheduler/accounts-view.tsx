@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ArrowsClockwise,
   DotsThree,
+  Link as LinkIcon,
   LinkBreak,
   Plugs,
   Warning,
@@ -43,6 +44,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/shared/states";
 import { PageSection } from "@/components/layout/page-header";
+import { copyText } from "@/components/api-keys/copy-button";
 import {
   AccountAvatar,
   accountHandle,
@@ -55,6 +57,7 @@ import {
   useConnectedAccounts,
   useDisconnectAccount,
   useRefreshAccount,
+  useShareConnectLink,
 } from "@/hooks/use-connected-accounts";
 import { useUserUsage } from "@/hooks/use-user-usage";
 import { formatRelative } from "@/lib/scheduler/dates";
@@ -181,6 +184,79 @@ function AccountRow({
   );
 }
 
+/**
+ * Connect choice: approve access here, or copy a link for whoever owns the
+ * account (a client, a teammate) to connect it from their own device.
+ */
+function ConnectChoiceDialog({
+  provider,
+  onOpenChange,
+  onConnectSelf,
+  connecting,
+}: {
+  provider: Provider | null;
+  onOpenChange: (open: boolean) => void;
+  onConnectSelf: (provider: Provider) => void;
+  connecting: boolean;
+}) {
+  const share = useShareConnectLink();
+  const name = provider ? PLATFORMS[provider].name : "";
+  // Bluesky's sign-in starts from the account's handle, so it can't be shared.
+  const canShare = provider !== null && provider !== "bluesky";
+
+  useEffect(() => {
+    share.reset();
+    // Reset when another platform is chosen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [provider]);
+
+  const createLink = () => {
+    if (!provider) return;
+    share.mutate(provider, {
+      onSuccess: (url) => void copyText(url, "Invite link copied. It works for 1 hour."),
+      onError: (error) => toast.error(error.message),
+    });
+  };
+
+  return (
+    <Dialog open={provider !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            {provider ? <PlatformIcon provider={provider} className="size-5" /> : null}
+            Connect {name}
+          </DialogTitle>
+          <DialogDescription>
+            Connect it here, or copy a link for whoever owns the account. The link works for 1
+            hour.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-2">
+          <Button
+            className="w-full"
+            disabled={connecting}
+            onClick={() => provider && onConnectSelf(provider)}
+          >
+            {connecting ? <Spinner /> : <Plugs />}
+            Connect
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full"
+            disabled={!canShare || share.isPending}
+            title={canShare ? undefined : `${name} sign-in starts from the account's handle, so connect it yourself.`}
+            onClick={createLink}
+          >
+            {share.isPending ? <Spinner /> : <LinkIcon />}
+            Copy link
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function BlueskyDialog({
   open,
   onOpenChange,
@@ -278,6 +354,7 @@ export function ConnectGrid({
   const { openPricing } = usePricing();
   const [blueskyOpen, setBlueskyOpen] = useState(false);
   const [target, setTarget] = useState<Provider | null>(null);
+  const [choice, setChoice] = useState<Provider | null>(null);
 
   const plan = (usage?.user?.plan ?? "free").toLowerCase();
   const isPaid = Boolean(usage?.user?.isActive) && plan !== "free";
@@ -347,7 +424,7 @@ export function ConnectGrid({
                 size="sm"
                 variant="outline"
                 disabled={atLimit || (connect.isPending && target !== provider)}
-                onClick={() => start(provider)}
+                onClick={() => (isPaid ? setChoice(provider) : openPricing())}
               >
                 {pending ? <Spinner /> : null}
                 Connect
@@ -356,6 +433,15 @@ export function ConnectGrid({
           );
         })}
       </div>
+      <ConnectChoiceDialog
+        provider={choice}
+        onOpenChange={(open) => !open && setChoice(null)}
+        connecting={connect.isPending}
+        onConnectSelf={(provider) => {
+          setChoice(null);
+          start(provider);
+        }}
+      />
       <BlueskyDialog
         open={blueskyOpen}
         onOpenChange={setBlueskyOpen}

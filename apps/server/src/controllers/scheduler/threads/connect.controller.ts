@@ -6,7 +6,13 @@ import {
   getThreadsAuthUrl,
   getThreadsProfile,
 } from "../../../oauth/threads";
-import { schedulerConnectionsRedirect } from "../shared/redirect";
+import { connectRedirect } from "../shared/redirect";
+import {
+  createConnectState,
+  EXPIRED_LINK_MESSAGE,
+  readConnectState,
+} from "../shared/state";
+import { canAddAccount, ACCOUNT_LIMIT_MESSAGE } from "../shared/limits";
 import { getUserIdFromClerkId } from "../shared/user";
 
 export class ThreadsSchedulerController {
@@ -18,19 +24,25 @@ export class ThreadsSchedulerController {
       return res.status(404).json({ success: false, error: "User not found" });
     }
 
-    const url = getThreadsAuthUrl(userId);
+    const url = getThreadsAuthUrl(createConnectState(userId, req));
     res.json({ authUrl: url });
   };
 
   handleThreadsCallback = async (req: Request, res: Response) => {
+    const connect = readConnectState(req.query.state);
+    const redirect = connectRedirect("threads", connect);
+
     try {
       const { code, state, error, error_description } = req.query;
+
+      if (!connect) {
+        return res.redirect(redirect("error", EXPIRED_LINK_MESSAGE));
+      }
 
       if (error) {
         console.error("Threads OAuth error:", { error, error_description });
         return res.redirect(
-          schedulerConnectionsRedirect(
-            "threads",
+          redirect(
             "error",
             (error_description as string) ||
               (error === "access_denied"
@@ -42,8 +54,7 @@ export class ThreadsSchedulerController {
 
       if (!code || !state) {
         return res.redirect(
-          schedulerConnectionsRedirect(
-            "threads",
+          redirect(
             "error",
             "No authorization code received",
           ),
@@ -63,6 +74,10 @@ export class ThreadsSchedulerController {
       const profile = await getThreadsProfile(accessToken);
       const threadsUserId = profile?.id || String(shortLived.user_id);
 
+      if (!(await canAddAccount(connect.userId, "threads", threadsUserId))) {
+        return res.redirect(redirect("error", ACCOUNT_LIMIT_MESSAGE));
+      }
+
       await prisma.socialAccount.upsert({
         where: {
           provider_providerAccountId: {
@@ -79,7 +94,7 @@ export class ThreadsSchedulerController {
           profilePicture: profile?.profilePicture || null,
         },
         create: {
-          userId: state as string,
+          userId: connect.userId,
           provider: "threads",
           providerAccountId: threadsUserId,
           accessToken,
@@ -91,13 +106,13 @@ export class ThreadsSchedulerController {
         },
       });
 
-      res.redirect(schedulerConnectionsRedirect("threads", "success"));
+      res.redirect(redirect("success"));
     } catch (error) {
       console.error("Threads callback error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       res.redirect(
-        schedulerConnectionsRedirect("threads", "error", errorMessage),
+        redirect("error", errorMessage),
       );
     }
   };

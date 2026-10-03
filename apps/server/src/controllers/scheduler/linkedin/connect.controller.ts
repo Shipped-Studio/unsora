@@ -5,7 +5,13 @@ import {
   getLinkedInAuthUrl,
   getLinkedInUser,
 } from "../../../oauth/linkedin";
-import { schedulerConnectionsRedirect } from "../shared/redirect";
+import { connectRedirect } from "../shared/redirect";
+import {
+  createConnectState,
+  EXPIRED_LINK_MESSAGE,
+  readConnectState,
+} from "../shared/state";
+import { canAddAccount, ACCOUNT_LIMIT_MESSAGE } from "../shared/limits";
 import { getUserIdFromClerkId } from "../shared/user";
 
 export class LinkedInSchedulerController {
@@ -17,19 +23,25 @@ export class LinkedInSchedulerController {
       return res.status(404).json({ success: false, error: "User not found" });
     }
 
-    const url = getLinkedInAuthUrl(userId);
+    const url = getLinkedInAuthUrl(createConnectState(userId, req));
     res.json({ authUrl: url });
   };
 
   handleLinkedInCallback = async (req: Request, res: Response) => {
+    const connect = readConnectState(req.query.state);
+    const redirect = connectRedirect("linkedin", connect);
+
     try {
       const { code, state, error, error_description } = req.query;
+
+      if (!connect) {
+        return res.redirect(redirect("error", EXPIRED_LINK_MESSAGE));
+      }
 
       if (error) {
         console.error("LinkedIn OAuth error:", { error, error_description });
         return res.redirect(
-          schedulerConnectionsRedirect(
-            "linkedin",
+          redirect(
             "error",
             (error_description as string) ||
               (error === "user_cancelled_login" ||
@@ -42,8 +54,7 @@ export class LinkedInSchedulerController {
 
       if (!code || !state) {
         return res.redirect(
-          schedulerConnectionsRedirect(
-            "linkedin",
+          redirect(
             "error",
             "No authorization code received",
           ),
@@ -55,12 +66,15 @@ export class LinkedInSchedulerController {
 
       if (!user) {
         return res.redirect(
-          schedulerConnectionsRedirect(
-            "linkedin",
+          redirect(
             "error",
             "Failed to fetch LinkedIn account info",
           ),
         );
+      }
+
+      if (!(await canAddAccount(connect.userId, "linkedin", user.id))) {
+        return res.redirect(redirect("error", ACCOUNT_LIMIT_MESSAGE));
       }
 
       await prisma.socialAccount.upsert({
@@ -82,7 +96,7 @@ export class LinkedInSchedulerController {
           profilePicture: user.profilePicture,
         },
         create: {
-          userId: state as string,
+          userId: connect.userId,
           provider: "linkedin",
           providerAccountId: user.id,
           accessToken: tokens.access_token,
@@ -97,13 +111,13 @@ export class LinkedInSchedulerController {
         },
       });
 
-      res.redirect(schedulerConnectionsRedirect("linkedin", "success"));
+      res.redirect(redirect("success"));
     } catch (error) {
       console.error("LinkedIn callback error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       res.redirect(
-        schedulerConnectionsRedirect("linkedin", "error", errorMessage),
+        redirect("error", errorMessage),
       );
     }
   };

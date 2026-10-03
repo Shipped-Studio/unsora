@@ -6,7 +6,13 @@ import {
   getInstagramAuthUrl,
   getInstagramBusinessAccount,
 } from "../../../oauth/instagram";
-import { schedulerConnectionsRedirect } from "../shared/redirect";
+import { connectRedirect } from "../shared/redirect";
+import {
+  createConnectState,
+  EXPIRED_LINK_MESSAGE,
+  readConnectState,
+} from "../shared/state";
+import { canAddAccount, ACCOUNT_LIMIT_MESSAGE } from "../shared/limits";
 import { getUserIdFromClerkId } from "../shared/user";
 
 export class InstagramSchedulerController {
@@ -18,13 +24,20 @@ export class InstagramSchedulerController {
       return res.status(404).json({ success: false, error: "User not found" });
     }
 
-    const url = getInstagramAuthUrl(userId);
+    const url = getInstagramAuthUrl(createConnectState(userId, req));
     res.json({ authUrl: url });
   };
 
   handleInstagramCallback = async (req: Request, res: Response) => {
+    const connect = readConnectState(req.query.state);
+    const redirect = connectRedirect("instagram", connect);
+
     try {
       const { code, state } = req.query;
+
+      if (!connect) {
+        return res.redirect(redirect("error", EXPIRED_LINK_MESSAGE));
+      }
 
       const tokens = await exchangeInstagramCode(code as string);
       const longLivedToken = await exchangeForLongLivedToken(
@@ -37,12 +50,15 @@ export class InstagramSchedulerController {
 
       if (!accountInfo) {
         return res.redirect(
-          schedulerConnectionsRedirect(
-            "instagram",
+          redirect(
             "error",
             "No Instagram Business Account found. Please connect an Instagram Business or Creator account to a Facebook Page.",
           ),
         );
+      }
+
+      if (!(await canAddAccount(connect.userId, "instagram", accountInfo.id))) {
+        return res.redirect(redirect("error", ACCOUNT_LIMIT_MESSAGE));
       }
 
       await prisma.socialAccount.upsert({
@@ -60,7 +76,7 @@ export class InstagramSchedulerController {
           expiresAt: new Date(Date.now() + 5184000 * 1000),
         },
         create: {
-          userId: state as string,
+          userId: connect.userId,
           provider: "instagram",
           providerAccountId: accountInfo.id,
           accessToken: longLivedToken.access_token,
@@ -71,13 +87,13 @@ export class InstagramSchedulerController {
         },
       });
 
-      res.redirect(schedulerConnectionsRedirect("instagram", "success"));
+      res.redirect(redirect("success"));
     } catch (error) {
       console.error("Instagram callback error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       res.redirect(
-        schedulerConnectionsRedirect("instagram", "error", errorMessage),
+        redirect("error", errorMessage),
       );
     }
   };

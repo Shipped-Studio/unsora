@@ -5,6 +5,8 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
   "/forgot-password(.*)",
   "/sso-callback(.*)",
+  // Where shared connect links land; the visitor usually has no Unsora login.
+  "/connected",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

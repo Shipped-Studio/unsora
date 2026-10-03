@@ -50,6 +50,21 @@ export function useConnectAccount() {
   });
 }
 
+/**
+ * A connect link to send to someone else: whoever opens it can connect their
+ * account to this workspace without an Unsora login. Valid for 1 hour.
+ */
+export function useShareConnectLink() {
+  const api = useApi();
+  return useMutation({
+    mutationFn: async (provider: string) => {
+      const { authUrl } = await api<{ authUrl: string }>(`/api/connect/${provider}?share=1`);
+      if (!authUrl) throw new Error("Couldn't create the link. Try again.");
+      return authUrl;
+    },
+  });
+}
+
 export function useRefreshAccount() {
   const api = useApi();
   const queryClient = useQueryClient();
