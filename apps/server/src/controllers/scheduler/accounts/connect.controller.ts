@@ -33,16 +33,22 @@ const EXPIRING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
  * the signals are the token expiry, whether a refresh token exists, and the
  * last publish error (platform services end token failures with
  * "Please reconnect your account.").
+ *
+ * A publish error only counts if it is newer than the account's last update:
+ * reconnecting, a token refresh and a profile refresh all write the account,
+ * so a failure from before them no longer says anything about the account.
  */
 function accountHealth(input: {
   expiresAt: Date | null;
   hasRefreshToken: boolean;
-  lastOutcome?: { published: boolean; error: string | null };
+  accountUpdatedAt: Date;
+  lastOutcome?: { published: boolean; error: string | null; updatedAt: Date };
 }): { status: "ok" | "expiring" | "reconnect"; reason: string | null } {
-  const { expiresAt, hasRefreshToken, lastOutcome } = input;
+  const { expiresAt, hasRefreshToken, accountUpdatedAt, lastOutcome } = input;
 
   if (
     lastOutcome &&
+    lastOutcome.updatedAt > accountUpdatedAt &&
     !lastOutcome.published &&
     lastOutcome.error &&
     /reconnect|expired|revoked|invalid.{0,20}token/i.test(lastOutcome.error)
@@ -92,6 +98,7 @@ export class SchedulerAccountsController {
           expiresAt: true,
           refreshToken: true,
           createdAt: true,
+          updatedAt: true,
         },
       });
 
@@ -106,7 +113,7 @@ export class SchedulerAccountsController {
           },
           orderBy: { updatedAt: "desc" },
           distinct: ["accountId"],
-          select: { accountId: true, published: true, error: true },
+          select: { accountId: true, published: true, error: true, updatedAt: true },
         }),
         prisma.postAccount.groupBy({
           by: ["accountId"],
@@ -122,10 +129,11 @@ export class SchedulerAccountsController {
         lastPublished.map((p) => [p.accountId, p._max.publishedAt]),
       );
 
-      const data = accounts.map(({ refreshToken, ...account }) => {
+      const data = accounts.map(({ refreshToken, updatedAt, ...account }) => {
         const health = accountHealth({
           expiresAt: account.expiresAt,
           hasRefreshToken: Boolean(refreshToken),
+          accountUpdatedAt: updatedAt,
           lastOutcome: outcomeByAccount.get(account.id),
         });
         return {
