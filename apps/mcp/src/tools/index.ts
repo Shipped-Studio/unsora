@@ -225,19 +225,6 @@ const VOICE_EMOTIONS = [
 ] as const;
 
 /** Kling Motion Control models: tool key → server model id + its only resolution. */
-const MOTION_CONTROL_MODELS = {
-  "kling-3.0-pro": { id: "kling_mc_3.0_pro", resolution: "1080p" },
-  "kling-3.0-std": { id: "kling_mc_3.0_std", resolution: "720p" },
-  "kling-2.6-pro": { id: "kling_mc_2.6_pro", resolution: "1080p" },
-} as const;
-
-type MotionControlModel = keyof typeof MOTION_CONTROL_MODELS;
-
-const MOTION_CONTROL_MODEL_KEYS = Object.keys(MOTION_CONTROL_MODELS) as [
-  MotionControlModel,
-  ...MotionControlModel[],
-];
-
 const VIDEO_UPSCALE_MODELS = ["standard", "ultra-1080p", "ultra-4k"] as const;
 
 /**
@@ -601,6 +588,191 @@ function previewResult(
   );
 }
 
+// ── Model catalog ───────────────────────────────────────────────────────────
+// Video, image and motion-control models come from the server's catalog
+// (/catalog): each model's inputs are WaveSpeed's own request schema and
+// prices are quoted live, so nothing about a model is hard-coded here.
+
+type CatalogCategory = "video" | "image" | "motion-control";
+
+interface CatalogFieldDTO {
+  key: string;
+  type: string;
+  required: boolean;
+  options?: { value: string; label: string }[];
+  default?: string;
+  media?: { kind: string; max: number };
+}
+
+interface CatalogModelDTO {
+  key: string;
+  label: string;
+  provider: string;
+  category: CatalogCategory;
+  description: string;
+  isNew: boolean;
+  legacyDbModels: string[];
+  modes: {
+    key: string;
+    label: string;
+    endpoints: { modelId: string; when?: string[]; fields: CatalogFieldDTO[] }[];
+  }[];
+}
+
+const DEFAULT_MODEL: Record<CatalogCategory, string> = {
+  video: "seedance-2.5",
+  image: "nano-banana-2",
+  "motion-control": "kling-mc-3.0-pro",
+};
+
+const CATALOG_INPUTS_HELP =
+  "WaveSpeed input fields for the chosen model and mode, exactly as list_models " +
+  "shows them (e.g. aspect_ratio, resolution, duration, generate_audio, image, " +
+  "last_image, reference_images). Media fields take URLs; files hosted elsewhere " +
+  "are imported into the user's library automatically. Omitted fields use the " +
+  "model's defaults.";
+
+/** "duration: 4–30s (default 5)", "image: image URL (required)", … */
+function describeField(f: CatalogFieldDTO): string {
+  const req = f.required ? " (required)" : "";
+  if (f.type === "prompt" || f.type === "negative_prompt") {
+    return `${f.key}${f.required ? " (required)" : " (optional)"}`;
+  }
+  if (f.type === "media" && f.media) {
+    const what =
+      f.media.max > 1
+        ? `up to ${f.media.max} ${f.media.kind} URLs (array)`
+        : `${f.media.kind} URL`;
+    return `${f.key}: ${what}${req}`;
+  }
+  const def =
+    f.default !== undefined && f.default !== "auto" ? ` (default ${f.default})` : "";
+  if (f.type === "toggle") return `${f.key}: true|false${def}`;
+
+  const values = (f.options ?? []).map((o) => o.value).filter((v) => v !== "auto");
+  const autoNote = f.options?.some((o) => o.value === "auto") ? ", omit for auto" : "";
+  if (f.type === "duration") {
+    const nums = values.map(Number);
+    const contiguous = nums.every((n, i) => i === 0 || n === nums[i - 1] + 1);
+    const range =
+      contiguous && nums.length > 3
+        ? `${nums[0]}–${nums[nums.length - 1]}s`
+        : `${values.join("|")}s`;
+    return `${f.key}: ${range}${def}`;
+  }
+  return `${f.key}: ${values.join("|")}${autoNote}${def}`;
+}
+
+/** Compact, model-readable catalog listing. */
+function formatCatalog(models: CatalogModelDTO[]): string {
+  const lines: string[] = [];
+  for (const m of models) {
+    const aliases = m.legacyDbModels.length
+      ? ` Also accepts: ${m.legacyDbModels.join(", ")}.`
+      : "";
+    lines.push(
+      `## ${m.key} — ${m.label} (${m.provider}, ${m.category})${m.isNew ? " NEW" : ""}`,
+      `${m.description}.${aliases}`,
+    );
+    for (const mode of m.modes) {
+      lines.push(`- mode "${mode.key}" (${mode.label}):`);
+      for (const ep of mode.endpoints) {
+        const when = ep.when?.length
+          ? ` — used when ${ep.when.join(" and ")} ${ep.when.length > 1 ? "are" : "is"} given`
+          : mode.endpoints.length > 1
+            ? " — used otherwise"
+            : "";
+        lines.push(`  - ${ep.modelId}${when}`);
+        lines.push(`    ${ep.fields.map(describeField).join("; ")}`);
+      }
+    }
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
+/** Body for /catalog/quote and /catalog/generate from a create/price tool call. */
+function catalogBody(
+  category: CatalogCategory,
+  args: {
+    model?: string;
+    mode?: string;
+    prompt?: string;
+    inputs?: Record<string, unknown>;
+  },
+) {
+  const inputs: Record<string, unknown> = { ...(args.inputs ?? {}) };
+  if (args.prompt !== undefined && inputs.prompt === undefined) {
+    inputs.prompt = args.prompt;
+  }
+  return {
+    category,
+    model: args.model ?? DEFAULT_MODEL[category],
+    ...(args.mode ? { mode: args.mode } : {}),
+    inputs,
+  };
+}
+
+/** Shared create path for create_video / create_image / create_motion_control. */
+async function catalogGenerate(
+  unsora: UnsoraApi,
+  category: CatalogCategory,
+  tool: GenerationKind,
+  mcpTool: string,
+  args: {
+    model?: string;
+    mode?: string;
+    prompt?: string;
+    inputs?: Record<string, unknown>;
+    maxCredits?: number;
+    idempotencyKey?: string;
+  },
+) {
+  const body = {
+    ...catalogBody(category, args),
+    ...(args.maxCredits ? { expectedCredits: args.maxCredits } : {}),
+  };
+  const payload = await unsora.request("POST", "/catalog/generate", {
+    body,
+    idempotencyKey: args.idempotencyKey,
+  });
+  const aspect = body.inputs.aspect_ratio;
+  return previewResult(payload, tool, mcpTool, {
+    aspectRatio: typeof aspect === "string" ? aspect : undefined,
+  });
+}
+
+/** Zod shape shared by the catalog create tools. */
+function catalogCreateSchema(category: CatalogCategory, promptRequired: boolean) {
+  return {
+    model: z
+      .string()
+      .optional()
+      .describe(
+        `Model key from list_models (category "${category}"). Default: ${DEFAULT_MODEL[category]}.`,
+      ),
+    mode: z
+      .string()
+      .optional()
+      .describe(
+        "Mode key from list_models. Omit to pick it from the attached media.",
+      ),
+    prompt: promptRequired
+      ? z.string().describe("What to generate")
+      : z.string().optional().describe("Optional guidance"),
+    inputs: z.record(z.unknown()).optional().describe(CATALOG_INPUTS_HELP),
+    maxCredits: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe(
+        "Refuse to start if the live price is above this. Pass the credits get_price returned.",
+      ),
+    idempotencyKey: z.string().max(128).optional(),
+  };
+}
+
 const workflowGuide = `# Unsora API workflows (polling only — no webhooks)
 
 ## Supported social platforms
@@ -637,10 +809,28 @@ authenticated user.
 4. wait_for_image — poll until outputUrl ready
 5. create_post — slideshow or video with optional scheduled_at
 
-## Video (Kling / Veo / Sora / Wan / Seedance / Gemini Omni Flash)
-create_video → wait_for_video → create_post
-Unless stated otherwise, the video resolution in models will be 720p by
-default. And also the audio parameter will always be on by default.
+## Choosing a model (video, image, motion control)
+list_models shows every model with its modes and exact input fields — the
+provider's own names (aspect_ratio, resolution, duration, generate_audio,
+image, last_image, reference_images, …), enums, ranges and defaults. Pass them
+in \`inputs\` on create_video / create_image / create_motion_control. Omitted
+fields use the model's defaults; omit \`mode\` to pick it from the attached
+media. Media fields take URLs; files hosted elsewhere are imported into the
+user's library automatically.
+
+## Prices are live
+Every generation is priced by the provider for its exact settings (longer,
+higher resolution or with reference videos costs more). Video is expensive:
+call get_price first, tell the user the credits, then pass them as maxCredits
+so the job never costs more than quoted.
+
+## Video
+list_models (category video) → get_price → create_video → wait_for_video →
+create_post. Default model seedance-2.5. Seedance modes: "omni" (text plus
+reference_images / reference_videos / reference_audios, cite them in the prompt
+as @Image 1, @Video 1, @Audio 1) and "frames" (image + optional last_image).
+Most other models have "create" (text, or image-to-video once inputs.image is
+set) and some have "reference".
 
 ## Thumbnails & influencers (image jobs, may return multiple ids)
 create_thumbnail / create_influencer → wait_for_image (per id)
@@ -673,8 +863,9 @@ remove_watermark (direct video file URL) → wait_for_video. Strips burned-in
 subtitles, captions, watermarks and logos.
 
 ## Motion control & talking avatars (video jobs)
-create_motion_control (motion reference video + character image) →
-wait_for_video. The character performs the reference video's movement.
+create_motion_control (inputs.video = motion reference, inputs.image =
+character) → wait_for_video. The character performs the reference video's
+movement; the price follows the motion video's length.
 create_avatar_video (portrait + transcript or audio) → wait_for_video.
 Pick the transcript voice with list_voices.
 
@@ -1071,51 +1262,85 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
       ),
   );
 
+  server.registerTool(
+    "list_models",
+    {
+      annotations: READ_ONLY,
+      title: "List Generation Models",
+      description:
+        "Every video, image and motion-control model with its modes and exact input " +
+        "fields (WaveSpeed's own names, enums, ranges and defaults). Call this before " +
+        "create_video / create_image / create_motion_control to pick a model and build `inputs`.",
+      inputSchema: {
+        category: z
+          .enum(["video", "image", "motion-control"])
+          .optional()
+          .describe("Only list one category"),
+      },
+    },
+    async (args, extra) => {
+      const unsora = unsoraFor(resolveUnsora, extra.authInfo);
+      const query = args.category ? `?category=${args.category}` : "";
+      const data = await unsora.request<{ models: CatalogModelDTO[] }>(
+        "GET",
+        `/catalog${query}`,
+      );
+      return {
+        content: [{ type: "text" as const, text: formatCatalog(data.models) }],
+      };
+    },
+  );
+
+  server.registerTool(
+    "get_price",
+    {
+      annotations: READ_ONLY,
+      title: "Get Generation Price",
+      description:
+        "Live credit price for one video, image or motion-control generation, quoted by " +
+        "the provider for these exact settings (resolution, duration, audio, attached " +
+        "media length). Free. Use before expensive video jobs, tell the user the cost, " +
+        "and pass the credits as maxCredits to the create tool.",
+      inputSchema: {
+        category: z.enum(["video", "image", "motion-control"]),
+        model: z.string().optional().describe("Model key from list_models"),
+        mode: z.string().optional(),
+        prompt: z.string().optional(),
+        inputs: z.record(z.unknown()).optional().describe(CATALOG_INPUTS_HELP),
+      },
+    },
+    async (args, extra) =>
+      jsonResult(
+        await unsoraFor(resolveUnsora, extra.authInfo).request(
+          "POST",
+          "/catalog/quote",
+          { body: catalogBody(args.category, args) },
+        ),
+      ),
+  );
+
   registerAppTool(
     server,
     "create_image",
     {
       title: "Create Image",
       description:
-        "Generate an image for a social post, thumbnail or ad creative (nano-banana-2 default). Returns generation.id — poll with wait_for_image. Renders a live preview in app-capable hosts.",
-      inputSchema: {
-        prompt: z.string().describe("Image prompt"),
-        model: z
-          .enum([
-            "nano-banana-2",
-            "nano-banana-pro",
-            "seedream-v5-lite",
-            "gpt-image-1.5",
-            "gpt-image-2",
-          ])
-          .optional(),
-        aspectRatio: z.string().optional().describe("Aspect ratio, e.g. 1:1"),
-        resolution: z.string().optional(),
-        referenceImages: z.array(z.string().url()).optional(),
-        nsfwChecker: z.boolean().optional(),
-        idempotencyKey: z.string().max(128).optional(),
-      },
+        "Generate an image for a social post, thumbnail or ad creative. Models include " +
+        "GPT Image 2.5 Flare / Sunburst, GPT Image 2, Nano Banana Pro / 2 / 2 Lite and " +
+        "Seedream 5.0 Pro — see list_models for each model's inputs. Attaching `images` " +
+        "in inputs edits / uses them as references. Priced live (get_price). Returns " +
+        "generation.id — poll with wait_for_image. Renders a live preview in app-capable hosts.",
+      inputSchema: catalogCreateSchema("image", true),
       _meta: { ui: { resourceUri: IMAGE_UI_URI } },
     },
-    async (args, extra) => {
-      const unsora = unsoraFor(resolveUnsora, extra.authInfo);
-      const body: Record<string, unknown> = { prompt: args.prompt };
-      if (args.model) body.model = args.model;
-      if (args.aspectRatio) body.aspectRatio = args.aspectRatio;
-      if (args.resolution) body.resolution = args.resolution;
-      if (args.referenceImages?.length) {
-        body.referenceImages = args.referenceImages;
-      }
-      if (args.nsfwChecker !== undefined) body.nsfwChecker = args.nsfwChecker;
-
-      const payload = await unsora.request(
-        "POST",
-        "/image-generations/create",
-        { body, idempotencyKey: args.idempotencyKey },
-      );
-
-      return previewResult(payload, "image", "create_image", { aspectRatio: args.aspectRatio });
-    },
+    async (args, extra) =>
+      catalogGenerate(
+        unsoraFor(resolveUnsora, extra.authInfo),
+        "image",
+        "image",
+        "create_image",
+        args,
+      ),
   );
 
   server.registerTool(
@@ -1573,78 +1798,23 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
     {
       title: "Create Video",
       description:
-        "Generate a short video for a social post, Reel, TikTok or ad (Kling v3, Veo 3.1, Sora 2, Wan 2.6, Seedance 2.0, Gemini Omni Flash). Poll with wait_for_video. Renders a live preview in app-capable hosts.",
-      inputSchema: {
-        prompt: z.string(),
-        model: z
-          .enum([
-            "kling-standard",
-            "kling-pro",
-            "veo",
-            "veo-fast",
-            "veo-lite",
-            "sora-2",
-            "sora-2-pro",
-            "wan",
-            "seedance-2.0",
-            "seedance-2.0-fast",
-            "seedance-2.0-mini",
-            "gemini-omni-flash",
-          ])
-          .optional()
-          .describe("Video model key. Default: seedance-2.0"),
-        aspectRatio: z.string().optional().describe("Aspect ratio, e.g. 16:9"),
-        duration: z.number().int().min(1).max(20).optional(),
-        negativePrompt: z.string().optional(),
-        resolution: z
-          .string()
-          .optional()
-          .describe("720p or 1080p (Wan 2.6 only)"),
-        sound: z
-          .boolean()
-          .optional()
-          .describe("Generate audio (Kling / Veo models)"),
-        image: z
-          .string()
-          .url()
-          .optional()
-          .describe("Start image for image-to-video / first frame"),
-        lastImage: z.string().url().optional().describe("End/last frame image"),
-        referenceImages: z
-          .array(z.string().url())
-          .max(9)
-          .optional()
-          .describe(
-            "Reference images (Veo / Seedance up to 9; Gemini Omni Flash up to 4 — multiple images switch it to reference-to-video; for a single start image use `image` instead)",
-          ),
-        referenceVideos: z
-          .array(z.string().url())
-          .max(3)
-          .optional()
-          .describe("Seedance only"),
-        referenceAudios: z
-          .array(z.string().url())
-          .max(3)
-          .optional()
-          .describe("Seedance only"),
-        generateAudio: z
-          .boolean()
-          .optional()
-          .describe("Seedance only — generate a soundtrack"),
-        idempotencyKey: z.string().max(128).optional(),
-      },
+        "Generate a short video for a social post, Reel, TikTok or ad. Models include " +
+        "Seedance 2.5 / 2.5 Turbo / 2.0, Veo 3.1 (Fast, Lite), Gemini Omni 1.1 Flash, " +
+        "Kling O3 Pro / 3.0, Wan 3.0, Grok Imagine Video 1.5 and Sora 2 — see list_models " +
+        "for modes and inputs. Video is expensive: call get_price first, tell the user the " +
+        "credits, and pass them as maxCredits. Poll with wait_for_video. Renders a live " +
+        "preview in app-capable hosts.",
+      inputSchema: catalogCreateSchema("video", true),
       _meta: { ui: { resourceUri: VIDEO_UI_URI } },
     },
-    async (args, extra) => {
-      const unsora = unsoraFor(resolveUnsora, extra.authInfo);
-      const { idempotencyKey, ...body } = args;
-      const payload = await unsora.request("POST", "/videos/create", {
-        body,
-        idempotencyKey,
-      });
-
-      return previewResult(payload, "video", "create_video", { aspectRatio: args.aspectRatio });
-    },
+    async (args, extra) =>
+      catalogGenerate(
+        unsoraFor(resolveUnsora, extra.authInfo),
+        "video",
+        "video",
+        "create_video",
+        args,
+      ),
   );
 
   server.registerTool(
@@ -1780,63 +1950,22 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
     {
       title: "Motion Control",
       description:
-        "Make a character copy the motion of a reference video (Kling Motion Control): the " +
-        "character in characterImageUrl performs the movement, dance or acting from " +
-        "motionVideoUrl. Costs 148 credits. Motion video should be 5–30 seconds. " +
+        "Make a character copy the motion of a reference video: the character in " +
+        "inputs.image performs the movement, dance or acting from inputs.video. Models: " +
+        "Kling 3.0 Pro / Standard, Kling 2.6 Pro, Wan 2.2 Animate, DreamActor v2 (see " +
+        "list_models). Priced live by the motion video's length — call get_price first. " +
         "Poll with wait_for_video. Renders a live preview in app-capable hosts.",
-      inputSchema: {
-        motionVideoUrl: z
-          .string()
-          .url()
-          .describe("Reference video whose motion is copied (5–30 seconds)."),
-        characterImageUrl: z
-          .string()
-          .url()
-          .describe("Image of the character who performs the motion."),
-        prompt: z
-          .string()
-          .optional()
-          .describe("Optional guidance for the scene, style or details."),
-        model: z
-          .enum(MOTION_CONTROL_MODEL_KEYS)
-          .optional()
-          .describe(
-            "Default kling-3.0-pro (1080p). kling-3.0-std renders 720p; kling-2.6-pro 1080p.",
-          ),
-        keepSound: z
-          .boolean()
-          .optional()
-          .describe("Keep the motion video's audio. Default true."),
-        characterOrientation: z
-          .enum(["video", "image"])
-          .optional()
-          .describe(
-            "Whether the character's facing follows the motion video (default) or the character image.",
-          ),
-      },
+      inputSchema: catalogCreateSchema("motion-control", false),
       _meta: { ui: { resourceUri: VIDEO_UI_URI } },
     },
-    async (args, extra) => {
-      const model = MOTION_CONTROL_MODELS[args.model ?? "kling-3.0-pro"];
-      const body: Record<string, unknown> = {
-        model: model.id,
-        resolution: model.resolution,
-        motion_video_url: args.motionVideoUrl,
-        character_image_url: args.characterImageUrl,
-      };
-      if (args.prompt) body.prompt = args.prompt;
-      if (args.keepSound !== undefined) body.keep_sound = args.keepSound;
-      if (args.characterOrientation) {
-        body.character_orientation = args.characterOrientation;
-      }
-
-      const payload = await unsoraFor(resolveUnsora, extra.authInfo).request(
-        "POST",
-        "/motion-control/create",
-        { body },
-      );
-      return previewResult(payload, "motion_control", "create_motion_control");
-    },
+    async (args, extra) =>
+      catalogGenerate(
+        unsoraFor(resolveUnsora, extra.authInfo),
+        "motion-control",
+        "motion_control",
+        "create_motion_control",
+        args,
+      ),
   );
 
   registerAppTool(
@@ -2339,22 +2468,27 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
         caption: z.string(),
         accountIds: z.array(z.string()).min(1).max(10),
         scheduled_at: z.string().optional(),
-        model: z.string().optional(),
+        model: z
+          .string()
+          .optional()
+          .describe("Image model key from list_models. Default: nano-banana-2."),
         aspectRatio: z.string().optional(),
         resolution: z.string().optional(),
       },
     },
     async (args, extra) => {
       const unsora = unsoraFor(resolveUnsora, extra.authInfo);
+      const inputs: Record<string, unknown> = {};
+      if (args.aspectRatio) inputs.aspect_ratio = args.aspectRatio;
+      if (args.resolution) inputs.resolution = args.resolution;
       const created = await unsora.request<{
         generation: { id: string };
-      }>("POST", "/image-generations/create", {
-        body: {
-          prompt: args.prompt,
+      }>("POST", "/catalog/generate", {
+        body: catalogBody("image", {
           model: args.model,
-          aspectRatio: args.aspectRatio,
-          resolution: args.resolution,
-        },
+          prompt: args.prompt,
+          inputs,
+        }),
       });
 
       const finished = await unsora.pollImageStatus(created.generation.id);

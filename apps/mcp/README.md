@@ -139,13 +139,15 @@ CNAME mcp → your-platform-domain
 | `get_accounts`              | Connected social accounts                            |
 | `upload_file`               | Import a URL / base64 file into the library          |
 | `list_uploads`              | List uploaded files                                  |
-| `create_image`              | Queue image job                                      |
+| `list_models`               | Video / image / motion models + exact input fields   |
+| `get_price`                 | Live credit price for a generation (free)            |
+| `create_image`              | Queue image job (any catalog image model)            |
 | `create_influencer`         | AI influencer portraits                              |
 | `create_thumbnail`          | YouTube-style 16:9 thumbnails                        |
 | `create_movie_material`     | Character / location / storyboard film references    |
 | `upscale_image`             | Upscale an image to 2K / 4K / 8K                     |
 | `wait_for_image`            | Poll any image job                                   |
-| `create_video`              | Text / image-to-video (Kling, Veo, Sora, Seedance…)  |
+| `create_video`              | Any catalog video model (Seedance 2.5, Veo, Kling…)  |
 | `create_motion_control`     | Character copies a reference video's motion          |
 | `create_avatar_video`       | Talking-head video from a portrait                   |
 | `upscale_video`             | Upscale a video                                      |

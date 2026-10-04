@@ -30,6 +30,13 @@ import { VoiceConversionController } from "../../../controllers/voice-conversion
 import { PostController } from "../../../controllers/post.controller";
 import { analyticsController } from "../../../controllers/analytics.controller";
 import { ConnectController } from "../../../controllers/connect.controller";
+import { CatalogController } from "../../../controllers/catalog.controller";
+import {
+  legacyCreate,
+  legacyImageBody,
+  legacyMotionBody,
+  legacyVideoBody,
+} from "../../../controllers/legacy-create.controller";
 
 const router = Router();
 
@@ -62,6 +69,7 @@ const voiceCloneController = new VoiceCloneController();
 const voiceConversionController = new VoiceConversionController();
 const appPostController = new PostController();
 const connectController = new ConnectController();
+const catalogController = new CatalogController();
 
 // Auth is applied per-route (not router.use) so this router can be mounted
 // at /api/v1 without intercepting non-matching paths — unmatched requests
@@ -78,8 +86,19 @@ router.get(
   voiceoverStatusController.getStatus,
 );
 
+// Model catalog: every video, image and motion-control model with its
+// WaveSpeed input schema, live pricing, and one generate endpoint for all.
+router.get("/catalog", ...auth, catalogController.list);
+router.post("/catalog/quote", ...auth, catalogController.quote);
+router.post("/catalog/generate", ...auth, catalogController.generate);
+
 // Video generations (all video models)
-router.post("/videos/create", ...auth, videoController.create);
+// Pre-catalog create endpoints: old request shapes, live catalog pricing.
+router.post(
+  "/videos/create",
+  ...auth,
+  legacyCreate((body) => legacyVideoBody(body)),
+);
 router.get("/videos/all", ...auth, videoController.getGenerations);
 router.delete("/videos/:generationId", ...auth, videoController.deleteGeneration);
 
@@ -88,7 +107,7 @@ router.delete("/videos/:generationId", ...auth, videoController.deleteGeneration
 router.post(
   "/image-generations/create",
   ...auth,
-  imageController.createGeneration,
+  legacyCreate(legacyImageBody),
 );
 router.get("/image-generations/all", ...auth, imageController.getGenerations);
 router.get(
@@ -229,7 +248,7 @@ router.delete(
 router.post(
   "/motion-control/create",
   ...auth,
-  motionControlController.createGeneration.bind(motionControlController),
+  legacyCreate(legacyMotionBody),
 );
 router.get(
   "/motion-control/all",

@@ -2,7 +2,7 @@ const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: "Unsora API",
-    version: "1.2.0",
+    version: "1.3.0",
     description:
       "Public API for Unsora integrations. Use Bearer token from Clerk in Authorization header.",
   },
@@ -11,6 +11,11 @@ const openApiDocument = {
     { name: "User" },
     { name: "Connect" },
     { name: "Stripe" },
+    {
+      name: "Models",
+      description:
+        "Every video, image and motion-control model, with each model's inputs taken from the provider's own request schema and prices quoted live. One generate endpoint covers all of them.",
+    },
     { name: "Video" },
     { name: "Image" },
     { name: "Influencer" },
@@ -333,6 +338,182 @@ const openApiDocument = {
         },
         required: ["id", "model", "status", "createdAt"],
       },
+      CatalogField: {
+        type: "object",
+        description:
+          "One input of a model endpoint. `key` is the provider's own field name; send it in `inputs` with that name.",
+        properties: {
+          key: { type: "string", example: "resolution" },
+          label: { type: "string", example: "Resolution" },
+          type: {
+            type: "string",
+            enum: [
+              "prompt",
+              "negative_prompt",
+              "media",
+              "select",
+              "aspect",
+              "duration",
+              "toggle",
+            ],
+          },
+          required: { type: "boolean" },
+          options: {
+            type: "array",
+            description:
+              "Allowed values (select, aspect, duration, toggle). A value of \"auto\" means: leave the field out.",
+            items: {
+              type: "object",
+              properties: {
+                value: { type: "string" },
+                label: { type: "string" },
+              },
+            },
+          },
+          default: { type: "string" },
+          media: {
+            type: "object",
+            description: "Media fields only: file kind and how many URLs it takes (1 = a single URL string).",
+            properties: {
+              kind: { type: "string", enum: ["image", "video", "audio"] },
+              max: { type: "integer" },
+            },
+          },
+        },
+        required: ["key", "label", "type", "required"],
+      },
+      CatalogModel: {
+        type: "object",
+        properties: {
+          key: { type: "string", example: "seedance-2.5" },
+          label: { type: "string", example: "Seedance 2.5" },
+          provider: { type: "string", example: "ByteDance" },
+          category: { type: "string", enum: ["video", "image", "motion-control"] },
+          description: { type: "string" },
+          isNew: { type: "boolean" },
+          legacyDbModels: {
+            type: "array",
+            items: { type: "string" },
+            description: "Older model names that also resolve to this model.",
+          },
+          modes: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                key: { type: "string", example: "omni" },
+                label: { type: "string", example: "Omni reference" },
+                endpoints: {
+                  type: "array",
+                  description:
+                    "Provider endpoints behind the mode. The first one whose `when` media fields all have files is used; the last is the fallback.",
+                  items: {
+                    type: "object",
+                    properties: {
+                      modelId: {
+                        type: "string",
+                        example: "bytedance/seedance-2.5/text-to-video",
+                      },
+                      when: { type: "array", items: { type: "string" } },
+                      fields: {
+                        type: "array",
+                        items: { $ref: "#/components/schemas/CatalogField" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      CatalogRequest: {
+        type: "object",
+        required: ["model"],
+        properties: {
+          model: {
+            type: "string",
+            description: "Model key from GET /catalog (older names such as `veo` or `kling-pro` also work).",
+            example: "seedance-2.5",
+          },
+          category: {
+            type: "string",
+            enum: ["video", "image", "motion-control"],
+            description: "Optional guard: reject the request if the model is from another category.",
+          },
+          mode: {
+            type: "string",
+            description: "Mode key from GET /catalog. Omit to pick it from the attached media.",
+            example: "omni",
+          },
+          inputs: {
+            type: "object",
+            additionalProperties: true,
+            description:
+              "Inputs in the provider's field names, as listed by GET /catalog. Media fields take URLs; files hosted outside Unsora are imported into your library first. Omitted fields use the model's defaults.",
+            example: {
+              prompt: "A red fox running through fresh snow at sunrise",
+              aspect_ratio: "9:16",
+              resolution: "720p",
+              duration: 8,
+              generate_audio: true,
+            },
+          },
+        },
+      },
+      CatalogGenerateRequest: {
+        allOf: [
+          { $ref: "#/components/schemas/CatalogRequest" },
+          {
+            type: "object",
+            properties: {
+              expectedCredits: {
+                type: "integer",
+                description:
+                  "The most credits you agree to spend (e.g. the quote's `credits`). If the live price is higher, nothing is charged and the API answers 409 PRICE_CHANGED.",
+              },
+            },
+          },
+        ],
+      },
+      CatalogQuoteResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean" },
+          credits: {
+            type: ["integer", "null"],
+            description: "Credits one run costs. Null when the model can't be priced until its required files are attached.",
+          },
+          mode: { type: "string" },
+          modelId: { type: "string", description: "Provider endpoint the request routes to." },
+          estimate: {
+            type: "boolean",
+            description: "True while required files are missing, so the final price may differ.",
+          },
+        },
+        required: ["success", "credits", "estimate"],
+      },
+      CatalogGenerateResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean" },
+          model: { type: "string" },
+          generation: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              status: { type: "string" },
+              model: { type: "string" },
+              mode: { type: "string" },
+              modelId: { type: "string" },
+            },
+            required: ["id", "status"],
+          },
+          creditsDeducted: { type: "integer" },
+          creditsRemaining: { type: "integer" },
+        },
+        required: ["success", "generation"],
+      },
       VideoCreateRequest: {
         type: "object",
         required: ["prompt"],
@@ -340,22 +521,9 @@ const openApiDocument = {
           prompt: { type: "string" },
           model: {
             type: "string",
-            enum: [
-              "kling-standard",
-              "kling-pro",
-              "veo",
-              "veo-fast",
-              "veo-lite",
-              "sora-2",
-              "sora-2-pro",
-              "wan",
-              "seedance-2.0",
-              "seedance-2.0-fast",
-              "seedance-2.0-mini",
-              "gemini-omni-flash",
-            ],
             default: "seedance-2.0",
-            description: "Video model to generate with.",
+            description:
+              "Any video model key from GET /catalog (e.g. `seedance-2.5`, `veo-3.1-fast`, `kling-o3-pro`). Older names still work: `kling-standard`, `kling-pro`, `veo`, `veo-fast`, `veo-lite`, `sora-2`, `sora-2-pro`, `seedance-2.0(-fast|-mini)`, `gemini-omni-flash`; `wan` maps to Wan 3.0.",
           },
           duration: { type: "integer", default: 5 },
           aspectRatio: {
@@ -370,13 +538,12 @@ const openApiDocument = {
           resolution: {
             type: "string",
             description:
-              "Output resolution (e.g. 720p, 1080p) for models that support it (Wan 2.6).",
+              "Output resolution (e.g. 720p, 1080p) for models that offer it; see GET /catalog.",
           },
           sound: {
             type: "boolean",
-            default: false,
             description:
-              "Generate audio. Supported by Kling v3 and Veo 3.1 models.",
+              "Generate audio, for models that offer it. Omitted: the model's default.",
           },
           image: {
             type: "string",
@@ -408,9 +575,7 @@ const openApiDocument = {
           },
           generateAudio: {
             type: "boolean",
-            default: false,
-            description:
-              "Seedance only — generate a soundtrack/audio for the video.",
+            description: "Alias of `sound`.",
           },
         },
       },
@@ -2468,11 +2633,151 @@ const openApiDocument = {
         },
       },
     },
+    "/catalog": {
+      get: {
+        tags: ["Models"],
+        summary: "List generation models with their inputs",
+        description:
+          "Every video, image and motion-control model, its modes, and each endpoint's input fields (names, allowed values, ranges, defaults). Prices aren't listed because they depend on the inputs; use POST /catalog/quote.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "category",
+            in: "query",
+            required: false,
+            schema: { type: "string", enum: ["video", "image", "motion-control"] },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Models",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean" },
+                    models: {
+                      type: "array",
+                      items: { $ref: "#/components/schemas/CatalogModel" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "503": {
+            description: "Model list temporarily unavailable",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/catalog/quote": {
+      post: {
+        tags: ["Models"],
+        summary: "Price a generation",
+        description:
+          "Live credit price for one run with these exact inputs (resolution, duration, audio, and the length of attached video or audio). Free; nothing is charged.",
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/CatalogRequest" },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Quote",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/CatalogQuoteResponse" },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid model, mode or inputs",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/catalog/generate": {
+      post: {
+        tags: ["Models"],
+        summary: "Start a video, image or motion-control generation",
+        description:
+          "Validates the inputs against the model, prices the run live, charges the credits and queues it. Poll GET /video/status/{id} (video and motion control) or GET /image/status/{id} (image). Supports the Idempotency-Key header.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "Idempotency-Key",
+            in: "header",
+            required: false,
+            schema: { type: "string", maxLength: 128 },
+            description: "Retrying with the same key replays the first response instead of charging again.",
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/CatalogGenerateRequest" },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Generation queued",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/CatalogGenerateResponse" },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid model, mode or inputs, or a media file couldn't be read",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "402": {
+            description: "Insufficient credits",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "409": {
+            description: "The live price is above `expectedCredits`; nothing was charged (code PRICE_CHANGED, `credits` holds the new price)",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
     "/videos/create": {
       post: {
         tags: ["Video"],
-        summary:
-          "Create a video generation (Kling v3, Veo 3.1, Sora 2, Wan 2.6, Seedance 2.0, Gemini Omni Flash)",
+        summary: "Create a video generation (simple shape)",
+        description:
+          "Kept for existing integrations. Takes the fields below, translates them onto the chosen model, and runs through POST /catalog/generate with the same live pricing. New integrations should use /catalog/generate, which exposes every model input.",
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,

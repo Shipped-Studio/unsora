@@ -487,6 +487,16 @@ export const CATALOG_BY_KEY: Record<string, CatalogModel> = Object.fromEntries(
   CATALOG.map((m) => [m.key, m]),
 );
 
+/**
+ * A catalog model by key, or by an older name it replaced ("veo",
+ * "kling-pro", "gemini-omni-flash") so existing API callers keep working.
+ */
+export function findCatalogModel(key: string): CatalogModel | undefined {
+  return (
+    CATALOG_BY_KEY[key] ?? CATALOG.find((m) => m.legacyDbModels?.includes(key))
+  );
+}
+
 /** Stored `generation.model` values for catalog models of one category. */
 export function catalogDbModels(category: CatalogCategory): string[] {
   return CATALOG.filter((m) => m.category === category).map((m) => m.key);

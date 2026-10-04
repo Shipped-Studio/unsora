@@ -1,6 +1,6 @@
 import {
   CATALOG,
-  CATALOG_BY_KEY,
+  findCatalogModel,
   type CatalogCategory,
   type CatalogEndpoint,
   type CatalogMode,
@@ -464,6 +464,59 @@ export async function getCatalog(
   return models;
 }
 
+// ─── Legacy input adaptation ───────────────────────────────────────────────
+
+/** "1280*720" → [16, 9]. */
+function sizeRatio(size: string): [number, number] | null {
+  const [w, h] = size.split("*").map(Number);
+  if (!w || !h) return null;
+  const d = gcd(w, h);
+  return [w / d, h / d];
+}
+
+/**
+ * Bend generic inputs (as the pre-catalog public API took them) onto a
+ * model's real field names: reference images go to `images` on models that
+ * call them that, the end frame goes to `last_image` or `end_image`, and an
+ * aspect ratio becomes the smallest matching `size` on models that only take
+ * a size (Sora).
+ */
+export async function adaptLegacyInputs(
+  modelKey: string,
+  inputs: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const model = findCatalogModel(modelKey);
+  if (!model) return inputs;
+  const schemas = await getLiveSchemas();
+  const props = model.modes
+    .flatMap((m) => m.endpoints)
+    .map((ep) => schemas.get(ep.modelId)?.properties ?? {});
+  const has = (key: string) => props.some((p) => key in p);
+  const out = { ...inputs };
+
+  if (out.reference_images && !has("reference_images") && has("images")) {
+    out.images = out.reference_images;
+    delete out.reference_images;
+  }
+
+  // End frame: Kling calls it end_image, everyone else last_image.
+  if (out.last_image !== undefined && out.end_image !== undefined) {
+    delete out[has("end_image") && !has("last_image") ? "last_image" : "end_image"];
+  }
+
+  if (typeof out.aspect_ratio === "string" && !has("aspect_ratio") && has("size")) {
+    const [rw, rh] = out.aspect_ratio.split(":").map(Number);
+    const sizes = props
+      .flatMap((p) => (p.size?.enum ?? []).map(String))
+      .map((size) => ({ size, ratio: sizeRatio(size) }))
+      .filter((s) => s.ratio && s.ratio[0] === rw && s.ratio[1] === rh)
+      .sort((a, b) => a.size.localeCompare(b.size, undefined, { numeric: true }));
+    if (sizes.length) out.size = sizes[0].size;
+    delete out.aspect_ratio;
+  }
+  return out;
+}
+
 // ─── Request resolution + validation ───────────────────────────────────────
 
 export class CatalogInputError extends Error {
@@ -476,6 +529,43 @@ export class CatalogInputError extends Error {
 function hasMedia(value: unknown): boolean {
   if (Array.isArray(value)) return value.some((v) => typeof v === "string" && v);
   return typeof value === "string" && value.length > 0;
+}
+
+/** Media field keys in `inputs` that carry at least one file. */
+function attachedMediaKeys(inputs: Record<string, unknown>): string[] {
+  return Object.keys(inputs).filter(
+    (k) => MEDIA_KEYS.has(k) && hasMedia(inputs[k]),
+  );
+}
+
+/** Every media URL in `inputs`, for importing outside files. */
+export function mediaUrls(inputs: Record<string, unknown>): string[] {
+  return attachedMediaKeys(inputs).flatMap((k) => {
+    const v = inputs[k];
+    return (Array.isArray(v) ? v : [v]).filter(
+      (u): u is string => typeof u === "string" && u.length > 0,
+    );
+  });
+}
+
+/**
+ * The mode to use when the caller didn't name one: the first mode that takes
+ * every attached file (a start frame picks "first and last frame", reference
+ * videos pick "omni reference").
+ */
+function pickMode(
+  model: CatalogModel,
+  inputs: Record<string, unknown>,
+  schemas: Map<string, RequestSchema>,
+): CatalogMode {
+  const attached = attachedMediaKeys(inputs);
+  return (
+    model.modes.find((mode) =>
+      attached.every((key) =>
+        mode.endpoints.some((ep) => schemas.get(ep.modelId)?.properties[key]),
+      ),
+    ) ?? model.modes[0]
+  );
 }
 
 /** First endpoint in the mode whose `when` media fields all have files. */
@@ -522,7 +612,7 @@ function mediaHosts(): Set<string> {
  * again to generate, so a URL we don't control could serve a short clip to
  * the price check and a long one to the job.
  */
-function isOwnMediaUrl(value: unknown): value is string {
+export function isOwnMediaUrl(value: unknown): value is string {
   if (typeof value !== "string") return false;
   try {
     const url = new URL(value);
@@ -569,27 +659,42 @@ export async function resolveRequest(params: {
   modeKey?: string;
   inputs: Record<string, unknown>;
   strict: boolean;
+  /**
+   * Accept media hosted anywhere (price previews only). Generations must use
+   * our own storage, so the controller imports outside files first.
+   */
+  allowExternalMedia?: boolean;
 }): Promise<ResolvedRequest> {
-  const model = CATALOG_BY_KEY[params.modelKey];
-  if (!model) throw new CatalogInputError(`Unknown model: ${params.modelKey}`);
+  const model = findCatalogModel(params.modelKey);
+  if (!model) {
+    throw new CatalogInputError(
+      `Unknown model: ${params.modelKey}. List models with GET /catalog (MCP: list_models).`,
+    );
+  }
 
+  const schemas = await getLiveSchemas();
   const mode = params.modeKey
     ? model.modes.find((m) => m.key === params.modeKey)
-    : model.modes[0];
+    : pickMode(model, params.inputs, schemas);
   if (!mode) {
     throw new CatalogInputError(
-      `Unknown mode "${params.modeKey}" for ${model.label}`,
+      `Unknown mode "${params.modeKey}" for ${model.label}. Modes: ${model.modes
+        .map((m) => m.key)
+        .join(", ")}`,
     );
   }
 
   const endpoint = resolveEndpoint(mode, params.inputs);
-  const schemas = await getLiveSchemas();
   const schema = schemas.get(endpoint.modelId);
   if (!schema) {
     throw new CatalogInputError(`${model.label} is not available right now`);
   }
 
   const required = new Set(schema.required ?? []);
+  const acceptUrl = (value: unknown): value is string =>
+    params.allowExternalMedia
+      ? typeof value === "string" && /^https?:\/\/\S+$/i.test(value)
+      : isOwnMediaUrl(value);
   const inputs: Record<string, unknown> = {};
   const missing: string[] = [];
   const missingMedia: string[] = [];
@@ -617,7 +722,7 @@ export async function resolveRequest(params: {
         const list = (Array.isArray(raw) ? raw : raw ? [raw] : []).filter(
           (v) => v !== "" && v !== null && v !== undefined,
         );
-        if (!list.every(isOwnMediaUrl)) {
+        if (!list.every(acceptUrl)) {
           throw new CatalogInputError(
             `${fieldLabel(key)} must be files uploaded to Unsora`,
           );
@@ -633,7 +738,7 @@ export async function resolveRequest(params: {
       } else {
         const url = Array.isArray(raw) ? raw[0] : raw;
         if (url) {
-          if (!isOwnMediaUrl(url)) {
+          if (!acceptUrl(url)) {
             throw new CatalogInputError(
               `${fieldLabel(key)} must be a file uploaded to Unsora`,
             );

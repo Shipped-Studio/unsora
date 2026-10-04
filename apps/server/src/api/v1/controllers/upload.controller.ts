@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
-import { ImportError, safeGet } from "../../../lib/remote-import";
+import { ImportError } from "../../../lib/remote-import";
 import { AssetType } from "@prisma/client";
-import prisma from "../../../lib/db";
 import {
   isSupabaseStorageConfigured,
   createSupabaseSignedUploadUrl,
@@ -10,28 +9,15 @@ import {
   removeSupabaseObjects,
   SUPABASE_STORAGE_BUCKET,
 } from "../../../lib/supabase-storage";
+import {
+  blobPath,
+  createUploadAsset,
+  fetchRemoteFile,
+  sanitizeFileName,
+} from "../../../lib/remote-media";
+import prisma from "../../../lib/db";
 import { resolveUser } from "../helpers/resolve-user";
 import { handlePublicError, sendError } from "../helpers/public-response";
-
-/** Server-side ingest cap for URL imports (bytes). */
-const MAX_IMPORT_BYTES = 200 * 1024 * 1024;
-
-function assetTypeFromMime(mime: string): AssetType {
-  if (mime.startsWith("image/")) return "IMAGE";
-  if (mime.startsWith("video/")) return "VIDEO";
-  if (mime.startsWith("audio/")) return "AUDIO";
-  return "DOCUMENT";
-}
-
-function sanitizeFileName(name: string): string {
-  const base = name.split(/[\\/]/).pop() || "file";
-  return base.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 120);
-}
-
-function blobPath(userId: string, fileName: string): string {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  return `uploads/${userId}/${timestamp}-${sanitizeFileName(fileName)}`;
-}
 
 /** Path of an object inside our bucket, or null if the URL is elsewhere. */
 function bucketPathFromUrl(url: string): string | null {
@@ -59,26 +45,6 @@ function formatAsset(asset: {
     fileSize: asset.fileSize == null ? null : Number(asset.fileSize),
     createdAt: asset.createdAt,
   };
-}
-
-async function createUploadAsset(
-  userId: string,
-  name: string,
-  url: string,
-  mimeType: string,
-  fileSize: number | null,
-) {
-  return prisma.asset.create({
-    data: {
-      userId,
-      name,
-      url,
-      mimeType,
-      type: assetTypeFromMime(mimeType),
-      source: "UPLOAD",
-      fileSize: fileSize == null ? undefined : BigInt(fileSize),
-    },
-  });
 }
 
 /**
@@ -123,51 +89,24 @@ export class PublicUploadController {
       let name: string;
 
       if (url) {
-        if (typeof url !== "string" || !/^https?:\/\//i.test(url)) {
+        if (typeof url !== "string") {
           return sendError(res, 400, "url must be an http(s) URL");
         }
         // Same SSRF guard as the in-app importer: public hosts only, every
         // redirect re-checked, and the socket pinned to the checked address.
-        let remote: Awaited<ReturnType<typeof safeGet>>["res"];
+        let file: Awaited<ReturnType<typeof fetchRemoteFile>>;
         try {
-          ({ res: remote } = await safeGet(url, {
-            signal: AbortSignal.timeout(120_000),
-          }));
+          file = await fetchRemoteFile(url);
         } catch (error) {
           if (error instanceof ImportError) {
             return sendError(res, 400, error.message);
           }
           throw error;
         }
-        const status = remote.statusCode ?? 0;
-        if (status < 200 || status >= 300) {
-          remote.resume();
-          return sendError(res, 400, `Could not fetch url (HTTP ${status})`);
-        }
-        const declared = Number(remote.headers["content-length"] ?? 0);
-        if (declared > MAX_IMPORT_BYTES) {
-          remote.destroy();
-          return sendError(res, 400, "File exceeds the 200MB import limit");
-        }
-        const chunks: Buffer[] = [];
-        let total = 0;
-        for await (const chunk of remote) {
-          total += (chunk as Buffer).length;
-          if (total > MAX_IMPORT_BYTES) {
-            remote.destroy();
-            return sendError(res, 400, "File exceeds the 200MB import limit");
-          }
-          chunks.push(chunk as Buffer);
-        }
-        buffer = Buffer.concat(chunks);
+        buffer = file.buffer;
         mime =
-          (typeof contentType === "string" && contentType.trim()) ||
-          String(remote.headers["content-type"] ?? "").split(";")[0]?.trim() ||
-          "application/octet-stream";
-        name =
-          (typeof fileName === "string" && fileName.trim()) ||
-          sanitizeFileName(new URL(url).pathname) ||
-          "import";
+          (typeof contentType === "string" && contentType.trim()) || file.mime;
+        name = (typeof fileName === "string" && fileName.trim()) || file.name;
       } else {
         if (typeof base64 !== "string" || !base64.trim()) {
           return sendError(res, 400, "base64 must be a non-empty string");
