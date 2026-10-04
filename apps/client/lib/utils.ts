@@ -5,13 +5,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function getDurationOptions(min = 1, max = 25) {
-  return Array.from({ length: max - min + 1 }, (_, i) => {
-    const s = min + i;
-    return { value: `${s}`, label: `${s}s` };
-  });
-}
-
 const YT_ID_RE = /^[\w-]{11}$/;
 
 export function getYouTubeVideoId(raw: string): string | null {

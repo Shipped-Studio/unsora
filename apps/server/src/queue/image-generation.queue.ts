@@ -20,6 +20,11 @@ export interface ImageGenerationJobData {
   modelKey?: string;
   /** Accepted for API compatibility; WaveSpeed has no NSFW toggle. */
   nsfwChecker?: boolean;
+  /**
+   * Catalog generation: submit this schema-validated, already-priced payload
+   * as-is instead of building one from the fields above.
+   */
+  wavespeed?: { modelId: string; inputs: Record<string, unknown> };
 }
 
 export interface ImageGenerationJobResult {
@@ -47,7 +52,7 @@ export const imageGenerationTask = task({
     } = payload;
 
     // Every image model runs on WaveSpeed; an unknown key is a caller bug.
-    if (modelKey && !IMAGE_MODELS[modelKey]) {
+    if (!payload.wavespeed && modelKey && !IMAGE_MODELS[modelKey]) {
       throw new Error(`Unknown image model: ${modelKey}`);
     }
     const client = getWavespeedClient();
@@ -65,14 +70,16 @@ export const imageGenerationTask = task({
     let taskId = record.taskId;
 
     if (!taskId) {
-      const { model, input } = WavespeedAPI.imageGenerationInput({
-        prompt,
-        aspectRatio: ratio,
-        resolution,
-        referenceImages:
-          referenceImageUrls.length > 0 ? referenceImageUrls : undefined,
-        modelKey,
-      });
+      const { model, input } = payload.wavespeed
+        ? { model: payload.wavespeed.modelId, input: payload.wavespeed.inputs }
+        : WavespeedAPI.imageGenerationInput({
+            prompt,
+            aspectRatio: ratio,
+            resolution,
+            referenceImages:
+              referenceImageUrls.length > 0 ? referenceImageUrls : undefined,
+            modelKey,
+          });
 
       taskId = await client.submit(model, input);
 
@@ -93,9 +100,12 @@ export const imageGenerationTask = task({
       throw new Error("No image URL returned from provider");
     }
 
+    const ext =
+      /\.(png|jpe?g|webp)(?:\?|$)/i.exec(providerImageUrl)?.[1]?.toLowerCase() ??
+      "png";
     const uploadResult = await uploadUrlToStorage(
       providerImageUrl,
-      `generation-${generationId}.png`,
+      `generation-${generationId}.${ext === "jpg" ? "jpeg" : ext}`,
       "image-generations",
     );
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ImageSquare } from "@phosphor-icons/react";
 import { ToolPage } from "@/components/generator/tool-layout";
 import { ToolResults } from "@/components/generator/tool-results";
@@ -14,15 +14,13 @@ import {
   detailRows,
   formatCredits,
 } from "@/components/generator/media-result-dialog";
-import {
-  ImagePromptForm,
-  type ImageGenerationSubmitParams,
-} from "@/components/image-generator/prompt-form";
+import { CatalogPromptForm } from "@/components/generator/catalog-prompt-form";
 import {
   formatResolution,
   imageModelLabel,
-} from "@/components/image-generator/model-configs";
-import { useImageGeneration } from "@/hooks/use-image-generation";
+} from "@/components/generator/model-labels";
+import { useCatalogGeneration } from "@/hooks/use-catalog-generation";
+import { useCatalogLabel } from "@/hooks/use-model-catalog";
 import {
   useDeleteFromHistory,
   useGenerationHistory,
@@ -79,18 +77,13 @@ export default function ImageGeneratorPage() {
     path: PATH,
     noun: "image",
   });
-  const { activeGenerations, submitGeneration, dismissGeneration } =
-    useImageGeneration({ onComplete: () => void refreshHistory() });
+  const {
+    activeGenerations,
+    submit,
+    dismiss: dismissGeneration,
+  } = useCatalogGeneration("image", { onSettled: () => void refreshHistory() });
+  const catalogLabel = useCatalogLabel("image");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-
-  const handleSubmit = useCallback(
-    async ({ count, ...params }: ImageGenerationSubmitParams) => {
-      for (let i = 0; i < count; i++) {
-        await submitGeneration(params);
-      }
-    },
-    [submitGeneration],
-  );
 
   const items = useMemo<ImageItem[]>(() => {
     const historyIds = new Set(history.items.map((g) => g.id));
@@ -108,7 +101,6 @@ export default function ImageGeneratorPage() {
         error: g.error ?? null,
         local: g.id.startsWith("temp-"),
         model: g.model,
-        ratio: g.ratio,
         createdAt: g.createdAt,
       }));
 
@@ -142,7 +134,18 @@ export default function ImageGeneratorPage() {
   };
 
   return (
-    <ToolPage dock={<ImagePromptForm onSubmit={handleSubmit} />}>
+    <ToolPage
+      dock={
+        <CatalogPromptForm
+          category="image"
+          noun="image"
+          defaultModel="nano-banana-2"
+          placeholder="Describe the image"
+          promptLabel="Image prompt"
+          onSubmit={submit}
+        />
+      }
+    >
       <ToolResults
         items={items}
         getKey={(item) => item.id}
@@ -175,7 +178,12 @@ export default function ImageGeneratorPage() {
         details={
           selected
             ? detailRows([
-                { label: "Model", value: imageModelLabel(selected.model) },
+                {
+                  label: "Model",
+                  value:
+                    catalogLabel(selected.model) ??
+                    imageModelLabel(selected.model),
+                },
                 { label: "Aspect ratio", value: selected.ratio },
                 {
                   label: "Resolution",

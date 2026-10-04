@@ -38,6 +38,9 @@ const schema = z.object({
   OPENROUTER_API_KEY: required,
   REPLICATE_API_KEY: required,
   WAVESPEED_API_KEY: required,
+  // Catalog pricing — see lib/generation-pricing.ts. Defaults 0.20 / 0.028.
+  GENERATION_MARGIN: optional,
+  CREDIT_USD_VALUE: optional,
   SEEDANCE_API_KEY: required,
   WAYIN_API_KEY: required,
   SUPADATA_API_KEY: required,

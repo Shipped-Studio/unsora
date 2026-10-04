@@ -30,6 +30,7 @@ import voiceConversionsRoutes from "./voice-conversions.routes";
 import uploadRoutes from "./upload.routes";
 import skillsRoutes from "./skills.routes";
 import adminRoutes from "./admin";
+import catalogRoutes from "./catalog.routes";
 
 const router = Router();
 
@@ -52,6 +53,7 @@ router.use("/motion-control", motionControlRoutes);
 router.use("/movie-materials", movieMaterialsRoutes);
 router.use("/influencer-studio", influencerStudioRoutes);
 router.use("/video-generation", videoGenerationRoutes);
+router.use("/catalog", catalogRoutes);
 router.use("/assets", assetRoutes);
 router.use("/clippings", clippingRoutes);
 router.use("/thumbnails", thumbnailsRoutes);

@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { VideoGenerationType } from "@prisma/client";
 import prisma from "../lib/db";
 import { VIDEO_MODELS } from "../config/models";
+import { catalogDbModels } from "../config/catalog";
 import { createAsset } from "../lib/asset-utils";
 import { addVideoGenerationJob } from "../queue/video-generation.queue";
 import {
@@ -294,7 +295,10 @@ export class VideoGenerationController {
           .json({ success: false, error: "User not found" });
       }
 
-      const dbModels = Object.values(VIDEO_MODELS).map((m) => m.dbModel);
+      const dbModels = [
+        ...Object.values(VIDEO_MODELS).map((m) => m.dbModel),
+        ...catalogDbModels("video"),
+      ];
 
       const where = { userId: user.id, model: { in: dbModels } };
 

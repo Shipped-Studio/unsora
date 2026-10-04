@@ -14,9 +14,10 @@ import {
   detailRows,
   formatCredits,
 } from "@/components/generator/media-result-dialog";
-import { VideoPromptForm } from "@/components/video-generator/prompt-form";
-import { videoModelLabel } from "@/components/video-generator/forms/model-configs";
-import { useVideoGeneration } from "@/hooks/use-video-generation";
+import { CatalogPromptForm } from "@/components/generator/catalog-prompt-form";
+import { videoModelLabel } from "@/components/generator/model-labels";
+import { useCatalogGeneration } from "@/hooks/use-catalog-generation";
+import { useCatalogLabel } from "@/hooks/use-model-catalog";
 import {
   useDeleteFromHistory,
   useGenerationHistory,
@@ -74,9 +75,10 @@ export default function VideoGeneratorPage() {
     path: DELETE_PATH,
     noun: "video",
   });
-  const { activeGenerations, submit, dismiss } = useVideoGeneration({
+  const { activeGenerations, submit, dismiss } = useCatalogGeneration("video", {
     onSettled: () => void refreshHistory(),
   });
+  const catalogLabel = useCatalogLabel("video");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const items = useMemo<VideoItem[]>(() => {
@@ -128,7 +130,18 @@ export default function VideoGeneratorPage() {
   };
 
   return (
-    <ToolPage dock={<VideoPromptForm onSubmit={submit} />}>
+    <ToolPage
+      dock={
+        <CatalogPromptForm
+          category="video"
+          noun="video"
+          defaultModel="seedance-2.5"
+          placeholder="Describe the video"
+          promptLabel="Video prompt"
+          onSubmit={submit}
+        />
+      }
+    >
       <ToolResults
         items={items}
         getKey={(item) => item.id}
@@ -162,7 +175,12 @@ export default function VideoGeneratorPage() {
         details={
           selected
             ? detailRows([
-                { label: "Model", value: videoModelLabel(selected.model) },
+                {
+                  label: "Model",
+                  value:
+                    catalogLabel(selected.model) ??
+                    videoModelLabel(selected.model),
+                },
                 {
                   label: "Duration",
                   value: selected.duration ? `${selected.duration}s` : null,

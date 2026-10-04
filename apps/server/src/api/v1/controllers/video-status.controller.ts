@@ -1,12 +1,15 @@
 import { Request, Response } from "express";
 import prisma from "../../../lib/db";
 import { MOTION_CONTROL_MODELS, VIDEO_MODELS } from "../../../config/models";
+import { catalogDbModels } from "../../../config/catalog";
 import { handlePublicError } from "../helpers/public-response";
 
 /** Generation rows this endpoint serves: text/image-to-video and motion control. */
 const VIDEO_DB_MODELS = [
   ...Object.values(VIDEO_MODELS).map((m) => m.dbModel),
   ...Object.values(MOTION_CONTROL_MODELS).map((m) => m.dbModel),
+  ...catalogDbModels("video"),
+  ...catalogDbModels("motion-control"),
 ];
 
 async function resolveUser(clerkUserId: string) {

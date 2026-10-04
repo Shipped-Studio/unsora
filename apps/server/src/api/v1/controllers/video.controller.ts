@@ -3,6 +3,7 @@ import prisma from "../../../lib/db";
 import { addVideoGenerationJob } from "../../../queue/video-generation.queue";
 import { createAsset } from "../../../lib/asset-utils";
 import { VIDEO_MODELS, type VideoModelConfig } from "../../../config/models";
+import { CATALOG, catalogDbModels } from "../../../config/catalog";
 import {
   consumeCredits,
   getCreditBalance,
@@ -22,7 +23,24 @@ for (const cfg of Object.values(VIDEO_MODELS)) {
 }
 
 const VALID_MODEL_KEYS = Object.values(VIDEO_MODELS).map((m) => m.key);
-const VIDEO_DB_MODELS = Object.values(VIDEO_MODELS).map((m) => m.dbModel);
+const VIDEO_DB_MODELS = [
+  ...Object.values(VIDEO_MODELS).map((m) => m.dbModel),
+  ...catalogDbModels("video"),
+];
+
+// `?model=` on the list → every stored name for that model. A catalog model
+// covers its own key plus the names older rows were saved under.
+const LIST_FILTERS: Record<string, string[]> = {};
+for (const m of CATALOG) {
+  if (m.category !== "video") continue;
+  const names = [m.key, ...(m.legacyDbModels ?? [])];
+  for (const name of names) LIST_FILTERS[name] = names;
+}
+for (const cfg of Object.values(VIDEO_MODELS)) {
+  const names = LIST_FILTERS[cfg.dbModel] ?? [cfg.dbModel];
+  LIST_FILTERS[cfg.key] ??= names;
+  LIST_FILTERS[cfg.dbModel] ??= names;
+}
 
 const DEFAULT_MODEL_KEY = "seedance-2.0";
 
@@ -88,14 +106,16 @@ export class PublicVideoController {
       let modelFilter: string[] = VIDEO_DB_MODELS;
       const modelParam = req.query.model as string | undefined;
       if (modelParam) {
-        const cfg = MODEL_LOOKUP[modelParam];
-        if (!cfg) {
+        const names = LIST_FILTERS[modelParam];
+        if (!names) {
           return res.status(400).json({
             success: false,
-            error: `Invalid model. Must be one of: ${VALID_MODEL_KEYS.join(", ")}`,
+            error: `Invalid model. Must be one of: ${[
+              ...new Set([...catalogDbModels("video"), ...VALID_MODEL_KEYS]),
+            ].join(", ")}`,
           });
         }
-        modelFilter = [cfg.dbModel];
+        modelFilter = names;
       }
 
       const where = { userId: user.id, model: { in: modelFilter } };

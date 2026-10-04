@@ -78,6 +78,8 @@ function chipText(param: ParamConfig, value: string, valueLabel: string) {
 const TOGGLE_ICONS: Record<string, [Icon, Icon]> = {
   sound: [SpeakerHigh, SpeakerX],
   keep_sound: [SpeakerHigh, SpeakerX],
+  generate_audio: [SpeakerHigh, SpeakerX],
+  keep_original_sound: [SpeakerHigh, SpeakerX],
 };
 
 export function parseDuration(value: string): number {

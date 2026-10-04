@@ -14,11 +14,10 @@ import {
   detailRows,
   formatCredits,
 } from "@/components/generator/media-result-dialog";
-import {
-  MotionUploadForm,
-  motionModelLabel,
-} from "@/components/motion-control/upload-form";
-import { useMotionControl } from "@/hooks/use-motion-control";
+import { CatalogPromptForm } from "@/components/generator/catalog-prompt-form";
+import { motionModelLabel } from "@/components/generator/model-labels";
+import { useCatalogGeneration } from "@/hooks/use-catalog-generation";
+import { useCatalogLabel } from "@/hooks/use-model-catalog";
 import {
   useDeleteFromHistory,
   useGenerationHistory,
@@ -73,8 +72,14 @@ export default function MotionControlPage() {
     path: PATH,
     noun: "video",
   });
-  const { activeGenerations, submitGeneration, dismissGeneration } =
-    useMotionControl({ onComplete: () => void refreshHistory() });
+  const {
+    activeGenerations,
+    submit,
+    dismiss: dismissGeneration,
+  } = useCatalogGeneration("motion-control", {
+    onSettled: () => void refreshHistory(),
+  });
+  const catalogLabel = useCatalogLabel("motion-control");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const items = useMemo<MotionItem[]>(() => {
@@ -92,7 +97,6 @@ export default function MotionControlPage() {
         error: g.error ?? null,
         local: g.id.startsWith("temp-"),
         model: g.model,
-        resolution: g.resolution,
         createdAt: g.createdAt,
       }));
 
@@ -124,7 +128,18 @@ export default function MotionControlPage() {
   };
 
   return (
-    <ToolPage dock={<MotionUploadForm onSubmit={submitGeneration} />}>
+    <ToolPage
+      dock={
+        <CatalogPromptForm
+          category="motion-control"
+          noun="video"
+          defaultModel="kling-mc-3.0-pro"
+          placeholder="Describe the motion or scene"
+          promptLabel="Motion control prompt"
+          onSubmit={submit}
+        />
+      }
+    >
       <ToolResults
         items={items}
         getKey={(item) => item.id}
@@ -157,7 +172,12 @@ export default function MotionControlPage() {
         details={
           selected
             ? detailRows([
-                { label: "Model", value: motionModelLabel(selected.model) },
+                {
+                  label: "Model",
+                  value:
+                    catalogLabel(selected.model) ??
+                    motionModelLabel(selected.model),
+                },
                 { label: "Resolution", value: selected.resolution },
                 { label: "Credits", value: formatCredits(selected.credits) },
               ])

@@ -78,6 +78,20 @@ export interface VideoGenerationJobData {
   imageUrls?: string[];
 }
 
+/**
+ * Catalog generation: a WaveSpeed model id plus a payload already validated
+ * against that model's live schema and priced, submitted exactly as priced.
+ * Covers catalog video and motion-control models.
+ */
+export interface WavespeedCatalogJobData {
+  userId: string;
+  generationId: string;
+  creditsUsed: number;
+  creditTransactionId?: string;
+  modelId: string;
+  inputs: Record<string, unknown>;
+}
+
 export interface GenerationJobResult {
   success: boolean;
   generationId: string;
@@ -92,7 +106,8 @@ export type VideoGenerationJobResult = GenerationJobResult;
 type VideoTaskPayload =
   | ({ kind: "kling" } & KlingGenerationJobData)
   | ({ kind: "motion-control" } & MotionControlJobData)
-  | ({ kind: "model" } & VideoGenerationJobData);
+  | ({ kind: "model" } & VideoGenerationJobData)
+  | ({ kind: "wavespeed" } & WavespeedCatalogJobData);
 
 interface ProviderOutput {
   providerVideoUrl: string;
@@ -274,18 +289,49 @@ async function runModel(
   return { providerVideoUrl };
 }
 
+// ── Catalog models (WaveSpeed, schema-driven) ─────────────────────────────
+
+async function runCatalog(
+  data: WavespeedCatalogJobData,
+  existingTaskId: string | null,
+): Promise<ProviderOutput> {
+  const client = getWavespeedClient();
+
+  let taskId = existingTaskId;
+  if (!taskId) {
+    taskId = await client.submit(data.modelId, data.inputs);
+    await prisma.generation.update({
+      where: { id: data.generationId },
+      data: { taskId },
+    });
+  }
+
+  const result = await client.poll(taskId);
+  if (result.status === "failed") {
+    throw new Error(result.error || "Video generation failed");
+  }
+
+  const providerVideoUrl = result.outputs[0];
+  if (!providerVideoUrl) {
+    throw new Error("No video URL returned from provider");
+  }
+  return { providerVideoUrl };
+}
+
 // ── Unified task ───────────────────────────────────────────────────────────
 
 const REFUND_EVENT: Record<VideoTaskPayload["kind"], string> = {
   kling: "video.generation.kling.failed",
   "motion-control": "video.generation.motion-control.failed",
   model: "video.generation.failed",
+  wavespeed: "video.generation.failed",
 };
 
 const CANCEL_EVENT: Record<VideoTaskPayload["kind"], string> = {
   kling: "video.generation.kling.cancelled",
   "motion-control": "video.generation.motion-control.cancelled",
   model: "video.generation.cancelled",
+  wavespeed: "video.generation.cancelled",
 };
 
 // Shared terminal handler for onFailure/onCancel: mark the row and refund once.
@@ -347,6 +393,9 @@ export const videoGenerationTask = task({
         break;
       case "model":
         output = await runModel(payload, existingTaskId);
+        break;
+      case "wavespeed":
+        output = await runCatalog(payload, existingTaskId);
         break;
     }
 
@@ -452,6 +501,14 @@ export const addVideoGenerationJob = async (
       delay: options?.delay ? new Date(Date.now() + options.delay) : undefined,
       maxAttempts: 2,
     },
+  );
+  return { id: handle.id };
+};
+
+export const addWavespeedCatalogJob = async (jobData: WavespeedCatalogJobData) => {
+  const handle = await videoGenerationTask.trigger(
+    { kind: "wavespeed", ...jobData },
+    { maxAttempts: 2 },
   );
   return { id: handle.id };
 };
