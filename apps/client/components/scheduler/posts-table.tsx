@@ -58,12 +58,13 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState, ErrorState } from "@/components/shared/states";
-import { AccountStack, accountLabel } from "@/components/scheduler/account-avatar";
+import { AccountStack } from "@/components/scheduler/account-avatar";
 import { PostSheet } from "@/components/scheduler/post-sheet";
 import { PostStatusBadge } from "@/components/scheduler/post-status-badge";
 import { PostThumb } from "@/components/scheduler/post-thumb";
 import { PublishNowDialog } from "@/components/scheduler/publish-now-dialog";
 import { readableError } from "@/components/scheduler/readable-error";
+import { AccountFilter } from "@/components/scheduler/account-filter";
 import { useConnectedAccounts } from "@/hooks/use-connected-accounts";
 import { useDebounce } from "@/hooks/use-debounce";
 import {
@@ -337,24 +338,12 @@ export function PostsTable() {
           aria-label="Filters"
           className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 sm:flex sm:flex-1 sm:items-center"
         >
-          <Select value={accountId || "all"} onValueChange={(value) => setParams({ account: value === "all" ? null : (value as string) })}>
-            <SelectTrigger aria-label="Account" className="w-full min-w-0 sm:w-44 sm:shrink-0">
-              <SelectValue>
-                {(value: string) => {
-                  const account = accounts?.find((a) => a.id === value);
-                  return account ? accountLabel(account) : "All accounts";
-                }}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All accounts</SelectItem>
-              {(accounts ?? []).map((account) => (
-                <SelectItem key={account.id} value={account.id}>
-                  {accountLabel(account)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <AccountFilter
+              accounts={accounts}
+              value={accountId || null}
+              onChange={(next) => setParams({ account: next })}
+              className="w-full sm:w-52 sm:shrink-0"
+            />
           <Select value={type} onValueChange={(value) => setParams({ type: value === "all" ? null : (value as string) })}>
             <SelectTrigger aria-label="Format" className="w-full min-w-0 sm:w-36 sm:shrink-0">
               <SelectValue>

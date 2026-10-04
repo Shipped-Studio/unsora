@@ -24,26 +24,17 @@ import {
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Toggle } from "@/components/ui/toggle";
 import { PageSection } from "@/components/layout/page-header";
 import { ErrorState } from "@/components/shared/states";
-import { accountLabel } from "@/components/scheduler/account-avatar";
 import { PostSheet } from "@/components/scheduler/post-sheet";
 import { DraftCard, PostChip, PostChipBody } from "./post-chip";
 import { MonthGrid, type PlacedPost } from "./month-grid";
 import { TimeGrid } from "./time-grid";
 import { useApi } from "@/hooks/use-api";
-import { useConnectedAccounts } from "@/hooks/use-connected-accounts";
 import { postQueryKeys, usePosts } from "@/hooks/use-posts";
 import {
   usePostingSlots,
@@ -112,7 +103,6 @@ export function CalendarView() {
   const api = useApi();
   const timeZone = useSchedulerTimezone();
   const weekStartsOn = useWeekStartsOn();
-  const { data: accounts } = useConnectedAccounts();
   const slots = usePostingSlots();
 
   const isNarrow = useIsNarrow();
@@ -120,7 +110,6 @@ export function CalendarView() {
   const view = (searchParams.get("view") as View | "agenda") || (isNarrow ? "day" : "week");
   const today = todayIn(timeZone);
   const anchor = searchParams.get("date") ? parseDayId(searchParams.get("date")!) : today;
-  const accountId = searchParams.get("account") ?? "";
   const showPublished = searchParams.get("published") !== "0";
   const draftsOpen = searchParams.get("drafts") !== "0";
 
@@ -154,7 +143,6 @@ export function CalendarView() {
     status: showPublished
       ? CALENDAR_STATUSES
       : CALENDAR_STATUSES.filter((s) => s !== "PUBLISHED"),
-    accountId: accountId || undefined,
     sort: "scheduled",
     dir: "asc",
     limit: 200,
@@ -359,30 +347,6 @@ export function CalendarView() {
           </div>
 
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-            <Select
-              value={accountId || "all"}
-              onValueChange={(value) =>
-                setParams({ account: value === "all" ? null : (value as string) })
-              }
-            >
-              <SelectTrigger size="sm" className="min-w-0 flex-1 sm:w-44 sm:flex-none">
-                <SelectValue>
-                  {(value: string) => {
-                    const account = accounts?.find((a) => a.id === value);
-                    return account ? accountLabel(account) : "All accounts";
-                  }}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All accounts</SelectItem>
-                {(accounts ?? []).map((account) => (
-                  <SelectItem key={account.id} value={account.id}>
-                    {accountLabel(account)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
             <label className="flex h-8 items-center gap-2 text-sm text-muted-foreground">
               <Switch
                 size="sm"

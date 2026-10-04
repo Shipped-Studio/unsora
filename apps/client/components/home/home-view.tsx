@@ -8,15 +8,13 @@ import {
   Circle,
   NotePencil,
   Robot,
-  Warning,
 } from "@phosphor-icons/react";
-import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageSection } from "@/components/layout/page-header";
 import { ErrorState } from "@/components/shared/states";
 import { AgentMediaList, AgentMediaRow } from "@/components/home/agent-media-row";
-import { AccountAvatar, AccountStack, accountLabel } from "@/components/scheduler/account-avatar";
+import { AccountStack } from "@/components/scheduler/account-avatar";
 import { PostSheet } from "@/components/scheduler/post-sheet";
 import { PostThumb } from "@/components/scheduler/post-thumb";
 import { useApiKeys } from "@/components/api-keys/use-api-keys";
@@ -25,24 +23,12 @@ import { useConnectedAccounts } from "@/hooks/use-connected-accounts";
 import { libraryKindLabel, useLibraryPage } from "@/hooks/use-library";
 import { usePostCounts, usePosts } from "@/hooks/use-posts";
 import { usePostingSlots, useSchedulerTimezone } from "@/hooks/use-schedule";
-import { STATUS_META } from "@/lib/scheduler/status";
 import { dayKey, formatDay, formatRelative, formatTime } from "@/lib/scheduler/dates";
 import type { Post } from "@/lib/scheduler/types";
 import { cn } from "@/lib/utils";
 
 const ROW_FOCUS =
   "outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset";
-
-/**
- * Publishing errors can be raw provider or worker text. Show a plain line and
- * keep the original in the tooltip.
- */
-function friendlyPostError(error: string | null | undefined) {
-  if (!error) return "Didn't publish to every account";
-  if (/^Failed to publish/i.test(error) && error.length <= 80) return error;
-  if (/time(d)? ?out/i.test(error)) return "Publishing timed out";
-  return "Couldn't publish this post";
-}
 
 /** One-line empty message with an optional action, sized for list slots. */
 function EmptyRow({
@@ -187,18 +173,9 @@ export function HomeView() {
     dir: "asc",
     limit: 50,
   });
-  const failing = usePosts({
-    status: ["FAILED", "PARTIALLY_PUBLISHED"],
-    sort: "updated",
-    dir: "desc",
-    limit: 5,
-  });
   const drafts = usePosts({ status: ["DRAFT"], sort: "updated", dir: "desc", limit: 5 });
   const fromAgents = useLibraryPage({ source: "api", limit: 6 });
   const stats = useAnalyticsSummary(7);
-
-  const reconnect = (accounts.data ?? []).filter((a) => a.status !== "ok");
-  const needsAttention = (failing.data?.posts.length ?? 0) + reconnect.length;
 
   const byDay = new Map<string, Post[]>();
   for (const post of upcoming.data?.posts ?? []) {
@@ -248,61 +225,6 @@ export function HomeView() {
 
       <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-8">
-          {needsAttention > 0 ? (
-            <PageSection title="Needs attention">
-              <ul className="divide-y divide-card overflow-hidden rounded-xl bg-muted">
-                {reconnect.map((account) => (
-                  <li key={account.id} className="flex min-w-0 items-center gap-3 px-3 py-2.5">
-                    <AccountAvatar account={account} size="sm" />
-                    <span className="min-w-0 flex-1 truncate text-sm">
-                      <span className="font-medium">{accountLabel(account)}</span>{" "}
-                      <span className="text-muted-foreground">
-                        {account.status === "reconnect" ? "needs to be reconnected" : "expires soon"}
-                      </span>
-                    </span>
-                    <Link
-                      href="/scheduler/accounts"
-                      className={buttonVariants({ size: "sm" })}
-                    >
-                      Reconnect
-                    </Link>
-                  </li>
-                ))}
-                {(failing.data?.posts ?? []).map((post) => (
-                  <li key={post.id}>
-                    <button
-                      type="button"
-                      onClick={() => setOpenPostId(post.id)}
-                      className={cn(
-                        "flex w-full min-w-0 items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-accent",
-                        ROW_FOCUS,
-                      )}
-                    >
-                      <Warning weight="fill" className="size-4 shrink-0 text-destructive" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm">
-                          {post.mainCaption.trim() || "No caption"}
-                        </span>
-                        <span
-                          className="block truncate text-xs text-muted-foreground"
-                          title={post.error ?? undefined}
-                        >
-                          {friendlyPostError(post.error)}
-                        </span>
-                      </span>
-                      <Badge
-                        variant="destructive"
-                        className="bg-destructive-subtle dark:bg-destructive-subtle"
-                      >
-                        {STATUS_META[post.status].label}
-                      </Badge>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </PageSection>
-          ) : null}
-
           <PageSection
             title="Up next"
             description="Scheduled for the next 7 days."

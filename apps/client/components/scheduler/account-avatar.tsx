@@ -34,14 +34,16 @@ export function AccountAvatar({
   account,
   size = "sm",
   className,
+  style,
 }: {
   account: AccountSummary;
   size?: keyof typeof SIZES;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   const label = accountLabel(account);
   return (
-    <span className={cn("relative inline-flex shrink-0", className)}>
+    <span className={cn("relative inline-flex shrink-0", className)} style={style}>
       <Avatar className={cn(SIZES[size].avatar, "border bg-muted")}>
         {account.profilePicture ? (
           <AvatarImage src={account.profilePicture} alt="" />
@@ -65,7 +67,7 @@ export function AccountAvatar({
 export function AccountStack({
   accounts,
   max = 4,
-  size = "xs",
+  size = "sm",
 }: {
   accounts: AccountSummary[];
   max?: number;
@@ -75,13 +77,21 @@ export function AccountStack({
   const extra = accounts.length - shown.length;
   return (
     <span className="flex items-center">
-      <span className="flex -space-x-1.5">
-        {shown.map((account) => (
-          <AccountAvatar key={account.id} account={account} size={size} />
+      {/* Stacked like cards: each avatar sits above the next, so its
+          platform badge in the bottom-right corner stays visible. */}
+      <span className="flex -space-x-2">
+        {shown.map((account, i) => (
+          <AccountAvatar
+            key={account.id}
+            account={account}
+            size={size}
+            className="rounded-full ring-2 ring-muted"
+            style={{ zIndex: shown.length - i }}
+          />
         ))}
       </span>
       {extra > 0 ? (
-        <span className="ml-1.5 text-xs text-muted-foreground tabular-nums">
+        <span className="ml-1.5 text-sm font-medium text-muted-foreground tabular-nums">
           +{extra}
         </span>
       ) : null}

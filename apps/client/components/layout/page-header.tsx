@@ -7,6 +7,7 @@ import { List, MagnifyingGlass } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { useAppNav } from "@/components/layout/app-rail";
 import { useCommandMenu } from "@/components/layout/command-menu";
+import { NotificationsMenu } from "@/components/layout/notifications-menu";
 import { findNavItem } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
@@ -99,6 +100,7 @@ export function PageHeader({
         >
           <MagnifyingGlass className="size-5" />
         </Button>
+        <NotificationsMenu />
         {actions}
       </div>
     </header>
