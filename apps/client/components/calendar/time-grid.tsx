@@ -149,7 +149,7 @@ export function TimeGrid({
               </p>
               <p
                 className={cn(
-                  "mt-0.5 inline-flex items-center gap-1.5 text-[15px] font-semibold tabular-nums",
+                  "mt-0.5 inline-flex items-center gap-1.5 text-[0.9375rem] font-semibold tabular-nums",
                   isToday ? "text-accent-foreground" : "text-foreground",
                 )}
               >

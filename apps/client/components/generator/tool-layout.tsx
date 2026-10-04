@@ -51,7 +51,7 @@ export function ToolPage({
 
 /**
  * Settings panel for the panel tools. Stacks above the results on phones and
- * sits in a sticky column under the page header (h-16, md:h-[72px]) from lg.
+ * sits in a sticky column under the page header (h-16, md:h-18) from lg.
  * The app panel has an 8px inset at md+, hence the extra 1rem.
  */
 export function ToolSidebar({
@@ -64,7 +64,7 @@ export function ToolSidebar({
   return (
     <aside
       className={cn(
-        "border-b lg:sticky lg:top-[72px] lg:h-[calc(100svh-72px-1rem)] lg:w-95 lg:shrink-0 lg:border-r lg:border-b-0",
+        "border-b lg:sticky lg:top-18 lg:h-[calc(100svh-5.5rem)] lg:w-95 lg:shrink-0 lg:border-r lg:border-b-0",
         className,
       )}
     >
@@ -105,7 +105,7 @@ export function ToolPane({
   return (
     <section
       aria-label={label}
-      className="@container flex min-w-0 flex-1 flex-col px-3 py-4 sm:px-6 sm:py-6 lg:min-h-[calc(100svh-72px-1rem)]"
+      className="@container flex min-w-0 flex-1 flex-col px-3 py-4 sm:px-6 sm:py-6 lg:min-h-[calc(100svh-5.5rem)]"
     >
       {children}
     </section>

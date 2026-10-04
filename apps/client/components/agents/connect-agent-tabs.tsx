@@ -1,12 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Plus } from "@phosphor-icons/react";
+import { BracketsCurly, Plus } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import {
+  ClaudeCodeIcon,
+  ClaudeIcon,
+  CursorIcon,
+  OpenAIIcon,
+} from "@/components/icons";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CopyButton } from "@/components/api-keys/copy-button";
 import { CreateApiKeyDialog } from "@/components/api-keys/create-key-dialog";
 import { API_BASE, DOCS_URL, MCP_URL } from "@/lib/navigation";
+import { cn } from "@/lib/utils";
 
 const KEY_PLACEHOLDER = "uns_YOUR_KEY";
 
@@ -15,6 +22,7 @@ type ClientId = "claude" | "claude-code" | "cursor" | "chatgpt" | "api";
 interface ClientSetup {
   id: ClientId;
   label: string;
+  icon: React.ComponentType<{ className?: string }>;
   steps: React.ReactNode[];
   code: { label: string; text: string };
   /** Whether the snippet needs an API key (OAuth connectors don't). */
@@ -33,10 +41,15 @@ function Path({ children }: { children: React.ReactNode }) {
   return <span className="font-medium text-foreground">{children}</span>;
 }
 
+function RestApiIcon({ className }: { className?: string }) {
+  return <BracketsCurly weight="bold" className={cn("text-info", className)} />;
+}
+
 const CLIENTS: ClientSetup[] = [
   {
     id: "claude",
     label: "Claude",
+    icon: ClaudeIcon,
     usesKey: false,
     steps: [
       <>
@@ -51,6 +64,7 @@ const CLIENTS: ClientSetup[] = [
   {
     id: "claude-code",
     label: "Claude Code",
+    icon: ClaudeCodeIcon,
     usesKey: true,
     steps: [
       <>Run this command in your terminal, with your API key in place of the placeholder.</>,
@@ -67,6 +81,7 @@ const CLIENTS: ClientSetup[] = [
   {
     id: "cursor",
     label: "Cursor",
+    icon: CursorIcon,
     usesKey: true,
     steps: [
       <>
@@ -93,6 +108,7 @@ const CLIENTS: ClientSetup[] = [
   {
     id: "chatgpt",
     label: "ChatGPT",
+    icon: OpenAIIcon,
     usesKey: false,
     steps: [
       <>
@@ -107,6 +123,7 @@ const CLIENTS: ClientSetup[] = [
   {
     id: "api",
     label: "REST API",
+    icon: RestApiIcon,
     usesKey: true,
     steps: [
       <>
@@ -188,6 +205,7 @@ export function ConnectAgentTabs() {
           <TabsList>
             {CLIENTS.map((c) => (
               <TabsTrigger key={c.id} value={c.id}>
+                <c.icon className="size-4" />
                 {c.label}
               </TabsTrigger>
             ))}

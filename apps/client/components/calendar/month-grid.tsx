@@ -93,7 +93,7 @@ function DayCell({
         ))}
         {hidden > 0 ? (
           <Popover>
-            <PopoverTrigger className="rounded px-1.5 text-left text-[13px] text-muted-foreground hover:text-foreground">
+            <PopoverTrigger className="rounded px-1.5 text-left text-[0.8125rem] text-muted-foreground hover:text-foreground">
               {hidden} more
             </PopoverTrigger>
             <PopoverContent align="start" className="w-72 gap-1.5 p-2">

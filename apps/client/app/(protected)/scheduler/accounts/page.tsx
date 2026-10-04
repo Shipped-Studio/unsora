@@ -10,7 +10,7 @@ export default function AccountsPage() {
   return (
     <>
       <PageHeader />
-      <PageBody width="default">
+      <PageBody>
         <Suspense fallback={<Skeleton className="h-96 w-full rounded-xl" />}>
           <AccountsView />
         </Suspense>

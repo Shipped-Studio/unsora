@@ -269,7 +269,7 @@ export function ApiKeyManager() {
           </Button>
         }
       />
-      <PageBody width="default" className="space-y-8">
+      <PageBody className="space-y-8">
         <PageSection
           title="Your keys"
           description={

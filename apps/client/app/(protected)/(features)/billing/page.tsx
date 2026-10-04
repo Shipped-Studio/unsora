@@ -13,7 +13,7 @@ export default function BillingPage() {
         title="Billing"
         description="Your plan, credits and credit history"
       />
-      <PageBody width="default">
+      <PageBody>
         {/* useSearchParams (in useTopupRedirect) needs a Suspense boundary. */}
         <Suspense fallback={<BillingSkeleton />}>
           <BillingContent />

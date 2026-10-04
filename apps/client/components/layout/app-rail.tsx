@@ -226,7 +226,7 @@ export function AppRail() {
   const pathname = usePathname();
 
   return (
-    <aside className="my-2 ml-2 hidden w-[72px] shrink-0 flex-col items-center gap-1.5 overflow-y-auto rounded-xl bg-card px-2 py-3 no-scrollbar md:flex">
+    <aside className="my-2 ml-2 hidden w-18 shrink-0 flex-col items-center gap-1.5 overflow-y-auto rounded-xl bg-card px-2 py-3 no-scrollbar md:flex">
       <Link href="/" aria-label="Unsora home" className="flex size-10 items-center justify-center">
         <UnsoraLogo variant="icon" priority className="size-8" />
       </Link>

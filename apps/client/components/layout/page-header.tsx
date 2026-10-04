@@ -51,7 +51,7 @@ export function PageHeader({
   return (
     <header
       className={cn(
-        "sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b bg-card px-4 md:h-[72px] md:px-6",
+        "sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b bg-card px-4 md:h-18 md:px-6",
         className,
       )}
     >
@@ -119,7 +119,8 @@ export function PageBody({
         "mx-auto w-full flex-1 px-4 py-6 md:px-6 lg:px-8 lg:py-8",
         width === "narrow" && "max-w-3xl",
         width === "default" && "max-w-5xl",
-        width === "wide" && "max-w-7xl",
+        // "wide" and "full" fill the panel, so big screens get more content
+        // instead of empty gutters.
         className,
       )}
       {...props}

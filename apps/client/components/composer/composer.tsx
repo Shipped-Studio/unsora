@@ -354,7 +354,7 @@ export function Composer({
         description={null}
       />
 
-      <div className="mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 gap-8 px-4 py-6 md:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-8">
+      <div className="grid w-full flex-1 grid-cols-1 gap-8 px-4 py-6 md:px-6 lg:grid-cols-[minmax(0,1fr)_22.5rem] lg:px-8">
         <div className="min-w-0 space-y-8">
           {!post ? (
             <Tabs value={state.format} onValueChange={(value) => switchFormat(value as PostFormat)}>
@@ -457,7 +457,7 @@ export function Composer({
       </div>
 
       <div className="sticky bottom-0 z-20 border-t border-border bg-card">
-        <div className="mx-auto flex w-full max-w-7xl items-center gap-2 px-4 py-3 md:px-6 lg:px-8">
+        <div className="flex w-full items-center gap-2 px-4 py-3 md:px-6 lg:px-8">
           <Popover open={whenOpen} onOpenChange={setWhenOpen}>
             <PopoverTrigger
               render={

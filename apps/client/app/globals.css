@@ -289,8 +289,19 @@
     @apply border-border outline-ring/50;
   }
 
+  /* Root size steps up on big screens: 16px, then 18px from 1800px wide.
+     Text, spacing and controls are all rem, so the whole UI scales with it;
+     media queries use the browser default and don't move. Percentages keep
+     the user's browser font setting. */
   html {
     @apply bg-background;
+    font-size: 100%;
+  }
+
+  @media (min-width: 1800px) {
+    html {
+      font-size: 112.5%;
+    }
   }
 
   body {

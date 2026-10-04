@@ -429,7 +429,7 @@ export function ConnectGrid({
               <span className="min-w-0 flex-1 truncate text-sm font-medium">
                 {spec.shortName ?? spec.name}
               </span>
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-card text-muted-foreground transition-colors group-hover:text-foreground">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity group-hover:opacity-90">
                 {pending ? <Spinner /> : <Plus className="size-3.5" weight="bold" />}
               </span>
             </button>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, BookOpen, Key } from "@phosphor-icons/react";
+import { BookOpen, Key } from "@phosphor-icons/react";
 import {
   PageBody,
   PageHeader,
@@ -10,7 +10,6 @@ import {
 import { buttonVariants } from "@/components/ui/button";
 import { ConnectAgentTabs } from "@/components/agents/connect-agent-tabs";
 import { AgentToolList } from "@/components/agents/agent-tool-list";
-import { AgentActivity } from "@/components/agents/agent-activity";
 import { SetupVideos } from "@/components/agents/setup-videos";
 import { DOCS_URL } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
@@ -44,7 +43,7 @@ export default function AgentsPage() {
           </>
         }
       />
-      <PageBody width="default" className="space-y-8">
+      <PageBody className="space-y-8">
         <PageSection
           title="Connect your agent"
           description="Unsora runs as an MCP server, so any MCP client can create, schedule and publish for you. Every tool is also a REST endpoint."
@@ -57,27 +56,6 @@ export default function AgentsPage() {
           description="The tools your agent gets once it's connected."
         >
           <AgentToolList />
-        </PageSection>
-
-        <PageSection
-          title="Recent agent activity"
-          description="The latest files made with an API key, including jobs still running."
-          actions={
-            <Link
-              href="/files?source=api"
-              // Ghost padding would indent the label when the action wraps
-              // under the description on phones; pull it back to the edge.
-              className={cn(
-                buttonVariants({ variant: "ghost", size: "sm" }),
-                "max-sm:-ml-3",
-              )}
-            >
-              View in Library
-              <ArrowRight />
-            </Link>
-          }
-        >
-          <AgentActivity />
         </PageSection>
 
         <PageSection
