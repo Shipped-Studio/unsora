@@ -23,6 +23,10 @@ export default defineConfig({
   //  - ffmpeg: provides the ffmpeg binary for fluent-ffmpeg (video/subtitle tasks)
   //  - puppeteer: installs Chromium for puppeteer-service (video-process scraping)
   build: {
+    // sharp 0.35 ships only an `exports` map. Auto-detection links its dist/
+    // folder into the dev worker, so Node can't load it (trigger.dev#4511);
+    // listing it explicitly links the package root instead.
+    external: ["sharp"],
     extensions: [
       prismaExtension({ mode: "legacy", schema: "prisma/schema.prisma" }),
       ffmpeg(),

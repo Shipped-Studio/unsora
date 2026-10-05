@@ -1,3 +1,4 @@
+import { wavespeedApiKey } from "./wavespeed-api";
 import {
   CATALOG,
   findCatalogModel,
@@ -45,21 +46,38 @@ interface LiveModel {
   };
 }
 
+/**
+ * WaveSpeed itself is unusable (bad API key, outage). Nothing the caller sent
+ * is wrong, so it maps to a 503 with a generic message; the cause is logged.
+ */
+export class ProviderUnavailableError extends Error {
+  constructor(detail: string) {
+    super(detail);
+    this.name = "ProviderUnavailableError";
+  }
+}
+
 // ─── Live schema cache ─────────────────────────────────────────────────────
 
 let schemaCache: { at: number; byId: Map<string, RequestSchema> } | null = null;
 let inflight: Promise<Map<string, RequestSchema>> | null = null;
 
 async function fetchSchemas(): Promise<Map<string, RequestSchema>> {
-  const apiKey = process.env.WAVESPEED_API_KEY;
-  if (!apiKey) throw new Error("WAVESPEED_API_KEY is not configured");
+  const apiKey = wavespeedApiKey();
+  if (!apiKey) throw new ProviderUnavailableError("WAVESPEED_API_KEY is not configured");
 
   const res = await fetch(`${WAVESPEED_BASE}/models`, {
     headers: { Authorization: `Bearer ${apiKey}` },
     signal: AbortSignal.timeout(15_000),
   });
   if (!res.ok) {
-    throw new Error(`WaveSpeed model list failed — HTTP ${res.status}`);
+    const hint =
+      res.status === 401
+        ? " — WAVESPEED_API_KEY is invalid or revoked; set a valid key on this deployment"
+        : "";
+    throw new ProviderUnavailableError(
+      `WaveSpeed model list failed — HTTP ${res.status}${hint}`,
+    );
   }
   const body = (await res.json()) as { data?: LiveModel[] };
 

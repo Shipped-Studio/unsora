@@ -4,6 +4,7 @@ import prisma from "../lib/db";
 import type { CatalogCategory } from "../config/catalog";
 import {
   CatalogInputError,
+  ProviderUnavailableError,
   getCatalog,
   isOwnMediaUrl,
   mediaUrls,
@@ -86,6 +87,14 @@ export function sendCatalogError(res: Response, error: unknown, context: string)
   }
   if (error instanceof PricingError) {
     return res.status(error.status).json({ success: false, error: error.message });
+  }
+  if (error instanceof ProviderUnavailableError) {
+    console.error(`[catalog] ${context}: provider unavailable:`, error.message);
+    return res.status(503).json({
+      success: false,
+      code: "PROVIDER_UNAVAILABLE",
+      error: "Generation is temporarily unavailable. Try again later.",
+    });
   }
   console.error(`[catalog] ${context}:`, error);
   return res.status(500).json({

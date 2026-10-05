@@ -442,8 +442,17 @@ export class WavespeedAPI {
 
 let wavespeedClient: WavespeedAPI | null = null;
 
+/**
+ * WAVESPEED_API_KEY as WaveSpeed expects it. Dashboard pastes often carry
+ * surrounding quotes or a trailing newline, which WaveSpeed rejects as an
+ * invalid key, so those are stripped. Empty string when unset.
+ */
+export function wavespeedApiKey(): string {
+  return (process.env.WAVESPEED_API_KEY ?? "").trim().replace(/^(["'])(.*)\1$/, "$2").trim();
+}
+
 function resolveWavespeedApiKey(): string {
-  const apiKey = process.env.WAVESPEED_API_KEY;
+  const apiKey = wavespeedApiKey();
   if (!apiKey) {
     throw new Error("WAVESPEED_API_KEY is not configured");
   }

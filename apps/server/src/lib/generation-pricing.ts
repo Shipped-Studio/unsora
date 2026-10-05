@@ -15,6 +15,8 @@
  *   Stripe fees, so 0.028 keeps the margin at or above 20% on every plan.
  */
 
+import { wavespeedApiKey } from "./wavespeed-api";
+
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
 const QUOTE_TTL_MS = 2 * 60 * 1000;
 const QUOTE_CACHE_MAX = 1000;
@@ -87,8 +89,11 @@ export async function quoteGeneration(
   const hit = quoteCache.get(key);
   if (hit && Date.now() - hit.at < QUOTE_TTL_MS) return hit.quote;
 
-  const apiKey = process.env.WAVESPEED_API_KEY;
-  if (!apiKey) throw new PricingError("WAVESPEED_API_KEY is not configured", 500);
+  const apiKey = wavespeedApiKey();
+  if (!apiKey) {
+    console.error("[pricing] WAVESPEED_API_KEY is not configured");
+    throw new PricingError("Generation is temporarily unavailable. Try again later.", 503);
+  }
 
   let res: Response;
   try {
@@ -119,6 +124,13 @@ export async function quoteGeneration(
       `[pricing] ${modelId} failed — HTTP ${res.status}:`,
       body.message ?? body,
     );
+    if (res.status === 401) {
+      console.error("[pricing] WAVESPEED_API_KEY is invalid or revoked on this deployment");
+      throw new PricingError(
+        "Generation is temporarily unavailable. Try again later.",
+        503,
+      );
+    }
     throw new PricingError("Couldn't price this generation. Try again.", 502);
   }
 
