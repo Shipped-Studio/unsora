@@ -48,7 +48,7 @@ export default async function ConnectedPage({
               />
             )}
           </div>
-          <h1 className="text-xl font-semibold">
+          <h1 className="font-display text-xl font-bold tracking-[-0.03em]">
             {ok ? `${name} connected` : `Couldn't connect ${name}`}
           </h1>
           {ok ? (

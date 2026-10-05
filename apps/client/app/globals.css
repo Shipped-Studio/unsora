@@ -8,6 +8,9 @@
   --font-sans: var(--font-dm-sans), "DM Sans", ui-sans-serif, system-ui,
     sans-serif;
   --font-mono: var(--font-dm-mono), "DM Mono", ui-monospace, monospace;
+  /* Headings, same as the landing site (tryunsora.com). */
+  --font-display: var(--font-sora), var(--font-dm-sans), ui-sans-serif,
+    system-ui, sans-serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -104,8 +107,9 @@
 }
 
 /*
- * Soft product look: a gray canvas, content on white panels, ink buttons and
- * one lime brand accent. `accent` is the neutral fill for selected nav, tabs,
+ * Same palette as the landing site: a warm paper canvas, content on white
+ * panels, neutral (untinted) greys, ink buttons and one lime brand
+ * accent. `accent` is the neutral fill for selected nav, tabs,
  * toggles and menu items.
  *
  * Radius scale (base 10px): xs 5 · sm 6 · md 8 · lg 10 (controls) ·
@@ -116,20 +120,20 @@
 .light {
   --radius: 0.625rem;
 
-  --background: #f3f3f7;
-  --foreground: #121218;
+  --background: #f4f4f0;
+  --foreground: #0a0a0a;
   --card: #ffffff;
-  --card-foreground: #121218;
+  --card-foreground: #0a0a0a;
   --popover: #ffffff;
-  --popover-foreground: #121218;
-  --primary: #0c0c0d;
-  --primary-foreground: #fafafa;
-  --secondary: #ededf3;
-  --secondary-foreground: #121218;
-  --muted: #f4f4f8;
-  --muted-foreground: #585870;
-  --accent: #e6e6ec;
-  --accent-foreground: #0c0c0d;
+  --popover-foreground: #0a0a0a;
+  --primary: #0a0a0a;
+  --primary-foreground: #fafaf7;
+  --secondary: #efefea;
+  --secondary-foreground: #0a0a0a;
+  --muted: #f5f5f1;
+  --muted-foreground: #62625e;
+  --accent: #e8e8e2;
+  --accent-foreground: #0a0a0a;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
   --success: #15803d;
@@ -137,35 +141,35 @@
   --warning: #b45309;
   --warning-foreground: #ffffff;
   --info: #2563eb;
-  --border: #e1e1ea;
+  --border: #e4e4de;
   /* Edge of fields and outline buttons: has to read on white cards too. */
-  --input: #c2c2ce;
-  --ring: #8c8ca0;
+  --input: #c6c6be;
+  --ring: #8e8e86;
 
   --brand: #e8ff6b;
   --brand-foreground: #0c0c0d;
 
-  --chart-1: #0c0c0d;
-  --chart-2: #6b8a14;
-  --chart-3: #64647a;
-  --chart-4: #8e8ea3;
+  --chart-1: #0a0a0a;
+  --chart-2: #7a9a20;
+  --chart-3: #6b6b66;
+  --chart-4: #9a9a93;
   --chart-5: #2563eb;
 
-  --sidebar: #f3f3f7;
-  --sidebar-foreground: #121218;
-  --sidebar-primary: #0c0c0d;
-  --sidebar-primary-foreground: #fafafa;
-  --sidebar-accent: #e6e6ec;
-  --sidebar-accent-foreground: #0c0c0d;
-  --sidebar-border: #e1e1ea;
-  --sidebar-ring: rgb(12 12 13 / 0.35);
+  --sidebar: #f4f4f0;
+  --sidebar-foreground: #0a0a0a;
+  --sidebar-primary: #0a0a0a;
+  --sidebar-primary-foreground: #fafaf7;
+  --sidebar-accent: #e8e8e2;
+  --sidebar-accent-foreground: #0a0a0a;
+  --sidebar-border: #e4e4de;
+  --sidebar-ring: rgb(10 10 10 / 0.35);
 
   /* Video and photo stage, and badges drawn on top of media. */
   --media: #000000;
   --media-foreground: #ffffff;
   --scrim: #000000;
   /* Modal backdrop (used at full strength, alpha is baked in). */
-  --overlay: rgb(18 18 24 / 0.32);
+  --overlay: rgb(10 10 10 / 0.32);
 
   /* Third-party brand marks. */
   --platform-linkedin: #0a66c2;
@@ -186,7 +190,7 @@
   --link-google-business: #1a73e8;
   --link-social: #0a6fe8;
 
-  --hatch: rgb(18 18 24 / 0.045);
+  --hatch: rgb(10 10 10 / 0.045);
 
   /* Soft status fills for badges, alerts and rows. */
   --info-foreground: #ffffff;
@@ -196,45 +200,45 @@
   --destructive-subtle: color-mix(in oklab, var(--destructive) 9%, transparent);
 
   /* The dark brand stage beside the auth forms (dark in both themes). */
-  --stage: #0c0c10;
-  --stage-foreground: #f4f4f7;
-  --stage-muted: #9a9aae;
-  --stage-card: #17171e;
+  --stage: #0a0a0a;
+  --stage-foreground: #f0f0f0;
+  --stage-muted: #a8a8a8;
+  --stage-card: #161616;
   --stage-border: rgb(255 255 255 / 0.08);
 
   /* Shadows tinted with the foreground ink, not pure black. */
-  --sh-2xs: 0 1px 1px rgb(18 18 24 / 0.03);
-  --sh-xs: 0 1px 2px rgb(18 18 24 / 0.05);
-  --sh-sm: 0 1px 2px rgb(18 18 24 / 0.04), 0 2px 8px -2px rgb(18 18 24 / 0.06);
-  --sh-md: 0 1px 2px rgb(18 18 24 / 0.04), 0 8px 24px -8px rgb(18 18 24 / 0.12);
-  --sh-lg: 0 1px 3px rgb(18 18 24 / 0.05), 0 16px 40px -12px rgb(18 18 24 / 0.18);
-  --sh-xl: 0 2px 4px rgb(18 18 24 / 0.05), 0 28px 64px -20px rgb(18 18 24 / 0.26);
+  --sh-2xs: 0 1px 1px rgb(10 10 10 / 0.03);
+  --sh-xs: 0 1px 2px rgb(10 10 10 / 0.05);
+  --sh-sm: 0 1px 2px rgb(10 10 10 / 0.04), 0 2px 8px -2px rgb(10 10 10 / 0.06);
+  --sh-md: 0 1px 2px rgb(10 10 10 / 0.04), 0 8px 24px -8px rgb(10 10 10 / 0.12);
+  --sh-lg: 0 1px 3px rgb(10 10 10 / 0.05), 0 16px 40px -12px rgb(10 10 10 / 0.18);
+  --sh-xl: 0 2px 4px rgb(10 10 10 / 0.05), 0 28px 64px -20px rgb(10 10 10 / 0.26);
 }
 
 .dark {
-  --background: #0c0c10;
-  --foreground: #ececf1;
-  --card: #15151b;
-  --card-foreground: #ececf1;
-  --popover: #17171d;
-  --popover-foreground: #ececf1;
+  --background: #0a0a0a;
+  --foreground: #f0f0f0;
+  --card: #121212;
+  --card-foreground: #f0f0f0;
+  --popover: #161616;
+  --popover-foreground: #f0f0f0;
   --primary: #e8ff6b;
-  --primary-foreground: #0c0c0d;
-  --secondary: #22222b;
-  --secondary-foreground: #ececf1;
-  --muted: #20202a;
-  --muted-foreground: #a6a6b8;
-  --accent: #2b2b36;
-  --accent-foreground: #ececf1;
+  --primary-foreground: #0a0a0a;
+  --secondary: #1e1e1e;
+  --secondary-foreground: #f0f0f0;
+  --muted: #1c1c1c;
+  --muted-foreground: #a8a8a8;
+  --accent: #272727;
+  --accent-foreground: #f0f0f0;
   --destructive: #f05252;
-  --destructive-foreground: #0c0c10;
+  --destructive-foreground: #0a0a0a;
   --success: #34c77b;
-  --success-foreground: #0c0c10;
+  --success-foreground: #0a0a0a;
   --warning: #f5a524;
-  --warning-foreground: #0c0c10;
+  --warning-foreground: #0a0a0a;
   --info: #60a5fa;
-  --border: #2d2d38;
-  --input: #4a4a5c;
+  --border: #2a2a2a;
+  --input: #474747;
   --ring: rgb(232 255 107 / 0.45);
 
   --brand: #e8ff6b;
@@ -242,31 +246,31 @@
 
   --chart-1: #e8ff6b;
   --chart-2: #9fb83a;
-  --chart-3: #9b9bad;
-  --chart-4: #6e6e85;
+  --chart-3: #a8a8a8;
+  --chart-4: #6e6e6e;
   --chart-5: #60a5fa;
 
-  --sidebar: #0c0c10;
-  --sidebar-foreground: #ececf1;
+  --sidebar: #0a0a0a;
+  --sidebar-foreground: #f0f0f0;
   --sidebar-primary: #e8ff6b;
-  --sidebar-primary-foreground: #0c0c0d;
-  --sidebar-accent: #2a2a34;
-  --sidebar-accent-foreground: #ececf1;
-  --sidebar-border: #2d2d38;
+  --sidebar-primary-foreground: #0a0a0a;
+  --sidebar-accent: #272727;
+  --sidebar-accent-foreground: #f0f0f0;
+  --sidebar-border: #2a2a2a;
   --sidebar-ring: rgb(232 255 107 / 0.45);
 
   --overlay: rgb(0 0 0 / 0.6);
 
   --hatch: rgb(255 255 255 / 0.045);
 
-  --info-foreground: #0c0c10;
+  --info-foreground: #0a0a0a;
   --success-subtle: color-mix(in oklab, var(--success) 16%, transparent);
   --warning-subtle: color-mix(in oklab, var(--warning) 16%, transparent);
   --info-subtle: color-mix(in oklab, var(--info) 16%, transparent);
   --destructive-subtle: color-mix(in oklab, var(--destructive) 16%, transparent);
 
-  --stage: #08080b;
-  --stage-card: #141419;
+  --stage: #070707;
+  --stage-card: #141414;
   --stage-border: rgb(255 255 255 / 0.07);
 
   --sh-2xs: 0 1px 1px rgb(0 0 0 / 0.3);

@@ -83,7 +83,7 @@ export function PageHeader({
           ))}
           </nav>
           ) : null}
-          <h1 className="truncate text-xl font-semibold tracking-tight text-foreground md:text-2xl">
+          <h1 className="truncate font-display text-xl font-bold tracking-[-0.03em] text-foreground md:text-2xl">
             {resolvedTitle}
           </h1>
         </div>

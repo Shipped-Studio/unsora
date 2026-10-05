@@ -31,7 +31,7 @@ export function AuthShowcase() {
           <span className="size-1.5 rounded-full bg-brand" />
           Social scheduler and AI studio
         </span>
-        <h2 className="text-3xl leading-tight font-semibold tracking-tight xl:text-4xl">
+        <h2 className="font-display text-3xl leading-[1.08] font-bold tracking-[-0.04em] xl:text-4xl">
           Create it once.
           <br />
           <span className="text-stage-muted">Post it everywhere.</span>

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DM_Mono, DM_Sans } from "next/font/google";
+import { DM_Mono, DM_Sans, Sora } from "next/font/google";
 import "./globals.css";
 import AllProvider from "@/contexts/all-provider";
 
@@ -12,6 +12,12 @@ const dmMono = DM_Mono({
   variable: "--font-dm-mono",
   subsets: ["latin"],
   weight: ["300", "400", "500"],
+});
+
+const sora = Sora({
+  variable: "--font-sora",
+  subsets: ["latin"],
+  weight: ["600", "700"],
 });
 
 const DESCRIPTION =
@@ -52,7 +58,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${dmSans.variable} ${dmMono.variable}`}
+        className={`${dmSans.variable} ${dmMono.variable} ${sora.variable}`}
       >
         <AllProvider>{children}</AllProvider>
       </body>

@@ -33,7 +33,7 @@ export function AuthHeader({
 }) {
   return (
     <div className="space-y-2">
-      <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+      <h1 className="font-display text-2xl font-bold tracking-[-0.03em] text-foreground">
         {title}
       </h1>
       {description ? (
