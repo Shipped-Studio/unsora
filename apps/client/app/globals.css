@@ -352,6 +352,60 @@
   );
 }
 
+/* Motion for the drawn tool scenes (components/graphics). In galleries they
+   only move while the card is hovered or focused; empty states keep moving.
+   The reduced-motion rule below stops all of it. */
+@theme {
+  --animate-art-progress: art-progress 2.8s ease-in-out infinite;
+  --animate-art-eq: art-eq 0.9s ease-in-out infinite alternate;
+  --animate-art-float: art-float 3.2s ease-in-out infinite;
+  --animate-art-scan: art-scan 2.6s ease-in-out infinite alternate;
+  --animate-art-blink: art-blink 1s step-end infinite;
+  --animate-art-spin: art-spin 6s linear infinite;
+  --animate-art-pop: art-pop 2.4s ease-in-out infinite;
+  --animate-art-wipe: art-wipe 2.6s ease-in-out infinite alternate;
+
+  @keyframes art-progress {
+    0% { transform: scaleX(0); }
+    70%, 100% { transform: scaleX(1); }
+  }
+  @keyframes art-eq {
+    from { transform: scaleY(0.35); }
+    to { transform: scaleY(1); }
+  }
+  @keyframes art-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6%); }
+  }
+  @keyframes art-scan {
+    from { left: 8%; }
+    to { left: 88%; }
+  }
+  @keyframes art-blink {
+    50% { opacity: 0; }
+  }
+  @keyframes art-spin {
+    to { transform: rotate(360deg); }
+  }
+  /* Same timing as art-scan: text to the left of the scan line is gone. */
+  @keyframes art-wipe {
+    from { clip-path: inset(0 0 0 8%); }
+    to { clip-path: inset(0 0 0 88%); }
+  }
+  @keyframes art-pop {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+  }
+}
+
+[data-art-motion="hover"] * {
+  animation-play-state: paused;
+}
+.group:hover [data-art-motion="hover"] *,
+.group:focus-visible [data-art-motion="hover"] * {
+  animation-play-state: running;
+}
+
 @utility no-scrollbar {
   scrollbar-width: none;
   &::-webkit-scrollbar {

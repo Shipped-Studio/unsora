@@ -6,6 +6,7 @@ import { FolderOpen, UploadSimple } from "@phosphor-icons/react";
 import { PageBody, PageHeader } from "@/components/layout/page-header";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { EmptyState, ErrorState } from "@/components/shared/states";
+import { EmptyArt } from "@/components/graphics/empty-art";
 import {
   LIBRARY_GRID_CLASS,
   LIBRARY_ROWS_CLASS,
@@ -252,6 +253,7 @@ function LibraryView() {
       content = (
         <EmptyState
           icon={FolderOpen}
+          art={<EmptyArt name="library" />}
           title={folder === "none" ? "No unfiled files" : "This folder is empty"}
           description={
             folder === "none"
@@ -273,6 +275,7 @@ function LibraryView() {
       content = (
         <EmptyState
           icon={FolderOpen}
+          art={<EmptyArt name="library" />}
           title={copy.title}
           description={copy.description}
           action={{ label: "Upload", onClick: openFilePicker }}

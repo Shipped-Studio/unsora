@@ -17,6 +17,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageSection } from "@/components/layout/page-header";
 import { EmptyState, ErrorState } from "@/components/shared/states";
+import { EmptyArt } from "@/components/graphics/empty-art";
 import { PlatformIcon } from "@/components/scheduler/platform-icon";
 import { Spinner } from "@/components/ui/spinner";
 import { TrendChart } from "./trend-chart";
@@ -197,6 +198,7 @@ export function AnalyticsView() {
         {toolbar}
         <EmptyState
           icon={ChartBar}
+          art={<EmptyArt name="analytics" />}
           title={`Nothing published in the last ${days} days`}
           description="Stats appear here once posts go out. They update every few hours, or when you press Update stats."
           action={{ label: "New post", href: "/scheduler/new" }}

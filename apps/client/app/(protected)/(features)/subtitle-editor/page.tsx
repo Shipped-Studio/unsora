@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { DownloadSimple, Plus, Subtitles } from "@phosphor-icons/react";
 import { ToolPage } from "@/components/generator/tool-layout";
 import { EmptyState, ErrorState } from "@/components/shared/states";
+import { ToolArt } from "@/components/graphics/tool-art";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DeleteDialog } from "@/components/subtitle-editor/delete-dialog";
@@ -117,6 +118,7 @@ function ProjectsList({ onNewProject }: { onNewProject: () => void }) {
         ) : (
           <EmptyState
             icon={Subtitles}
+            art={<ToolArt href="/subtitle-editor" />}
             title="No subtitle projects yet"
             description="Upload a video to transcribe it and style its subtitles."
             action={{ label: "New project", onClick: onNewProject }}

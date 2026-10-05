@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import {
@@ -8,8 +9,11 @@ import {
   Circle,
   NotePencil,
   Robot,
+  ShareNetwork,
 } from "@phosphor-icons/react";
 import { buttonVariants } from "@/components/ui/button";
+import { UNSORA_LOGO } from "@/constant/brand";
+import { ClaudeCodeIcon, ClaudeIcon, CursorIcon, OpenAIIcon } from "@/components/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageSection } from "@/components/layout/page-header";
 import { ErrorState } from "@/components/shared/states";
@@ -17,6 +21,7 @@ import { AgentMediaList, AgentMediaRow } from "@/components/home/agent-media-row
 import { AccountStack } from "@/components/scheduler/account-avatar";
 import { PostSheet } from "@/components/scheduler/post-sheet";
 import { PostThumb } from "@/components/scheduler/post-thumb";
+import { PlatformIcon } from "@/components/scheduler/platform-icon";
 import { useApiKeys } from "@/components/api-keys/use-api-keys";
 import { useAnalyticsSummary } from "@/hooks/use-analytics";
 import { useConnectedAccounts } from "@/hooks/use-connected-accounts";
@@ -41,6 +46,106 @@ function EmptyRow({
   return (
     <div className="flex flex-col items-start gap-3 rounded-xl bg-muted p-4 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm text-muted-foreground">{children}</p>
+      {action}
+    </div>
+  );
+}
+
+/** The platforms Unsora publishes to today ("google" is YouTube). */
+const PLATFORMS = ["instagram", "tiktok", "google", "facebook", "x", "bluesky"];
+
+/**
+ * The Unsora mark on the black media stage, so it reads the same in light and
+ * dark mode (the white logo is the dark-mode version).
+ */
+function LogoTile({ className }: { className?: string }) {
+  return (
+    <span className={cn("grid place-items-center bg-media ring-4 ring-brand/70", className)}>
+      <Image src={UNSORA_LOGO.logoLight} alt="" width={32} height={32} className="size-[58%]" />
+    </span>
+  );
+}
+
+/** Every platform Unsora posts to, orbiting the Unsora mark. Decorative. */
+function PlatformOrbit() {
+  return (
+    <div aria-hidden className="relative mx-auto h-52 w-full max-w-md">
+      <span className="absolute inset-x-[12%] inset-y-[14%] rounded-[50%] border border-dashed border-foreground/10" />
+      <span className="absolute inset-x-[30%] inset-y-[32%] rounded-[50%] border border-dashed border-foreground/10" />
+      <LogoTile className="absolute top-1/2 left-1/2 size-14 -translate-x-1/2 -translate-y-1/2 rounded-2xl" />
+      {PLATFORMS.map((provider, i) => {
+        // Around the outer ellipse (38% × 36% radii), starting at the top. The
+        // sin term spreads the angles out near the narrow left and right ends,
+        // so the badges sit evenly along the wide, flat curve.
+        const t = (i / PLATFORMS.length) * 2 * Math.PI - Math.PI / 2;
+        const angle = t + 0.2 * Math.sin(2 * t);
+        const left = (50 + 38 * Math.cos(angle)).toFixed(2);
+        const top = (50 + 36 * Math.sin(angle)).toFixed(2);
+        return (
+          <span
+            key={provider}
+            className="absolute -translate-x-1/2 -translate-y-1/2"
+            style={{ left: `${left}%`, top: `${top}%` }}
+          >
+            <span
+              className="block animate-art-float rounded-full bg-card p-1"
+              style={{ animationDelay: `${i * -0.45}s` }}
+            >
+              <PlatformIcon provider={provider} className="size-10" />
+            </span>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+const AGENTS = [
+  { name: "Claude", icon: ClaudeIcon },
+  { name: "ChatGPT", icon: OpenAIIcon },
+  { name: "Cursor", icon: CursorIcon },
+  { name: "Claude Code", icon: ClaudeCodeIcon },
+];
+
+/** Agent marks feeding into the Unsora mark. Decorative. */
+function AgentChain() {
+  return (
+    <div aria-hidden className="flex items-center justify-center gap-3">
+      <div className="flex -space-x-2">
+        {AGENTS.map(({ name, icon: AgentIcon }) => (
+          <span
+            key={name}
+            className="grid size-10 place-items-center rounded-full bg-card text-foreground ring-2 ring-muted"
+          >
+            <AgentIcon className="size-5" />
+          </span>
+        ))}
+      </div>
+      <span className="w-8 border-t-2 border-dashed border-foreground/20" />
+      <LogoTile className="size-11 rounded-xl" />
+    </div>
+  );
+}
+
+/** Empty list slot with a graphic on top, centred. */
+function EmptyPanel({
+  art,
+  title,
+  children,
+  action,
+}: {
+  art: React.ReactNode;
+  title?: string;
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-4 rounded-xl bg-muted px-5 py-6 text-center">
+      {art}
+      <div className="space-y-1">
+        {title ? <p className="text-sm font-medium text-foreground">{title}</p> : null}
+        <p className="mx-auto max-w-sm text-sm text-muted-foreground">{children}</p>
+      </div>
       {action}
     </div>
   );
@@ -120,14 +225,15 @@ function Setup({
   if (done === steps.length) return null;
 
   return (
-    <div className="overflow-hidden rounded-xl bg-muted">
-      <div className="flex items-center justify-between border-b border-card px-4 py-3">
-        <h2 className="text-sm font-semibold">Get set up</h2>
+    <PageSection
+      title="Get set up"
+      actions={
         <span className="text-xs text-muted-foreground tabular-nums">
           {done} of {steps.length}
         </span>
-      </div>
-      <ul className="divide-y divide-card">
+      }
+    >
+      <ul className="divide-y divide-card overflow-hidden rounded-xl bg-muted">
         {steps.map((step) => (
           <li key={step.label}>
             <Link
@@ -151,7 +257,7 @@ function Setup({
           </li>
         ))}
       </ul>
-    </div>
+    </PageSection>
   );
 }
 
@@ -183,6 +289,9 @@ export function HomeView() {
     byDay.set(key, [...(byDay.get(key) ?? []), post]);
   }
 
+  // While loading, assume accounts exist so the empty state doesn't flash
+  // "Connect an account".
+  const hasAccounts = accounts.isLoading || (accounts.data?.length ?? 0) > 0;
   const c = counts.data?.counts;
   const tiles = [
     { label: "Scheduled", value: c ? c.SCHEDULED + c.PUBLISHING : null, failed: counts.isError, href: "/scheduler/posts?status=scheduled" },
@@ -227,7 +336,6 @@ export function HomeView() {
         <div className="min-w-0 space-y-8">
           <PageSection
             title="Up next"
-            description="Scheduled for the next 7 days."
             actions={
               <Link
                 href="/scheduler/calendar"
@@ -247,19 +355,26 @@ export function HomeView() {
                 onRetry={() => void upcoming.refetch()}
               />
             ) : byDay.size === 0 ? (
-              <EmptyRow
+              <EmptyPanel
+                art={<PlatformOrbit />}
+                title="Nothing scheduled in the next 7 days"
                 action={
-                  <Link
-                    href="/scheduler/new"
-                    className={buttonVariants({ variant: "outline", size: "sm" })}
-                  >
-                    <NotePencil />
-                    New post
-                  </Link>
+                  hasAccounts ? (
+                    <Link href="/scheduler/new" className={buttonVariants({ size: "sm" })}>
+                      <NotePencil />
+                      New post
+                    </Link>
+                  ) : (
+                    <Link href="/scheduler/accounts" className={buttonVariants({ size: "sm" })}>
+                      <ShareNetwork />
+                      Connect an account
+                    </Link>
+                  )
                 }
               >
-                Nothing scheduled this week.
-              </EmptyRow>
+                Plan posts for Instagram, TikTok, YouTube, Facebook, X and Bluesky from one
+                calendar.
+              </EmptyPanel>
             ) : (
               <div className="space-y-4">
                 {[...byDay.entries()].map(([key, posts]) => (
@@ -308,20 +423,18 @@ export function HomeView() {
                 onRetry={() => void fromAgents.refetch()}
               />
             ) : (fromAgents.data?.items.length ?? 0) === 0 ? (
-              <EmptyRow
+              <EmptyPanel
+                art={<AgentChain />}
                 action={
-                  <Link
-                    href="/connect-agent"
-                    className={buttonVariants({ variant: "outline", size: "sm" })}
-                  >
+                  <Link href="/connect-agent" className={buttonVariants({ size: "sm" })}>
                     <Robot />
                     Connect an agent
                   </Link>
                 }
               >
-                Images and videos your agent makes through the Unsora MCP server or API show up
-                here, ready to schedule.
-              </EmptyRow>
+                Images and videos Claude, ChatGPT or Cursor make through Unsora show up here,
+                ready to schedule.
+              </EmptyPanel>
             ) : (
               <AgentMediaList>
                 {fromAgents.data!.items.map((item) => (

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { EmptyState, ErrorState } from "@/components/shared/states";
+import { EmptyArt } from "@/components/graphics/empty-art";
 import { AccountStack } from "@/components/scheduler/account-avatar";
 import { PostSheet } from "@/components/scheduler/post-sheet";
 import { PostStatusBadge } from "@/components/scheduler/post-status-badge";
@@ -83,6 +84,7 @@ function Upcoming({ timeZone, onOpen }: { timeZone: string; onOpen: (id: string)
     return (
       <EmptyState
         icon={Queue}
+        art={<EmptyArt name="queue" />}
         title="Your queue is empty"
         description="Schedule a post, or add posting times so Add to queue knows when to post."
         action={{ label: "New post", href: "/scheduler/new" }}

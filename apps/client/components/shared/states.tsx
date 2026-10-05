@@ -17,6 +17,8 @@ import { cn } from "@/lib/utils";
 
 interface EmptyStateProps {
   icon?: Icon;
+  /** A drawn scene (components/graphics), shown instead of the icon. */
+  art?: React.ReactNode;
   title: string;
   description?: React.ReactNode;
   action?: { label: string; href?: string; onClick?: () => void };
@@ -49,6 +51,7 @@ function ActionButton({
 
 export function EmptyState({
   icon: IconComponent,
+  art,
   title,
   description,
   action,
@@ -64,7 +67,9 @@ export function EmptyState({
       )}
     >
       <EmptyHeader>
-        {IconComponent ? (
+        {art ? (
+          <div className="mb-1 w-full max-w-xs">{art}</div>
+        ) : IconComponent ? (
           <EmptyMedia variant="icon">
             <IconComponent />
           </EmptyMedia>

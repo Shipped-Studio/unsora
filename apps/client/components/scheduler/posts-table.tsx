@@ -58,6 +58,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState, ErrorState } from "@/components/shared/states";
+import { EmptyArt } from "@/components/graphics/empty-art";
 import { AccountStack } from "@/components/scheduler/account-avatar";
 import { PostSheet } from "@/components/scheduler/post-sheet";
 import { PostStatusBadge } from "@/components/scheduler/post-status-badge";
@@ -418,6 +419,7 @@ export function PostsTable() {
         ) : (
           <EmptyState
             icon={ListChecks}
+            art={<EmptyArt name={tab === "drafts" ? "drafts" : "posts"} />}
             title={EMPTY_COPY[tab]?.title ?? "No posts"}
             description={EMPTY_COPY[tab]?.description}
             action={{ label: "New post", href: "/scheduler/new" }}

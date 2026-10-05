@@ -20,6 +20,7 @@ import {
   Plugs,
   Scissors,
   ShareNetwork,
+  SquaresFour,
   TextT,
   UserFocus,
   UserSound,
@@ -104,6 +105,12 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: "Create",
     items: [
+      {
+        label: "All tools",
+        href: "/create",
+        icon: SquaresFour,
+        description: "Every AI tool, grouped by what it makes",
+      },
       {
         label: "Video",
         href: "/video-generator",
@@ -253,6 +260,38 @@ const UNLISTED: NavItem[] = [
 export const ALL_NAV_ITEMS: NavItem[] = [
   ...NAV_SECTIONS.flatMap((s) => [...s.items, ...(s.more ?? [])]),
   ...UNLISTED,
+];
+
+/** The Create tools as the /create page groups them, by route. */
+export const TOOL_GROUPS: { label: string; hrefs: string[] }[] = [
+  {
+    label: "Video",
+    hrefs: [
+      "/video-generator",
+      "/ai-clipping",
+      "/ai-avatar-maker",
+      "/motion-control",
+      "/video-upscaler",
+    ],
+  },
+  {
+    label: "Image",
+    hrefs: [
+      "/image-generator",
+      "/thumbnail-generator",
+      "/ai-influencer-studio",
+      "/movie-materials-generator",
+      "/image-upscaler",
+    ],
+  },
+  {
+    label: "Audio",
+    hrefs: ["/voice-generator", "/voice-changer", "/music-generator"],
+  },
+  {
+    label: "Captions",
+    hrefs: ["/subtitle-editor", "/subtitle-remover"],
+  },
 ];
 
 export function isNavItemActive(item: NavItem, pathname: string) {
