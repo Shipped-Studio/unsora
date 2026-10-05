@@ -10,6 +10,27 @@ import { uploadUrlToStorage } from "../lib/upload";
  */
 
 const PINTEREST_API = "https://api.pinterest.com/v5";
+const PINTEREST_SANDBOX_API = "https://api-sandbox.pinterest.com/v5";
+
+/**
+ * Where board, pin and analytics calls go, and with which token.
+ *
+ * Trial-access apps can only create pins in Pinterest's sandbox, and the
+ * sandbox accepts only a token generated in the developer portal (OAuth tokens
+ * don't work there). When PINTEREST_SANDBOX_TOKEN is set — on test
+ * deployments only — every data call uses the sandbox with that token.
+ * Connecting an account (OAuth, profile lookup) always uses production.
+ */
+export function pinterestData(accessToken: string): {
+  base: string;
+  token: string;
+  sandbox: boolean;
+} {
+  const sandboxToken = process.env.PINTEREST_SANDBOX_TOKEN?.trim();
+  return sandboxToken
+    ? { base: PINTEREST_SANDBOX_API, token: sandboxToken, sandbox: true }
+    : { base: PINTEREST_API, token: accessToken, sandbox: false };
+}
 
 const pinterestScopes = [
   "user_accounts:read", // profile info at connect time
@@ -125,9 +146,10 @@ export async function getPinterestBoards(
   const boards: PinterestBoard[] = [];
   let bookmark: string | undefined;
 
+  const api = pinterestData(accessToken);
   do {
-    const res = await axios.get(`${PINTEREST_API}/boards`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+    const res = await axios.get(`${api.base}/boards`, {
+      headers: { Authorization: `Bearer ${api.token}` },
       params: { page_size: 100, ...(bookmark ? { bookmark } : {}) },
     });
 

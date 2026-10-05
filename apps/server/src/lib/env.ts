@@ -93,6 +93,9 @@ const schema = z.object({
   PINTEREST_APP_ID: optional,
   PINTEREST_APP_SECRET: optional,
   PINTEREST_REDIRECT: optional,
+  // Test deployments only: send board/pin calls to Pinterest's sandbox with
+  // this portal-generated token (Trial-access apps can only pin there).
+  PINTEREST_SANDBOX_TOKEN: optional,
   X_CLIENT_ID: optional,
   X_CLIENT_SECRET: optional,
   X_REDIRECT: optional,

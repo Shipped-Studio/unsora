@@ -1,7 +1,7 @@
 import { SocialAccount } from "@prisma/client";
 import type { PostMediaWithAsset } from "../post.service";
 import axios from "axios";
-import { getPinterestBoards } from "../../oauth/pinterest";
+import { getPinterestBoards, pinterestData } from "../../oauth/pinterest";
 
 /**
  * Pinterest API Service (v5)
@@ -14,8 +14,6 @@ import { getPinterestBoards } from "../../oauth/pinterest";
  * Videos use the register-upload flow: POST /media → upload file to the
  * returned AWS url → poll processing → create the pin with the media id.
  */
-
-const BASE_URL = "https://api.pinterest.com/v5";
 
 /** Pinterest limits: title 100 chars, description 800 chars. */
 const MAX_TITLE_LENGTH = 100;
@@ -35,6 +33,8 @@ export interface PinterestPostSettings {
 
 type PostType = "VIDEO" | "IMAGE" | "TEXT" | "CAROUSEL";
 
+type PinterestApi = ReturnType<typeof pinterestData>;
+
 export class PinterestService {
   async publishPost(
     postType: PostType,
@@ -44,6 +44,7 @@ export class PinterestService {
     settings?: Record<string, unknown> | null,
   ): Promise<{ postId: string; postUrl: string }> {
     const options = (settings ?? {}) as PinterestPostSettings;
+    const api = pinterestData(account.accessToken);
 
     try {
       const boardId = await this.resolveBoardId(account, options);
@@ -61,7 +62,7 @@ export class PinterestService {
       let mediaSource: Record<string, unknown>;
 
       if (postType === "VIDEO") {
-        mediaSource = await this.buildVideoSource(account.accessToken, media);
+        mediaSource = await this.buildVideoSource(api, media);
       } else if (postType === "IMAGE" || postType === "CAROUSEL") {
         mediaSource = this.buildImageSource(media);
       } else {
@@ -71,9 +72,9 @@ export class PinterestService {
       }
 
       const response = await axios.post(
-        `${BASE_URL}/pins`,
+        `${api.base}/pins`,
         { ...basePin, media_source: mediaSource },
-        { headers: { Authorization: `Bearer ${account.accessToken}` } },
+        { headers: { Authorization: `Bearer ${api.token}` } },
       );
 
       const pinId = response.data.id as string;
@@ -140,7 +141,7 @@ export class PinterestService {
 
   /** Register + upload + process a video, returning the pin media_source. */
   private async buildVideoSource(
-    accessToken: string,
+    api: PinterestApi,
     media: PostMediaWithAsset[],
   ): Promise<Record<string, unknown>> {
     const videoMedia = media.find((m) => m.type === "VIDEO");
@@ -151,9 +152,9 @@ export class PinterestService {
 
     // 1. Register the upload.
     const registration = await axios.post(
-      `${BASE_URL}/media`,
+      `${api.base}/media`,
       { media_type: "video" },
-      { headers: { Authorization: `Bearer ${accessToken}` } },
+      { headers: { Authorization: `Bearer ${api.token}` } },
     );
 
     const { media_id, upload_url, upload_parameters } = registration.data;
@@ -182,7 +183,7 @@ export class PinterestService {
     });
 
     // 3. Wait for processing.
-    await this.waitForMediaProcessing(accessToken, media_id);
+    await this.waitForMediaProcessing(api, media_id);
 
     return {
       source_type: "video_id",
@@ -194,14 +195,14 @@ export class PinterestService {
   }
 
   private async waitForMediaProcessing(
-    accessToken: string,
+    api: PinterestApi,
     mediaId: string,
     maxAttempts: number = 60,
     intervalMs: number = 5000,
   ): Promise<void> {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const response = await axios.get(`${BASE_URL}/media/${mediaId}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const response = await axios.get(`${api.base}/media/${mediaId}`, {
+        headers: { Authorization: `Bearer ${api.token}` },
       });
 
       const status = response.data.status;
