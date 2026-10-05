@@ -14,6 +14,7 @@ const PINTEREST_API = "https://api.pinterest.com/v5";
 const pinterestScopes = [
   "user_accounts:read", // profile info at connect time
   "boards:read", // board picker for publishing
+  "boards:write", // POST /pins also requires it (Pinterest answers 401 code 3 without)
   "pins:read", // pin analytics
   "pins:write", // create pins
 ];

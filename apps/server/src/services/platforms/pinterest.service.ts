@@ -239,6 +239,13 @@ export class PinterestService {
     });
 
     if (error.response?.status === 401) {
+      // Code 3: the token works but lacks a scope (accounts connected before
+      // a scope was added). Reconnecting grants it.
+      if (apiError?.code === 3) {
+        throw new Error(
+          "Pinterest needs an extra permission to post. Please reconnect your Pinterest account.",
+        );
+      }
       throw new Error(
         "Pinterest access token is invalid or expired. Please reconnect your account.",
       );
