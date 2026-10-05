@@ -60,6 +60,7 @@ export function PageHeader({
         variant="ghost"
         size="icon-sm"
         aria-label="Open navigation"
+        data-tour="mobile-nav"
         className="-ml-1 md:hidden"
         onClick={() => setOpen(true)}
       >

@@ -18,7 +18,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { WarningCircle, X } from "@phosphor-icons/react";
+import { Info, WarningCircle, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import type { MediaItem } from "@/lib/scheduler/composer-state";
@@ -96,8 +96,12 @@ function SortableTile({
           title={item.status === "error" ? item.error : warning}
           className="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded-full bg-scrim/70 px-1.5 py-0.5 text-2xs text-media-foreground"
         >
-          <WarningCircle className="size-3 text-warning" />
-          {item.status === "error" ? "Upload failed" : "Aspect ratio"}
+          {item.status === "error" ? (
+            <WarningCircle className="size-3 text-warning" />
+          ) : (
+            <Info className="size-3" />
+          )}
+          {item.status === "error" ? "Upload failed" : "Padded"}
         </span>
       ) : null}
     </div>

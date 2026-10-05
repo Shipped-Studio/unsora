@@ -1,7 +1,8 @@
 /**
  * What every platform can publish, and the four post formats the composer
- * offers. This mirrors the server's platform services and
- * server/src/lib/post-rules.ts; change them together.
+ * offers. This mirrors the server's platform services,
+ * server/src/lib/post-rules.ts and server/src/lib/platform-media.ts; change
+ * them together.
  */
 
 export type Provider =
@@ -25,8 +26,17 @@ export interface FormatRule {
   minVideoSeconds?: number;
   maxVideoSeconds?: number;
   maxVideoBytes?: number;
-  /** Allowed width / height range for each image. */
+  /**
+   * Allowed width / height range for each image. The server pads images
+   * outside it at publish time, so it's shown as a note, not an error.
+   */
   aspect?: { min: number; max: number; label: string };
+  /**
+   * Multi-image posts, also fixed by the server at publish time:
+   * "first-ratio" pads every image to the first one's shape (Instagram),
+   * "same-size" makes them the same pixel size (Pinterest).
+   */
+  carousel?: "first-ratio" | "same-size";
 }
 
 export interface PlatformSpec {
@@ -61,16 +71,18 @@ export const PLATFORMS: Record<Provider, PlatformSpec> = {
     captionLimit: 2200,
     videoCover: true,
     formats: {
-      video: { minVideoSeconds: 3, maxVideoSeconds: 15 * 60 },
+      video: { minVideoSeconds: 3, maxVideoSeconds: 15 * 60, maxVideoBytes: 300 * MB },
       photos: {
         minImages: 1,
         maxImages: 10,
         aspect: { min: 0.8, max: 1.91, label: "between 4:5 and 1.91:1" },
+        carousel: "first-ratio",
       },
       slideshow: {
         minImages: 2,
         maxImages: 10,
         aspect: { min: 0.8, max: 1.91, label: "between 4:5 and 1.91:1" },
+        carousel: "first-ratio",
       },
     },
     connectNote: "Needs an Instagram business or creator account.",
@@ -83,7 +95,7 @@ export const PLATFORMS: Record<Provider, PlatformSpec> = {
     captionLimit: 2200,
     videoCover: false,
     formats: {
-      video: { minVideoSeconds: 3 },
+      video: { minVideoSeconds: 3, maxVideoSeconds: 10 * 60 },
       photos: { minImages: 1, maxImages: 35 },
       slideshow: { minImages: 1, maxImages: 35 },
     },
@@ -124,7 +136,7 @@ export const PLATFORMS: Record<Provider, PlatformSpec> = {
     captionLimit: 500,
     videoCover: false,
     formats: {
-      video: {},
+      video: { maxVideoSeconds: 5 * 60, maxVideoBytes: 1024 * MB },
       photos: { minImages: 1, maxImages: 20 },
       slideshow: { minImages: 2, maxImages: 20 },
       text: {},
@@ -153,8 +165,8 @@ export const PLATFORMS: Record<Provider, PlatformSpec> = {
     title: { limit: 100, required: false, label: "Pin title" },
     videoCover: true,
     formats: {
-      video: {},
-      photos: { minImages: 1, maxImages: 5 },
+      video: { minVideoSeconds: 4, maxVideoSeconds: 15 * 60, maxVideoBytes: 2048 * MB },
+      photos: { minImages: 1, maxImages: 5, carousel: "same-size" },
     },
   },
   linkedin: {
@@ -165,7 +177,7 @@ export const PLATFORMS: Record<Provider, PlatformSpec> = {
     captionLimit: 3000,
     videoCover: false,
     formats: {
-      video: {},
+      video: { minVideoSeconds: 3, maxVideoSeconds: 30 * 60, maxVideoBytes: 500 * MB },
       photos: { minImages: 1, maxImages: 20 },
       text: {},
     },

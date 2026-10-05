@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   CalendarBlank,
   CaretDown,
   CheckCircle,
   Circle,
+  Info,
   PaperPlaneTilt,
   Queue,
   WarningCircle,
@@ -85,6 +86,34 @@ function scrollToSection(id: string) {
     ?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
 }
 
+function IssueRow({
+  issue,
+  accounts,
+  fallback,
+}: {
+  issue: Issue;
+  accounts: ConnectedAccount[];
+  fallback: ReactNode;
+}) {
+  const account = accounts.find((a) => a.id === issue.accountId);
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => scrollToSection(SECTION_FOR[issue.field])}
+        className="flex w-full items-start gap-2.5 px-4 py-2.5 text-left text-sm outline-none transition-colors hover:bg-secondary focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
+      >
+        {account ? (
+          <AccountAvatar account={account} size="xs" className="mt-0.5" />
+        ) : (
+          fallback
+        )}
+        <span className="text-muted-foreground">{issue.message}</span>
+      </button>
+    </li>
+  );
+}
+
 function Checklist({
   issues,
   accounts,
@@ -96,11 +125,41 @@ function Checklist({
   attempted: boolean;
 }) {
   const errors = issues.filter((issue) => issue.level === "error");
+  // Things the server adjusts at publish time (padding, resizing). They never
+  // block, but people should know their images will change.
+  const notes = issues.filter((issue) => issue.level === "warning");
+
+  const notesList = notes.length ? (
+    <>
+      <p className="border-b border-border px-4 py-2.5 text-sm font-semibold">
+        Adjusted automatically
+      </p>
+      <ul className="divide-y divide-border">
+        {notes.map((issue, index) => (
+          <IssueRow
+            key={`${issue.message}-${index}`}
+            issue={issue}
+            accounts={accounts}
+            fallback={<Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />}
+          />
+        ))}
+      </ul>
+    </>
+  ) : null;
+
   if (!errors.length) {
     return (
-      <div className="flex items-center gap-2 rounded-xl bg-muted px-4 py-3 text-sm">
-        <CheckCircle weight="fill" className="size-4 text-success" />
-        Ready to schedule
+      <div className="overflow-hidden rounded-xl bg-muted">
+        <div
+          className={cn(
+            "flex items-center gap-2 px-4 py-3 text-sm",
+            notes.length && "border-b border-border",
+          )}
+        >
+          <CheckCircle weight="fill" className="size-4 text-success" />
+          Ready to schedule
+        </div>
+        {notesList}
       </div>
     );
   }
@@ -113,29 +172,23 @@ function Checklist({
             ? "1 thing to fix"
             : `${errors.length} things to fix`}
       </p>
-      <ul className="divide-y divide-border">
-        {errors.map((issue, index) => {
-          const account = accounts.find((a) => a.id === issue.accountId);
-          return (
-            <li key={`${issue.message}-${index}`}>
-              <button
-                type="button"
-                onClick={() => scrollToSection(SECTION_FOR[issue.field])}
-                className="flex w-full items-start gap-2.5 px-4 py-2.5 text-left text-sm outline-none transition-colors hover:bg-secondary focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
-              >
-                {account ? (
-                  <AccountAvatar account={account} size="xs" className="mt-0.5" />
-                ) : attempted ? (
-                  <WarningCircle className="mt-0.5 size-4 shrink-0 text-warning" />
-                ) : (
-                  <Circle className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                )}
-                <span className="text-muted-foreground">{issue.message}</span>
-              </button>
-            </li>
-          );
-        })}
+      <ul className={cn("divide-y divide-border", notes.length && "border-b border-border")}>
+        {errors.map((issue, index) => (
+          <IssueRow
+            key={`${issue.message}-${index}`}
+            issue={issue}
+            accounts={accounts}
+            fallback={
+              attempted ? (
+                <WarningCircle className="mt-0.5 size-4 shrink-0 text-warning" />
+              ) : (
+                <Circle className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+              )
+            }
+          />
+        ))}
       </ul>
+      {notesList}
     </div>
   );
 }
@@ -406,6 +459,7 @@ export function Composer({
                   composer={composer}
                   onOpenLibrary={() => setLibraryOpen(true)}
                   showCover={showCover}
+                  selectedAccounts={selectedAccounts}
                 />
               ) : state.format === "slideshow" ? (
                 <SlideshowEditor

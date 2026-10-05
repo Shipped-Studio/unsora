@@ -374,6 +374,8 @@ export function validate(
           message: `${name} needs at least ${rule.minImages} images for this format.`,
         });
       }
+      // Ratio and carousel shape are fixed by the server at publish time
+      // (server/src/lib/platform-media-fix.ts), so they're notes, not errors.
       if (rule.aspect) {
         const off = images.filter((img) => {
           if (!img.width || !img.height) return false;
@@ -382,10 +384,33 @@ export function validate(
         });
         if (off.length) {
           issues.push({
-            level: "error",
+            level: "warning",
             field: "media",
             accountId: account.id,
-            message: `${name} needs images ${rule.aspect.label}. ${off.length === 1 ? "One image is" : `${off.length} images are`} outside that range.`,
+            message: `${name} needs images ${rule.aspect.label}. ${off.length === 1 ? "One image" : `${off.length} images`} will be padded to fit, so nothing is cropped.`,
+          });
+        }
+      }
+      const sized = images.filter((img) => img.width && img.height);
+      if (images.length > 1 && rule.carousel === "first-ratio") {
+        const ratios = new Set(sized.map((img) => (img.width! / img.height!).toFixed(2)));
+        if (ratios.size > 1) {
+          issues.push({
+            level: "warning",
+            field: "media",
+            accountId: account.id,
+            message: `${name} shows every image at the first image's shape. The others will be padded to match.`,
+          });
+        }
+      }
+      if (images.length > 1 && rule.carousel === "same-size") {
+        const sizes = new Set(sized.map((img) => `${img.width}x${img.height}`));
+        if (sizes.size > 1) {
+          issues.push({
+            level: "warning",
+            field: "media",
+            accountId: account.id,
+            message: `${name} needs every image at the same size. They'll be resized to match the first image.`,
           });
         }
       }

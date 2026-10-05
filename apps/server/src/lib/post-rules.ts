@@ -47,6 +47,8 @@ export class PostRuleError extends Error {
     message: string,
     public code: string,
     public status = 400,
+    /** Per-account problems (PLATFORM_RULES), for clients to list them. */
+    public issues?: { provider: string; code: string; message: string }[],
   ) {
     super(message);
   }

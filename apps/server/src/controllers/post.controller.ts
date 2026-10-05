@@ -5,6 +5,11 @@ import { addPostPublishingJob } from "../queue/post.queue";
 import { createAsset } from "../lib/asset-utils";
 import { reconcilePostLegs } from "../lib/post-legs";
 import {
+  assertPlatformRules,
+  type PlatformLeg,
+  type PlatformMediaItem,
+} from "../lib/platform-media";
+import {
   PostRuleError,
   assertCaptionForType,
   assertMediaMatchesType,
@@ -72,6 +77,7 @@ function sendRuleError(res: Response, error: PostRuleError) {
     success: false,
     error: error.message,
     code: error.code,
+    ...(error.issues ? { issues: error.issues } : {}),
   });
 }
 
@@ -117,6 +123,64 @@ async function buildMediaRows(userId: string, media: MediaBody[]) {
   );
 }
 
+/** Request media in the shape the platform rules read. */
+function platformMedia(media: MediaBody[] | undefined): PlatformMediaItem[] {
+  return (media ?? []).map((m) => ({
+    type: m.type,
+    url: m.url,
+    mimeType: m.mimeType,
+    width: m.width,
+    height: m.height,
+    duration: m.duration,
+    fileSize: m.fileSize ? Number(m.fileSize) : undefined,
+  }));
+}
+
+/** Each account's platform and the caption it will post. */
+function platformLegs(
+  accounts: AccountBody[],
+  owned: { id: string; provider: string }[],
+  mainCaption: string,
+): PlatformLeg[] {
+  return accounts.map((a) => ({
+    provider: owned.find((o) => o.id === a.accountId)?.provider ?? "",
+    caption: a.customCaption || mainCaption,
+  }));
+}
+
+/** Stored PostMedia rows (with their assets) in the platform rules' shape. */
+const MEDIA_FOR_RULES = {
+  select: {
+    type: true,
+    asset: {
+      select: {
+        url: true,
+        mimeType: true,
+        width: true,
+        height: true,
+        duration: true,
+        fileSize: true,
+      },
+    },
+  },
+} as const;
+
+function storedPlatformMedia(
+  rows: {
+    type: string;
+    asset: {
+      url: string;
+      mimeType: string | null;
+      width: number | null;
+      height: number | null;
+      duration: number | null;
+      fileSize: bigint | null;
+    };
+  }[],
+): PlatformMediaItem[] {
+  return rows.map((m) => ({ type: m.type, ...m.asset }));
+}
+
 function legData(a: AccountBody) {
   return {
     customCaption: a.customCaption || null,
@@ -150,9 +214,13 @@ async function assertPublishable(postId: string) {
     select: {
       type: true,
       mainCaption: true,
-      media: { select: { type: true } },
+      media: MEDIA_FOR_RULES,
       postAccounts: {
-        select: { published: true, account: { select: { provider: true } } },
+        select: {
+          published: true,
+          customCaption: true,
+          account: { select: { provider: true } },
+        },
       },
     },
   });
@@ -161,11 +229,18 @@ async function assertPublishable(postId: string) {
   }
   assertMediaMatchesType(post.type, post.media, true);
   assertCaptionForType(post.type, post.mainCaption);
+  const pending = post.postAccounts.filter((pa) => !pa.published);
   assertProvidersSupportType(
     post.type,
-    post.postAccounts
-      .filter((pa) => !pa.published)
-      .map((pa) => pa.account.provider),
+    pending.map((pa) => pa.account.provider),
+  );
+  await assertPlatformRules(
+    post.type,
+    storedPlatformMedia(post.media),
+    pending.map((pa) => ({
+      provider: pa.account.provider,
+      caption: pa.customCaption || post.mainCaption,
+    })),
   );
 }
 
@@ -224,6 +299,11 @@ export class PostController {
         assertProvidersSupportType(
           type,
           owned.map((a) => a.provider),
+        );
+        await assertPlatformRules(
+          type,
+          platformMedia(media),
+          platformLegs(accounts, owned, mainCaption ?? ""),
         );
       }
 
@@ -442,12 +522,13 @@ export class PostController {
       const existing = await prisma.post.findFirst({
         where: { id, userId },
         include: {
-          media: { select: { type: true } },
+          media: MEDIA_FOR_RULES,
           postAccounts: {
             select: {
               id: true,
               accountId: true,
               published: true,
+              customCaption: true,
               account: { select: { provider: true } },
             },
           },
@@ -487,6 +568,13 @@ export class PostController {
             : null;
 
       let providers = existing.postAccounts.map((pa) => pa.account.provider);
+      const nextCaption = mainCaption ?? existing.mainCaption;
+      let legs: PlatformLeg[] = existing.postAccounts
+        .filter((pa) => !pa.published)
+        .map((pa) => ({
+          provider: pa.account.provider,
+          caption: pa.customCaption || nextCaption,
+        }));
       if (Array.isArray(accounts)) {
         if (accounts.length === 0) {
           throw new PostRuleError("Pick at least one account.", "ACCOUNT_REQUIRED");
@@ -496,6 +584,7 @@ export class PostController {
           accounts.map((a) => a.accountId),
         );
         providers = owned.map((a) => a.provider);
+        legs = platformLegs(accounts, owned, nextCaption);
       }
 
       const willBeScheduled =
@@ -507,8 +596,15 @@ export class PostController {
         willBeScheduled,
       );
       if (willBeScheduled) {
-        assertCaptionForType(nextType, mainCaption ?? existing.mainCaption);
+        assertCaptionForType(nextType, nextCaption);
         assertProvidersSupportType(nextType, providers);
+        await assertPlatformRules(
+          nextType,
+          Array.isArray(media)
+            ? platformMedia(media)
+            : storedPlatformMedia(existing.media),
+          legs,
+        );
       }
 
       const mediaRows = Array.isArray(media)
@@ -733,6 +829,11 @@ export class PostController {
       assertProvidersSupportType(
         type,
         owned.map((a) => a.provider),
+      );
+      await assertPlatformRules(
+        type,
+        platformMedia(media),
+        platformLegs(accounts, owned, mainCaption ?? ""),
       );
 
       const mediaRows = media?.length

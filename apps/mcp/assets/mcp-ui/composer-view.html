@@ -239,7 +239,8 @@
       if (images.length > 35) errors.push("A post can have up to 35 images.");
       if (plats.includes("instagram")) {
         const bad = images.filter((u) => { const d = dims[u]; return d && d.w && (d.w / d.h < 0.8 - 0.01 || d.w / d.h > 1.91 + 0.01); });
-        if (bad.length) errors.push("Instagram rejects " + Kit.plural(bad.length, "image") + " outside 4:5 to 1.91:1 (marked in red).");
+        // Unsora pads these at publish time, so it's a note, not a blocker.
+        if (bad.length) warnings.push("Instagram needs 4:5 to 1.91:1. " + Kit.plural(bad.length, "image") + " will be padded to fit (marked).");
       }
     }
     if (format === "video" && videoMeta && videoMeta.duration) {
@@ -650,7 +651,7 @@
           return el("div", { class: "m-tile" }, [
             mediaNode(u, "image"),
             el("span", { class: "idx" }, String(i + 1)),
-            bad ? el("span", { class: "warn", title: "Outside Instagram's 4:5 to 1.91:1" }, d.w + "×" + d.h) : null,
+            bad ? el("span", { class: "warn", title: "Outside Instagram's 4:5 to 1.91:1. Unsora pads it to fit." }, "Padded") : null,
             d.error ? el("span", { class: "warn" }, "Can't load") : null,
             el("div", { class: "ctl" }, [
               i > 0 ? el("button", { type: "button", title: "Move earlier", "aria-label": "Move earlier", onclick: () => moveImage(i, -1) }, "←") : null,

@@ -9,22 +9,72 @@ import { CoverDialog } from "./cover-dialog";
 import { MediaDrop } from "./media-drop";
 import type { Composer } from "@/hooks/use-composer";
 import { formatDuration } from "@/lib/scheduler/dates";
+import { formatRule, platformName } from "@/lib/scheduler/formats";
+import type { ConnectedAccount } from "@/lib/scheduler/types";
 
 function formatBytes(bytes?: number) {
   if (!bytes) return null;
-  if (bytes > 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
+  const gb = bytes / 1024 / 1024 / 1024;
+  if (gb >= 1) return `${Number.isInteger(gb) ? gb : gb.toFixed(1)} GB`;
   return `${Math.max(1, Math.round(bytes / 1024 / 1024))} MB`;
+}
+
+function seconds(total: number) {
+  if (total < 60) return `${total} s`;
+  const m = Math.floor(total / 60);
+  const s = Math.round(total % 60);
+  return s ? `${m} min ${s} s` : `${m} min`;
+}
+
+/**
+ * Each selected platform's video limits, as text. Videos aren't adjusted
+ * automatically (images are), so people see the limits before they post.
+ */
+function VideoRequirements({ accounts }: { accounts: ConnectedAccount[] }) {
+  const lines = [...new Set(accounts.map((a) => a.provider))].flatMap((provider) => {
+    const rule = formatRule(provider, "video");
+    if (!rule) return [];
+    const parts: string[] = [];
+    if (rule.minVideoSeconds && rule.maxVideoSeconds) {
+      parts.push(`${seconds(rule.minVideoSeconds)} to ${seconds(rule.maxVideoSeconds)}`);
+    } else if (rule.maxVideoSeconds) {
+      parts.push(`up to ${seconds(rule.maxVideoSeconds)}`);
+    } else if (rule.minVideoSeconds) {
+      parts.push(`at least ${seconds(rule.minVideoSeconds)}`);
+    }
+    if (rule.maxVideoBytes) {
+      parts.push(`max ${formatBytes(rule.maxVideoBytes)}`);
+    }
+    if (provider === "tiktok") parts.push("your account's own length limit applies");
+    return parts.length ? [{ name: platformName(provider), text: parts.join(", ") }] : [];
+  });
+
+  if (!lines.length) return null;
+  return (
+    <div className="space-y-1 text-xs text-muted-foreground">
+      <p className="font-medium">Video requirements</p>
+      <ul className="space-y-0.5">
+        {lines.map((line) => (
+          <li key={line.name}>
+            <span className="text-foreground">{line.name}</span>: {line.text}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 export function VideoEditor({
   composer,
   onOpenLibrary,
   showCover,
+  selectedAccounts,
 }: {
   composer: Composer;
   onOpenLibrary: () => void;
   /** Only when a selected platform uses a cover. */
   showCover: boolean;
+  selectedAccounts: ConnectedAccount[];
 }) {
   const { state, uploadFiles, removeMedia, setCover } = composer;
   const video = state.media.find((m) => m.kind === "video");
@@ -33,13 +83,16 @@ export function VideoEditor({
 
   if (!video) {
     return (
-      <MediaDrop
-        kind="video"
-        title="Add a video"
-        hint="MP4 or MOV. Vertical 9:16 works everywhere; YouTube also takes 16:9."
-        onFiles={(files) => void uploadFiles(files, "video", { replace: true })}
-        onOpenLibrary={onOpenLibrary}
-      />
+      <div className="space-y-3">
+        <MediaDrop
+          kind="video"
+          title="Add a video"
+          hint="MP4 or MOV. Vertical 9:16 works everywhere; YouTube also takes 16:9."
+          onFiles={(files) => void uploadFiles(files, "video", { replace: true })}
+          onOpenLibrary={onOpenLibrary}
+        />
+        <VideoRequirements accounts={selectedAccounts} />
+      </div>
     );
   }
 
@@ -87,6 +140,8 @@ export function VideoEditor({
               {video.error || "Upload failed."}
             </p>
           ) : null}
+
+          <VideoRequirements accounts={selectedAccounts} />
 
           {showCover ? (
             <div className="space-y-2">

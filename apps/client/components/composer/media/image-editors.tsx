@@ -108,7 +108,7 @@ export function PhotoEditor({
         if (!img.width || !img.height) continue;
         const ratio = img.width / img.height;
         if (ratio < aspect.min - 0.01 || ratio > aspect.max + 0.01) {
-          out[img.key] = `${platformName(account.provider)} needs images ${aspect.label}.`;
+          out[img.key] = `${platformName(account.provider)} needs images ${aspect.label}. This one will be padded to fit.`;
         }
       }
     }

@@ -1,3 +1,4 @@
+import { prepareMediaForPlatform } from "../lib/platform-media-fix";
 import dotenv from "dotenv";
 
 import { prisma } from "../lib/db";
@@ -164,6 +165,14 @@ export class PostService {
       // Refresh access token before publishing
       account = await tokenRefreshService.getAccountWithFreshToken(account.id);
 
+      // Fix image format, ratio, carousel consistency and size for this
+      // platform (no-op for images that already fit).
+      const media = await prepareMediaForPlatform(
+        account.provider.toLowerCase(),
+        post.type,
+        post.media,
+      );
+
       let platformPostId: string | undefined;
       let platformPostUrl: string | undefined;
 
@@ -172,7 +181,7 @@ export class PostService {
         case "google": // YouTube
           const youtubeResult = await youtubeService.publishPost(
             post.type,
-            post.media,
+            media,
             account,
             caption,
             postAccount.title || caption.substring(0, 100),
@@ -185,7 +194,7 @@ export class PostService {
         case "facebook":
           const facebookResult = await facebookService.publishPost(
             post.type,
-            post.media,
+            media,
             account,
             caption
           );
@@ -196,7 +205,7 @@ export class PostService {
         case "instagram":
           const instagramResult = await instagramService.publishPost(
             post.type,
-            post.media,
+            media,
             account,
             caption,
           );
@@ -207,7 +216,7 @@ export class PostService {
         case "bluesky":
           const blueskyResult = await blueskyService.publishPost(
             post.type,
-            post.media,
+            media,
             account,
             caption,
           );
@@ -218,7 +227,7 @@ export class PostService {
         case "threads":
           const threadsResult = await threadsService.publishPost(
             post.type,
-            post.media,
+            media,
             account,
             caption,
           );
@@ -229,7 +238,7 @@ export class PostService {
         case "pinterest":
           const pinterestResult = await pinterestService.publishPost(
             post.type,
-            post.media,
+            media,
             account,
             caption,
             postAccount.settings as Record<string, unknown> | null,
@@ -241,7 +250,7 @@ export class PostService {
         case "linkedin":
           const linkedInResult = await linkedInService.publishPost(
             post.type,
-            post.media,
+            media,
             account,
             caption,
           );
@@ -252,7 +261,7 @@ export class PostService {
         case "tiktok":
           const tiktokResult = await tiktokService.publishPost(
             post.type,
-            post.media,
+            media,
             account,
             caption,
             postAccount.settings as Record<string, unknown> | null,
@@ -264,7 +273,7 @@ export class PostService {
         case "x":
           const xResult = await xService.publishPost(
             post.type,
-            post.media,
+            media,
             account,
             caption,
           );
@@ -275,7 +284,7 @@ export class PostService {
         case "google_business":
           const googleBusinessResult = await googleBusinessService.publishPost(
             post.type,
-            post.media,
+            media,
             account,
             caption,
             postAccount.settings as Record<string, unknown> | null,

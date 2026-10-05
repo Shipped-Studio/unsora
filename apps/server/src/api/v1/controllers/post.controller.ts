@@ -24,6 +24,7 @@ import {
   assertMediaMatchesType,
   assertProvidersSupportType,
 } from "../../../lib/post-rules";
+import { assertPlatformRules } from "../../../lib/platform-media";
 
 async function verifyUserAccounts(userId: string, accountIds: string[]) {
   const uniqueIds = [...new Set(accountIds)];
@@ -95,6 +96,15 @@ export class PublicPostController {
             payload.postType,
             linkedAccounts.map((a) => a.provider),
           );
+          await assertPlatformRules(
+            payload.postType,
+            (payload.media ?? []).map((m) => ({ ...m })),
+            payload.accounts.map((a) => ({
+              provider:
+                linkedAccounts.find((l) => l.id === a.accountId)?.provider ?? "",
+              caption: a.customCaption || payload.caption,
+            })),
+          );
         }
 
         let mediaCreateData:
@@ -154,9 +164,12 @@ export class PublicPostController {
       });
     } catch (error) {
       if (error instanceof PostRuleError) {
-        return res
-          .status(error.status)
-          .json({ success: false, error: error.message, code: error.code });
+        return res.status(error.status).json({
+          success: false,
+          error: error.message,
+          code: error.code,
+          ...(error.issues ? { issues: error.issues } : {}),
+        });
       }
       return handlePublicError(
         res,

@@ -225,39 +225,41 @@ function Setup({
   if (done === steps.length) return null;
 
   return (
-    <PageSection
-      title="Get set up"
-      actions={
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {done} of {steps.length}
-        </span>
-      }
-    >
-      <ul className="divide-y divide-card overflow-hidden rounded-xl bg-muted">
-        {steps.map((step) => (
-          <li key={step.label}>
-            <Link
-              href={step.href}
-              className={cn(
-                "flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-accent",
-                ROW_FOCUS,
-              )}
-            >
-              {step.done ? (
-                <CheckCircle weight="fill" className="size-4 shrink-0 text-success" />
-              ) : (
-                <Circle className="size-4 shrink-0 text-muted-foreground" />
-              )}
-              <span className="sr-only">{step.done ? "Done:" : "To do:"}</span>
-              <span className={cn("min-w-0 flex-1", step.done && "text-muted-foreground line-through")}>
-                {step.label}
-              </span>
-              {!step.done ? <ArrowRight className="size-3.5 text-muted-foreground" /> : null}
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </PageSection>
+    <div data-tour="setup">
+      <PageSection
+        title="Get set up"
+        actions={
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {done} of {steps.length}
+          </span>
+        }
+      >
+        <ul className="divide-y divide-card overflow-hidden rounded-xl bg-muted">
+          {steps.map((step) => (
+            <li key={step.label}>
+              <Link
+                href={step.href}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-accent",
+                  ROW_FOCUS,
+                )}
+              >
+                {step.done ? (
+                  <CheckCircle weight="fill" className="size-4 shrink-0 text-success" />
+                ) : (
+                  <Circle className="size-4 shrink-0 text-muted-foreground" />
+                )}
+                <span className="sr-only">{step.done ? "Done:" : "To do:"}</span>
+                <span className={cn("min-w-0 flex-1", step.done && "text-muted-foreground line-through")}>
+                  {step.label}
+                </span>
+                {!step.done ? <ArrowRight className="size-3.5 text-muted-foreground" /> : null}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </PageSection>
+    </div>
   );
 }
 

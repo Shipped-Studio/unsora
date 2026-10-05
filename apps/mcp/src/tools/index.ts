@@ -897,14 +897,17 @@ list_generations (by type) browses past results — images, videos, music,
 voiceovers, clips, upscales, avatars and more. delete_generation removes one
 permanently; confirm with the user first.
 
-## Instagram media requirements (Instagram rejects bad ratios at publish)
-- Feed images / slideshow (carousel) images: aspect ratio 4:5 … 1.91:1.
-  Safe sizes: 1080x1350 (4:5), 1080x1080 (1:1), 1080x566 (1.91:1).
-  9:16 images are REJECTED for Instagram feed/carousel.
-- Reels (video): 9:16 recommended, 1080x1920.
-- TikTok slideshows/videos: 9:16 is ideal.
-- Posting the same slideshow to Instagram AND TikTok? Generate 4:5 images
-  (both accept them) or create separate posts per platform.
+## Platform media rules (Unsora adjusts images automatically)
+At publish time Unsora fits images to each platform: converts formats
+(Instagram is JPEG-only), pads images outside the allowed ratio over a blurred
+copy (nothing is cropped), makes carousels consistent (Instagram: every image
+at the first one's shape; Pinterest: same pixel size), and shrinks oversized
+files. So any ratio is safe to post, but for the best look:
+- Instagram feed/carousel: 4:5 (1080x1350) or 1:1. 9:16 images get side bars.
+- Reels, TikTok, Shorts: 9:16 video, 1080x1920.
+- Instagram AND TikTok together: 4:5 images suit both.
+What Unsora can't fix, and rejects before scheduling: videos too long/short or
+too large for a platform, too many images, captions over the limit.
 
 ## Failed posts
 If a post is FAILED or PARTIALLY_PUBLISHED (one platform succeeded, another
@@ -2133,9 +2136,11 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
         "which opens an editable composer in app-capable hosts. " +
         "Without scheduled_at the post is saved as a DRAFT — set publishNow: true to post " +
         "immediately. " +
-        "Requires paid plan. Instagram feed/slideshow images must have an aspect ratio " +
-        "between 4:5 (e.g. 1080x1350) and 1.91:1 (e.g. 1080x566) — 9:16 images are rejected " +
-        "for Instagram (use 9:16 only for TikTok slideshows and video reels). " +
+        "Requires paid plan. Images are fitted to each platform automatically at publish " +
+        "(format, size, Instagram's 4:5–1.91:1 ratio by padding, consistent carousels); " +
+        "4:5 images look best on Instagram, 9:16 suits TikTok and Reels. Posts that break " +
+        "a rule Unsora can't fix (video length/size, image count, caption length) are " +
+        "rejected with an `issues` list per platform. " +
         "YouTube only takes video and uses `title` (video title). Pinterest needs media " +
         "(1 image, 2–5 images or a video). X takes text, 1 image, 2–4 images or 1 video " +
         "(up to 140 s, 512 MB) with a caption of at most 280 characters. Google Business " +
@@ -2462,7 +2467,7 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
       _meta: { ui: { resourceUri: POSTS_UI_URI } },
       title: "Create Image & Schedule Post",
       description:
-        "Generate an image for a social post and schedule it in one step: create image → wait → schedule slideshow post to accounts. If any target account is Instagram, pass aspectRatio 4:5 (or 1:1) — Instagram rejects 9:16 slideshow images." + SHOWN_IN_UI,
+        "Generate an image for a social post and schedule it in one step: create image → wait → schedule slideshow post to accounts. If any target account is Instagram, prefer aspectRatio 4:5 (or 1:1); other ratios are padded to fit." + SHOWN_IN_UI,
       inputSchema: {
         prompt: z.string(),
         caption: z.string(),
