@@ -1,8 +1,14 @@
 name: Deploy Trigger.dev tasks
 
-# Manual on purpose: the API server must be live before tasks that depend on
-# new endpoints, so this runs after the Railway server deploy finishes.
+# Runs automatically once Railway reports the production deploy as live, so
+# tasks never ship ahead of the API endpoints they call. Railway posts one
+# GitHub deployment per push for the whole project; it turns "success" when
+# every service in it is up. Skipped when the deployed commit didn't change
+# the server since the last successful production deploy.
+#
+# Can also be run by hand (Actions > Deploy Trigger.dev tasks > Run workflow).
 on:
+  deployment_status:
   workflow_dispatch:
     inputs:
       environment:
@@ -11,21 +17,75 @@ on:
         options: [prod, staging]
         default: prod
 
+env:
+  # Railway's GitHub deployment environment for the production project.
+  RAILWAY_PROD_ENVIRONMENT: unsora-production-v2 / production
+
+permissions:
+  contents: read
+  deployments: read
+
+concurrency:
+  group: trigger-deploy-${{ github.event.inputs.environment || 'prod' }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'unsora-production-v2 / production')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+        with:
+          ref: ${{ github.event.deployment.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Did the server change since the last production deploy?
+        id: changes
+        if: github.event_name == 'deployment_status'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.deployment.sha }}
+          CURRENT_ID: ${{ github.event.deployment.id }}
+        run: |
+          prev=""
+          ids=$(gh api "repos/${{ github.repository }}/deployments?environment=$(jq -rn --arg e "$RAILWAY_PROD_ENVIRONMENT" '$e|@uri')&per_page=30" \
+            --jq ".[] | select(.id != $CURRENT_ID) | .id")
+          for id in $ids; do
+            state=$(gh api "repos/${{ github.repository }}/deployments/$id/statuses?per_page=1" --jq '.[0].state // ""')
+            if [ "$state" = "success" ]; then
+              prev=$(gh api "repos/${{ github.repository }}/deployments/$id" --jq .sha)
+              break
+            fi
+          done
+          if [ -z "$prev" ] || ! git cat-file -e "$prev^{commit}" 2>/dev/null; then
+            echo "No earlier successful deploy to compare with; deploying."
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          # Same paths Railway watches for the server service.
+          elif git diff --quiet "$prev" "$SHA" -- apps/server packages package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .node-version; then
+            echo "Server unchanged since $prev; skipping."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Server changed since $prev; deploying."
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.deploy == 'true'
+        uses: pnpm/action-setup@v4
+      - if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.deploy == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.deploy == 'true'
+        run: pnpm install --frozen-lockfile
       # Pin the CLI to the installed SDK version so they never drift.
-      - working-directory: apps/server
+      - if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.deploy == 'true'
+        working-directory: apps/server
         run: |
           version=$(node -p "require('@trigger.dev/sdk/package.json').version")
-          pnpm dlx "trigger.dev@${version}" deploy --env "${{ inputs.environment }}"
+          pnpm dlx "trigger.dev@${version}" deploy --env "${{ github.event.inputs.environment || 'prod' }}"
         env:
           TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
