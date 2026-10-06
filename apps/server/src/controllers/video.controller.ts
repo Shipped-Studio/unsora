@@ -7,6 +7,10 @@ import {
   getCreditBalance,
   InsufficientCreditsError,
 } from "../lib/credits";
+import { DURATION_TOLERANCE_SECONDS, measureMediaSeconds } from "../lib/media-limits";
+
+/** Longest video watermark/subtitle removal takes (matches the app's limit). */
+const MAX_PROCESS_SECONDS = 120;
 
 export class VideoController {
   async processVideo(req: Request, res: Response) {
@@ -48,29 +52,32 @@ export class VideoController {
         });
       }
 
-      const CREDITS_PER_OPERATION = 10;
-
-      const hasDurations = videos.some(
-        (v: any) => typeof v.durationSeconds === "number" && v.durationSeconds > 0,
+      // Priced per started 10 seconds per operation, from each video's real
+      // length (measured here; a client-sent duration is never trusted).
+      const durations = await Promise.all(
+        videos.map((v: any) => measureMediaSeconds(String(v.videoUrl))),
       );
-
-      let totalCreditsNeeded: number;
-      let creditsPerVideoMap: number[];
-
-      if (hasDurations) {
-        creditsPerVideoMap = videos.map((v: any) => {
-          const dur = v.durationSeconds || 0;
-          return Math.ceil(dur / 10) * 10 * operations.length;
-        });
-        totalCreditsNeeded = creditsPerVideoMap.reduce(
-          (sum: number, c: number) => sum + c,
-          0,
-        );
-      } else {
-        const creditsPerVideo = operations.length * CREDITS_PER_OPERATION;
-        creditsPerVideoMap = videos.map(() => creditsPerVideo);
-        totalCreditsNeeded = videos.length * creditsPerVideo;
+      for (const [i, dur] of durations.entries()) {
+        if (!dur) {
+          return res.status(400).json({
+            success: false,
+            error: `Couldn't read the length of "${videos[i].originalName}". Upload an MP4, WebM or MOV file.`,
+          });
+        }
+        if (dur > MAX_PROCESS_SECONDS + DURATION_TOLERANCE_SECONDS) {
+          return res.status(400).json({
+            success: false,
+            error: `"${videos[i].originalName}" is longer than ${MAX_PROCESS_SECONDS / 60} minutes.`,
+          });
+        }
       }
+      const creditsPerVideoMap: number[] = durations.map(
+        (dur) => Math.ceil((dur as number) / 10) * 10 * operations.length,
+      );
+      const totalCreditsNeeded = creditsPerVideoMap.reduce(
+        (sum: number, c: number) => sum + c,
+        0,
+      );
 
       // Check if user has enough credits
       const user = await prisma.user.findUnique({

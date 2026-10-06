@@ -29,17 +29,23 @@ export function globalErrorMessage(
   return first ? clerkErrorMessage(first) : null;
 }
 
-/** Only follow same-site relative redirects. */
+/**
+ * Only follow same-site redirects. The value is resolved the way the browser
+ * would (so tricks like `/\evil.com` or `/\t/evil.com` resolve off-site and
+ * are refused) and only its path, query and hash are returned.
+ */
 export function safeRedirect(raw: string | null | undefined, fallback = "/") {
   if (!raw) return fallback;
+  const origin =
+    typeof window !== "undefined" ? window.location.origin : "https://app.invalid";
   try {
-    if (raw.startsWith("/") && !raw.startsWith("//")) return raw;
-    const url = new URL(raw);
-    if (typeof window !== "undefined" && url.origin === window.location.origin) {
-      return `${url.pathname}${url.search}${url.hash}` || fallback;
-    }
+    const url = new URL(raw, origin);
+    if (url.origin !== origin) return fallback;
+    const path = `${url.pathname}${url.search}${url.hash}`;
+    // "//host" would be read as a protocol-relative URL by the router.
+    if (!path.startsWith("/") || path.startsWith("//")) return fallback;
+    return path;
   } catch {
-    // fall through
+    return fallback;
   }
-  return fallback;
 }

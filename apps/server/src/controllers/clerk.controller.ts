@@ -3,13 +3,7 @@ import { Request, Response } from "express";
 import { verifyWebhook } from "@clerk/express/webhooks";
 import { clerkClient } from "@clerk/express";
 import { onNewSignup } from "../emails";
-
-const rejectedDomains = [
-  "delaeb.com",
-  "gyknife.com",
-  "necub.com",
-  "gusronk.com",
-];
+import { isBlockedSignupEmail } from "../lib/signup-policy";
 
 export class ClerkController {
   async webhooks(req: Request, res: Response) {
@@ -28,11 +22,7 @@ export class ClerkController {
           return res.status(400).send("Invalid webhook payload");
         }
 
-        if (
-          rejectedDomains.some((domain) =>
-            evt.data.email_addresses[0].email_address.includes(domain),
-          )
-        ) {
+        if (isBlockedSignupEmail(evt.data.email_addresses[0].email_address)) {
           console.error(
             "Email addresses from rejected domains are not allowed",
           );
@@ -43,11 +33,14 @@ export class ClerkController {
 
         // Use transaction to ensure consistency
         const user = await prisma.$transaction(async (tx) => {
-          const created = await tx.user.create({
-            data: {
-              clerkId: id as string,
-              email: evt.data.email_addresses[0].email_address,
-            },
+          // Upsert: the user's first API request may already have created
+          // the row (auth middleware). A plain create would fail here and
+          // Clerk would retry forever without sending the welcome email.
+          const email = evt.data.email_addresses[0].email_address;
+          const created = await tx.user.upsert({
+            where: { clerkId: id as string },
+            update: { email },
+            create: { clerkId: id as string, email },
           });
 
           await clerkClient.users.updateUserMetadata(id as string, {

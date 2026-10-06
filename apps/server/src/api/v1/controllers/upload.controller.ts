@@ -24,7 +24,22 @@ function bucketPathFromUrl(url: string): string | null {
   const marker = `/storage/v1/object/public/${SUPABASE_STORAGE_BUCKET}/`;
   const idx = url.indexOf(marker);
   if (idx === -1) return null;
-  return decodeURIComponent(url.slice(idx + marker.length).split("?")[0]);
+  try {
+    return decodeURIComponent(url.slice(idx + marker.length).split("?")[0]);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * True when `path` is inside the user's own upload prefix. Asset URLs are
+ * client-supplied, so storage is only ever touched for paths we can prove
+ * belong to the caller (no `.`/`..` segments that could climb out).
+ */
+function isOwnUploadPath(path: string, userId: string): boolean {
+  const segments = path.split("/");
+  if (segments.some((s) => s === "" || s === "." || s === "..")) return false;
+  return segments.length > 2 && segments[0] === "uploads" && segments[1] === userId;
 }
 
 function formatAsset(asset: {
@@ -210,7 +225,7 @@ export class PublicUploadController {
         return sendError(res, 400, "blobName is required");
       }
       // Only allow registering objects in the caller's own upload prefix.
-      if (!blobName.startsWith(`uploads/${user.id}/`)) {
+      if (!isOwnUploadPath(blobName, user.id)) {
         return sendError(res, 403, "blobName does not belong to this user");
       }
 
@@ -314,7 +329,7 @@ export class PublicUploadController {
       if (!asset) return sendError(res, 404, "Upload not found");
 
       const path = bucketPathFromUrl(asset.url);
-      if (path) {
+      if (path && isOwnUploadPath(path, user.id)) {
         await removeSupabaseObjects([path]).catch((err) =>
           console.error("Failed to remove storage object:", err),
         );

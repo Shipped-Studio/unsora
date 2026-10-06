@@ -1,5 +1,6 @@
 import { Supadata } from "@supadata/js";
 import { probeVideoMetadata } from "./asset-utils";
+import { measureMediaSeconds } from "./media-limits";
 
 const YOUTUBE_PATTERNS = [
   /(?:youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/,
@@ -105,6 +106,11 @@ export async function resolveClippingVideoDuration(
 ): Promise<number | null> {
   const youtubeDuration = await getYoutubeDuration(url);
   if (youtubeDuration != null) return youtubeDuration;
+
+  // Ranged read of the container header first; the full (capped) download
+  // below is only for files that can't be read that way.
+  const measured = await measureMediaSeconds(url);
+  if (measured) return measured;
 
   const metadata = await probeVideoMetadata(url);
   if (metadata?.duration && metadata.duration > 0) {

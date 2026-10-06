@@ -12,6 +12,8 @@ import {
 } from "../lib/credits";
 import { resolveVoiceForUser, type ResolvedVoice } from "../lib/voice-resolver";
 import { isElevenLabsConfigured } from "../lib/elevenlabs-api";
+import { AVATAR_MAX_AUDIO_SECONDS, estimateSpeechSeconds } from "../lib/avatar-speech";
+import { DURATION_TOLERANCE_SECONDS, measureMediaSeconds } from "../lib/media-limits";
 
 const VALID_RESOLUTIONS = ["480p", "720p"] as const;
 const VALID_EMOTIONS = [
@@ -86,6 +88,33 @@ export class AvatarGenerationController {
           success: false,
           error: `Transcript must be at most ${MAX_TRANSCRIPT_LENGTH} characters`,
         });
+      }
+
+      // The model bills per second of speech but the price is flat, so the
+      // 20-second cap the app shows is enforced here too.
+      if (
+        transcriptText &&
+        estimateSpeechSeconds(transcriptText) > AVATAR_MAX_AUDIO_SECONDS
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: `The script is too long. Keep it under ${AVATAR_MAX_AUDIO_SECONDS} seconds of speech.`,
+        });
+      }
+      if (audioUrlText) {
+        const audioSeconds = await measureMediaSeconds(audioUrlText);
+        if (!audioSeconds) {
+          return res.status(400).json({
+            success: false,
+            error: "Couldn't read the audio's length. Upload an MP3, WAV or M4A file.",
+          });
+        }
+        if (audioSeconds > AVATAR_MAX_AUDIO_SECONDS + DURATION_TOLERANCE_SECONDS) {
+          return res.status(400).json({
+            success: false,
+            error: `The audio must be ${AVATAR_MAX_AUDIO_SECONDS} seconds or shorter.`,
+          });
+        }
       }
 
       if (!VALID_RESOLUTIONS.includes(resolution)) {

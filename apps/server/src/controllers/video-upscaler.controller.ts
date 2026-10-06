@@ -11,6 +11,10 @@ import {
   getCreditBalance,
   InsufficientCreditsError,
 } from "../lib/credits";
+import { DURATION_TOLERANCE_SECONDS, measureMediaSeconds } from "../lib/media-limits";
+
+/** Longest video the upscaler takes; the price tiers assume this cap. */
+const MAX_UPSCALE_SECONDS = 25;
 
 const VALID_MODELS: VideoUpscaleModel[] = Object.keys(
   VIDEO_UPSCALE_MODELS,
@@ -35,7 +39,7 @@ export class VideoUpscalerController {
     try {
       const clerkUserId = req.auth.userId;
 
-      const { videoUrl, model = "standard", duration } = req.body;
+      const { videoUrl, model = "standard" } = req.body;
 
       if (!videoUrl || typeof videoUrl !== "string") {
         return res
@@ -50,7 +54,20 @@ export class VideoUpscalerController {
         });
       }
 
-      const durationSec = typeof duration === "number" && duration > 0 ? duration : 15;
+      // Priced from the video's real length, never a client-sent duration.
+      const durationSec = await measureMediaSeconds(videoUrl);
+      if (!durationSec) {
+        return res.status(400).json({
+          success: false,
+          error: "Couldn't read the video's length. Upload an MP4, WebM or MOV file.",
+        });
+      }
+      if (durationSec > MAX_UPSCALE_SECONDS + DURATION_TOLERANCE_SECONDS) {
+        return res.status(400).json({
+          success: false,
+          error: `Videos can be up to ${MAX_UPSCALE_SECONDS} seconds long.`,
+        });
+      }
 
       const user = await resolveUser(clerkUserId);
       if (!user) {

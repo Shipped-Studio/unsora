@@ -18,6 +18,8 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/scheduler", destination: "/", permanent: false },
+      // The old "All tools" page; tools live in the sidebar's Create menu.
+      { source: "/create", destination: "/", permanent: false },
       { source: "/scheduler/connections", destination: "/scheduler/accounts", permanent: false },
       { source: "/scheduler/posts/create", destination: "/scheduler/new", permanent: false },
       { source: "/scheduler/posts/edit/:id", destination: "/scheduler/posts/:id/edit", permanent: false },

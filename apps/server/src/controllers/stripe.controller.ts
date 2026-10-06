@@ -636,35 +636,24 @@ export class StripeController {
   async generateCheckoutSession(req: Request, res: Response) {
     try {
       const clerkId = req.auth.userId;
-      // Preferred: the client sends a stable plan `key` ("basic" | "pro" |
-      // "power") and we resolve the Stripe Price ID server-side from the
-      // `plans` table. `priceId` is a transitional fallback so an older
-      // client mid-deploy keeps working — remove it once every client sends
-      // `key`.
-      const { key, priceId: priceIdFromClient } = req.body as {
-        key?: string;
-        priceId?: string;
-      };
-
-      let priceId = priceIdFromClient;
-      if (key) {
-        const plan = await getPlanByKey(key);
-        if (
-          !plan ||
-          plan.type !== "SUBSCRIPTION" ||
-          !plan.isActive ||
-          !plan.stripePriceId
-        ) {
-          return res
-            .status(400)
-            .json({ error: "Unknown or unavailable plan" });
-        }
-        priceId = plan.stripePriceId;
-      }
-
-      if (!priceId) {
+      // The client sends a stable plan `key` ("basic" | "pro" | "power") and
+      // the Stripe Price ID is resolved here from the `plans` table. A raw
+      // price ID is never accepted from the client: any other price on the
+      // same product would otherwise buy this plan's credits.
+      const { key } = req.body as { key?: string };
+      if (!key) {
         return res.status(400).json({ error: "Missing plan selection" });
       }
+      const plan = await getPlanByKey(key);
+      if (
+        !plan ||
+        plan.type !== "SUBSCRIPTION" ||
+        !plan.isActive ||
+        !plan.stripePriceId
+      ) {
+        return res.status(400).json({ error: "Unknown or unavailable plan" });
+      }
+      const priceId = plan.stripePriceId;
 
       const clerkUser = await clerkClient.users.getUser(clerkId);
       const email = clerkUser.emailAddresses[0].emailAddress;
@@ -972,6 +961,10 @@ export class StripeController {
           trial_end: "now",
           default_payment_method: paymentMethod.id,
           proration_behavior: "none",
+          // Fail the call (and leave the trial untouched) when the card is
+          // declined or needs authentication, instead of Stripe's default
+          // `allow_incomplete`, which would let us grant credits unpaid.
+          payment_behavior: "error_if_incomplete",
           payment_settings: {
             payment_method_types: ["card"],
             save_default_payment_method: "on_subscription",
@@ -998,6 +991,16 @@ export class StripeController {
         typeof subscription.latest_invoice === "string"
           ? null
           : (subscription.latest_invoice as Stripe.Invoice | null);
+
+      // Belt and braces: never grant paid credits for an invoice that isn't
+      // paid. The webhook grants them if payment settles later.
+      if (!latestInvoice || latestInvoice.status !== "paid") {
+        return res.status(402).json({
+          success: false,
+          error:
+            "Your payment didn't go through. Check your card and try again.",
+        });
+      }
 
       // Mirror the webhook's reason format so both code paths key on the
       // same value and the existence check short-circuits a second grant.
@@ -1081,6 +1084,12 @@ export class StripeController {
         },
       });
     } catch (error) {
+      if (error instanceof Stripe.errors.StripeCardError) {
+        return res.status(402).json({
+          success: false,
+          error: error.message || "Your card was declined.",
+        });
+      }
       console.error("Error upgrading trial to paid subscription:", error);
       return res
         .status(500)

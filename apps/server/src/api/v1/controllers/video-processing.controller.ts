@@ -38,14 +38,12 @@ export class PublicVideoProcessingController {
         return sendError(res, 400, "videoUrl must be a public http(s) video file URL");
       }
 
-      // Unreadable duration → the app controller's default, which prices at
-      // the top tier, so an unknown length is never undercharged.
-      const duration = await probeDurationSeconds(videoUrl);
+      // The app controller measures the video's length itself and prices
+      // from that.
       req.body = {
         videoUrl,
         model,
         originalName: fileNameFromUrl(videoUrl),
-        ...(duration ? { duration } : {}),
       };
       return videoUpscalerController.create(req, res);
     } catch (error) {

@@ -973,11 +973,21 @@ async function enqueuePublish(
 
     await assertPublishable(id);
 
+    // Claim atomically: only flip to PUBLISHING if nobody else (a second
+    // click, a client retry, the scheduler) changed the post while the
+    // publishability check ran. Otherwise two runs would post twice.
     const previous = { status: post.status, error: post.error };
-    await prisma.post.update({
-      where: { id },
+    const claimed = await prisma.post.updateMany({
+      where: { id, userId, status: post.status },
       data: { status: "PUBLISHING", error: null },
     });
+    if (claimed.count === 0) {
+      return res.status(409).json({
+        success: false,
+        error: "This post is already publishing.",
+        code: "POST_PUBLISHING",
+      });
+    }
 
     try {
       // A fresh job id per attempt: the per-post key used by the scheduler

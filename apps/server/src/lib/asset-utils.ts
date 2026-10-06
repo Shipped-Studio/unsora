@@ -1,9 +1,7 @@
 import prisma from "./db";
 import type { AssetType, AssetSource } from "@prisma/client";
 import { Input, FilePathSource, MP4 } from "mediabunny";
-import fs from "fs";
-import path from "path";
-import axios from "axios";
+import { downloadToTemp, removeTempFile, safeGet } from "./remote-import";
 
 interface CreateAssetInput {
   userId: string;
@@ -55,29 +53,14 @@ export interface VideoMetadata {
 export async function probeVideoMetadata(
   videoUrl: string,
 ): Promise<VideoMetadata | null> {
-  const tempDir = path.join(process.cwd(), "temp");
-  if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
-
-  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const tempPath = path.join(tempDir, `probe_${suffix}.mp4`);
-
+  let tempPath: string | null = null;
   try {
-    const res = await axios({
-      url: videoUrl,
-      method: "GET",
-      responseType: "stream",
-      timeout: 120_000,
+    // SSRF-guarded and size-capped: callers pass client-supplied URLs.
+    const { res, url } = await safeGet(videoUrl, {
+      signal: AbortSignal.timeout(120_000),
     });
-
-    await new Promise<void>((resolve, reject) => {
-      const ws = fs.createWriteStream(tempPath);
-      res.data.pipe(ws);
-      ws.on("finish", resolve);
-      ws.on("error", reject);
-    });
-
-    const stats = fs.statSync(tempPath);
-    if (stats.size === 0) return null;
+    const file = await downloadToTemp(res, url, { errorPrefix: "The video host" });
+    tempPath = file.tempPath;
 
     const input = new Input({
       formats: [MP4],
@@ -101,17 +84,13 @@ export async function probeVideoMetadata(
       width,
       height,
       duration: Math.round(duration * 100) / 100,
-      fileSize: BigInt(stats.size),
+      fileSize: BigInt(file.size),
     };
   } catch (err) {
     console.warn("[probeVideoMetadata] Failed to probe video:", err);
     return null;
   } finally {
-    try {
-      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-    } catch {
-      // non-critical cleanup
-    }
+    if (tempPath) await removeTempFile(tempPath);
   }
 }
 

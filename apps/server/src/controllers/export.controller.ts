@@ -12,6 +12,10 @@ import {
 } from "../lib/credits";
 import { calculateRenderCredits } from "../lib/render-pricing";
 
+const MAX_EXPORT_FPS = 60;
+const MAX_EXPORT_SIDE = 4096;
+const MAX_EXPORT_PIXELS = 4096 * 2160;
+
 export class ExportController {
   async createExport(req: Request, res: Response) {
     try {
@@ -39,6 +43,32 @@ export class ExportController {
         return res.status(400).json({
           success: false,
           error: "Invalid video duration",
+        });
+      }
+
+      // The price is per minute only, so keep the render itself bounded: up
+      // to 60 fps and a 4K-sized frame.
+      if (!Number.isInteger(fps) || fps < 1 || fps > MAX_EXPORT_FPS) {
+        return res.status(400).json({
+          success: false,
+          error: `fps must be a whole number from 1 to ${MAX_EXPORT_FPS}`,
+        });
+      }
+      for (const side of [width, height]) {
+        if (
+          side !== undefined &&
+          (!Number.isInteger(side) || side < 16 || side > MAX_EXPORT_SIDE)
+        ) {
+          return res.status(400).json({
+            success: false,
+            error: `width and height must be whole numbers from 16 to ${MAX_EXPORT_SIDE}`,
+          });
+        }
+      }
+      if ((width ?? 1080) * (height ?? 1920) > MAX_EXPORT_PIXELS) {
+        return res.status(400).json({
+          success: false,
+          error: "The export resolution is larger than 4K",
         });
       }
 

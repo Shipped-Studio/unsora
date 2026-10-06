@@ -245,6 +245,67 @@ export async function safeGet(
   throw new ImportError("The link redirects too many times.");
 }
 
+/**
+ * Throws ImportError unless `rawUrl` is an http(s) link on a public host,
+ * resolving its DNS too. For readers that make their own requests (e.g.
+ * mediabunny's ranged UrlSource) and so can't use `safeGet` directly.
+ */
+export async function assertPublicUrl(rawUrl: string): Promise<URL> {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    throw new ImportError("That isn't a valid link.");
+  }
+  checkUrl(url);
+  const host = url.hostname.replace(/^\[|\]$/g, "");
+  if (!net.isIP(host)) {
+    let addresses: dns.LookupAddress[];
+    try {
+      addresses = await dns.promises.lookup(host, { all: true, verbatim: true });
+    } catch {
+      throw new ImportError("The link's host couldn't be found.");
+    }
+    if (!addresses.length || addresses.some((a) => isBlockedAddress(a.address))) {
+      throw new ImportError(PRIVATE_ADDRESS_MESSAGE);
+    }
+  }
+  return url;
+}
+
+/**
+ * GET a public URL into memory with the SSRF checks of `safeGet` (every hop)
+ * and a byte cap, for small media the caller needs as a Buffer.
+ */
+export async function fetchPublicBuffer(
+  rawUrl: string,
+  maxBytes: number,
+  timeoutMs = 2 * 60_000,
+): Promise<Buffer> {
+  const { res } = await safeGet(rawUrl, { signal: AbortSignal.timeout(timeoutMs) });
+  const status = res.statusCode ?? 0;
+  if (status < 200 || status >= 300) {
+    res.resume();
+    throw new ImportError(`The file host returned an error (HTTP ${status}).`);
+  }
+  const length = Number(res.headers["content-length"] ?? 0);
+  if (length > maxBytes) {
+    res.resume();
+    throw new ImportError(`The file is larger than the ${formatMb(maxBytes)} limit.`);
+  }
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of res) {
+    size += chunk.length;
+    if (size > maxBytes) {
+      res.destroy();
+      throw new ImportError(`The file is larger than the ${formatMb(maxBytes)} limit.`);
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
 /** GET a small JSON document from a fixed API host. */
 export async function fetchJson<T>(
   rawUrl: string,

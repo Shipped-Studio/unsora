@@ -10,6 +10,9 @@ import axios, { AxiosResponse } from "axios";
  * - https://developers.tiktok.com/doc/content-posting-api-reference-photo-post
  */
 
+/** TikTok reported the publish as FAILED: final, not worth polling again. */
+class TikTokPublishFailedError extends Error {}
+
 const BASE_URL = "https://open.tiktokapis.com/v2";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -290,11 +293,11 @@ export class TikTokService {
   ): Promise<PublishResult> {
     const result = await this.pollUploadStatus(publishId, account.accessToken);
 
-    if (!result.success) {
-      throw new Error(`TikTok ${kind} upload timed out`);
-    }
-
-    const postId = result.postId;
+    // Still processing when polling gives up: TikTok has accepted the post
+    // and will publish it, so it must not be marked failed (a retry would
+    // post it twice). Keep the publish id; the `publicly_available` and
+    // `publish.failed` webhooks settle the leg by that id later.
+    const postId = result.success ? result.postId : undefined;
     const shareUrl = postId
       ? await this.queryShareUrl(postId, account.accessToken)
       : null;
@@ -396,7 +399,7 @@ export class TikTokService {
         }
 
         if (data.status === "FAILED") {
-          throw new Error(
+          throw new TikTokPublishFailedError(
             `TikTok upload failed: ${data.fail_reason || "Unknown error"}`,
           );
         }
@@ -410,12 +413,18 @@ export class TikTokService {
           response: error.response?.data,
         });
 
-        if (error.response?.status !== 429) {
+        // A definite failure, or a 4xx other than rate limiting (bad token,
+        // bad request), won't fix itself. Network blips and 5xx are
+        // transient: TikTok is still processing, so keep polling.
+        const status = error.response?.status as number | undefined;
+        if (
+          error instanceof TikTokPublishFailedError ||
+          (status !== undefined && status >= 400 && status < 500 && status !== 429)
+        ) {
           throw error;
         }
 
-        // Rate limited; back off and retry.
-        await sleep(intervalMs * 2);
+        await sleep(status === 429 ? intervalMs * 2 : intervalMs);
       }
     }
 

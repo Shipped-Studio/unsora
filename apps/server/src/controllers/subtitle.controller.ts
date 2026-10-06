@@ -6,6 +6,55 @@ import {
   getSubtitleQueueStats,
 } from "../queue/subtitle.queue";
 import { createAsset } from "../lib/asset-utils";
+import { DURATION_TOLERANCE_SECONDS, measureMediaSeconds } from "../lib/media-limits";
+
+/*
+ * Transcription is free (exports are what's charged), so it's bounded
+ * instead: a few running at once per user, and a maximum video length.
+ */
+const MAX_ACTIVE_TRANSCRIPTIONS = 3;
+const MAX_TRANSCRIPTION_SECONDS = 30 * 60;
+const ACTIVE_TRANSCRIPTION_STATUSES = ["queued", "pending", "processing"];
+/** Rows "active" for longer than this are presumed dead, not counted. */
+const ACTIVE_TRANSCRIPTION_WINDOW_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * Why the user can't transcribe these videos right now, or null if they can.
+ */
+async function transcriptionLimitError(
+  userId: string,
+  videoUrls: string[],
+): Promise<{ status: number; error: string } | null> {
+  const active = await prisma.transcription.count({
+    where: {
+      userId,
+      status: { in: ACTIVE_TRANSCRIPTION_STATUSES },
+      updatedAt: { gte: new Date(Date.now() - ACTIVE_TRANSCRIPTION_WINDOW_MS) },
+    },
+  });
+  if (active + videoUrls.length > MAX_ACTIVE_TRANSCRIPTIONS) {
+    return {
+      status: 429,
+      error: `You can transcribe up to ${MAX_ACTIVE_TRANSCRIPTIONS} videos at once. Wait for one to finish and try again.`,
+    };
+  }
+  for (const url of videoUrls) {
+    const seconds = await measureMediaSeconds(url);
+    if (!seconds) {
+      return {
+        status: 400,
+        error: "Couldn't read the video's length. Upload an MP4, WebM or MOV file.",
+      };
+    }
+    if (seconds > MAX_TRANSCRIPTION_SECONDS + DURATION_TOLERANCE_SECONDS) {
+      return {
+        status: 400,
+        error: `Videos can be up to ${MAX_TRANSCRIPTION_SECONDS / 60} minutes long.`,
+      };
+    }
+  }
+  return null;
+}
 
 export class SubtitleController {
   /**
@@ -132,6 +181,15 @@ export class SubtitleController {
         });
       }
 
+      const limit = await transcriptionLimitError(user.id, [
+        transcription.videoAsset!.url,
+      ]);
+      if (limit) {
+        return res
+          .status(limit.status)
+          .json({ success: false, error: limit.error });
+      }
+
       const isRerun = transcription.status === "completed";
       // "auto" means let Whisper detect; anything else is an ISO-639-1 code
       const whisperLanguage =
@@ -216,6 +274,16 @@ export class SubtitleController {
           success: false,
           error: "User not found",
         });
+      }
+
+      const limit = await transcriptionLimitError(
+        user.id,
+        videos.map((v: { videoUrl?: unknown }) => String(v?.videoUrl ?? "")),
+      );
+      if (limit) {
+        return res
+          .status(limit.status)
+          .json({ success: false, error: limit.error });
       }
 
       const results: {
@@ -372,6 +440,13 @@ export class SubtitleController {
           success: false,
           error: "User not found",
         });
+      }
+
+      const limit = await transcriptionLimitError(user.id, [videoUrl]);
+      if (limit) {
+        return res
+          .status(limit.status)
+          .json({ success: false, error: limit.error });
       }
 
       const videoAsset = await createAsset({

@@ -1,6 +1,7 @@
 import fs from "fs";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import ws from "ws";
+import { fetchPublicBuffer } from "./remote-import";
 
 /**
  * Server-side Supabase Storage helper.
@@ -170,17 +171,15 @@ export async function removeSupabasePrefix(prefix: string): Promise<void> {
   if (objects.length) await bucket.remove(objects);
 }
 
+/** Largest file `downloadFromStorageUrl` will hold in memory. */
+const MAX_STORAGE_DOWNLOAD_BYTES = 100 * 1024 * 1024;
+
 /**
  * Download a file from its storage URL and return the bytes.
- * The bucket is public, so a plain fetch works for Supabase URLs as well as
- * any legacy externally-hosted URLs still stored in the database.
+ * The bucket is public, so a plain GET works for Supabase URLs as well as
+ * any legacy externally-hosted URLs still stored in the database. URLs can
+ * come from clients, so it refuses private/internal hosts and caps the size.
  */
 export async function downloadFromStorageUrl(url: string): Promise<Buffer> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(
-      `Failed to download from storage URL (${response.status} ${response.statusText})`,
-    );
-  }
-  return Buffer.from(await response.arrayBuffer());
+  return fetchPublicBuffer(url, MAX_STORAGE_DOWNLOAD_BYTES);
 }
