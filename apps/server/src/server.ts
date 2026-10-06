@@ -12,7 +12,6 @@ import routes from "./routes";
 import devEmailRoutes from "./routes/dev-emails.routes";
 import apiV1Routes from "./api/v1/routes";
 import { errorHandler } from "./middleware/errorHandler";
-import { startPlatformCredentialSync } from "./lib/platform-credentials";
 import openApiDocument from "./docs/openapi";
 
 // JSON.stringify (and therefore res.json) throws on BigInt values. Prisma uses
@@ -147,14 +146,8 @@ Sentry.setupExpressErrorHandler(app);
 
 app.use(errorHandler);
 
-// Platform credentials saved in /admin load into process.env before the
-// first request; a failure falls back to the environment's values.
-startPlatformCredentialSync()
-  .catch((err) => console.error("[platform-credentials] initial load failed:", err))
-  .finally(() => {
-    app.listen(port, () => {
-      console.log(`Server is running on port ${port}`);
-    });
-  });
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
 
 export default app;

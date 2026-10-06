@@ -1,13 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import { toast } from "sonner";
 import { AdminPage } from "@/components/admin/admin-page";
-import { PlatformCredentialsDialog } from "@/components/admin/platform-credentials-dialog";
 import { PlatformIcon } from "@/components/scheduler/platform-icon";
 import { ErrorState } from "@/components/shared/states";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -34,8 +31,6 @@ function status(platform: AdminPlatform) {
 export default function AdminPlatformsPage() {
   const { data, isLoading, error, refetch } = useAdminPlatforms();
   const save = useSavePlatforms();
-  const [editing, setEditing] = useState<string | null>(null);
-  const editingPlatform = data?.platforms.find((p) => p.id === editing) ?? null;
 
   const toggle = (id: string, on: boolean) => {
     if (!data) return;
@@ -84,17 +79,10 @@ export default function AdminPlatformsPage() {
                     </div>
                     {platform.missingCredentials.length ? (
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                        Missing {platform.missingCredentials.join(", ")}. Add it with Edit keys.
+                        Set {platform.missingCredentials.join(", ")} on the server to use it.
                       </p>
                     ) : null}
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setEditing(platform.id)}
-                  >
-                    Edit keys
-                  </Button>
                   <Switch
                     checked={platform.switchedOn}
                     disabled={save.isPending}
@@ -107,14 +95,9 @@ export default function AdminPlatformsPage() {
           </ul>
           <p className="text-xs text-muted-foreground">
             Users see switched-off platforms as &ldquo;Coming soon&rdquo;. Changes apply
-            within about 30 seconds. Keys saved here are encrypted and override the
-            Railway values; anything not set here still comes from Railway.
+            within about 30 seconds. API keys and secrets stay in the server&apos;s
+            environment variables.
           </p>
-          <PlatformCredentialsDialog
-            platform={editingPlatform}
-            canSave={data.canSaveCredentials}
-            onOpenChange={(open) => !open && setEditing(null)}
-          />
         </div>
       )}
     </AdminPage>
