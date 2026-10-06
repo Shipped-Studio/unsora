@@ -30,8 +30,10 @@ export const accountMetricsRefreshTask = task({
  */
 export const postMetricsCron = schedules.task({
   id: "post-metrics-refresh",
-  // Every 6 hours — frequent enough for a daily-granularity dashboard
-  // while staying well inside platform rate limits.
+  // Runs every 6 hours, but each post is only re-read when its age-based
+  // schedule says so (POLL_PLANS in services/analytics.service.ts): every 6h
+  // while new, then daily, then weekly. X is polled far less, since it
+  // bills every post read.
   cron: "0 */6 * * *",
   run: async () => {
     const accountIds = await analyticsService.listAccountsToRefresh();

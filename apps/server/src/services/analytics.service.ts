@@ -56,6 +56,70 @@ const EMPTY_METRICS: PostMetrics = {
 /** Only posts published within this window are polled. */
 const METRICS_WINDOW_DAYS = 90;
 
+const HOUR = 60 * 60 * 1000;
+
+/**
+ * How often a post's stats are re-read, by its age. Engagement moves most in
+ * the first days and barely after, so polling slows down as posts age:
+ * [up to this age (hours), re-read at most every N hours].
+ *
+ * X bills every post read ($0.005 each, 2026 pay-per-use), so it gets a
+ * shorter window and wider gaps: about 10 reads per post in total, instead of
+ * 360 at a flat 6-hourly poll over 90 days.
+ */
+interface PollPlan {
+  steps: [maxAgeHours: number, intervalHours: number][];
+  /** A manual refresh skips posts read more recently than this. */
+  manualFloorHours: number;
+}
+
+const DEFAULT_POLL_PLAN: PollPlan = {
+  steps: [
+    [48, 6],
+    [7 * 24, 24],
+    [30 * 24, 72],
+    [METRICS_WINDOW_DAYS * 24, 7 * 24],
+  ],
+  manualFloorHours: 0.25,
+};
+
+const POLL_PLANS: Record<string, PollPlan> = {
+  x: {
+    steps: [
+      [48, 12],
+      [7 * 24, 48],
+      [30 * 24, 7 * 24],
+    ],
+    manualFloorHours: 3,
+  },
+};
+
+/** Slack so a 6-hourly cron isn't skipped by a few seconds of drift. */
+const DUE_TOLERANCE_MS = 30 * 60 * 1000;
+
+function pollPlan(provider: string): PollPlan {
+  return POLL_PLANS[provider.toLowerCase()] ?? DEFAULT_POLL_PLAN;
+}
+
+/** Whether a post's stats should be read now. */
+function isDue(
+  provider: string,
+  publishedAt: Date | null,
+  lastFetchedAt: Date | undefined,
+  mode: "scheduled" | "manual",
+  now: number,
+): boolean {
+  const plan = pollPlan(provider);
+  const ageHours = (now - (publishedAt?.getTime() ?? now)) / HOUR;
+  const step = plan.steps.find(([maxAge]) => ageHours <= maxAge);
+  if (!step) return false; // past this platform's window
+  if (!lastFetchedAt) return true;
+
+  const sinceMs = now - lastFetchedAt.getTime();
+  const intervalHours = mode === "manual" ? plan.manualFloorHours : step[1];
+  return sinceMs >= intervalHours * HOUR - (mode === "manual" ? 0 : DUE_TOLERANCE_MS);
+}
+
 type PublishedPostAccount = PostAccount & { account: SocialAccount };
 
 const METRICS_PROVIDERS = [
@@ -104,7 +168,7 @@ export class AnalyticsService {
       include: { account: true },
     })) as PublishedPostAccount[];
 
-    return this.refreshMetricsFor(postAccounts);
+    return this.refreshMetricsFor(postAccounts, "scheduled");
   }
 
   /** Poll metrics for a single user's published posts (on-demand refresh). */
@@ -114,7 +178,30 @@ export class AnalyticsService {
       include: { account: true },
     })) as PublishedPostAccount[];
 
-    return this.refreshMetricsFor(postAccounts);
+    return this.refreshMetricsFor(postAccounts, "manual");
+  }
+
+  /**
+   * Keep only posts whose stats are due for a re-read (see POLL_PLANS), using
+   * each post's latest snapshot time.
+   */
+  private async dueOnly(
+    postAccounts: PublishedPostAccount[],
+    mode: "scheduled" | "manual",
+  ): Promise<PublishedPostAccount[]> {
+    if (!postAccounts.length) return postAccounts;
+    const latest = await prisma.postMetricSnapshot.groupBy({
+      by: ["postAccountId"],
+      where: { postAccountId: { in: postAccounts.map((pa) => pa.id) } },
+      _max: { fetchedAt: true },
+    });
+    const lastFetched = new Map(
+      latest.map((row) => [row.postAccountId, row._max.fetchedAt ?? undefined]),
+    );
+    const now = Date.now();
+    return postAccounts.filter((pa) =>
+      isDue(pa.account.provider, pa.publishedAt, lastFetched.get(pa.id), mode, now),
+    );
   }
 
   /**
@@ -122,8 +209,10 @@ export class AnalyticsService {
    * account) and write a snapshot for each post we could fetch.
    */
   private async refreshMetricsFor(
-    postAccounts: PublishedPostAccount[],
+    allPostAccounts: PublishedPostAccount[],
+    mode: "scheduled" | "manual",
   ): Promise<number> {
+    const postAccounts = await this.dueOnly(allPostAccounts, mode);
     if (postAccounts.length === 0) return 0;
 
     const byAccount = new Map<string, PublishedPostAccount[]>();
