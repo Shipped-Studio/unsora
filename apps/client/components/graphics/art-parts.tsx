@@ -1,28 +1,24 @@
 import { cn } from "@/lib/utils";
 
 /*
- * Building blocks for the drawn scenes in tool-art.tsx and empty-art.tsx.
+ * Building blocks for the drawn empty-state scenes in empty-art.tsx.
  * Everything is sized in container units (cqw) of the <Art> canvas, so a
- * scene looks the same on a 180px gallery card and a 360px empty state.
+ * scene keeps its proportions at any width.
  * Colours come from tokens only: white cards, the black media stage and the
  * lime brand accent.
  */
 
 /** 16:10 canvas every scene is drawn on. Decorative, hidden from readers. */
 export function Art({
-  motion = "always",
   className,
   children,
 }: {
-  /** "hover" pauses the animation until the surrounding `.group` is hovered. */
-  motion?: "always" | "hover";
   className?: string;
   children: React.ReactNode;
 }) {
   return (
     <div
       aria-hidden
-      data-art-motion={motion}
       className={cn(
         "@container relative aspect-[16/10] w-full overflow-hidden select-none",
         className,
@@ -147,16 +143,14 @@ const WAVE = [
   10, 6, 4, 7, 5, 3, 6, 9, 12, 8, 5, 7, 4, 3,
 ];
 
-/** Audio bars that bounce while the scene moves. */
+/** A row of audio bars. */
 export function Wave({
   bars = 24,
   barClassName = "bg-foreground/25",
-  still,
   className,
 }: {
   bars?: number;
   barClassName?: string;
-  still?: boolean;
   className?: string;
 }) {
   return (
@@ -164,8 +158,8 @@ export function Wave({
       {WAVE.slice(0, bars).map((h, i) => (
         <span
           key={i}
-          className={cn("w-[0.8cqw] rounded-full", !still && "animate-art-eq", barClassName)}
-          style={{ height: `${(h / 20) * 100}%`, animationDelay: `${(i % 7) * -0.13}s` }}
+          className={cn("w-[0.8cqw] rounded-full", barClassName)}
+          style={{ height: `${(h / 20) * 100}%` }}
         />
       ))}
     </span>

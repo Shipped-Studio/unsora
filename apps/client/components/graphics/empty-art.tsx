@@ -2,8 +2,7 @@ import { cn } from "@/lib/utils";
 import { Art, Card, Line, Photo, PlusDisc, Tag, Wave } from "./art-parts";
 
 /*
- * Drawn scenes for empty scheduler and library screens, in the same style as
- * the tool scenes (tool-art.tsx).
+ * Drawn scenes for empty scheduler and library screens.
  */
 
 function PostCard({ v, className }: { v: number; className?: string }) {
@@ -25,7 +24,7 @@ function EmptySlot({ className }: { className?: string }) {
         className,
       )}
     >
-      <PlusDisc className="top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-art-pop" />
+      <PlusDisc className="top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
     </div>
   );
 }
@@ -48,7 +47,7 @@ function DraftsScene() {
         <Line className="w-[85%]" />
         <span className="flex items-center gap-[1cqw]">
           <Line className="w-[45%]" />
-          <span className="h-[3.6cqw] w-[0.5cqw] animate-art-blink bg-foreground" />
+          <span className="h-[3.6cqw] w-[0.5cqw] bg-foreground" />
         </span>
       </Card>
       <Tag className="top-[50%] left-[22%]">Draft</Tag>
@@ -79,7 +78,7 @@ function QueueScene() {
               )}
             >
               {row === "next" ? (
-                <PlusDisc className="top-1/2 left-1/2 size-[6cqw] -translate-x-1/2 -translate-y-1/2 animate-art-pop" />
+                <PlusDisc className="top-1/2 left-1/2 size-[6cqw] -translate-x-1/2 -translate-y-1/2" />
               ) : null}
             </span>
           )}
@@ -100,7 +99,7 @@ function AnalyticsScene() {
             key={i}
             className={cn(
               "flex-1 rounded-t-[1cqw]",
-              i === BARS.length - 1 ? "origin-bottom animate-art-eq bg-brand" : "bg-foreground/10",
+              i === BARS.length - 1 ? "bg-brand" : "bg-foreground/10",
             )}
             style={{ height: `${h}%` }}
           />
@@ -115,9 +114,9 @@ function LibraryScene() {
     <>
       <Photo v={1} className="absolute top-[20%] left-[12%] aspect-square w-[26%] -rotate-6 shadow-sm" />
       <Card className="top-[20%] right-[12%] flex aspect-square w-[26%] rotate-6 items-center p-[3cqw]">
-        <Wave bars={14} still className="h-[45%] w-full" />
+        <Wave bars={14} className="h-[45%] w-full" />
       </Card>
-      <Photo v={0} className="absolute top-[12%] left-[35%] aspect-square w-[30%] animate-art-float shadow-sm ring-[0.5cqw] ring-brand">
+      <Photo v={0} className="absolute top-[12%] left-[35%] aspect-square w-[30%] shadow-sm ring-[0.5cqw] ring-brand">
         <span className="absolute top-1/2 left-1/2 grid size-[7cqw] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-brand">
           <svg viewBox="0 0 10 10" className="size-1/2 translate-x-[8%]">
             <path d="M2.5 1.5 L8.5 5 L2.5 8.5Z" className="fill-brand-foreground" />

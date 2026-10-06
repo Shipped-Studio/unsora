@@ -1,12 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import type { Icon } from "@phosphor-icons/react";
 import { CalendarPlus } from "@phosphor-icons/react";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/states";
-import { ToolArt, hasToolArt } from "@/components/graphics/tool-art";
 import { buttonVariants } from "@/components/ui/button";
 import { scheduleHref } from "@/lib/scheduler/formats";
 import { cn } from "@/lib/utils";
@@ -148,8 +146,7 @@ export function ToolGrid({
 
 /**
  * Empty results state, centred in whatever room is left between the header
- * and the dock (or beside the side panel). Shows the tool's drawn scene when
- * it has one, else the icon.
+ * and the dock (or beside the side panel).
  */
 export function ToolEmpty({
   icon,
@@ -160,15 +157,9 @@ export function ToolEmpty({
   title: string;
   description: string;
 }) {
-  const pathname = usePathname();
   return (
     <div className="flex flex-1 flex-col justify-center">
-      <EmptyState
-        icon={icon}
-        art={hasToolArt(pathname) ? <ToolArt href={pathname} /> : undefined}
-        title={title}
-        description={description}
-      />
+      <EmptyState icon={icon} title={title} description={description} />
     </div>
   );
 }
