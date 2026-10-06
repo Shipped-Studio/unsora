@@ -9,4 +9,3 @@ backups
 .DS_Store
 .trigger
 !.env.example
-
