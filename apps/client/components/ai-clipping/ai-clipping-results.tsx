@@ -63,6 +63,7 @@ export function AIClippingResults({
   if (jobs.length === 0) {
     return (
       <ToolEmpty
+        showcase
         icon={Scissors}
         title="No clips yet"
         description="Paste a link to a long video and get short clips you can schedule."

@@ -86,6 +86,7 @@ export function ToolResults<T>({
     }
     return (
       <ToolEmpty
+        showcase
         icon={empty.icon}
         title={empty.title}
         description={empty.description}

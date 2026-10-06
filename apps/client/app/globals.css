@@ -352,14 +352,21 @@
   );
 }
 
-/* The gentle bob of the platform badges orbiting the Unsora mark on Home.
-   The reduced-motion rule below stops it. */
+/* The gentle bob of the platform badges orbiting the Unsora mark on Home,
+   and the endless columns of the empty-tool showcase (each column holds its
+   items twice, so moving it by half loops seamlessly). The reduced-motion
+   rule below stops both. */
 @theme {
   --animate-art-float: art-float 3.2s ease-in-out infinite;
+  --animate-showcase-scroll: showcase-scroll 60s linear infinite;
 
   @keyframes art-float {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-6%); }
+  }
+  @keyframes showcase-scroll {
+    from { transform: translateY(0); }
+    to { transform: translateY(-50%); }
   }
 }
 

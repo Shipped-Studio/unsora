@@ -132,6 +132,7 @@ export default function AiAvatarMakerPage() {
         />
       ) : isEmpty ? (
         <ToolEmpty
+          showcase
           icon={UserSound}
           title="No avatar videos yet"
           description="Pick a portrait and write what it should say."

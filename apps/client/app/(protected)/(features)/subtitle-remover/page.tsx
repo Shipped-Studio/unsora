@@ -72,6 +72,7 @@ export default function SubtitleRemoverPage() {
           />
         ) : jobs.items.length === 0 ? (
           <ToolEmpty
+            showcase
             icon={Eraser}
             title="No videos yet"
             description="Upload a video with burned-in subtitles to get a clean copy."

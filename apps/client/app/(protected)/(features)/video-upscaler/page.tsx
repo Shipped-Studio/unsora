@@ -78,6 +78,7 @@ export default function VideoUpscalerPage() {
           />
         ) : jobs.items.length === 0 ? (
           <ToolEmpty
+            showcase
             icon={ArrowsOut}
             title="No upscaled videos yet"
             description="Upload a video and pick a model to increase its resolution."

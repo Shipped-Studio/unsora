@@ -91,6 +91,7 @@ export default function ImageUpscalerPage() {
           />
         ) : upscales.items.length === 0 ? (
           <ToolEmpty
+            showcase
             icon={FrameCorners}
             title="No upscaled images yet"
             description="Upload images and pick an output resolution."

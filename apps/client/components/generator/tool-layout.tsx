@@ -5,6 +5,7 @@ import type { Icon } from "@phosphor-icons/react";
 import { CalendarPlus } from "@phosphor-icons/react";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/states";
+import { ToolShowcase } from "@/components/generator/tool-showcase";
 import { buttonVariants } from "@/components/ui/button";
 import { scheduleHref } from "@/lib/scheduler/formats";
 import { cn } from "@/lib/utils";
@@ -146,20 +147,27 @@ export function ToolGrid({
 
 /**
  * Empty results state, centred in whatever room is left between the header
- * and the dock (or beside the side panel).
+ * and the dock (or beside the side panel). Image and video tools pass
+ * `showcase` to show example outputs scrolling behind the message.
  */
 export function ToolEmpty({
   icon,
   title,
   description,
+  showcase,
 }: {
   icon: Icon;
   title: string;
   description: string;
+  showcase?: boolean;
 }) {
   return (
     <div className="flex flex-1 flex-col justify-center">
-      <EmptyState icon={icon} title={title} description={description} />
+      {showcase ? (
+        <ToolShowcase icon={icon} title={title} description={description} />
+      ) : (
+        <EmptyState icon={icon} title={title} description={description} />
+      )}
     </div>
   );
 }
