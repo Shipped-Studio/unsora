@@ -56,6 +56,7 @@ import { usePricing } from "@/contexts/pricing-context";
 import {
   useConnectAccount,
   useConnectedAccounts,
+  useEnabledPlatforms,
   useDisconnectAccount,
   useRefreshAccount,
   useShareConnectLink,
@@ -388,7 +389,13 @@ export function ConnectGrid({
     connect.mutate({ provider, handle }, { onError: () => setTarget(null) });
   };
 
-  const platforms = PLATFORM_ORDER.filter((p) => PLATFORMS[p].enabled);
+  const { isEnabled, isLoading: platformsLoading } = useEnabledPlatforms();
+  // Live platforms first; the rest show as "Coming soon" so people can see
+  // what's on the way.
+  const platforms = [
+    ...PLATFORM_ORDER.filter((p) => isEnabled(p)),
+    ...PLATFORM_ORDER.filter((p) => !isEnabled(p)),
+  ];
 
   return (
     <>
@@ -416,6 +423,29 @@ export function ConnectGrid({
         {platforms.map((provider) => {
           const spec = PLATFORMS[provider];
           const pending = connect.isPending && target === provider;
+          const live = isEnabled(provider);
+          if (!live) {
+            return (
+              <div
+                key={provider}
+                aria-label={`${spec.name}: coming soon`}
+                className={cn(
+                  "flex min-w-0 items-center gap-3 rounded-xl bg-muted p-3 opacity-60",
+                  platformsLoading && "animate-pulse",
+                )}
+              >
+                <PlatformIcon provider={provider} className="size-8 grayscale" />
+                <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                  {spec.shortName ?? spec.name}
+                </span>
+                {platformsLoading ? null : (
+                  <span className="shrink-0 rounded-full bg-background px-2 py-0.5 text-2xs text-muted-foreground">
+                    Coming soon
+                  </span>
+                )}
+              </div>
+            );
+          }
           return (
             <button
               key={provider}
@@ -461,9 +491,8 @@ export function AccountsView() {
   const { usage } = useUserUsage();
   const connect = useConnectAccount();
 
-  const visible = (accounts ?? []).filter(
-    (a) => !isProvider(a.provider) || PLATFORMS[a.provider].enabled,
-  );
+  const { isEnabled } = useEnabledPlatforms();
+  const visible = (accounts ?? []).filter((a) => isEnabled(a.provider));
   const grouped = PLATFORM_ORDER.map((provider) => ({
     provider,
     accounts: visible.filter((a) => a.provider === provider),

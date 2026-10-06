@@ -44,8 +44,6 @@ export interface PlatformSpec {
   name: string;
   /** For tight spots like counters and grid tiles. Defaults to name. */
   shortName?: string;
-  /** Shown on the Accounts page and in the composer. */
-  enabled: boolean;
   /** What a connected account is on this platform. */
   accountNoun: string;
   captionLimit: number;
@@ -66,7 +64,6 @@ export const PLATFORMS: Record<Provider, PlatformSpec> = {
   instagram: {
     id: "instagram",
     name: "Instagram",
-    enabled: true,
     accountNoun: "professional account",
     captionLimit: 2200,
     videoCover: true,
@@ -90,7 +87,6 @@ export const PLATFORMS: Record<Provider, PlatformSpec> = {
   tiktok: {
     id: "tiktok",
     name: "TikTok",
-    enabled: true,
     accountNoun: "account",
     captionLimit: 2200,
     videoCover: false,
@@ -103,7 +99,6 @@ export const PLATFORMS: Record<Provider, PlatformSpec> = {
   google: {
     id: "google",
     name: "YouTube",
-    enabled: true,
     accountNoun: "channel",
     captionLimit: 5000,
     title: { limit: 100, required: true, label: "Title" },
@@ -115,7 +110,6 @@ export const PLATFORMS: Record<Provider, PlatformSpec> = {
   facebook: {
     id: "facebook",
     name: "Facebook",
-    enabled: true,
     accountNoun: "Page",
     captionLimit: 63206,
     videoCover: false,
@@ -130,8 +124,6 @@ export const PLATFORMS: Record<Provider, PlatformSpec> = {
   threads: {
     id: "threads",
     name: "Threads",
-    // Hidden until the Meta app review for Threads publishing is done.
-    enabled: false,
     accountNoun: "profile",
     captionLimit: 500,
     videoCover: false,
@@ -145,7 +137,6 @@ export const PLATFORMS: Record<Provider, PlatformSpec> = {
   bluesky: {
     id: "bluesky",
     name: "Bluesky",
-    enabled: true,
     accountNoun: "account",
     captionLimit: 300,
     countGraphemes: true,
@@ -159,7 +150,6 @@ export const PLATFORMS: Record<Provider, PlatformSpec> = {
   pinterest: {
     id: "pinterest",
     name: "Pinterest",
-    enabled: true,
     accountNoun: "account",
     captionLimit: 800,
     title: { limit: 100, required: false, label: "Pin title" },
@@ -172,7 +162,6 @@ export const PLATFORMS: Record<Provider, PlatformSpec> = {
   linkedin: {
     id: "linkedin",
     name: "LinkedIn",
-    enabled: true,
     accountNoun: "profile",
     captionLimit: 3000,
     videoCover: false,
@@ -186,7 +175,6 @@ export const PLATFORMS: Record<Provider, PlatformSpec> = {
   x: {
     id: "x",
     name: "X",
-    enabled: true,
     accountNoun: "account",
     captionLimit: 280,
     videoCover: false,
@@ -200,7 +188,6 @@ export const PLATFORMS: Record<Provider, PlatformSpec> = {
     id: "google_business",
     name: "Google Business Profile",
     shortName: "Google Business",
-    enabled: true,
     // One sign-in connects every location the Google account manages.
     accountNoun: "location",
     captionLimit: 1500,

@@ -1115,3 +1115,17 @@ enum SkillMediaType {
   IMAGE
   VIDEO
 }
+
+// ---------------------------------------------------------------------------
+// Runtime settings admins change from /admin without a redeploy (e.g. which
+// social platforms are live). Never store credentials or secrets here: those
+// stay in environment variables.
+// ---------------------------------------------------------------------------
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedBy String?
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("app_settings")
+}

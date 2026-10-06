@@ -143,7 +143,11 @@ export class GoogleBusinessSchedulerController {
       res.redirect(redirect("success"));
     } catch (error: any) {
       const apiError = error?.response?.data?.error;
-      console.error("Google Business callback error:", apiError || error);
+      console.error(
+        "Google Business callback error:",
+        apiError || error,
+        error?.response?.data?.error_description ?? "",
+      );
 
       const message =
         apiError?.status === "PERMISSION_DENIED" ||

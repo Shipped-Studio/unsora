@@ -13,6 +13,28 @@ export const connectedAccountsQueryKeys = {
     [...connectedAccountsQueryKeys.all, "pinterest-boards", accountId] as const,
 };
 
+/**
+ * Which platforms are live on this deployment, decided by the server
+ * (ENABLED_PLATFORMS plus configured OAuth credentials). Returns a checker;
+ * while loading, every platform reads as unavailable so nothing flashes on.
+ */
+export function useEnabledPlatforms() {
+  const api = useApi();
+  const query = useQuery({
+    queryKey: [...connectedAccountsQueryKeys.all, "platforms"],
+    queryFn: () =>
+      api<{ id: string; enabled: boolean }[]>("/api/connect/platforms"),
+    staleTime: 5 * 60_000,
+  });
+  const enabled = new Set(
+    (query.data ?? []).filter((p) => p.enabled).map((p) => p.id),
+  );
+  return {
+    isEnabled: (provider: string) => enabled.has(provider),
+    isLoading: query.isLoading,
+  };
+}
+
 export function useConnectedAccounts() {
   const api = useApi();
   return useQuery({

@@ -96,6 +96,12 @@ const schema = z.object({
   // Test deployments only: send board/pin calls to Pinterest's sandbox with
   // this portal-generated token (Trial-access apps can only pin there).
   PINTEREST_SANDBOX_TOKEN: optional,
+  // Comma-separated platforms live on this deployment (lib/platforms.ts).
+  // Unset: every platform whose OAuth credentials are configured.
+  ENABLED_PLATFORMS: optional,
+  // Encrypts platform credentials saved from /admin → Platforms
+  // (lib/platform-credentials.ts). Any long random string.
+  SETTINGS_ENCRYPTION_KEY: optional,
   X_CLIENT_ID: optional,
   X_CLIENT_SECRET: optional,
   X_REDIRECT: optional,

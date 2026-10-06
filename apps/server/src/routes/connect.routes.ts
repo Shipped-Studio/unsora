@@ -3,14 +3,21 @@ import { ConnectController } from "../controllers/connect.controller";
 import { requireAuth } from "../middleware/auth";
 import { checkSocialAccountLimit } from "../middleware/check-limit";
 import { requirePaidPlan } from "../middleware/require-paid-plan";
+import { platformAvailability, requirePlatform } from "../lib/platforms";
 
 const router = express.Router();
 const connectController = new ConnectController();
+
+// Which platforms are live on this deployment (lib/platforms.ts).
+router.get("/platforms", requireAuth, async (_req, res) => {
+  res.json({ success: true, data: await platformAvailability() });
+});
 
 // AUTH URL ENDPOINTS — gated behind an active paid plan
 router.get(
   "/google",
   requireAuth,
+  requirePlatform("google"),
   requirePaidPlan,
   checkSocialAccountLimit,
   connectController.getGoogleAuthUrl
@@ -18,6 +25,7 @@ router.get(
 router.get(
   "/tiktok",
   requireAuth,
+  requirePlatform("tiktok"),
   requirePaidPlan,
   checkSocialAccountLimit,
   connectController.getTikTokAuthUrl
@@ -25,6 +33,7 @@ router.get(
 router.get(
   "/facebook",
   requireAuth,
+  requirePlatform("facebook"),
   requirePaidPlan,
   checkSocialAccountLimit,
   connectController.getFacebookAuthUrl
@@ -32,6 +41,7 @@ router.get(
 router.get(
   "/instagram",
   requireAuth,
+  requirePlatform("instagram"),
   requirePaidPlan,
   checkSocialAccountLimit,
   connectController.getInstagramAuthUrl
@@ -39,6 +49,7 @@ router.get(
 router.get(
   "/bluesky",
   requireAuth,
+  requirePlatform("bluesky"),
   requirePaidPlan,
   checkSocialAccountLimit,
   connectController.getBlueskyAuthUrl
@@ -46,6 +57,7 @@ router.get(
 router.get(
   "/threads",
   requireAuth,
+  requirePlatform("threads"),
   requirePaidPlan,
   checkSocialAccountLimit,
   connectController.getThreadsAuthUrl
@@ -53,6 +65,7 @@ router.get(
 router.get(
   "/pinterest",
   requireAuth,
+  requirePlatform("pinterest"),
   requirePaidPlan,
   checkSocialAccountLimit,
   connectController.getPinterestAuthUrl
@@ -60,6 +73,7 @@ router.get(
 router.get(
   "/linkedin",
   requireAuth,
+  requirePlatform("linkedin"),
   requirePaidPlan,
   checkSocialAccountLimit,
   connectController.getLinkedInAuthUrl
@@ -67,6 +81,7 @@ router.get(
 router.get(
   "/x",
   requireAuth,
+  requirePlatform("x"),
   requirePaidPlan,
   checkSocialAccountLimit,
   connectController.getXAuthUrl
@@ -74,6 +89,7 @@ router.get(
 router.get(
   "/google_business",
   requireAuth,
+  requirePlatform("google_business"),
   requirePaidPlan,
   checkSocialAccountLimit,
   connectController.getGoogleBusinessAuthUrl

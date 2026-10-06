@@ -48,6 +48,13 @@ export default defineConfig({
   // Initialize Sentry once per worker boot on the trigger.dev side.
   init: async () => {
     await import("./src/monitor/instrument");
+    // Platform credentials saved in /admin (lib/platform-credentials.ts).
+    const { startPlatformCredentialSync } = await import(
+      "./src/lib/platform-credentials"
+    );
+    await startPlatformCredentialSync().catch((err) =>
+      console.error("[platform-credentials] worker load failed:", err),
+    );
   },
   // Global failure hook — fires after a run exhausts all retries. Mirrors the
   // old attachWorkerErrorHandlers() Sentry reporting for every queue.

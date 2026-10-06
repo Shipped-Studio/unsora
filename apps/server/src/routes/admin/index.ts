@@ -7,6 +7,7 @@ import contentRoutes from "./content.routes";
 import analyticsRoutes from "./analytics.routes";
 import plansRoutes from "./plans.routes";
 import skillsRoutes from "./skills.routes";
+import platformsRoutes from "./platforms.routes";
 
 const router = Router();
 
@@ -22,5 +23,6 @@ router.use("/content", contentRoutes);
 router.use("/analytics", analyticsRoutes);
 router.use("/plans", plansRoutes);
 router.use("/skills", skillsRoutes);
+router.use("/platforms", platformsRoutes);
 
 export default router;

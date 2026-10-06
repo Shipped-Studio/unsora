@@ -1,6 +1,7 @@
 import type { PostType } from "@prisma/client";
 import { probeDurationSeconds } from "../api/v1/helpers/media-duration";
 import { PostRuleError } from "./post-rules";
+import { unavailablePlatforms } from "./platforms";
 
 /**
  * What each platform accepts for media and captions, as its publishing API
@@ -343,6 +344,14 @@ export async function assertPlatformRules(
   media: PlatformMediaItem[],
   legs: PlatformLeg[],
 ): Promise<void> {
+  const unavailable = await unavailablePlatforms(legs.map((l) => l.provider));
+  if (unavailable.length) {
+    throw new PostRuleError(
+      `${unavailable.join(", ")} ${unavailable.length === 1 ? "isn't" : "aren't"} available right now. Remove ${unavailable.length === 1 ? "that account" : "those accounts"} to schedule this post.`,
+      "PLATFORM_UNAVAILABLE",
+    );
+  }
+
   const issues = checkPostForPlatforms(
     postType,
     await withVideoMetadata(media),

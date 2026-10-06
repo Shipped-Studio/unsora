@@ -16,14 +16,13 @@ import {
   accountLabel,
 } from "@/components/scheduler/account-avatar";
 import {
-  PLATFORMS,
   PLATFORM_ORDER,
-  isProvider,
   supportsFormat,
   unsupportedReason,
   type PostFormat,
 } from "@/lib/scheduler/formats";
 import type { ConnectedAccount } from "@/lib/scheduler/types";
+import { useEnabledPlatforms } from "@/hooks/use-connected-accounts";
 import { cn } from "@/lib/utils";
 
 function sortAccounts(accounts: ConnectedAccount[]) {
@@ -55,9 +54,8 @@ export function AccountPicker({
   /** `auto` is true when the picker chose for the user (not an edit). */
   onSelectMany: (accountIds: string[], auto?: boolean) => void;
 }) {
-  const visible = sortAccounts(
-    accounts.filter((a) => !isProvider(a.provider) || PLATFORMS[a.provider].enabled),
-  );
+  const { isEnabled } = useEnabledPlatforms();
+  const visible = sortAccounts(accounts.filter((a) => isEnabled(a.provider)));
   const eligible = visible.filter((a) => supportsFormat(a.provider, format));
 
   // With exactly one account that can take this format, pick it for the user.

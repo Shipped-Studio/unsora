@@ -26,8 +26,9 @@ import { pinterestData } from "../oauth/pinterest";
  *     (impressions/saves/clicks via pins:read)
  *   - X: tweets lookup public_metrics, up to 100 posts per request
  *     (impressions/likes/replies/reposts+quotes/bookmarks)
- *   - Google Business Profile: localPosts:reportInsights, up to 100 posts
- *     per request per location (search views only)
+ *   - Google Business Profile: not polled. Google discontinued per-post
+ *     insights in 2023; only location-level metrics remain (Business Profile
+ *     Performance API)
  *   - LinkedIn: socialMetadata reaction summaries per post ("likes" is the
  *     subtotal of ALL reaction types: LIKE/PRAISE/EMPATHY/INTEREST/
  *     APPRECIATION/ENTERTAINMENT); impressions need partner-level API
@@ -132,7 +133,9 @@ const METRICS_PROVIDERS = [
   "pinterest",
   "linkedin",
   "x",
-  "google_business",
+  // google_business: Google discontinued post insights
+  // (localPosts.reportInsights, LOCAL_POST_VIEWS_SEARCH) on 2023-02-20 with no
+  // API replacement, so there is nothing to poll per post.
 ];
 
 /** Published legs inside the metrics window on a provider we can poll. */

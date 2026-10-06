@@ -8,13 +8,12 @@ import type { Icon } from "@phosphor-icons/react";
 import { PageBody, PageHeader } from "@/components/layout/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PlatformIcon } from "@/components/scheduler/platform-icon";
-import { useConnectedAccounts } from "@/hooks/use-connected-accounts";
+import { useConnectedAccounts, useEnabledPlatforms } from "@/hooks/use-connected-accounts";
 import {
   FORMATS,
   FORMAT_ORDER,
   PLATFORMS,
   PLATFORM_ORDER,
-  isProvider,
   supportsFormat,
   type PostFormat,
 } from "@/lib/scheduler/formats";
@@ -29,10 +28,9 @@ const ICONS: Record<PostFormat, Icon> = {
 function FormatChooser() {
   const searchParams = useSearchParams();
   const { data: accounts, isLoading } = useConnectedAccounts();
+  const { isEnabled } = useEnabledPlatforms();
   const query = searchParams.toString();
-  const connected = (accounts ?? []).filter(
-    (a) => !isProvider(a.provider) || PLATFORMS[a.provider].enabled,
-  );
+  const connected = (accounts ?? []).filter((a) => isEnabled(a.provider));
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -41,7 +39,7 @@ function FormatChooser() {
         const FormatIcon = ICONS[format];
         const eligible = connected.filter((a) => supportsFormat(a.provider, format));
         const platforms = PLATFORM_ORDER.filter(
-          (p) => PLATFORMS[p].enabled && PLATFORMS[p].formats[format],
+          (p) => isEnabled(p) && PLATFORMS[p].formats[format],
         );
         return (
           <Link
