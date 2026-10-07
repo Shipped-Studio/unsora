@@ -1,5 +1,5 @@
 import { prisma } from "../../../lib/db";
-import { planLimits } from "../../../lib/limit";
+import { socialAccountLimitFor } from "../../../lib/plans";
 
 export const ACCOUNT_LIMIT_MESSAGE =
   "This Unsora workspace has reached its plan's account limit. Ask the owner to upgrade or disconnect an account.";
@@ -23,9 +23,8 @@ export async function canAddAccount(
   if (existing?.userId === userId) return true;
 
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { plan: true } });
-  const planKey = (user?.plan ?? "").toLowerCase() as keyof typeof planLimits;
-  const limit = planLimits[planKey]?.socialAccounts;
-  if (limit === undefined) return false;
+  const limit = await socialAccountLimitFor(user?.plan);
+  if (limit === null) return false;
 
   const count = await prisma.socialAccount.count({ where: { userId } });
   return count < limit;

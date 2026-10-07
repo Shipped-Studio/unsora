@@ -1,5 +1,4 @@
 import { Request, Response } from "express";
-import { planLimits } from "../lib/limit";
 import prisma from "../lib/db";
 import { stripe } from "../lib/stripe";
 import { clerkClient } from "@clerk/express";
@@ -16,8 +15,11 @@ import {
   getTopupPlan,
   listSubscriptionPlans,
   listTopupPlans,
+  planFeatures,
+  planSocialAccounts,
   resolveSubscriptionCredits,
   toPublicPlan,
+  trialDays,
 } from "../lib/plans";
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -689,6 +691,7 @@ export class StripeController {
       // sub and carries remaining credits over, regardless of which client
       // path led here.
       let upgradeFromSubscriptionId: string | null = null;
+      const trialLength = hasPreviousSubscription ? 0 : await trialDays();
       if (user.stripeSubscriptionId) {
         try {
           const current = await stripe.subscriptions.retrieve(
@@ -726,9 +729,9 @@ export class StripeController {
                 upgradeFromSubscriptionId,
               },
             }
-          : !hasPreviousSubscription
+          : trialLength > 0
             ? {
-                trial_period_days: 3,
+                trial_period_days: trialLength,
               }
             : undefined,
         custom_text: {
@@ -1222,8 +1225,8 @@ export class StripeController {
           isPopular: pub.isPopular,
           sortOrder: pub.sortOrder,
           interval: pub.interval,
-          socialAccounts:
-            planLimits[pub.key as keyof typeof planLimits]?.socialAccounts ?? null,
+          features: planFeatures(p),
+          socialAccounts: planSocialAccounts(p),
         };
       });
       return res.json({ success: true, data });

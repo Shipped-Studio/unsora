@@ -29,7 +29,6 @@ import {
   planCreditsLabel,
 } from "@/components/billing/format";
 import { redirectToStripe } from "@/components/billing/redirect-to-stripe";
-import { PLAN_PRESENTATION } from "@/constant";
 import { useAuthFetch } from "@/hooks/use-auth-fetch";
 import { useSubscriptionPlans } from "@/hooks/use-subscription-plans";
 import { useUserUsage } from "@/hooks/use-user-usage";
@@ -127,7 +126,7 @@ export function PricingDialog({ open, onOpenChange }: PricingDialogProps) {
               {plans.map((plan) => {
                 const isCurrent = isPaid && plan.key === currentKey;
                 const per = intervalLabel(plan.interval);
-                const features = PLAN_PRESENTATION[plan.key]?.features ?? [];
+                const features = plan.features ?? [];
                 const label = !isPaid
                   ? `Choose ${plan.name}`
                   : plan.priceUsd > currentPrice

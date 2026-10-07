@@ -14,6 +14,8 @@ export interface SubscriptionPlan {
   interval?: PlanInterval | null;
   isPopular?: boolean;
   sortOrder: number;
+  /** Bullet points for the pricing card, set at /admin/pricing. */
+  features?: string[];
 }
 
 export const subscriptionPlansQueryKeys = {

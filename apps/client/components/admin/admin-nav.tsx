@@ -12,6 +12,7 @@ const TABS: { label: string; href: string; exact?: boolean }[] = [
   { label: "Content", href: "/admin/content" },
   { label: "Skills", href: "/admin/skills" },
   { label: "Platforms", href: "/admin/platforms" },
+  { label: "Pricing", href: "/admin/pricing" },
   { label: "Analytics", href: "/admin/analytics" },
 ];
 
