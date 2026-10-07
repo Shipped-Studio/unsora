@@ -1,0 +1,37 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "version": "1.0.0",
+  "websiteUrl": "https://tryunsora.com/docs",
+  "repository": {
+    "url": "https://github.com/Shipped-Studio/unsora",
+    "source": "github",
+    "id": "1402319952",
+    "subfolder": "apps/mcp"
+  },
+  "icons": [
+    {
+      "src": "https://mcp.tryunsora.com/assets/brand/icon-light.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "524x524"
+      ]
+    }
+  ],
+  "name": "com.tryunsora/unsora",
+  "title": "Unsora",
+  "description": "Generate AI images, video, avatars, music and voiceovers, clip videos, and schedule social posts.",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.tryunsora.com/mcp",
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Optional. Unsora API key as 'Bearer <key>'. Leave unset to sign in with OAuth.",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}
