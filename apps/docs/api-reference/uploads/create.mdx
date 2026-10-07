@@ -32,14 +32,14 @@ The file bytes never pass through the API server.
 <RequestExample>
 ```bash Import from URL theme={null}
 curl -X POST "https://mvp2.tryunsora.com/api/v1/uploads" \
-  -H "Authorization: Bearer uns_live_YOUR_API_KEY" \
+  -H "Authorization: Bearer uns_YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{ "url": "https://example.com/video.mp4" }'
 ```
 
 ```bash Base64 (small file) theme={null}
 curl -X POST "https://mvp2.tryunsora.com/api/v1/uploads" \
-  -H "Authorization: Bearer uns_live_YOUR_API_KEY" \
+  -H "Authorization: Bearer uns_YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d "{
     \"base64\": \"$(base64 -i photo.png)\",

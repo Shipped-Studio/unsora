@@ -8,10 +8,10 @@ description: "How to authenticate with the Unsora API — API keys, rate limits,
 Send **either**:
 
 - Clerk JWT (signed-in dashboard user), or
-- Unsora API key (`uns_live_*`)
+- Unsora API key (`uns_*`)
 
 ```bash
-Authorization: Bearer uns_live_...
+Authorization: Bearer uns_...
 ```
 
 That is enough to call the public feature APIs under `/api/v1/*`. Both resolve to the same user account (credits, jobs, scheduler data).

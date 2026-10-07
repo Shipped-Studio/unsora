@@ -12,7 +12,7 @@ To keep one face across every post and video, read the [guide: consistent AI inf
 
 | Header | Required | Description |
 | --- | --- | --- |
-| `Authorization` | Yes | `Bearer uns_live_*` API key or Clerk JWT |
+| `Authorization` | Yes | `Bearer uns_*` API key or Clerk JWT |
 | `Content-Type` | Yes | `application/json` |
 
 ## Request body
@@ -73,7 +73,7 @@ Multiple images (`count` > 1) return one entry per job in `generations`. Credits
 <RequestExample>
 ```bash Single portrait theme={null}
 curl -X POST "https://mvp.tryunsora.com/api/v1/influencer-studio/create" \
-  -H "Authorization: Bearer uns_live_YOUR_API_KEY" \
+  -H "Authorization: Bearer uns_YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "Fitness creator in athleisure, gym mirror selfie, natural light",
@@ -85,7 +85,7 @@ curl -X POST "https://mvp.tryunsora.com/api/v1/influencer-studio/create" \
 
 ```bash Batch variations theme={null}
 curl -X POST "https://mvp.tryunsora.com/api/v1/influencer-studio/create" \
-  -H "Authorization: Bearer uns_live_YOUR_API_KEY" \
+  -H "Authorization: Bearer uns_YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "Luxury travel influencer at rooftop pool, golden hour",

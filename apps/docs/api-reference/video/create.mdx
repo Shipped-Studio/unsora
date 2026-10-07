@@ -31,7 +31,7 @@ All models run on WaveSpeed and share the same form inputs: `image` / `lastImage
 
 | Header | Required | Description |
 | --- | --- | --- |
-| `Authorization` | Yes | `Bearer uns_live_*` API key or Clerk JWT |
+| `Authorization` | Yes | `Bearer uns_*` API key or Clerk JWT |
 | `Idempotency-Key` | No | Max 128 chars. Replays the same response for 24h on API key requests |
 | `Content-Type` | Yes | `application/json` |
 
@@ -128,7 +128,7 @@ Poll `GET /video/status/{id}` — see [Poll video status](/api-reference/video/p
 <RequestExample>
 ```bash Text-to-video (Seedance) theme={null}
 curl -X POST "https://mvp.tryunsora.com/api/v1/videos/create" \
-  -H "Authorization: Bearer uns_live_YOUR_API_KEY" \
+  -H "Authorization: Bearer uns_YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "Slow cinematic drone shot over misty mountains at sunrise",
@@ -139,7 +139,7 @@ curl -X POST "https://mvp.tryunsora.com/api/v1/videos/create" \
 
 ```bash Veo 3.1 with sound theme={null}
 curl -X POST "https://mvp.tryunsora.com/api/v1/videos/create" \
-  -H "Authorization: Bearer uns_live_YOUR_API_KEY" \
+  -H "Authorization: Bearer uns_YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "veo",
@@ -152,7 +152,7 @@ curl -X POST "https://mvp.tryunsora.com/api/v1/videos/create" \
 
 ```bash Kling Pro image-to-video theme={null}
 curl -X POST "https://mvp.tryunsora.com/api/v1/videos/create" \
-  -H "Authorization: Bearer uns_live_YOUR_API_KEY" \
+  -H "Authorization: Bearer uns_YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "kling-pro",
@@ -164,7 +164,7 @@ curl -X POST "https://mvp.tryunsora.com/api/v1/videos/create" \
 
 ```bash Sora 2 theme={null}
 curl -X POST "https://mvp.tryunsora.com/api/v1/videos/create" \
-  -H "Authorization: Bearer uns_live_YOUR_API_KEY" \
+  -H "Authorization: Bearer uns_YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "sora-2",
@@ -175,7 +175,7 @@ curl -X POST "https://mvp.tryunsora.com/api/v1/videos/create" \
 
 ```bash Seedance omni reference theme={null}
 curl -X POST "https://mvp.tryunsora.com/api/v1/videos/create" \
-  -H "Authorization: Bearer uns_live_YOUR_API_KEY" \
+  -H "Authorization: Bearer uns_YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "seedance-2.0",
@@ -188,7 +188,7 @@ curl -X POST "https://mvp.tryunsora.com/api/v1/videos/create" \
 
 ```bash Seedance first/last frame theme={null}
 curl -X POST "https://mvp.tryunsora.com/api/v1/videos/create" \
-  -H "Authorization: Bearer uns_live_YOUR_API_KEY" \
+  -H "Authorization: Bearer uns_YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "seedance-2.0",

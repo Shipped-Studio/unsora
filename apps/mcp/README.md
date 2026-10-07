@@ -22,9 +22,9 @@ UNSORA_API_BASE_URL (Unsora API)
 Each MCP request must include the user's Unsora API key. Server accepts any of:
 
 ```http
-apiKey: uns_live_...
-x-api-key: uns_live_...
-Authorization: Bearer uns_live_...
+apiKey: uns_...
+x-api-key: uns_...
+Authorization: Bearer uns_...
 ```
 
 No server-side `UNSORA_API_KEY` in production. Key travels with the client connection.
@@ -52,7 +52,7 @@ Test MCP (HTTP inspector):
 npx @modelcontextprotocol/inspector \
   --transport http \
   --server-url http://localhost:3000/mcp \
-  --header "Authorization: Bearer uns_live_YOUR_KEY"
+  --header "Authorization: Bearer uns_YOUR_KEY"
 ```
 
 Or call a read-only tool after initialize via curl (inspector is easier).
@@ -67,7 +67,7 @@ Simplest (plain `apiKey` header — no Bearer prefix):
     "unsora": {
       "url": "https://mcp.tryunsora.com/mcp",
       "headers": {
-        "apiKey": "uns_live_YOUR_KEY"
+        "apiKey": "uns_YOUR_KEY"
       }
     }
   }

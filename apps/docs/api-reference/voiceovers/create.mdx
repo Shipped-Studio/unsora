@@ -12,7 +12,7 @@ Pick a voice first with [List voices](/api-reference/voiceovers/voices) — ever
 
 | Header | Required | Description |
 | --- | --- | --- |
-| `Authorization` | Yes | `Bearer uns_live_*` API key or Clerk JWT |
+| `Authorization` | Yes | `Bearer uns_*` API key or Clerk JWT |
 | `Idempotency-Key` | No | Max 128 chars. Replays the same response for 24h on API key requests |
 | `Content-Type` | Yes | `application/json` |
 
@@ -66,7 +66,7 @@ Poll [Poll voiceover status](/api-reference/voiceovers/poll-status) with `genera
 <RequestExample>
 ```bash Basic theme={null}
 curl -X POST "https://mvp.tryunsora.com/api/v1/voiceovers/create" \
-  -H "Authorization: Bearer uns_live_YOUR_API_KEY" \
+  -H "Authorization: Bearer uns_YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "text": "Welcome back to the channel. <#0.5#> Today we are breaking down the three biggest AI stories of the week.",

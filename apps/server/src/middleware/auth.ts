@@ -155,7 +155,7 @@ function extractBearerToken(req: Request): string | null {
 }
 
 /**
- * Accepts Clerk JWT or Unsora API key (`uns_live_*` / `uns_test_*`).
+ * Accepts Clerk JWT or Unsora API key (`uns_*`, or legacy `uns_live_*` / `uns_test_*`).
  * Sets req.auth.userId to the user's clerkId in both cases.
  */
 export const requireAuthOrApiKey = [

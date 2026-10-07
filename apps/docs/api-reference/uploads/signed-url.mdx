@@ -37,7 +37,7 @@ not listed and cannot be managed via the API.
 ```bash
 # 1. Mint
 RESPONSE=$(curl -s -X POST "https://mvp2.tryunsora.com/api/v1/uploads/signed-url" \
-  -H "Authorization: Bearer uns_live_YOUR_API_KEY" \
+  -H "Authorization: Bearer uns_YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{ "fileName": "big-video.mp4" }')
 
@@ -51,7 +51,7 @@ curl -X PUT "$UPLOAD_URL" \
 
 # 3. Register the asset
 curl -X POST "https://mvp2.tryunsora.com/api/v1/uploads/complete" \
-  -H "Authorization: Bearer uns_live_YOUR_API_KEY" \
+  -H "Authorization: Bearer uns_YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d "{ \"blobName\": \"$BLOB_NAME\", \"fileName\": \"big-video.mp4\" }"
 ```

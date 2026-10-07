@@ -41,6 +41,7 @@
           "api-reference/posts/list_posts",
           "api-reference/posts/get_post",
           "api-reference/posts/update_post",
+          "api-reference/posts/publish",
           "api-reference/posts/retry",
           "api-reference/posts/delete_post"
         ]
@@ -78,7 +79,9 @@
           "api-reference/music-generations/create",
           "api-reference/music-generations/list",
           "api-reference/music-generations/get",
-          "api-reference/music-generations/delete"
+          "api-reference/music-generations/delete",
+          "guides/music-generator/overview",
+          "guides/music-generator/playback"
         ]
       },
       {

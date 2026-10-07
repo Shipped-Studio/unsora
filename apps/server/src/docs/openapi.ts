@@ -514,6 +514,26 @@ const openApiDocument = {
         },
         required: ["success", "generation"],
       },
+      MultiGenerationCreateResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean" },
+          generations: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                status: { type: "string" },
+              },
+              required: ["id", "status"],
+            },
+          },
+          creditsDeducted: { type: "integer" },
+          creditsRemaining: { type: "integer" },
+        },
+        required: ["success", "generations"],
+      },
       VideoCreateRequest: {
         type: "object",
         required: ["prompt"],
@@ -2019,6 +2039,54 @@ const openApiDocument = {
         },
       },
     },
+    "/user/subscription": {
+      get: {
+        tags: ["User"],
+        summary: "Get the current plan and Stripe subscription state",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          "200": {
+            description: "Subscription",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean" },
+                    data: {
+                      type: "object",
+                      properties: {
+                        plan: { type: "string", nullable: true },
+                        status: { type: "string", nullable: true },
+                        isActive: { type: "boolean" },
+                        isCancelled: { type: "boolean" },
+                        stripeSubscriptionId: { type: "string", nullable: true },
+                        stripeCustomerId: { type: "string", nullable: true },
+                        stripePriceId: { type: "string", nullable: true },
+                        stripeCurrentPeriodEnd: {
+                          type: "string",
+                          format: "date-time",
+                          nullable: true,
+                        },
+                      },
+                    },
+                  },
+                  required: ["success", "data"],
+                },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
     "/user/credit-grants": {
       get: {
         tags: ["User"],
@@ -2942,6 +3010,82 @@ const openApiDocument = {
         },
       },
     },
+    "/image-generations/create": {
+      post: {
+        tags: ["Image"],
+        summary: "Create an image generation (simple shape)",
+        description:
+          "Kept for existing integrations. Takes the fields below, translates them onto the chosen model, and runs through POST /catalog/generate with the same live pricing. New integrations should use /catalog/generate, which exposes every model input.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "Idempotency-Key",
+            in: "header",
+            description:
+              "Max 128 chars. Replays the same response for 24h on API key requests.",
+            schema: { type: "string", maxLength: 128 },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["prompt"],
+                properties: {
+                  prompt: { type: "string" },
+                  model: {
+                    type: "string",
+                    default: "nano-banana-2",
+                    description:
+                      "Any image model key from GET /catalog (e.g. `nano-banana-2`, `nano-banana-pro`, `gpt-image-2`, `seedream-5.0-pro`). `gpt-image-1.5` maps to GPT Image 2 and `seedream-v5-lite` to Seedream 5.0 Pro.",
+                  },
+                  aspectRatio: {
+                    type: "string",
+                    description:
+                      "Aspect ratio. Valid values depend on the model; `auto` uses the model's default.",
+                  },
+                  resolution: {
+                    type: "string",
+                    description:
+                      "Output size such as `1k`, `2k` or `4k`, for models that offer it. Other values fall back to the model's default.",
+                  },
+                  quality: {
+                    type: "string",
+                    description: "Quality tier, for models that offer it.",
+                  },
+                  referenceImages: {
+                    type: "array",
+                    items: { type: "string", format: "uri" },
+                    description:
+                      "Public HTTPS reference image URLs. The maximum count depends on the model.",
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Generation queued",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/CatalogGenerateResponse" },
+              },
+            },
+          },
+          "402": {
+            description: "Insufficient credits",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
     "/image-generations/all": {
       get: {
         tags: ["Image"],
@@ -3363,6 +3507,96 @@ const openApiDocument = {
         },
       },
     },
+    "/influencer-studio/create": {
+      post: {
+        tags: ["Influencer"],
+        summary: "Create AI influencer image jobs",
+        description:
+          "Each image in `count` is a separate generation and credit charge. Poll each id with GET /image/status/{id}.",
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["prompt"],
+                properties: {
+                  prompt: {
+                    type: "string",
+                    description:
+                      "Describe the influencer scene, outfit, mood, or action.",
+                  },
+                  aspectRatio: {
+                    type: "string",
+                    enum: ["1:1", "16:9", "9:16", "4:3", "3:4"],
+                    default: "1:1",
+                  },
+                  count: {
+                    type: "integer",
+                    minimum: 1,
+                    maximum: 10,
+                    default: 1,
+                  },
+                  cameraAngle: {
+                    type: "string",
+                    enum: ["pov", "portrait", "full-body", "close-up", "side-profile"],
+                  },
+                  styleMode: {
+                    type: "string",
+                    enum: [
+                      "ugc",
+                      "casual_daylight",
+                      "cozy_indoor",
+                      "low_light_intimate",
+                      "raw_flash",
+                      "golden_hour",
+                      "moody_night",
+                      "car_selfie",
+                      "mirror_selfie",
+                      "luxury_influencer",
+                      "cinematic",
+                      "travel_content",
+                      "beauty_closeup",
+                      "party_night_out",
+                    ],
+                  },
+                  age: { type: "integer", minimum: 18, maximum: 70 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Jobs queued",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/MultiGenerationCreateResponse",
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid input",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "402": {
+            description: "Insufficient credits",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
     "/influencer-studio/all": {
       get: {
         tags: ["Influencer"],
@@ -3418,6 +3652,113 @@ const openApiDocument = {
           },
           "404": {
             description: "Not found",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/thumbnails/create": {
+      post: {
+        tags: ["Thumbnail"],
+        summary: "Create YouTube thumbnail jobs",
+        description:
+          "Generates 16:9 thumbnails. Send at least one of `prompt`, `context`, or reference images. Each variation is a separate generation and credit charge (12 credits each).",
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  prompt: {
+                    type: "string",
+                    description: "Title or idea for the thumbnail.",
+                  },
+                  context: {
+                    type: "array",
+                    maxItems: 1,
+                    description:
+                      "One source for the thumbnail: a YouTube video (`youtube`, reads its title and transcript) or a PDF (`document`, public URL).",
+                    items: {
+                      type: "object",
+                      required: ["type", "content"],
+                      properties: {
+                        type: { type: "string", enum: ["youtube", "document"] },
+                        content: {
+                          type: "string",
+                          format: "uri",
+                          description: "The YouTube or document URL.",
+                        },
+                      },
+                    },
+                  },
+                  referenceImageUrls: {
+                    type: "array",
+                    items: { type: "string", format: "uri" },
+                    description:
+                      "Reference images, such as the creator's face. Up to 16 including the template.",
+                  },
+                  templateImageUrls: {
+                    type: "array",
+                    maxItems: 1,
+                    items: { type: "string", format: "uri" },
+                    description: "One layout template image to follow.",
+                  },
+                  expression: {
+                    type: "string",
+                    enum: [
+                      "auto",
+                      "neutral",
+                      "soft-smile",
+                      "big-smile",
+                      "surprised",
+                      "confused",
+                      "worried",
+                      "angry",
+                      "sad",
+                      "disgusted",
+                      "determined",
+                    ],
+                    default: "auto",
+                    description: "Facial expression for the person in the thumbnail.",
+                  },
+                  variations: {
+                    type: "integer",
+                    minimum: 1,
+                    maximum: 20,
+                    default: 1,
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Jobs queued",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/MultiGenerationCreateResponse",
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid input",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "402": {
+            description: "Insufficient credits",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ErrorResponse" },
@@ -3499,6 +3840,117 @@ const openApiDocument = {
           },
           "404": {
             description: "Not found",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/clippings/create": {
+      post: {
+        tags: ["Clipping"],
+        summary: "Create an AI clipping job",
+        description:
+          "Finds the best moments in a long video and cuts them into short clips. Credits depend on the source video's length. Poll GET /clippings/status/{clippingId} until the job finishes.",
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["videoUrl"],
+                properties: {
+                  videoUrl: {
+                    type: "string",
+                    format: "uri",
+                    description: "Public video URL, such as a YouTube link.",
+                  },
+                  targetDuration: {
+                    type: "string",
+                    enum: ["auto", "lt30", "30-60", "60-90", "90-3min", "gt3min"],
+                    default: "auto",
+                    description:
+                      "Clip length: `auto` (up to 90s), under 30s, 30–60s, 60–90s, 90s–3min, or 3–5min.",
+                  },
+                  ratio: {
+                    type: "string",
+                    enum: ["9:16", "1:1", "4:5", "16:9", "original"],
+                    default: "original",
+                  },
+                  limit: {
+                    type: "integer",
+                    minimum: 1,
+                    maximum: 20,
+                    description: "Maximum number of clips.",
+                  },
+                  query: {
+                    type: "string",
+                    maxLength: 500,
+                    description:
+                      "Describe the moments to find, e.g. `funny reactions`.",
+                  },
+                  enableCaption: { type: "boolean", default: false },
+                  captionStyle: {
+                    type: "string",
+                    description:
+                      "Caption preset when `enableCaption` is true, e.g. `classic-yellow`, `bold-white`, `glow-pink`, `gaming-cyan`.",
+                  },
+                  sourceLang: {
+                    type: "string",
+                    description: "Language spoken in the video.",
+                  },
+                  targetLang: {
+                    type: "string",
+                    description: "Language for the captions.",
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": {
+            description: "Job queued",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean" },
+                    data: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string" },
+                        status: { type: "string" },
+                        videoUrl: { type: "string" },
+                        config: { type: "object" },
+                        createdAt: { type: "string", format: "date-time" },
+                        clips: { type: "array", items: { type: "object" } },
+                        creditsUsed: { type: "integer" },
+                      },
+                    },
+                    creditsDeducted: { type: "integer" },
+                    creditsRemaining: { type: "integer" },
+                  },
+                  required: ["success", "data"],
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid input or unreadable video",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "402": {
+            description: "Insufficient credits",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ErrorResponse" },
