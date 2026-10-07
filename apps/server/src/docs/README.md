@@ -5,7 +5,7 @@
 - **Spec source:** `src/docs/openapi.ts` (OpenAPI 3.1, TypeScript object)
 - **UI:** [Swagger UI](https://swagger.io/tools/swagger-ui/) served at `GET /api-docs`
 - **Raw spec:** `GET /api-docs/openapi.json` (also `/api/v1/openapi.json`, `/api/openapi.json`)
-- **Export:** `npm run docs:export-openapi` writes `../docs/openapi.json`
+- **Export:** `npm run docs:export-openapi` writes `openapi.json` into the [docs repo](https://github.com/Shipped-Studio/docs.tryunsora.com), expected as a sibling of this repo (`../docs`). Set `DOCS_DIR` to use another path.
 
 Public API routes live under **`/api/public/*`** (alias: `/api/v1/public/*`). Auth: Clerk JWT or API key (`Authorization: Bearer …`).
 
