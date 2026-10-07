@@ -57,3 +57,7 @@ Deploy the server before the MCP server when new MCP tools call new API endpoint
 ## CI
 
 `.github/workflows/ci.yml` installs the workspace and runs `turbo run typecheck --affected` plus the server and MCP builds, so only apps touched by a change are checked.
+
+## License
+
+[AGPL-3.0](LICENSE)

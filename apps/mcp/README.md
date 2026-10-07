@@ -2,6 +2,11 @@
 
 Streamable HTTP MCP at `https://mcp.tryunsora.com/mcp` — proxies to your Unsora public API.
 
+A second, slimmer server lives at `https://mcp.tryunsora.com/scheduler`: only AI
+clipping plus scheduling/publishing posts (accounts, posts, analytics, uploads,
+library). Same process, same auth; the tool list is `SCHEDULER_TOOLS` in
+`src/server.ts`.
+
 ```text
 Claude / Cursor / ChatGPT
         ↓
