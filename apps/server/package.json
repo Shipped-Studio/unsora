@@ -13,7 +13,7 @@
     "start": "node dist/src/server.js",
     "migrate": "prisma migrate dev && prisma generate",
     "deploy": "npm run build && npm start",
-    "docs:export-openapi": "npm run build && node -e \"const fs=require('fs');const path=require('path');const doc=require('./dist/src/docs/openapi').default;const out=path.resolve(__dirname,'../docs/openapi.json');fs.mkdirSync(path.dirname(out),{recursive:true});fs.writeFileSync(out, JSON.stringify(doc, null, 2));console.log('OpenAPI exported to', out);\"",
+    "docs:export-openapi": "npm run build && node -e \"const fs=require('fs');const path=require('path');const doc=require('./dist/src/docs/openapi').default;const dir=path.resolve(process.env.DOCS_DIR||'../../../docs');if(!fs.existsSync(dir)){console.error('Docs repo not found at '+dir+'. Clone it there or set DOCS_DIR.');process.exit(1);}const out=path.join(dir,'openapi.json');fs.writeFileSync(out, JSON.stringify(doc, null, 2));console.log('OpenAPI exported to', out);\"",
     "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate",
     "email:test": "ts-node scripts/send-test-email.ts"
