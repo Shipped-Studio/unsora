@@ -9,12 +9,16 @@
  *
  *   credits = ceil(costUsd × (1 + GENERATION_MARGIN) / CREDIT_USD_VALUE)
  *
- * GENERATION_MARGIN  default 0.20 — 20% on top of what WaveSpeed bills us.
- * CREDIT_USD_VALUE   default 0.028 — the dollars a credit is costed at. The
- *   cheapest credit we sell is $0.0298 (Power plan), about $0.0289 after
- *   Stripe fees, so 0.028 keeps the margin at or above 20% on every plan.
+ * margin     default 0.20 — 20% on top of what WaveSpeed bills us.
+ * creditUsd  default 0.028 — the dollars a credit is costed at. Keep it at
+ *   or below the cheapest credit sold (after Stripe fees) or that plan's
+ *   margin shrinks.
+ *
+ * Both are edited at /admin/pricing (app_settings `pricing.generation`);
+ * until saved there they come from GENERATION_MARGIN / CREDIT_USD_VALUE.
  */
 
+import { getSetting, setSetting } from "./app-settings";
 import { wavespeedApiKey } from "./wavespeed-api";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
@@ -24,21 +28,60 @@ const QUOTE_CACHE_MAX = 1000;
 const DEFAULT_MARGIN = 0.2;
 const DEFAULT_CREDIT_USD = 0.028;
 
+const PRICING_SETTING = "pricing.generation";
+
 function readNumberEnv(name: string, fallback: number): number {
   const n = Number(process.env[name]);
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-export function pricingConfig() {
+export interface PricingConfig {
+  margin: number;
+  creditUsd: number;
+  /** Where the values come from: saved at /admin/pricing, or env/defaults. */
+  source: "admin" | "env";
+}
+
+export function validPricing(v: unknown): v is { margin: number; creditUsd: number } {
+  const p = v as { margin?: unknown; creditUsd?: unknown } | null;
+  return (
+    typeof p?.margin === "number" &&
+    Number.isFinite(p.margin) &&
+    p.margin >= 0 &&
+    p.margin <= 10 &&
+    typeof p.creditUsd === "number" &&
+    Number.isFinite(p.creditUsd) &&
+    p.creditUsd >= 0.0001 &&
+    p.creditUsd <= 10
+  );
+}
+
+export async function pricingConfig(): Promise<PricingConfig> {
+  const saved = await getSetting<unknown>(PRICING_SETTING);
+  if (validPricing(saved)) {
+    return { margin: saved.margin, creditUsd: saved.creditUsd, source: "admin" };
+  }
   return {
     margin: readNumberEnv("GENERATION_MARGIN", DEFAULT_MARGIN),
     creditUsd: readNumberEnv("CREDIT_USD_VALUE", DEFAULT_CREDIT_USD),
+    source: "env",
   };
 }
 
+export async function savePricingConfig(
+  value: { margin: number; creditUsd: number },
+  updatedBy?: string,
+): Promise<void> {
+  await setSetting(
+    PRICING_SETTING,
+    { margin: value.margin, creditUsd: value.creditUsd },
+    updatedBy,
+  );
+}
+
 /** USD cost → credits charged to the user (always at least 1). */
-export function usdToCredits(costUsd: number): number {
-  const { margin, creditUsd } = pricingConfig();
+export async function usdToCredits(costUsd: number): Promise<number> {
+  const { margin, creditUsd } = await pricingConfig();
   // The epsilon keeps float noise (0.1 × 3) from rounding up a whole credit.
   return Math.max(1, Math.ceil((costUsd * (1 + margin)) / creditUsd - 1e-9));
 }
@@ -68,7 +111,12 @@ const MEDIA_ERRORS: Record<number, string> = {
   4007: "Couldn't read the size of an attached image",
 };
 
-const quoteCache = new Map<string, { at: number; quote: GenerationQuote }>();
+// Caches WaveSpeed's cost only; credits are worked out on every read so a
+// margin change at /admin/pricing applies straight away.
+const quoteCache = new Map<
+  string,
+  { at: number; cost: Omit<GenerationQuote, "credits"> }
+>();
 
 function cacheKey(modelId: string, inputs: Record<string, unknown>) {
   const sorted = Object.keys(inputs)
@@ -87,7 +135,9 @@ export async function quoteGeneration(
 ): Promise<GenerationQuote> {
   const key = cacheKey(modelId, inputs);
   const hit = quoteCache.get(key);
-  if (hit && Date.now() - hit.at < QUOTE_TTL_MS) return hit.quote;
+  if (hit && Date.now() - hit.at < QUOTE_TTL_MS) {
+    return { ...hit.cost, credits: await usdToCredits(hit.cost.costUsd) };
+  }
 
   const apiKey = wavespeedApiKey();
   if (!apiKey) {
@@ -143,12 +193,12 @@ export async function quoteGeneration(
     throw new PricingError("Couldn't price this generation. Try again.", 502);
   }
 
-  const quote = { credits: usdToCredits(costUsd), costUsd, listUsd };
+  const quote = { credits: await usdToCredits(costUsd), costUsd, listUsd };
 
   if (quoteCache.size >= QUOTE_CACHE_MAX) {
     const oldest = quoteCache.keys().next().value;
     if (oldest !== undefined) quoteCache.delete(oldest);
   }
-  quoteCache.set(key, { at: Date.now(), quote });
+  quoteCache.set(key, { at: Date.now(), cost: { costUsd, listUsd } });
   return quote;
 }

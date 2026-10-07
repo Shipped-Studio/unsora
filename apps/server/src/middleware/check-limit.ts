@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { planLimits } from "../lib/limit";
+import { socialAccountLimitFor } from "../lib/plans";
 import prisma from "../lib/db";
 
 export const checkSocialAccountLimit = async (
@@ -29,12 +29,10 @@ export const checkSocialAccountLimit = async (
     where: { userId: user.id },
   });
 
-  // Stripe stores the product name with original casing (e.g. "Pro"),
-  // but `planLimits` is keyed by lowercase ("basic" | "pro" | "power").
-  const planKey = (user.plan ?? "").toLowerCase() as keyof typeof planLimits;
-  const limit = planLimits[planKey]?.socialAccounts;
+  // The limit is set per plan at /admin/pricing.
+  const limit = await socialAccountLimitFor(user.plan);
 
-  if (limit === undefined) {
+  if (limit === null) {
     return res.status(403).json({
       error:
         "An active paid plan is required to connect social accounts. Please upgrade your plan.",

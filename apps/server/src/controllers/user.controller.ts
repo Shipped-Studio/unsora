@@ -3,7 +3,7 @@ import prisma from "../lib/db";
 import { getCreditBalance, listActiveGrants } from "../lib/credits";
 import { clerkClient } from "@clerk/express";
 import { userIsAdmin } from "../lib/is-admin";
-import { planLimits } from "../lib/limit";
+import { socialAccountLimitFor } from "../lib/plans";
 import { isValidTimeZone } from "./schedule.controller";
 
 export class UserController {
@@ -32,11 +32,11 @@ export class UserController {
         return res.status(404).json({ success: false, error: "User not found" });
       }
 
-      const [credits, socialAccountCount] = await Promise.all([
+      const [credits, socialAccountCount, socialAccountLimit] = await Promise.all([
         getCreditBalance(user.id),
         prisma.socialAccount.count({ where: { userId: user.id } }),
+        socialAccountLimitFor(user.plan),
       ]);
-      const planKey = (user.plan ?? "free").toLowerCase() as keyof typeof planLimits;
 
       res.json({
         success: true,
@@ -67,7 +67,7 @@ export class UserController {
             weekStartsOn: user.weekStartsOn,
           },
           limits: {
-            socialAccounts: planLimits[planKey]?.socialAccounts ?? 0,
+            socialAccounts: socialAccountLimit ?? 0,
           },
           counts: {
             socialAccounts: socialAccountCount,

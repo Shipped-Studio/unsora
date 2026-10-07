@@ -229,7 +229,7 @@ export async function startCatalogGeneration(
   const { inputs, model, mode, modelId } = resolved;
   const prompt = typeof inputs.prompt === "string" ? inputs.prompt : "";
   const isImage = model.category === "image";
-  const { margin, creditUsd } = pricingConfig();
+  const { margin, creditUsd } = await pricingConfig();
 
   // The row stores what was submitted; our cost lives only on the credit
   // transaction, which users never see.
