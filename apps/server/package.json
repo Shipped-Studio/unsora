@@ -20,7 +20,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "AGPL-3.0-only",
   "dependencies": {
     "@atproto/api": "^0.20.32",
     "@atproto/oauth-client-node": "^0.4.9",

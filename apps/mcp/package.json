@@ -1,6 +1,7 @@
 {
   "name": "@unsora/mcp",
   "private": true,
+  "license": "AGPL-3.0-only",
   "version": "1.0.0",
   "description": "Remote MCP server for the Unsora public API (Streamable HTTP)",
   "type": "module",

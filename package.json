@@ -1,6 +1,7 @@
 {
   "name": "unsora",
   "private": true,
+  "license": "AGPL-3.0-only",
   "description": "Unsora: AI content generation and social scheduling. Web app, API server, MCP server and Remotion compositions.",
   "packageManager": "pnpm@10.34.6",
   "scripts": {

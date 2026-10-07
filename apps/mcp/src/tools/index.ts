@@ -773,9 +773,11 @@ function catalogCreateSchema(category: CatalogCategory, promptRequired: boolean)
   };
 }
 
-const workflowGuide = `# Unsora API workflows (polling only — no webhooks)
-
-## Supported social platforms
+/*
+ * unsora://workflows is assembled from sections so the scheduler endpoint can
+ * serve the posting + clipping parts without the generation ones.
+ */
+const POSTING_GUIDE = `## Supported social platforms
 Posts can target any connected account on: YouTube, TikTok, Instagram,
 Facebook, LinkedIn, Pinterest, Threads, Bluesky, X and Google Business Profile.
 Connect accounts in the Unsora app; get_accounts returns them with a "provider"
@@ -801,8 +803,9 @@ upload_file imports a public URL (or small base64 payload) into the user's
 library and returns a hosted url — use it when the user supplies their own
 media for posts, reference images, or clipping. Available to every
 authenticated user.
+`;
 
-## Typical: generate image → schedule social post
+const GENERATION_GUIDE = `## Typical: generate image → schedule social post
 1. get_accounts — pick account ids
 2. get_credits / get_subscription — verify plan + balance
 3. create_image — get generation.id
@@ -872,15 +875,17 @@ Pick the transcript voice with list_voices.
 ## Movie materials (AI film pre-production, image jobs)
 create_movie_material — character face / full-body / turnaround sheet,
 location, first frame, style collage, 2x4 or 1x4 storyboard → wait_for_image.
+`;
 
-## Clipping (long video → many short clips)
+const CLIPPING_GUIDE = `## Clipping (long video → many short clips)
 create_clipping (public videoUrl). In hosts that render the live preview
 panel (e.g. Claude.ai), STOP after creating — the preview polls progress and
 shows the clips itself; do not call wait_for_clipping or
 clipping_status. Only poll with wait_for_clipping in hosts
 without the preview, or when the user explicitly asks for the output URLs.
+`;
 
-## Posts need paid plan (isActive on subscription).
+const POSTING_RULES_GUIDE = `## Posts need paid plan (isActive on subscription).
 
 ## Posting now vs scheduling
 create_post without scheduled_at saves a DRAFT (scheduled_at must be at
@@ -915,6 +920,27 @@ failed), call retry_post with the post id — it re-attempts only the failed
 accounts and never double-posts. Do NOT create a duplicate post to retry.
 `;
 
+const workflowGuide = `# Unsora API workflows (polling only — no webhooks)
+
+${POSTING_GUIDE}
+${GENERATION_GUIDE}
+${CLIPPING_GUIDE}
+${POSTING_RULES_GUIDE}`;
+
+export const schedulerWorkflowGuide = `# Unsora scheduler workflows (polling only — no webhooks)
+
+${POSTING_GUIDE}
+## Typical: long video → clips → scheduled posts
+1. get_accounts — pick account ids
+2. get_subscription / get_credits — posting needs a paid plan, clipping spends credits
+3. create_clipping — public videoUrl (or a url from upload_file)
+4. wait_for_clipping — only in hosts without the live preview
+5. create_post (compose_post in app-capable hosts) — one post per clip, with scheduled_at
+Clips made earlier are in list_generations (type clipping).
+
+${CLIPPING_GUIDE}
+${POSTING_RULES_GUIDE}`;
+
 function unsoraFor(
   resolveUnsora: UnsoraAuthResolver,
   authInfo?: AuthInfo,
@@ -922,13 +948,65 @@ function unsoraFor(
   return resolveUnsora(authInfo);
 }
 
-export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolver) {
+export interface RegisterToolsOptions {
+  /** Expose only these tools (and the widgets they render). Omit for all. */
+  tools?: ReadonlySet<string>;
+  /** Markdown served as unsora://workflows. */
+  workflowGuide?: string;
+}
+
+/**
+ * Drops every tool outside `allowed` as it registers. The returned callback
+ * then drops the ui:// widgets no remaining tool renders — call it once all
+ * tools and resources are registered.
+ */
+function limitTools(server: McpServer, allowed: ReadonlySet<string>): () => void {
+  const usedWidgets = new Set<string>();
+  const widgets = new Map<string, { remove(): void }>();
+
+  const registerTool = server.registerTool.bind(server);
+  server.registerTool = ((name, config, cb) => {
+    const tool = registerTool(name, config, cb);
+    if (allowed.has(name)) {
+      const ui = config._meta?.ui as { resourceUri?: string } | undefined;
+      if (ui?.resourceUri) usedWidgets.add(ui.resourceUri);
+    } else {
+      tool.remove();
+    }
+    return tool;
+  }) as McpServer["registerTool"];
+
+  const registerResource = server.registerResource.bind(server);
+  server.registerResource = ((name, uri, config, cb) => {
+    const resource = registerResource(name, uri as never, config, cb as never);
+    if (typeof uri === "string" && uri.startsWith("ui://")) {
+      widgets.set(uri, resource);
+    }
+    return resource;
+  }) as McpServer["registerResource"];
+
+  return () => {
+    for (const [uri, resource] of widgets) {
+      if (!usedWidgets.has(uri)) resource.remove();
+    }
+  };
+}
+
+export function registerTools(
+  server: McpServer,
+  resolveUnsora: UnsoraAuthResolver,
+  options: RegisterToolsOptions = {},
+) {
+  const removeUnusedWidgets = options.tools
+    ? limitTools(server, options.tools)
+    : undefined;
+
   server.resource("unsora-workflows", "unsora://workflows", async () => ({
     contents: [
       {
         uri: "unsora://workflows",
         mimeType: "text/markdown",
-        text: workflowGuide,
+        text: options.workflowGuide ?? workflowGuide,
       },
     ],
   }));
@@ -3006,4 +3084,6 @@ export function registerTools(server: McpServer, resolveUnsora: UnsoraAuthResolv
       );
     },
   );
+
+  removeUnusedWidgets?.();
 }

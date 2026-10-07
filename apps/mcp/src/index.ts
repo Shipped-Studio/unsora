@@ -13,7 +13,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import type { NextFunction, Request, Response } from "express";
 
 import { tryGetApiKeyFromRequest } from "./auth.js";
-import { createMcpServer } from "./server.js";
+import { createMcpServer, type McpProfile } from "./server.js";
 import { UnsoraApi } from "./unsora-api.js";
 
 const PORT = Number(process.env.PORT || 3000);
@@ -22,9 +22,21 @@ const HOST = process.env.HOST || "0.0.0.0";
 const MCP_PUBLIC_URL = process.env.MCP_PUBLIC_URL;
 const MCP_PATH = process.env.MCP_PATH || "/mcp";
 const MCP_RESOURCE_URL = `${MCP_PUBLIC_URL}${MCP_PATH}`;
+const MCP_SCHEDULER_PATH = "/scheduler";
 
-const PROTECTED_RESOURCE_METADATA_PATH =
-  "/.well-known/oauth-protected-resource/mcp";
+/**
+ * Each path is its own MCP server with its own tool set; API keys and Clerk
+ * OAuth work on all of them.
+ */
+const MCP_ENDPOINTS: { path: string; profile: McpProfile }[] = [
+  { path: MCP_PATH, profile: "full" },
+  { path: MCP_SCHEDULER_PATH, profile: "scheduler" },
+];
+
+/** RFC 9728 path-suffixed metadata URL — also what mcpAuthClerk's 401 points at. */
+function protectedResourceMetadataPath(mcpPath: string): string {
+  return `/.well-known/oauth-protected-resource${mcpPath}`;
+}
 
 const allowedHosts = process.env.MCP_ALLOWED_HOSTS?.split(",");
 
@@ -69,6 +81,7 @@ app.get("/health", (_req, res) => {
     ok: true,
     service: process.env.MCP_SERVER_NAME || "unsora-mcp",
     mcp: MCP_PATH,
+    scheduler: MCP_SCHEDULER_PATH,
     publicUrl: MCP_RESOURCE_URL,
     auth: ["api_key", "clerk_oauth"],
     allowedHosts,
@@ -108,19 +121,29 @@ function getClerkAsMetadata(): Promise<Record<string, unknown>> {
  * `authorization_servers` / `registration_endpoint` at this server and
  * forward registrations to Clerk with the full scope list injected.
  */
-function protectedResourceMetadataHandler(req: Request, res: Response) {
-  const origin = requestOrigin(req);
-  res.json({
-    resource: `${origin}${MCP_PATH}`,
-    authorization_servers: [origin],
-    scopes_supported: OAUTH_SCOPES,
-    bearer_methods_supported: ["header"],
-    token_types_supported: ["urn:ietf:params:oauth:token-type:access_token"],
-  });
+function protectedResourceMetadataHandler(mcpPath: string) {
+  return (req: Request, res: Response) => {
+    const origin = requestOrigin(req);
+    res.json({
+      resource: `${origin}${mcpPath}`,
+      authorization_servers: [origin],
+      scopes_supported: OAUTH_SCOPES,
+      bearer_methods_supported: ["header"],
+      token_types_supported: ["urn:ietf:params:oauth:token-type:access_token"],
+    });
+  };
 }
 
-app.get(PROTECTED_RESOURCE_METADATA_PATH, protectedResourceMetadataHandler);
-app.get("/.well-known/oauth-protected-resource", protectedResourceMetadataHandler);
+for (const { path } of MCP_ENDPOINTS) {
+  app.get(
+    protectedResourceMetadataPath(path),
+    protectedResourceMetadataHandler(path),
+  );
+}
+app.get(
+  "/.well-known/oauth-protected-resource",
+  protectedResourceMetadataHandler(MCP_PATH),
+);
 
 app.get("/.well-known/oauth-authorization-server", async (req, res) => {
   const metadata = await getClerkAsMetadata();
@@ -156,12 +179,12 @@ app.post("/oauth/register", async (req, res) => {
 
 app.use(clerkMiddleware());
 
-function sendOAuthChallenge(req: Request, res: Response) {
+function sendOAuthChallenge(req: Request, res: Response, mcpPath: string) {
   if (res.headersSent) return;
 
   res.setHeader(
     "WWW-Authenticate",
-    `Bearer resource_metadata="${requestOrigin(req)}${PROTECTED_RESOURCE_METADATA_PATH}"`,
+    `Bearer resource_metadata="${requestOrigin(req)}${protectedResourceMetadataPath(mcpPath)}"`,
   );
 
   res.status(401).json({
@@ -179,9 +202,10 @@ function sendOAuthChallenge(req: Request, res: Response) {
 async function handleMcpRequest(
   req: Request,
   res: Response,
+  profile: McpProfile,
   resolveUnsora: (authInfo?: AuthInfo) => UnsoraApi,
 ): Promise<void> {
-  const server = createMcpServer(resolveUnsora);
+  const server = createMcpServer(resolveUnsora, profile);
 
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
@@ -199,13 +223,18 @@ async function handleMcpRequest(
 function handleApiKeyMcp(
   req: Request,
   res: Response,
+  profile: McpProfile,
   apiKey: string,
 ): Promise<void> {
-  return handleMcpRequest(req, res, () => new UnsoraApi(apiKey));
+  return handleMcpRequest(req, res, profile, () => new UnsoraApi(apiKey));
 }
 
-function handleOAuthMcp(req: Request, res: Response): Promise<void> {
-  return handleMcpRequest(req, res, (authInfo) => {
+function handleOAuthMcp(
+  req: Request,
+  res: Response,
+  profile: McpProfile,
+): Promise<void> {
+  return handleMcpRequest(req, res, profile, (authInfo) => {
     const token = authInfo?.token;
     if (!token) {
       throw new Error("Missing OAuth token");
@@ -214,56 +243,60 @@ function handleOAuthMcp(req: Request, res: Response): Promise<void> {
   });
 }
 
-app.all(MCP_PATH, async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    if (req.method === "OPTIONS") {
-      res.status(204).end();
-      return;
-    }
-
-    const apiKey = tryGetApiKeyFromRequest(req);
-    if (apiKey) {
-      await handleApiKeyMcp(req, res, apiKey);
-      return;
-    }
-
-    await mcpAuthClerk(req, res, async () => {
-      await handleOAuthMcp(req, res);
-    });
-  } catch (error) {
-    console.error("MCP request error:", error);
-
-    if (!res.headersSent) {
-      const message = error instanceof Error ? error.message : "Internal error";
-
-      if (
-        message.toLowerCase().includes("unauthorized") ||
-        message.toLowerCase().includes("missing oauth") ||
-        message.toLowerCase().includes("missing token")
-      ) {
-        sendOAuthChallenge(req, res);
+for (const { path, profile } of MCP_ENDPOINTS) {
+  app.all(path, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (req.method === "OPTIONS") {
+        res.status(204).end();
         return;
       }
 
-      res.status(500).json({
-        jsonrpc: "2.0",
-        error: {
-          code: -32603,
-          message,
-        },
-        id: null,
-      });
-    }
+      const apiKey = tryGetApiKeyFromRequest(req);
+      if (apiKey) {
+        await handleApiKeyMcp(req, res, profile, apiKey);
+        return;
+      }
 
-    next(error);
-  }
-});
+      await mcpAuthClerk(req, res, async () => {
+        await handleOAuthMcp(req, res, profile);
+      });
+    } catch (error) {
+      console.error("MCP request error:", error);
+
+      if (!res.headersSent) {
+        const message = error instanceof Error ? error.message : "Internal error";
+
+        if (
+          message.toLowerCase().includes("unauthorized") ||
+          message.toLowerCase().includes("missing oauth") ||
+          message.toLowerCase().includes("missing token")
+        ) {
+          sendOAuthChallenge(req, res, path);
+          return;
+        }
+
+        res.status(500).json({
+          jsonrpc: "2.0",
+          error: {
+            code: -32603,
+            message,
+          },
+          id: null,
+        });
+      }
+
+      next(error);
+    }
+  });
+}
 
 app.listen(PORT, HOST, () => {
   console.log(`Unsora MCP server listening on http://${HOST}:${PORT}`);
   console.log(`Health: ${MCP_PUBLIC_URL}/health`);
-  console.log(`MCP:    ${MCP_RESOURCE_URL}`);
-  console.log(
-    `OAuth metadata: ${MCP_PUBLIC_URL}${PROTECTED_RESOURCE_METADATA_PATH}`,
-  );
+  for (const { path } of MCP_ENDPOINTS) {
+    console.log(`MCP:    ${MCP_PUBLIC_URL}${path}`);
+    console.log(
+      `OAuth metadata: ${MCP_PUBLIC_URL}${protectedResourceMetadataPath(path)}`,
+    );
+  }
 });

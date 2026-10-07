@@ -1,6 +1,7 @@
 {
   "name": "@unsora/remotion",
   "private": true,
+  "license": "AGPL-3.0-only",
   "dependencies": {
     "@remotion/google-fonts": "^4.0.377",
     "@remotion/lambda": "4.0.377",
