@@ -1,0 +1,26 @@
+---
+title: "Retry post"
+description: "Retry a failed post. Re-attempts publishing to any platform that errored and returns the updated per-platform publish status."
+openapi: "POST /posts/{id}/retry"
+---
+
+Retry a post whose status is `FAILED` or `PARTIALLY_PUBLISHED`.
+
+Only the accounts that failed to publish are re-attempted. Accounts that
+already published are left untouched, so retrying never double-posts.
+
+After the retry, the post status reflects the per-account outcome:
+
+| Outcome | Status |
+| --- | --- |
+| Every account published | `PUBLISHED` |
+| Some accounts published, some failed | `PARTIALLY_PUBLISHED` |
+| No account published | `FAILED` |
+
+<Note>
+Transient platform errors (for example Instagram's "media is not ready for
+publishing", code 9007) are retried automatically with backoff during
+publishing, so most posts never need a manual retry. Use this endpoint for
+errors that needed intervention first — such as reconnecting an expired
+account.
+</Note>

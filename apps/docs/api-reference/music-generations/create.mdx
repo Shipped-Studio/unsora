@@ -1,0 +1,89 @@
+---
+title: "Create song"
+description: "Queue a Mureka AI music generation job from lyrics and a style prompt, then poll until your finished tracks are ready to stream or download."
+openapi: "POST /music-generations/create"
+---
+
+Creates a music generation job powered by [Mureka AI on WaveSpeed](https://wavespeed.ai/models/mureka-ai). Credits are deducted when the job is queued. Poll [Poll music status](/api-reference/music/poll-status) with the returned `generation.id` until `status` is `COMPLETED` or `FAILED`.
+
+For the dashboard UI (models, lyrics, playback, and the global player), see [Music generator](/guides/music-generator/overview) and [Playback & player](/guides/music-generator/playback).
+
+## Headers
+
+| Header | Required | Description |
+| --- | --- | --- |
+| `Authorization` | Yes | `Bearer uns_live_*` API key or Clerk JWT |
+| `Idempotency-Key` | No | Max 128 chars. Replays the same response for 24h on API key requests |
+| `Content-Type` | Yes | `application/json` |
+
+## Request body
+
+<ParamField body="lyrics" type="string" required>
+  Song lyrics. Required for song models (`auto`, `mureka-9`, `mureka-8`, `mureka-o2`, `mureka-7.6`). Max 3000 characters.
+</ParamField>
+
+<ParamField body="prompt" type="string" required>
+  Style prompt — genre, mood, tempo, vocal style. Max 1024 characters.
+</ParamField>
+
+<ParamField body="model" type="string">
+  Model key. Default: `auto` (Mureka V9).
+
+  | `model` | Display name | Credits | Notes |
+  | --- | --- | --- | --- |
+  | `auto` | Mureka V9 (Auto) | 5 | Full song with lyrics |
+  | `mureka-9` | Mureka V9 | 5 | Full song with lyrics |
+  | `mureka-8` | Mureka V8 | 5 | Full song with lyrics |
+  | `mureka-o2` | Mureka O2 | 6 | Full song with lyrics |
+  | `mureka-7.6` | Mureka V7.6 | 4 | Full song with lyrics |
+  | `mureka-7.5` | Mureka V7.5 (BGM) | 4 | Instrumental background music |
+</ParamField>
+
+<ParamField body="output_format" type="string">
+  Output audio format: `mp3`, `wav`, or `flac`. Default: `mp3`.
+</ParamField>
+
+## Async completion
+
+Poll [Poll music status](/api-reference/music/poll-status) with `generation.id` until `status` is `COMPLETED` or `FAILED`. Webhooks are not supported on the public API.
+
+## Response
+
+```json
+{
+  "success": true,
+  "generation": {
+    "id": "cm123abc",
+    "status": "QUEUED"
+  },
+  "creditsDeducted": 5,
+  "creditsRemaining": 95
+}
+```
+
+## Example
+
+<RequestExample>
+```bash Basic theme={null}
+curl -X POST "https://mvp.tryunsora.com/api/v1/music-generations/create" \
+  -H "Authorization: Bearer uns_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "lyrics": "[Verse]\nNeon rain falls on the city street\nI hear your voice in the midnight heat",
+    "prompt": "r&b, slow, passionate, male vocal",
+    "model": "auto",
+    "output_format": "mp3"
+  }'
+```
+</RequestExample>
+
+## Errors
+
+| HTTP | When |
+| --- | --- |
+| `400` | Missing/invalid lyrics, prompt, model, or output format |
+| `401` | Invalid auth |
+| `402` | Insufficient credits |
+| `404` | User not found |
+| `429` | Rate limit exceeded |
+| `500` | Server error |

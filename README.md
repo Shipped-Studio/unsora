@@ -12,6 +12,7 @@ A [pnpm](https://pnpm.io) workspace orchestrated with [Turborepo](https://turbor
 | [`apps/server`](apps/server) | `@unsora/server` | Express API (app routes + public `/api/v1`), Prisma/Postgres, Trigger.dev background tasks in `src/queue` | Railway (API) + Trigger.dev (tasks) |
 | [`apps/mcp`](apps/mcp) | `@unsora/mcp` | Remote MCP server that exposes the public API as tools, with OAuth via Clerk or API-key auth | Railway |
 | [`apps/remotion`](apps/remotion) | `@unsora/remotion` | Remotion compositions (subtitle rendering) used by the server through Remotion Lambda | AWS Lambda |
+| [`apps/docs`](apps/docs) | none (not a workspace package) | Mintlify docs and API reference for docs.tryunsora.com. `openapi.json` is generated: edit `apps/server/src/docs/openapi.ts`, then run `pnpm --filter @unsora/server docs:export-openapi` | Mintlify |
 
 Shared code goes in `packages/*` (none yet).
 
@@ -51,6 +52,7 @@ Database migrations live in `apps/server/prisma`. Run them with `pnpm --filter @
 - **server**, **mcp**: Railway services that build from the repository root with Config File Path `/apps/server/railway.json` and `/apps/mcp/railway.json`. Each config sets the Turborepo build command, the start command and watch paths, so a service only redeploys when its app or the workspace config changes.
 - **Background tasks**: run the *Deploy Trigger.dev tasks* workflow (or `pnpm dlx trigger.dev deploy` from `apps/server`) after the API deploy that a task change depends on.
 - **remotion**: deploy the site with `npx remotion lambda sites create src/index.ts --site-name=<name>` from `apps/remotion`, then set `REMOTION_SERVE_URL` on the server.
+- **docs**: Mintlify deploys `apps/docs` from this repository (monorepo path `/apps/docs`) on every push to `main`. Preview locally with `npx mint dev` from `apps/docs`.
 
 Deploy the server before the MCP server when new MCP tools call new API endpoints.
 

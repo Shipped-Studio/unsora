@@ -1,0 +1,33 @@
+---
+title: "Poll music status"
+description: "Poll a music generation job — returns the latest status and finished audio tracks with stream and download URLs when complete."
+openapi: "GET /music/status/{id}"
+---
+
+Poll music generation jobs created via [Create song](/api-reference/music-generations/create).
+
+Use the `id` returned from the create response. Poll every few seconds until `status` is `COMPLETED` or `FAILED`.
+
+```bash
+curl "https://mvp.tryunsora.com/api/v1/music/status/GENERATION_ID" \
+  -H "Authorization: Bearer uns_live_YOUR_API_KEY"
+```
+
+Example response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "cm123...",
+    "status": "COMPLETED",
+    "outputUrl": "https://files.tryunsora.com/....mp3",
+    "error": null,
+    "createdAt": "2026-06-10T12:00:00.000Z",
+    "updatedAt": "2026-06-10T12:02:30.000Z",
+    "completedAt": "2026-06-10T12:02:30.000Z"
+  }
+}
+```
+
+When `status` is `COMPLETED`, download the audio from `outputUrl`.

@@ -1,0 +1,58 @@
+---
+title: "Get started"
+description: "Create an Unsora API key and make your first API call — generate video, images, music, or voiceovers in a few minutes."
+---
+
+Use this page to create your API key and make your first request.
+
+## 1) Generate API key
+
+1. Sign in to the Unsora dashboard.
+2. Open **API** in the sidebar (`/api-keys`).
+3. Click **New API Key**.
+4. Copy the key immediately and store it in a password manager.
+
+Keys look like `uns_live_...`.
+
+## 2) Add key to request
+
+Send the key in the `Authorization` header as a Bearer token. Try it on [Credits](/api-reference/user/credits) in the API playground (base URL from OpenAPI `servers`).
+
+Prefer to use this from Claude or ChatGPT? [Add the connector](https://tryunsora.com/connector).
+
+## 3) Verify auth
+
+If the request returns `200`, your key is working.
+
+Prefer to work from Claude, ChatGPT or Cursor instead of writing code? The same key lets you [drive the same capabilities from your assistant over MCP](https://tryunsora.com/mcp).
+
+## 4) Create a job
+
+Most generation endpoints are async:
+
+See [Create image](/api-reference/image-generations/create) for a full request URL and playground. Path:
+
+`POST /image-generations/create`
+
+Poll status until `COMPLETED` or `FAILED`:
+
+- Images / influencer / thumbnails → [Poll generation status](/api-reference/image/poll-status) (`GET /image/status/:id`)
+- Video (all models) → [Poll video status](/api-reference/video/poll-status) (`GET /video/status/:id`)
+- Music → [Poll music status](/api-reference/music/poll-status) (`GET /music/status/:id`)
+
+In the dashboard, open [Music generator](/guides/music-generator/overview) to create songs with lyrics and use the [global player](/guides/music-generator/playback) while you work in other tools.
+
+Manage video jobs:
+
+- [List video generations](/api-reference/video/list) (`GET /videos/all`)
+- [Delete video generation](/api-reference/video/delete) (`DELETE /videos/:generationId`)
+
+## Next steps
+
+- Read [API guide](/api-guide) for rate limits, idempotency, and polling
+- Browse endpoint reference below
+
+## Security notes
+
+- Never expose API keys in frontend code or public repos
+- Rotate keys immediately if leaked

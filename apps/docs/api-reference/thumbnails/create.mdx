@@ -1,0 +1,15 @@
+---
+title: "Create thumbnail"
+description: "Generate click-worthy YouTube thumbnails from a title, script, or reference image — returns a job you can poll until the images are ready."
+openapi: "POST /thumbnails/create"
+---
+
+Pass YouTube URL in `context` for YouTube thumbnail mode:
+
+```json
+{
+  "prompt": "Bold title, shocked face",
+  "context": [{ "type": "youtube", "content": "https://youtube.com/watch?v=..." }],
+  "variations": 3
+}
+```

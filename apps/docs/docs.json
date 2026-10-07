@@ -1,0 +1,166 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Unsora",
+  "colors": {
+    "primary": "#16A34A",
+    "light": "#07C983",
+    "dark": "#15803D"
+  },
+  "favicon": "/favicon.png",
+  "navigation": {
+    "groups": [
+      {
+        "group": "API documentation",
+        "pages": ["get-started", "api-guide", "api-reference/introduction"]
+      },
+      {
+        "group": "CLI",
+        "pages": [
+          "cli/quickstart",
+          "cli/generate",
+          "cli/uploads",
+          "cli/social-posting"
+        ]
+      },
+      {
+        "group": "User",
+        "pages": [
+          "api-reference/user/credits",
+          "api-reference/user/subscription"
+        ]
+      },
+      {
+        "group": "Accounts",
+        "pages": ["api-reference/accounts/get_accounts"]
+      },
+      {
+        "group": "Posts",
+        "pages": [
+          "api-reference/posts/create_post",
+          "api-reference/posts/list_posts",
+          "api-reference/posts/get_post",
+          "api-reference/posts/update_post",
+          "api-reference/posts/retry",
+          "api-reference/posts/delete_post"
+        ]
+      },
+      {
+        "group": "Generation status",
+        "pages": [
+          "api-reference/image/poll-status",
+          "api-reference/video/poll-status",
+          "api-reference/music/poll-status",
+          "api-reference/voiceovers/poll-status",
+          "api-reference/clippings/poll-status"
+        ]
+      },
+      {
+        "group": "Video generator",
+        "pages": [
+          "api-reference/video/create",
+          "api-reference/video/list",
+          "api-reference/video/delete"
+        ]
+      },
+      {
+        "group": "Image generator",
+        "pages": [
+          "api-reference/image-generations/create",
+          "api-reference/image-generations/list",
+          "api-reference/image-generations/get",
+          "api-reference/image-generations/delete"
+        ]
+      },
+      {
+        "group": "Music generator",
+        "pages": [
+          "api-reference/music-generations/create",
+          "api-reference/music-generations/list",
+          "api-reference/music-generations/get",
+          "api-reference/music-generations/delete"
+        ]
+      },
+      {
+        "group": "Voiceover",
+        "pages": [
+          "api-reference/voiceovers/voices",
+          "api-reference/voiceovers/create",
+          "api-reference/voiceovers/list",
+          "api-reference/voiceovers/delete"
+        ]
+      },
+      {
+        "group": "AI influencer",
+        "pages": [
+          "api-reference/influencer-studio/create",
+          "api-reference/influencer-studio/list",
+          "api-reference/influencer-studio/delete"
+        ]
+      },
+      {
+        "group": "Thumbnail generator",
+        "pages": [
+          "api-reference/thumbnails/create",
+          "api-reference/thumbnails/list",
+          "api-reference/thumbnails/get",
+          "api-reference/thumbnails/delete"
+        ]
+      },
+      {
+        "group": "Clipping",
+        "pages": [
+          "api-reference/clippings/create",
+          "api-reference/clippings/list",
+          "api-reference/clippings/get",
+          "api-reference/clippings/delete"
+        ]
+      },
+      {
+        "group": "Uploads",
+        "pages": [
+          "api-reference/uploads/create",
+          "api-reference/uploads/signed-url",
+          "api-reference/uploads/complete",
+          "api-reference/uploads/list",
+          "api-reference/uploads/delete"
+        ]
+      }
+    ]
+  },
+  "logo": {
+    "light": "/logo/light.png",
+    "dark": "/logo/dark.png"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Support",
+        "href": "mailto:hi@tryunsora.com"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Dashboard",
+      "href": "https://app.tryunsora.com"
+    }
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "cursor",
+      "vscode"
+    ]
+  },
+  "footer": {
+    "socials": {
+      "x": "https://x.com/unsora_ai",
+      "github": "https://github.com/Shipped-Studio/docs.tryunsora.com"
+    }
+  }
+}

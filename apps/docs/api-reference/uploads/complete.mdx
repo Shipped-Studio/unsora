@@ -1,0 +1,34 @@
+---
+title: "Complete upload"
+description: "Register a file uploaded via signed URL as a media library asset so it can be used in posts, clips, and generation jobs."
+openapi: "POST /uploads/complete"
+---
+
+Final step of the [signed-URL flow](/api-reference/uploads/signed-url): after
+`PUT`ting the file bytes to the signed `uploadUrl`, call this with the
+`blobName` from the same response to record the file as an asset in your media
+library.
+
+The server verifies the object actually exists in storage (you get a `400` if
+the `PUT` didn't happen) and reads its size and MIME type from storage
+metadata. `blobName` must come from **your own** signed-URL response — blobs
+outside your upload prefix are rejected with `403`.
+
+## Response
+
+Same shape as [POST /uploads](/api-reference/uploads/create):
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "cm456def",
+    "name": "big-video.mp4",
+    "url": "https://.../uploads/usr_123/2026-08-04T10-00-00-000Z-big-video.mp4",
+    "mimeType": "video/mp4",
+    "type": "VIDEO",
+    "fileSize": 209715200,
+    "createdAt": "2026-08-04T10:00:00.000Z"
+  }
+}
+```

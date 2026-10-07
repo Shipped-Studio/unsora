@@ -1,0 +1,58 @@
+---
+title: "List generations"
+description: "Paginated list of music generations for the authenticated user, including status, lyrics, style prompts, and finished tracks."
+openapi: "GET /music-generations/all"
+---
+
+Returns music generations for the authenticated user, newest first.
+
+**`GET /music-generations/all`**
+
+## Query parameters
+
+<ParamField query="page" type="integer" default="1">
+  Page number (1-based).
+</ParamField>
+
+<ParamField query="limit" type="integer" default="12">
+  Items per page. Min `1`, max `100`.
+</ParamField>
+
+## Response
+
+```json
+{
+  "success": true,
+  "generations": [
+    {
+      "id": "cm123abc",
+      "status": "COMPLETED",
+      "lyrics": "[Verse]\nNeon rain falls...",
+      "prompt": "r&b, slow, passionate, male vocal",
+      "model": "mureka-v9",
+      "outputFormat": "mp3",
+      "error": null,
+      "createdAt": "2026-06-10T12:00:00.000Z",
+      "updatedAt": "2026-06-10T12:02:30.000Z",
+      "outputAsset": { "url": "https://files.tryunsora.com/....mp3" }
+    }
+  ],
+  "pagination": {
+    "currentPage": 1,
+    "totalPages": 1,
+    "totalCount": 3,
+    "limit": 12,
+    "hasNextPage": false,
+    "hasPreviousPage": false
+  }
+}
+```
+
+## Example
+
+```bash
+curl "https://mvp.tryunsora.com/api/v1/music-generations/all?page=1&limit=12" \
+  -H "Authorization: Bearer uns_live_YOUR_API_KEY"
+```
+
+Poll completion with [Poll music status](/api-reference/music/poll-status). Fetch one record with [Get music generation](/api-reference/music-generations/get).

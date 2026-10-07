@@ -1,0 +1,22 @@
+---
+title: "Delete generation"
+description: "Permanently delete a music generation record and its generated tracks from your Unsora account. This action cannot be undone."
+openapi: "DELETE /music-generations/{generationId}"
+---
+
+Permanently deletes a music generation and its record. Does not revoke credits for completed jobs.
+
+**`DELETE /music-generations/{generationId}`**
+
+## Path parameters
+
+<ParamField path="generationId" type="string" required>
+  Generation ID to delete.
+</ParamField>
+
+## Example
+
+```bash
+curl -X DELETE "https://mvp.tryunsora.com/api/v1/music-generations/cm123abc" \
+  -H "Authorization: Bearer uns_live_YOUR_API_KEY"
+```

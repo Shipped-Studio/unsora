@@ -1,0 +1,22 @@
+---
+title: "Get generation"
+description: "Fetch a single music generation by ID, including status, lyrics, style prompt, and finished audio tracks with stream and download URLs."
+openapi: "GET /music-generations/{generationId}"
+---
+
+Returns one music generation record including `outputAsset` when complete.
+
+**`GET /music-generations/{generationId}`**
+
+## Path parameters
+
+<ParamField path="generationId" type="string" required>
+  Generation ID from the create response.
+</ParamField>
+
+## Example
+
+```bash
+curl "https://mvp.tryunsora.com/api/v1/music-generations/cm123abc" \
+  -H "Authorization: Bearer uns_live_YOUR_API_KEY"
+```

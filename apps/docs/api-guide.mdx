@@ -1,0 +1,71 @@
+---
+title: "API guide"
+description: "How to authenticate with the Unsora API — API keys, rate limits, idempotency keys, credits, and polling async generation jobs."
+---
+
+## Authentication
+
+Send **either**:
+
+- Clerk JWT (signed-in dashboard user), or
+- Unsora API key (`uns_live_*`)
+
+```bash
+Authorization: Bearer uns_live_...
+```
+
+That is enough to call the public feature APIs under `/api/v1/*`. Both resolve to the same user account (credits, jobs, scheduler data).
+
+Create and revoke keys at `/api-keys` (Clerk sign-in required for key management only).
+
+## Rate limits
+
+API key requests are limited to **60 requests per minute** per key.
+
+Response headers:
+
+- `X-RateLimit-Limit`
+- `X-RateLimit-Remaining`
+- `X-RateLimit-Reset`
+
+When exceeded, the API returns `429` with code `RATE_LIMIT_EXCEEDED` and a `Retry-After` header.
+
+## Idempotency
+
+For `POST` create endpoints, pass an `Idempotency-Key` header when using an API key.
+
+**Base URL** comes from OpenAPI `servers` in `openapi.json`. On each endpoint page (e.g. [Create image](/api-reference/image-generations/create)), use the **API playground** — pick a server, set headers (`Authorization`, `Idempotency-Key`), and send the request.
+
+- Same key + same request path replays the stored response for **24 hours**
+- Reusing a key with a different request returns `409 IDEMPOTENCY_CONFLICT`
+- Successful replays include `Idempotent-Replayed: true`
+
+Posts also accept body `external_id` as an idempotency alias when the header is omitted.
+
+## Credit audit
+
+Credit consumption from API key requests is linked to the key in the audit log via `apiKeyId` on credit transactions.
+
+## Async jobs (polling)
+
+All generation and scheduler jobs complete asynchronously. **Use polling only** — the public API does not accept callback or webhook URLs.
+
+1. `POST .../create` → receive job id(s) with `QUEUED` status
+2. Poll until `COMPLETED` or `FAILED`:
+   - **Images / influencer / thumbnails** → `GET /image/status/:id`
+   - **Video (all models)** → `GET /video/status/:id`
+   - **Music (Mureka AI)** → `GET /music/status/:id` — see [Poll music status](/api-reference/music/poll-status)
+   - **Voiceover (ElevenLabs Eleven v3)** → `GET /voiceovers/status/:id` — see [Poll voiceover status](/api-reference/voiceovers/poll-status)
+
+Image status `type` values: `BASIC`, `INFLUENCER`, `THUMBNAIL`. Video jobs are always `seedance_2.0` on the video status endpoint.
+
+List or delete video jobs with `GET /videos/all` and `DELETE /videos/:generationId` — see [List video generations](/api-reference/video/list) and [Delete video generation](/api-reference/video/delete).
+
+Music jobs use `GET /music/status/:id`. List or delete with [List music generations](/api-reference/music-generations/list) and [Delete music generation](/api-reference/music-generations/delete). Dashboard users can also manage songs at [Music generator](/guides/music-generator/overview).
+
+Voiceover jobs use `GET /voiceovers/status/:id`. Pick a voice with [List voices](/api-reference/voiceovers/voices) — each voice includes a preview clip — then create with [Create voiceover](/api-reference/voiceovers/create).
+
+## OpenAPI
+
+- Mintlify pages resolve from `docs/openapi.json`
+- Live spec: `GET /api/v1/openapi.json`

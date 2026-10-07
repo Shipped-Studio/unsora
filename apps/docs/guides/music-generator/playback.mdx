@@ -1,0 +1,84 @@
+---
+title: "Playback & player"
+description: "Listen to generated songs while you work — global audio player, synced lyrics view, and a responsive layout across the dashboard."
+---
+
+When you play a generated track, Unsora starts a **global music player** that stays active as you move around the dashboard. You can review images, edit videos, or queue new songs without stopping playback.
+
+## Start playback
+
+On the [Music generator](/guides/music-generator/overview) results list, click the **play** button on any completed card. The same track highlights with a ring while it is active.
+
+Playback also works from the floating player after you navigate away from Music generator.
+
+## Player modes
+
+The player sits in the **bottom-right** of the main content area (full-width on small screens). It never covers the sidebar.
+
+| Mode | What you see | When to use |
+| --- | --- | --- |
+| **Mini** (default) | Title, play/pause, progress bar, minimize & close | Everyday listening while you work |
+| **Expanded** | Mini controls plus rolling synced lyrics and skip ±10s | Following lyrics on desktop |
+| **Minimized** | Small circular chip with play/pause or music icon | Maximum workspace; chip expands back to mini |
+
+<Tip>
+  On phones, **Expanded** is hidden — use synced lyrics on the active result card instead. The player auto-collapses if you resize the window to mobile width.
+</Tip>
+
+## Synced lyrics
+
+Lyrics scroll and highlight in time with playback — similar to a streaming app.
+
+- **Active line** — bold, full contrast
+- **Nearby lines** — softer emphasis
+- **Section tags** — `[Verse]`, `[Chorus]`, etc. shown as small labels
+
+<Warning>
+  The API returns plain-text lyrics only — no word-level timestamps. Sync timing is **estimated** from line length and track duration, so highlights are approximate, not karaoke-precise.
+</Warning>
+
+Synced lyrics appear:
+
+1. On the **active result card** in Music generator
+2. In the **expanded player** on desktop
+
+## Work without blocking the UI
+
+Generation tools (image, video, thumbnail, and others) use a **fixed prompt bar** at the bottom of the screen. The music player is designed to coexist with those bars:
+
+- The player docks in the corner instead of a full-width bar
+- Prompt bars **lift automatically** when music is playing so generate buttons stay reachable
+- Scroll areas gain bottom padding so lists are not hidden behind the player
+
+You can play a song, open **Image generator**, and submit a prompt without closing the player.
+
+## Controls
+
+| Control | Action |
+| --- | --- |
+| Play / pause | Toggle playback |
+| Progress bar | Click or drag to seek (touch-friendly on mobile) |
+| Expand / collapse | Show or hide lyrics panel (desktop) |
+| Minimize (−) | Collapse to corner chip |
+| Close (×) | Stop playback and clear the player |
+| **Retry** | Appears if the browser blocks autoplay or audio fails to load |
+
+## Lock screen & OS media keys
+
+On supported browsers, Unsora registers **Media Session** metadata (title and artist) so system play/pause controls and lock-screen artwork work where the OS allows.
+
+## Edge cases
+
+| Situation | Behavior |
+| --- | --- |
+| Browser blocks autoplay | Error banner with **Retry** — tap play again |
+| Audio file missing or corrupt | Error message; try another track or re-generate |
+| Delete the playing track | Player stops automatically |
+| Switch tracks | New song loads; previous playback stops |
+| Buffering | Spinner on player and active card until audio is ready |
+| Reduced motion preference | Lyric scroll uses instant jumps instead of smooth animation |
+| iOS safe areas | Player and prompt bars respect home-indicator insets |
+
+## Stop playback
+
+Click **Close (×)** on the player, or delete the track from results. Minimize only hides the UI — audio keeps playing until you pause or close.

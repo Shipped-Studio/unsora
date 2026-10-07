@@ -1,0 +1,38 @@
+---
+title: "Get thumbnail"
+description: "Fetch one thumbnail generation job by ID, including its status, source context, and finished thumbnail images ready for download."
+openapi: "GET /thumbnails/{generationId}"
+---
+
+**`GET /thumbnails/{generationId}`**
+
+## Path parameter
+
+<ParamField path="generationId" type="string" required>
+  Thumbnail id from [Create](/api-reference/thumbnails/create) or [List](/api-reference/thumbnails/list).
+</ParamField>
+
+## Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "cm123abc",
+    "title": "How to grow on YouTube in 2026",
+    "image": "https://files.tryunsora.com/....jpg",
+    "status": "COMPLETED",
+    "error": null,
+    "completedAt": "2026-06-02T12:01:00.000Z",
+    "createdAt": "2026-06-02T12:00:00.000Z",
+    "updatedAt": "2026-06-02T12:01:00.000Z"
+  }
+}
+```
+
+## Example
+
+```bash
+curl "https://mvp.tryunsora.com/api/v1/thumbnails/GENERATION_ID" \
+  -H "Authorization: Bearer uns_live_YOUR_API_KEY"
+```

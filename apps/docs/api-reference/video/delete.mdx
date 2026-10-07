@@ -1,0 +1,40 @@
+---
+title: "Delete video generation"
+description: "Permanently delete a video generation job and its output video from your Unsora account. This action cannot be undone."
+openapi: "DELETE /videos/{generationId}"
+---
+
+Deletes one video generation owned by the authenticated user.
+
+**`DELETE /videos/{generationId}`**
+
+## Path parameter
+
+<ParamField path="generationId" type="string" required>
+  Generation id from [Create video](/api-reference/video/create) or [List video generations](/api-reference/video/list).
+</ParamField>
+
+## Response
+
+```json
+{
+  "success": true,
+  "message": "Generation deleted successfully"
+}
+```
+
+## Example
+
+```bash
+curl -X DELETE "https://mvp.tryunsora.com/api/v1/videos/GENERATION_ID" \
+  -H "Authorization: Bearer uns_live_YOUR_API_KEY"
+```
+
+## Errors
+
+| HTTP | When |
+| --- | --- |
+| `400` | Missing generation id |
+| `401` | Invalid auth |
+| `404` | User or generation not found |
+| `500` | Server error |

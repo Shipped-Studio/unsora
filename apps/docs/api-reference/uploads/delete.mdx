@@ -1,0 +1,9 @@
+---
+title: "Delete upload"
+description: "Delete an uploaded asset and its stored file from your Unsora media library. Posts that already used the file are unaffected."
+openapi: "DELETE /uploads/{assetId}"
+---
+
+Deletes the asset record **and** removes the stored file from storage. Posts
+or jobs already referencing the file's URL will break — make sure nothing
+scheduled still uses it.

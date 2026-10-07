@@ -1,0 +1,29 @@
+---
+title: "Delete clipping job"
+description: "Permanently delete a clipping job and all of its generated clips from your Unsora account. This action cannot be undone."
+openapi: "DELETE /clippings/{clippingId}"
+---
+
+**`DELETE /clippings/{clippingId}`**
+
+## Path parameter
+
+<ParamField path="clippingId" type="string" required>
+  Job id from [Create](/api-reference/clippings/create) or [List](/api-reference/clippings/list).
+</ParamField>
+
+## Response
+
+```json
+{
+  "success": true,
+  "message": "Clipping job deleted"
+}
+```
+
+## Example
+
+```bash
+curl -X DELETE "https://mvp.tryunsora.com/api/v1/clippings/CLIPPING_ID" \
+  -H "Authorization: Bearer uns_live_YOUR_API_KEY"
+```
