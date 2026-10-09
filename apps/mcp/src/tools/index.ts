@@ -317,10 +317,14 @@ const AVATAR_DOMAINS = [
   "https://cdn.bsky.app",
 ];
 
-function resourceUiMeta(extraDomains: readonly string[] = []): ResourceUiMeta {
+function resourceUiMeta(
+  extraDomains: readonly string[] = [],
+  connectDomains: readonly string[] = [],
+): ResourceUiMeta {
   const meta: ResourceUiMeta = {
     csp: { resourceDomains: [...MEDIA_DOMAINS, ...extraDomains] },
   };
+  if (connectDomains.length) meta.csp!.connectDomains = [...connectDomains];
   const domain = claudeAppDomain();
   if (domain) meta.domain = domain;
   return meta;
@@ -803,6 +807,12 @@ upload_file imports a public URL (or small base64 payload) into the user's
 library and returns a hosted url — use it when the user supplies their own
 media for posts, reference images, or clipping. Available to every
 authenticated user.
+
+Large files (long videos, podcasts) from the user's device: in hosts that
+show apps, call list_uploads and have the user pick the file with the panel's
+Upload button — it goes straight to storage, so size isn't limited by the
+chat. Agents that can send HTTP requests: create_upload_url → PUT the bytes
+to uploadUrl → complete_upload with blobName.
 `;
 
 const GENERATION_GUIDE = `## Typical: generate image → schedule social post
@@ -1066,7 +1076,14 @@ export function registerTools(
             uri: widget.uri,
             mimeType: RESOURCE_MIME_TYPE,
             text: await loadWidget(widget.file),
-            _meta: { ui: resourceUiMeta(AVATAR_DOMAINS) },
+            // The library's Upload button PUTs files straight to storage
+            // (signed URLs live on the same hosts that serve media).
+            _meta: {
+              ui: resourceUiMeta(
+                AVATAR_DOMAINS,
+                widget.uri === LIBRARY_UI_URI ? MEDIA_DOMAINS : [],
+              ),
+            },
           },
         ],
       }),
@@ -2628,7 +2645,10 @@ export function registerTools(
       title: "Upload File",
       description:
         "Upload media to the user's Unsora library (available to every authenticated user). " +
-        "Pass a public source URL (preferred) or a base64 payload for small files (≤ ~7MB). " +
+        "Pass a public source URL (preferred, up to 200MB) or a base64 payload for small files " +
+        "(≤ ~7MB). For larger local files use create_upload_url + complete_upload, or in hosts " +
+        "that show apps call list_uploads and have the user pick the file with the panel's " +
+        "Upload button. " +
         "The file is stored and recorded as an upload asset; the returned url can be used " +
         "anywhere a media URL is accepted (create_post media, reference images, clipping input)." + SHOWN_IN_UI,
       inputSchema: {
@@ -2673,6 +2693,66 @@ export function registerTools(
     },
   );
 
+  server.registerTool(
+    "create_upload_url",
+    {
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+      title: "Create Upload Link",
+      description:
+        "Get a one-time link for uploading a large or local file straight to the user's Unsora " +
+        "storage (no base64, far beyond upload_file's limits). Returns uploadUrl and blobName. " +
+        "PUT the raw file bytes to uploadUrl with the file's Content-Type, e.g. " +
+        "`curl -X PUT -H \"Content-Type: video/mp4\" --data-binary @video.mp4 \"<uploadUrl>\"`, " +
+        "then call complete_upload with blobName to add it to the library and get its URL. " +
+        "Only useful when you can send HTTP requests yourself (e.g. a coding agent with a " +
+        "shell). In chat hosts that show apps, call list_uploads instead and ask the user to " +
+        "pick the file with the panel's Upload button.",
+      inputSchema: {
+        fileName: z
+          .string()
+          .min(1)
+          .describe("File name including extension, e.g. podcast.mp4."),
+      },
+    },
+    async (args, extra) =>
+      jsonResult(
+        await unsoraFor(resolveUnsora, extra.authInfo).request(
+          "POST",
+          "/uploads/signed-url",
+          { body: { fileName: args.fileName } },
+        ),
+      ),
+  );
+
+  registerAppTool(
+    server,
+    "complete_upload",
+    {
+      _meta: { ui: { resourceUri: LIBRARY_UI_URI } },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+      title: "Complete Upload",
+      description:
+        "Add a file uploaded through create_upload_url to the user's Unsora library. Returns " +
+        "the upload with its url, which works anywhere a media URL is accepted (create_post " +
+        "media, reference images, clipping input)." + SHOWN_IN_UI,
+      inputSchema: {
+        blobName: z.string().min(1).describe("blobName returned by create_upload_url."),
+        fileName: z.string().optional().describe("Display name for the library."),
+      },
+    },
+    async (args, extra) => {
+      const body: Record<string, unknown> = { blobName: args.blobName };
+      if (args.fileName) body.fileName = args.fileName;
+      return jsonResult(
+        await unsoraFor(resolveUnsora, extra.authInfo).request(
+          "POST",
+          "/uploads/complete",
+          { body },
+        ),
+      );
+    },
+  );
+
   registerAppTool(
     server,
     "list_uploads",
@@ -2681,7 +2761,9 @@ export function registerTools(
       annotations: READ_ONLY,
       title: "List Uploads",
       description:
-        "List the user's uploaded media assets (from upload_file or the app)." + SHOWN_IN_UI,
+        "List the user's uploaded media assets (from upload_file or the app). In hosts that " +
+        "show apps the panel has an Upload button, so this is also how the user uploads a file " +
+        "from their device (any size): call it and tell them to use the button." + SHOWN_IN_UI,
       inputSchema: {
         page: z.number().int().optional(),
         limit: z.number().int().max(100).optional(),
