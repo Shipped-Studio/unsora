@@ -6,10 +6,12 @@
 <title>Unsora Library</title>
 <!--
   Unsora library (MCP Apps). Bound to list_generations, list_uploads,
-  upload_file and delete_generation. Normalizes every library type into
-  { id, url, thumb, title, status } tiles; selecting one previews it with
-  Download / Copy URL / Post / Animate / Delete. The type picker and
-  "Load more" call the list tools again.
+  upload_file, complete_upload and delete_generation. Normalizes every
+  library type into { id, url, thumb, title, status } tiles; selecting one
+  previews it with Download / Copy URL / Post / Animate / Delete. The type
+  picker and "Load more" call the list tools again. "Upload" sends a file
+  from the user's device straight to storage (create_upload_url → PUT →
+  complete_upload), so size isn't limited by the MCP transport.
 -->
 <style>
 /*@kit.css*/
@@ -71,6 +73,7 @@ select.type { width: auto; }
   let confirmDelete = false;
   let busy = false;
   let notice = null;
+  let uploading = null; // { name, pct }
   let args = {};
 
   Kit.on("input", (a) => { args = a || {}; });
@@ -227,6 +230,58 @@ select.type { width: auto; }
     Kit.flash("copy", (await Kit.copyText(item.url)) ? "Copied" : "Copy failed");
   }
 
+  async function useInChat(item) {
+    const ok = await Kit.sendPrompt("I uploaded " + (item.title || "a file") + " to my Unsora library: " + item.url);
+    Kit.flash("use", ok ? "Sent" : "Couldn't send");
+  }
+
+  /** PUT the file to a signed storage URL, reporting progress. */
+  function put(uploadUrl, file) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", uploadUrl);
+      xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+      xhr.upload.onprogress = (e) => {
+        if (!e.lengthComputable || !uploading) return;
+        const pct = Math.floor((e.loaded / e.total) * 100);
+        if (pct !== uploading.pct) { uploading.pct = pct; Kit.refresh(); }
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) return resolve();
+        let message = "Upload failed (" + xhr.status + ").";
+        try { message = JSON.parse(xhr.responseText).message || message; } catch (err) { /* not JSON */ }
+        reject(new Error(message));
+      };
+      xhr.onerror = () => reject(new Error("Upload failed. Check your connection and try again."));
+      xhr.send(file);
+    });
+  }
+
+  async function upload(file) {
+    if (!file || uploading) return;
+    uploading = { name: file.name, pct: 0 };
+    error = null;
+    notice = null;
+    Kit.refresh();
+    try {
+      const link = obj(Kit.unwrap(await Kit.callTool("create_upload_url", { fileName: file.name })));
+      if (!str(link.uploadUrl) || !str(link.blobName)) throw new Error("Couldn't start the upload.");
+      await put(link.uploadUrl, file);
+      const asset = Kit.unwrap(await Kit.callTool("complete_upload", { blobName: link.blobName, fileName: file.name }));
+      const item = readItem(asset, "upload");
+      const kept = type === "upload" && items ? items.filter((i) => i.id !== item.id) : [];
+      type = "upload";
+      items = [item].concat(kept);
+      selectedId = item.id;
+      confirmDelete = false;
+      notice = "Uploaded " + item.title + ".";
+    } catch (err) {
+      error = err.message;
+    }
+    uploading = null;
+    Kit.refresh();
+  }
+
   /* -------------------------------- view ------------------------------ */
 
   function tile(item) {
@@ -280,6 +335,7 @@ select.type { width: auto; }
             ready ? button("Copy URL", () => copy(item), { key: "copy" }) : null,
             ready && (item.kind === "image" || item.kind === "video") ? button("Post", () => post(item), { key: "post" }) : null,
             ready && item.kind === "image" ? button("Animate", () => animate(item), { key: "animate" }) : null,
+            ready && type === "upload" ? button("Use in chat", () => useInChat(item), { key: "use" }) : null,
             item.deletable ? button("Delete", () => { confirmDelete = true; Kit.refresh(); }, { danger: true }) : null,
           ]),
     ]);
@@ -300,12 +356,30 @@ select.type { width: auto; }
     return el("div", { class: "card stack" }, [
       el("div", { class: "row between" }, [
         el("div", { class: "h" }, label),
-        el("select", {
-          class: "type",
-          "aria-label": "Library type",
-          onchange: (e) => load(e.target.value, false),
-        }, Object.entries(TYPES).map(([key, [name]]) => el("option", { value: key, selected: key === type }, name))),
+        el("div", { class: "row" }, [
+          el("input", {
+            id: "file",
+            type: "file",
+            style: { display: "none" },
+            onchange: (e) => upload(e.target.files && e.target.files[0]),
+          }),
+          button("Upload", () => document.getElementById("file").click(), { sm: true, disabled: !!uploading }),
+          el("select", {
+            class: "type",
+            "aria-label": "Library type",
+            onchange: (e) => load(e.target.value, false),
+          }, Object.entries(TYPES).map(([key, [name]]) => el("option", { value: key, selected: key === type }, name))),
+        ]),
       ]),
+      uploading
+        ? el("div", { class: "stack" }, [
+            el("div", { class: "row" }, [
+              el("span", { class: "spinner" }),
+              el("span", { class: "muted ellipsis grow" }, "Uploading " + uploading.name + "… " + uploading.pct + "%"),
+            ]),
+            el("progress", { max: 100, value: uploading.pct, style: { width: "100%" } }),
+          ])
+        : null,
       notice ? el("div", { class: "muted" }, notice) : null,
       error ? el("div", { class: "error" }, error) : null,
       !items.length && !loading ? el("div", { class: "muted" }, "Nothing here yet.") : null,
