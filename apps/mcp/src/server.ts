@@ -1,11 +1,7 @@
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { UnsoraApi } from "./unsora-api.js";
-import {
-  registerTools,
-  type RegisterToolsOptions,
-  schedulerWorkflowGuide,
-} from "./tools/index.js";
+import { registerTools } from "./tools/index.js";
 
 export type UnsoraAuthResolver = (authInfo?: AuthInfo) => UnsoraApi;
 
@@ -16,78 +12,14 @@ export const MCP_INSTRUCTIONS = [
   "See the unsora://workflows resource for multi-step workflows.",
 ].join(" ");
 
-export const SCHEDULER_INSTRUCTIONS = [
-  "Unsora Scheduler turns long videos into short clips (AI clipping) and schedules or publishes posts to the user's connected social accounts. Clipping spends credits from the connected Unsora account; posting needs a paid plan.",
-  "create_clipping starts a job. In hosts that render the Unsora preview panel, the panel polls and shows the clips itself; otherwise follow with wait_for_clipping until the status is COMPLETED or FAILED.",
-  "Files the user attaches in this chat don't reach Unsora: import them with upload_file (public URL, or base64 for small files) before clipping or posting them. For large files from the user's device, call list_uploads so they can use the panel's Upload button; agents that can send HTTP requests can use create_upload_url + complete_upload.",
-  "See the unsora://workflows resource for multi-step workflows.",
-].join(" ");
-
-/** Tools served at /scheduler: clipping plus everything needed to post. */
-const SCHEDULER_TOOLS = new Set([
-  // Clipping
-  "create_clipping",
-  "clipping_status",
-  "wait_for_clipping",
-  // Accounts and plan
-  "get_accounts",
-  "pinterest_boards",
-  "tiktok_creator_info",
-  "get_credits",
-  "get_subscription",
-  // Posts
-  "create_post",
-  "compose_post",
-  "publish_post",
-  "update_post",
-  "delete_post",
-  "get_post",
-  "list_posts",
-  "retry_post",
-  "get_post_analytics",
-  // Media to post
-  "upload_file",
-  "create_upload_url",
-  "complete_upload",
-  "list_uploads",
-  "list_generations",
-  "delete_generation",
-]);
-
-export type McpProfile = "full" | "scheduler";
-
-interface ProfileConfig extends RegisterToolsOptions {
-  name: string;
-  title: string;
-  instructions: string;
-}
-
-function profileConfig(profile: McpProfile): ProfileConfig {
-  const name = process.env.MCP_SERVER_NAME || "unsora-mcp";
-  if (profile === "scheduler") {
-    return {
-      name: `${name}-scheduler`,
-      title: "Unsora Scheduler",
-      instructions: SCHEDULER_INSTRUCTIONS,
-      tools: SCHEDULER_TOOLS,
-      workflowGuide: schedulerWorkflowGuide,
-    };
-  }
-  return { name, title: "Unsora AI", instructions: MCP_INSTRUCTIONS };
-}
-
-export function createMcpServer(
-  resolveUnsora: UnsoraAuthResolver,
-  profile: McpProfile = "full",
-): McpServer {
+export function createMcpServer(resolveUnsora: UnsoraAuthResolver): McpServer {
   const baseUrl =
     process.env.MCP_PUBLIC_URL || `http://localhost:${process.env.PORT || 3000}`;
-  const { name, title, instructions, ...toolOptions } = profileConfig(profile);
 
   const server = new McpServer(
     {
-      name,
-      title,
+      name: process.env.MCP_SERVER_NAME || "unsora-mcp",
+      title: "Unsora AI",
       version: "1.0.0",
       websiteUrl: "https://tryunsora.com",
       icons: [
@@ -105,10 +37,10 @@ export function createMcpServer(
         },
       ],
     },
-    { instructions },
+    { instructions: MCP_INSTRUCTIONS },
   );
 
-  registerTools(server, resolveUnsora, toolOptions);
+  registerTools(server, resolveUnsora);
 
   return server;
 }
