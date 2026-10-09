@@ -12,7 +12,7 @@ export interface CaptionStyleGroup {
 
 /**
  * Friendly labels named after how each Wayin template looks
- * (previews: https://wayin.ai/api-docs/subtitles-style/).
+ * (previews: public/caption-styles/<id>.webp).
  * Colors refer to the accent on the spoken word.
  */
 const STYLE_LABELS: Record<string, string> = {
@@ -99,4 +99,12 @@ export const CAPTION_STYLE_GROUPS: CaptionStyleGroup[] = [
 
 export function getCaptionStyleLabel(styleId: string) {
   return STYLE_LABELS[styleId] ?? styleId;
+}
+
+/**
+ * Animated preview of a style ("Hey there"), white text on transparent, so
+ * show it on a dark surface. Files live in public/caption-styles/.
+ */
+export function getCaptionStylePreview(styleId: string) {
+  return `/caption-styles/${styleId}.webp`;
 }

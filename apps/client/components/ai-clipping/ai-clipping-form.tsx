@@ -31,7 +31,6 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Label } from "@/components/ui/label";
 import {
   Popover,
   PopoverContent,
@@ -44,17 +43,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import {
-  CAPTION_STYLE_GROUPS,
   DEFAULT_CAPTION_STYLE,
   getCaptionStyleLabel,
 } from "@/constant/caption-styles";
 import { LANGUAGES } from "@/constant/lang";
 import { useAuthFetch } from "@/hooks/use-auth-fetch";
 import type { AIClippingJob } from "@/hooks/use-ai-clippings";
+import { useYouTubeInfo } from "@/hooks/use-youtube-info";
 import { CLIPPING_CREDITS_PER_MINUTE } from "@/lib/clipping-pricing";
 import { cn, getYouTubeVideoId, looksLikeDirectVideoUrl } from "@/lib/utils";
+import { CaptionStylePicker } from "./caption-style-picker";
 
 const CLIP_LENGTHS = [
   { value: "DURATION_0_90", label: "Auto length" },
@@ -113,6 +112,7 @@ export function AIClippingForm({
   const [clipLimit, setClipLimit] = useState("all");
   const [enableCaption, setEnableCaption] = useState(false);
   const [captionStyle, setCaptionStyle] = useState(DEFAULT_CAPTION_STYLE);
+  const [captionsOpen, setCaptionsOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const trimmedUrl = url.trim();
@@ -121,6 +121,7 @@ export function AIClippingForm({
   const findMoments = mode === "moments";
   const trimmedQuery = query.trim();
   const youTubeId = useMemo(() => getYouTubeVideoId(url), [url]);
+  const youTubeInfo = useYouTubeInfo(youTubeId);
   const directVideoUrl = useMemo(() => {
     if (!trimmedUrl || !looksLikeDirectVideoUrl(trimmedUrl)) return null;
     return /^https?:\/\//i.test(trimmedUrl) ? trimmedUrl : `https://${trimmedUrl}`;
@@ -329,7 +330,7 @@ export function AIClippingForm({
             </SelectContent>
           </Select>
 
-          <Popover>
+          <Popover open={captionsOpen} onOpenChange={setCaptionsOpen}>
             <PopoverTrigger
               render={
                 <Button
@@ -346,40 +347,26 @@ export function AIClippingForm({
               </span>
               <CaretDown className="size-3" />
             </PopoverTrigger>
-            <PopoverContent side="top" align="start" className="w-72 gap-0 p-0">
-              <div className="flex items-center justify-between gap-3 border-b p-3">
-                <div>
-                  <Label htmlFor="clip-captions">Captions</Label>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Burned into each clip
-                  </p>
-                </div>
-                <Switch
-                  id="clip-captions"
-                  checked={enableCaption}
-                  onCheckedChange={setEnableCaption}
-                />
+            <PopoverContent
+              side="top"
+              align="start"
+              className="w-md max-w-[calc(100vw-2rem)] gap-0 p-0"
+            >
+              <div className="border-b px-4 py-3">
+                <p className="text-sm font-medium">Captions</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Burned into each clip
+                </p>
               </div>
-              {enableCaption ? (
-                <Command className="rounded-none! p-0">
-                  <CommandList className="max-h-60">
-                    {CAPTION_STYLE_GROUPS.map((group) => (
-                      <CommandGroup key={group.label} heading={group.label}>
-                        {group.styles.map((style) => (
-                          <CommandItem
-                            key={style.id}
-                            value={`${group.label} ${style.label} ${style.id}`}
-                            data-checked={captionStyle === style.id}
-                            onSelect={() => setCaptionStyle(style.id)}
-                          >
-                            {style.label}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    ))}
-                  </CommandList>
-                </Command>
-              ) : null}
+              <CaptionStylePicker
+                enabled={enableCaption}
+                styleId={captionStyle}
+                onChange={(next) => {
+                  setEnableCaption(next.enabled);
+                  setCaptionStyle(next.styleId);
+                  setCaptionsOpen(false);
+                }}
+              />
             </PopoverContent>
           </Popover>
         </ComposerToolbar>
@@ -408,15 +395,16 @@ export function AIClippingForm({
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">
-                {youTubeId
-                  ? "YouTube video"
-                  : directVideoUrl
-                    ? "Video file link"
-                    : "Video link"}
+              <p className="truncate text-sm font-medium">
+                {youTubeInfo?.title ??
+                  (youTubeId
+                    ? "YouTube video"
+                    : directVideoUrl
+                      ? "Video file link"
+                      : "Video link")}
               </p>
               <p className="truncate text-xs text-muted-foreground">
-                {trimmedUrl}
+                {youTubeInfo?.author ?? trimmedUrl}
               </p>
             </div>
             <Button
