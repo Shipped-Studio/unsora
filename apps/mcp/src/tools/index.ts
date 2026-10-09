@@ -777,10 +777,7 @@ function catalogCreateSchema(category: CatalogCategory, promptRequired: boolean)
   };
 }
 
-/*
- * unsora://workflows is assembled from sections so the scheduler endpoint can
- * serve the posting + clipping parts without the generation ones.
- */
+/* unsora://workflows, assembled from the sections below. */
 const POSTING_GUIDE = `## Supported social platforms
 Posts can target any connected account on: YouTube, TikTok, Instagram,
 Facebook, LinkedIn, Pinterest, Threads, Bluesky, X and Google Business Profile.
@@ -937,20 +934,6 @@ ${GENERATION_GUIDE}
 ${CLIPPING_GUIDE}
 ${POSTING_RULES_GUIDE}`;
 
-export const schedulerWorkflowGuide = `# Unsora scheduler workflows (polling only — no webhooks)
-
-${POSTING_GUIDE}
-## Typical: long video → clips → scheduled posts
-1. get_accounts — pick account ids
-2. get_subscription / get_credits — posting needs a paid plan, clipping spends credits
-3. create_clipping — public videoUrl (or a url from upload_file)
-4. wait_for_clipping — only in hosts without the live preview
-5. create_post (compose_post in app-capable hosts) — one post per clip, with scheduled_at
-Clips made earlier are in list_generations (type clipping).
-
-${CLIPPING_GUIDE}
-${POSTING_RULES_GUIDE}`;
-
 function unsoraFor(
   resolveUnsora: UnsoraAuthResolver,
   authInfo?: AuthInfo,
@@ -958,65 +941,16 @@ function unsoraFor(
   return resolveUnsora(authInfo);
 }
 
-export interface RegisterToolsOptions {
-  /** Expose only these tools (and the widgets they render). Omit for all. */
-  tools?: ReadonlySet<string>;
-  /** Markdown served as unsora://workflows. */
-  workflowGuide?: string;
-}
-
-/**
- * Drops every tool outside `allowed` as it registers. The returned callback
- * then drops the ui:// widgets no remaining tool renders — call it once all
- * tools and resources are registered.
- */
-function limitTools(server: McpServer, allowed: ReadonlySet<string>): () => void {
-  const usedWidgets = new Set<string>();
-  const widgets = new Map<string, { remove(): void }>();
-
-  const registerTool = server.registerTool.bind(server);
-  server.registerTool = ((name, config, cb) => {
-    const tool = registerTool(name, config, cb);
-    if (allowed.has(name)) {
-      const ui = config._meta?.ui as { resourceUri?: string } | undefined;
-      if (ui?.resourceUri) usedWidgets.add(ui.resourceUri);
-    } else {
-      tool.remove();
-    }
-    return tool;
-  }) as McpServer["registerTool"];
-
-  const registerResource = server.registerResource.bind(server);
-  server.registerResource = ((name, uri, config, cb) => {
-    const resource = registerResource(name, uri as never, config, cb as never);
-    if (typeof uri === "string" && uri.startsWith("ui://")) {
-      widgets.set(uri, resource);
-    }
-    return resource;
-  }) as McpServer["registerResource"];
-
-  return () => {
-    for (const [uri, resource] of widgets) {
-      if (!usedWidgets.has(uri)) resource.remove();
-    }
-  };
-}
-
 export function registerTools(
   server: McpServer,
   resolveUnsora: UnsoraAuthResolver,
-  options: RegisterToolsOptions = {},
 ) {
-  const removeUnusedWidgets = options.tools
-    ? limitTools(server, options.tools)
-    : undefined;
-
   server.resource("unsora-workflows", "unsora://workflows", async () => ({
     contents: [
       {
         uri: "unsora://workflows",
         mimeType: "text/markdown",
-        text: options.workflowGuide ?? workflowGuide,
+        text: workflowGuide,
       },
     ],
   }));
@@ -3166,6 +3100,4 @@ export function registerTools(
       );
     },
   );
-
-  removeUnusedWidgets?.();
 }
