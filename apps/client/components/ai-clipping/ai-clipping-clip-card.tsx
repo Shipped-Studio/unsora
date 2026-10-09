@@ -83,13 +83,17 @@ export function AIClippingClipCard({
   const start = formatClipTime(clip.startTime);
   const failed = clip.status === "FAILED";
   const preparing = jobActive && !thumbnailUrl && !videoUrl && !failed;
+  // The moment is found (thumbnail) but the video is still being cut.
+  const rendering = jobActive && !videoUrl && !failed && !preparing;
   const hasPreview = Boolean(thumbnailUrl || videoUrl);
   const momentUrl = buildSourceTimestampUrl(sourceUrl, clip.startTime);
   const fade = useImageFade(thumbnailUrl);
 
   const meta = preparing
     ? "Preparing"
-    : failed
+    : rendering
+      ? [duration, "Rendering video"].filter(Boolean).join(" · ")
+      : failed
       ? "Failed"
       : [duration, start ? `from ${start}` : null].filter(Boolean).join(" · ");
 
@@ -120,7 +124,18 @@ export function AIClippingClipCard({
           ) : (
             <VideoThumbnail videoUrl={getCdnUrl(videoUrl!)} alt={title} />
           )}
-          <PlayBadge />
+          {videoUrl ? (
+            <PlayBadge />
+          ) : rendering ? (
+            <Badge
+              variant="secondary"
+              className="absolute bottom-2 left-2"
+              title="The clip is found and its video is being made"
+            >
+              <Spinner />
+              Rendering
+            </Badge>
+          ) : null}
           {score != null ? (
             <Badge
               variant="secondary"
