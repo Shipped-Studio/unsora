@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Scissors } from "@phosphor-icons/react";
 import { ToolEmpty } from "@/components/generator/tool-layout";
 import { ErrorState } from "@/components/shared/states";
-import type { AIClippingClip, AIClippingJob } from "@/hooks/use-ai-clippings";
+import type { AIClippingJob } from "@/hooks/use-ai-clippings";
 import { AIClippingClipDialog } from "./ai-clipping-clip-dialog";
 import { AIClippingJobGroup, JobGroupSkeleton } from "./ai-clipping-job-group";
 
@@ -26,19 +26,27 @@ export function AIClippingResults({
   onDeleteJob,
   onDeleteClip,
 }: AIClippingResultsProps) {
-  const [selected, setSelected] = useState<{
-    clip: AIClippingClip;
-    job: AIClippingJob;
+  // Ids, not objects: the open clip follows polling, so it switches from
+  // thumbnail to video as soon as the clip finishes rendering.
+  const [selectedIds, setSelectedIds] = useState<{
+    jobId: string;
+    clipId: string;
   } | null>(null);
+  const selected = useMemo(() => {
+    if (!selectedIds) return null;
+    const job = jobs.find((j) => j.id === selectedIds.jobId);
+    const clip = job?.clips.find((c) => c.id === selectedIds.clipId);
+    return job && clip ? { job, clip } : null;
+  }, [jobs, selectedIds]);
 
   async function handleDeleteJob(jobId: string) {
     const deleted = await onDeleteJob(jobId);
-    if (deleted && selected?.job.id === jobId) setSelected(null);
+    if (deleted && selectedIds?.jobId === jobId) setSelectedIds(null);
   }
 
   async function handleDeleteClip(jobId: string, clipId: string) {
     const deleted = await onDeleteClip(jobId, clipId);
-    if (deleted && selected?.clip.id === clipId) setSelected(null);
+    if (deleted && selectedIds?.clipId === clipId) setSelectedIds(null);
   }
 
   if (isLoading) {
@@ -79,7 +87,9 @@ export function AIClippingResults({
             key={job.id}
             job={job}
             defaultOpen={index === 0}
-            onOpenClip={(clip, jobItem) => setSelected({ clip, job: jobItem })}
+            onOpenClip={(clip, jobItem) =>
+              setSelectedIds({ jobId: jobItem.id, clipId: clip.id })
+            }
             onDeleteJob={(jobId) => void handleDeleteJob(jobId)}
             onDeleteClip={(jobId, clipId) => void handleDeleteClip(jobId, clipId)}
           />
@@ -89,7 +99,7 @@ export function AIClippingResults({
       <AIClippingClipDialog
         selected={selected}
         onOpenChange={(open) => {
-          if (!open) setSelected(null);
+          if (!open) setSelectedIds(null);
         }}
       />
     </>
