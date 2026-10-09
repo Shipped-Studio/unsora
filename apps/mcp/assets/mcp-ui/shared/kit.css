@@ -105,6 +105,7 @@ button.link { border: none; background: none; padding: 0; color: var(--muted); f
   font-size: 10.5px; font-weight: 800; letter-spacing: -0.02em; color: #fff;
 }
 .pf.lg { width: 30px; height: 30px; border-radius: 8px; font-size: 13px; }
+.pf svg { width: 62%; height: 62%; display: block; fill: currentColor; }
 .avatar { position: relative; flex: none; width: 34px; height: 34px; }
 .avatar img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; display: block; background: var(--sunken); }
 .avatar .fallback {
