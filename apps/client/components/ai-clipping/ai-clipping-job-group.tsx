@@ -44,11 +44,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { getCaptionStyleLabel } from "@/constant/caption-styles";
 import {
+  getClipThumbnailUrl,
   isClippingActive,
   type AIClippingClip,
   type AIClippingJob,
 } from "@/hooks/use-ai-clippings";
+import { useYouTubeInfo } from "@/hooks/use-youtube-info";
+import { timeAgo } from "@/lib/admin-format";
 import { cn, getYouTubeVideoId } from "@/lib/utils";
+import { getCdnUrl } from "@/lib/video-utils";
 import { AIClippingClipCard } from "./ai-clipping-clip-card";
 import { clipAspectClass, clipGridShape, formatClipRatio } from "./clip-ratio";
 
@@ -67,6 +71,52 @@ function sourceTitle(url?: string | null, youTubeId?: string | null) {
 
 function displayUrl(url?: string | null) {
   return url ? url.replace(/^https?:\/\/(www\.)?/i, "") : null;
+}
+
+const PEEK_LIMIT = 4;
+
+/**
+ * Thumbnails of the first clips, shown on a collapsed job so its results are
+ * visible without opening it.
+ */
+function ClipPeek({
+  clips,
+  ratio,
+}: {
+  clips: AIClippingClip[];
+  ratio?: string | null;
+}) {
+  const thumbs = clips
+    .map((clip) => ({ id: clip.id, url: getClipThumbnailUrl(clip) }))
+    .filter((t): t is { id: string; url: string } => Boolean(t.url));
+  if (thumbs.length === 0) return null;
+  const extra = clips.length - Math.min(thumbs.length, PEEK_LIMIT);
+
+  return (
+    <span aria-hidden className="hidden shrink-0 items-center gap-1 sm:flex">
+      {thumbs.slice(0, PEEK_LIMIT).map((thumb) => (
+        <span
+          key={thumb.id}
+          className={cn(
+            "h-11 overflow-hidden rounded-md bg-card",
+            clipAspectClass(ratio),
+          )}
+        >
+          <img
+            src={getCdnUrl(thumb.url)}
+            alt=""
+            loading="lazy"
+            className="size-full object-cover"
+          />
+        </span>
+      ))}
+      {extra > 0 ? (
+        <span className="flex h-11 min-w-9 items-center justify-center rounded-md bg-card px-1.5 text-xs text-muted-foreground tabular-nums">
+          +{extra}
+        </span>
+      ) : null}
+    </span>
+  );
 }
 
 function placeholderCount(job: AIClippingJob) {
@@ -99,6 +149,8 @@ export function AIClippingJobGroup({
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const youTubeId = job.videoUrl ? getYouTubeVideoId(job.videoUrl) : null;
+  const youTubeInfo = useYouTubeInfo(youTubeId);
+  const title = youTubeInfo?.title ?? sourceTitle(job.videoUrl, youTubeId);
   const clipCount = job.clips.length;
   const placeholders = active ? placeholderCount(job) : 0;
   const query = job.config?.query;
@@ -116,12 +168,14 @@ export function AIClippingJobGroup({
         : "No clips found";
 
   const summary = [
+    youTubeInfo?.author ?? (youTubeId ? null : displayUrl(job.videoUrl)),
     progress,
     !active && query ? `“${query}”` : null,
     job.config?.ratio ? formatClipRatio(job.config.ratio) : null,
     job.config?.enableCaption && job.config.captionStyle
       ? `${getCaptionStyleLabel(job.config.captionStyle)} captions`
       : null,
+    timeAgo(job.createdAt),
   ]
     .filter(Boolean)
     .join(" · ");
@@ -131,13 +185,13 @@ export function AIClippingJobGroup({
       <Collapsible open={open} onOpenChange={setOpen}>
         <div className="flex items-center gap-2 p-3">
           <CollapsibleTrigger className="-m-1 flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1 text-left outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50">
-            <span className="relative flex aspect-video w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-card">
+            <span className="relative flex aspect-video w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-card sm:w-28">
               {youTubeId ? (
                 <Image
                   src={`https://img.youtube.com/vi/${youTubeId}/hqdefault.jpg`}
                   alt=""
                   fill
-                  sizes="80px"
+                  sizes="112px"
                   className="object-cover"
                 />
               ) : (
@@ -145,20 +199,17 @@ export function AIClippingJobGroup({
               )}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="flex min-w-0 items-baseline gap-2">
-                <span className="max-w-full shrink-0 truncate text-sm font-medium">
-                  {sourceTitle(job.videoUrl, youTubeId)}
-                </span>
-                {displayUrl(job.videoUrl) ? (
-                  <span className="truncate text-xs text-muted-foreground">
-                    {displayUrl(job.videoUrl)}
-                  </span>
-                ) : null}
+              <span
+                className="block truncate text-sm font-medium"
+                title={job.videoUrl ?? undefined}
+              >
+                {title}
               </span>
-              <span className="block truncate text-xs text-muted-foreground">
+              <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                 {summary}
               </span>
             </span>
+            {!open ? <ClipPeek clips={job.clips} ratio={job.config?.ratio} /> : null}
             <CaretDown
               className={cn(
                 "size-4 shrink-0 text-muted-foreground transition-transform",
