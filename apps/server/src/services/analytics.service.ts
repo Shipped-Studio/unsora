@@ -2,7 +2,7 @@ import { PostAccount, Prisma, SocialAccount } from "@prisma/client";
 import axios from "axios";
 import { prisma } from "../lib/db";
 import { tokenRefreshService } from "./token-refresh.service";
-import { pinterestData } from "../oauth/pinterest";
+import { PINTEREST_API } from "../oauth/pinterest";
 
 /**
  * Post analytics service.
@@ -422,11 +422,10 @@ export class AnalyticsService {
       const batch = pinIds.slice(i, i + 100);
 
       try {
-        const api = pinterestData(account.accessToken);
         const response = await axios.get(
-          `${api.base}/pins/analytics`,
+          `${PINTEREST_API}/pins/analytics`,
           {
-            headers: { Authorization: `Bearer ${api.token}` },
+            headers: { Authorization: `Bearer ${account.accessToken}` },
             params: {
               pin_ids: batch.join(","),
               start_date: startDate,
