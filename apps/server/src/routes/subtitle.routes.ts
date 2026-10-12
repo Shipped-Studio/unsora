@@ -30,6 +30,25 @@ router.post(
   subtitleController.queueTranscribeVideo.bind(subtitleController),
 );
 
+// Saved caption presets. Registered before "/:id" so "presets" isn't read as an id.
+router.get(
+  "/presets",
+  requireAuth,
+  subtitleController.listPresets.bind(subtitleController),
+);
+
+router.post(
+  "/presets",
+  requireAuth,
+  subtitleController.createPreset.bind(subtitleController),
+);
+
+router.delete(
+  "/presets/:presetId",
+  requireAuth,
+  subtitleController.deletePreset.bind(subtitleController),
+);
+
 router.get(
   "/:id",
   requireAuth,
@@ -46,6 +65,12 @@ router.put(
   "/:id",
   requireAuth,
   subtitleController.updateTranscription.bind(subtitleController),
+);
+
+router.post(
+  "/:id/hook-title",
+  requireAuth,
+  subtitleController.generateHookTitle.bind(subtitleController),
 );
 
 router.put(

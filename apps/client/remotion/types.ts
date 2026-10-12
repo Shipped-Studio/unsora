@@ -1,7 +1,13 @@
+/** An animation a word plays the moment it's spoken. */
+export type WordEffect = "pop" | "bounce" | "shake" | "zoom" | "swing" | "glow";
+
 export interface WordTimestamp {
   word: string;
   start: number;
   end: number;
+  /** Start a new row on screen after this word. */
+  lineBreak?: boolean;
+  effect?: WordEffect;
 }
 
 export interface SubtitleChunk {
@@ -9,6 +15,10 @@ export interface SubtitleChunk {
   start: number;
   end: number;
   words: WordTimestamp[];
+  /** Kept in the transcript but not drawn on the video. */
+  hidden?: boolean;
+  /** Shown on its own row under the line. */
+  emoji?: string;
 }
 
 export type EditorSettings = {

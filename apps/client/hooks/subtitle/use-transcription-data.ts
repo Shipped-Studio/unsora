@@ -5,11 +5,7 @@ import { toast } from "sonner";
 import { useSubtitleApi } from "@/hooks/subtitle/use-subtitle-api";
 import { isExportRunning } from "@/hooks/subtitle/use-subtitle-queries";
 import { failureMessage } from "@/components/subtitle-editor/format";
-import type {
-  SubtitleChunk,
-  TranscriptionData,
-  WordTimestamp,
-} from "@/remotion/types";
+import type { SubtitleChunk, TranscriptionData } from "@/remotion/types";
 
 export type TranscriptionStatus =
   | "draft"
@@ -27,8 +23,6 @@ type LoadState =
   | { phase: "error"; message: string };
 
 const DEFAULT_MAX_WORDS = 5;
-/** Break a line on pauses this long, so subtitles don't linger. */
-const CHUNK_GAP_SECONDS = 1.5;
 const TRANSCRIPTION_POLL_MS = 3000;
 const EXPORT_POLL_MS = 5000;
 
@@ -68,43 +62,6 @@ function toStatus(status: string | undefined): TranscriptionStatus {
     default:
       return "processing";
   }
-}
-
-/**
- * Group word timestamps into lines of at most `maxWords`, also breaking on
- * silences. Mirrors groupWordsIntoChunks in server/src/lib/transcription.ts.
- */
-function rechunk(
-  segments: Project["segments"],
-  maxWords: number,
-): SubtitleChunk[] {
-  const chunks: SubtitleChunk[] = [];
-  let current: WordTimestamp[] = [];
-
-  const flush = () => {
-    if (!current.length) return;
-    chunks.push({
-      text: current.map((w) => w.word).join(" "),
-      start: current[0].start,
-      end: current[current.length - 1].end,
-      words: current,
-    });
-    current = [];
-  };
-
-  for (const word of segments.flatMap((s) => s.words ?? [])) {
-    const prev = current[current.length - 1];
-    if (
-      current.length >= maxWords ||
-      (prev && word.start - prev.end >= CHUNK_GAP_SECONDS)
-    ) {
-      flush();
-    }
-    current.push(word);
-  }
-  flush();
-
-  return chunks;
 }
 
 /**
@@ -205,31 +162,6 @@ export function useTranscriptionData(transcriptionId: string) {
     setProject((prev) => prev && { ...prev, subtitleChunks });
   }, []);
 
-  const setMaxWords = useCallback(
-    (maxWordsPerChunk: number) => {
-      if (!project) return;
-      const hasWordTimings = project.segments.some((s) => s.words?.length);
-      // Old transcriptions have no word timings to regroup.
-      if (!hasWordTimings && project.subtitleChunks.length > 0) {
-        toast.error(
-          "Couldn't regroup these subtitles. Transcribe the video again to change words per line.",
-        );
-        return;
-      }
-      setProject(
-        (prev) =>
-          prev && {
-            ...prev,
-            maxWordsPerChunk,
-            subtitleChunks: hasWordTimings
-              ? rechunk(prev.segments, maxWordsPerChunk)
-              : prev.subtitleChunks,
-          },
-      );
-    },
-    [project],
-  );
-
   return {
     project,
     phase: load.phase,
@@ -240,7 +172,6 @@ export function useTranscriptionData(transcriptionId: string) {
     isStarting,
     startTranscription,
     setChunks,
-    setMaxWords,
     refreshExports,
   };
 }

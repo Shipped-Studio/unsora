@@ -7,6 +7,18 @@ import {
 } from "../queue/subtitle.queue";
 import { createAsset } from "../lib/asset-utils";
 import { DURATION_TOLERANCE_SECONDS, measureMediaSeconds } from "../lib/media-limits";
+import { generateObject } from "ai";
+import { z } from "zod";
+import { openrouter } from "../lib/ai-client";
+import { hookTitlePrompt } from "../../prompts/hook-title.prompt";
+
+/** The start of a transcript is plenty to write a hook from. */
+const HOOK_TRANSCRIPT_CHARS = 4000;
+const MAX_PREVIOUS_HOOKS = 10;
+
+const MAX_SAVED_PRESETS = 50;
+const MAX_PRESET_NAME = 40;
+const MAX_PRESET_STYLE_CHARS = 4000;
 
 /*
  * Transcription is free (exports are what's charged), so it's bounded
@@ -684,6 +696,192 @@ export class SubtitleController {
             ? error.message
             : "Failed to update transcription",
       });
+    }
+  }
+
+  /**
+   * Write a hook title from the transcript. Words to style differently come
+   * back wrapped in *asterisks*, and lines are separated by "\n".
+   */
+  async generateHookTitle(req: Request, res: Response) {
+    try {
+      const clerkUserId = req.auth.userId;
+      const { id } = req.params;
+      const previousHooks: string[] = Array.isArray(req.body?.previousHooks)
+        ? req.body.previousHooks
+            .filter((hook: unknown): hook is string => typeof hook === "string")
+            .slice(0, MAX_PREVIOUS_HOOKS)
+        : [];
+
+      const user = await prisma.user.findUnique({
+        where: { clerkId: clerkUserId },
+        select: { id: true },
+      });
+      if (!user) {
+        return res
+          .status(404)
+          .json({ success: false, error: "User not found" });
+      }
+
+      const transcription = await prisma.transcription.findFirst({
+        where: { id, userId: user.id },
+        select: { text: true },
+      });
+      if (!transcription) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Transcription not found" });
+      }
+      if (!transcription.text.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: "Transcribe the video first.",
+        });
+      }
+
+      const { object } = await generateObject({
+        model: openrouter("openai/gpt-4o-mini"),
+        schema: z.object({ hook: z.string() }),
+        prompt: hookTitlePrompt(
+          transcription.text.slice(0, HOOK_TRANSCRIPT_CHARS),
+          previousHooks,
+        ),
+      });
+
+      const hook = object.hook
+        .replace(/\\n/g, "\n")
+        .split("\n")
+        .map((line) => line.trim().replace(/^["'“”]+|["'“”.]+$/g, ""))
+        .filter(Boolean)
+        .slice(0, 2)
+        .join("\n")
+        .slice(0, 120);
+
+      if (!hook) {
+        return res.status(502).json({
+          success: false,
+          error: "The AI came back empty. Try again.",
+        });
+      }
+
+      res.status(200).json({ success: true, data: { hook } });
+    } catch (error) {
+      console.error("Error generating hook title:", error);
+      res.status(500).json({
+        success: false,
+        error: "Try again in a moment.",
+      });
+    }
+  }
+
+  /** Caption styles the user saved, newest first. */
+  async listPresets(req: Request, res: Response) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { clerkId: req.auth.userId },
+        select: { id: true },
+      });
+      if (!user) {
+        return res
+          .status(404)
+          .json({ success: false, error: "User not found" });
+      }
+
+      const presets = await prisma.subtitlePreset.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, name: true, style: true },
+      });
+      res.status(200).json({ success: true, data: presets });
+    } catch (error) {
+      console.error("Error listing subtitle presets:", error);
+      res
+        .status(500)
+        .json({ success: false, error: "Failed to load saved presets" });
+    }
+  }
+
+  async createPreset(req: Request, res: Response) {
+    try {
+      const name =
+        typeof req.body?.name === "string" ? req.body.name.trim() : "";
+      const style = req.body?.style;
+      if (!name || name.length > MAX_PRESET_NAME) {
+        return res.status(400).json({
+          success: false,
+          error: `Give the preset a name of up to ${MAX_PRESET_NAME} characters.`,
+        });
+      }
+      if (
+        !style ||
+        typeof style !== "object" ||
+        Array.isArray(style) ||
+        JSON.stringify(style).length > MAX_PRESET_STYLE_CHARS
+      ) {
+        return res
+          .status(400)
+          .json({ success: false, error: "The preset's style is invalid." });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { clerkId: req.auth.userId },
+        select: { id: true },
+      });
+      if (!user) {
+        return res
+          .status(404)
+          .json({ success: false, error: "User not found" });
+      }
+
+      const count = await prisma.subtitlePreset.count({
+        where: { userId: user.id },
+      });
+      if (count >= MAX_SAVED_PRESETS) {
+        return res.status(400).json({
+          success: false,
+          error: `You can save up to ${MAX_SAVED_PRESETS} presets. Delete one first.`,
+        });
+      }
+
+      const preset = await prisma.subtitlePreset.create({
+        data: { userId: user.id, name, style },
+        select: { id: true, name: true, style: true },
+      });
+      res.status(201).json({ success: true, data: preset });
+    } catch (error) {
+      console.error("Error saving subtitle preset:", error);
+      res
+        .status(500)
+        .json({ success: false, error: "Failed to save the preset" });
+    }
+  }
+
+  async deletePreset(req: Request, res: Response) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { clerkId: req.auth.userId },
+        select: { id: true },
+      });
+      if (!user) {
+        return res
+          .status(404)
+          .json({ success: false, error: "User not found" });
+      }
+
+      const { count } = await prisma.subtitlePreset.deleteMany({
+        where: { id: req.params.presetId, userId: user.id },
+      });
+      if (count === 0) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Preset not found" });
+      }
+      res.status(200).json({ success: true });
+    } catch (error) {
+      console.error("Error deleting subtitle preset:", error);
+      res
+        .status(500)
+        .json({ success: false, error: "Failed to delete the preset" });
     }
   }
 

@@ -10,12 +10,13 @@ import type {
   CompositionProps,
   SubtitleChunk,
   SubtitleStylePreset,
+  WordEffect,
   SizePositionValues,
-  TitleOverlayConfig,
   WatermarkOverlayConfig,
   WatermarkPosition,
 } from "./types";
 import { getFontFamily } from "./fonts";
+import { TitleOverlay, normalizeTitleOverlay } from "./title-overlay";
 
 export const SubtitleComposition: React.FC<CompositionProps> = ({
   videoUrl,
@@ -23,7 +24,7 @@ export const SubtitleComposition: React.FC<CompositionProps> = ({
   settings = {} as CompositionProps["settings"],
 }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
   const currentTime = frame / fps;
 
   const { preset, sizePosition, titleOverlay, watermarkOverlay, previewStyle } =
@@ -73,17 +74,23 @@ export const SubtitleComposition: React.FC<CompositionProps> = ({
         />
       </AbsoluteFill>
 
-      {activeChunk && preset && (
+      {activeChunk && !activeChunk.hidden && preset && (
         <SubtitleOverlay
           chunk={activeChunk}
           activeWordIndex={activeWordIndex}
+          time={currentTime}
           preset={preset}
           sizePosition={sizePosition}
         />
       )}
 
-      {titleOverlay?.enabled && titleOverlay.text && (
-        <TitleOverlay config={titleOverlay} />
+      {titleOverlay && (
+        <TitleOverlay
+          config={normalizeTitleOverlay(titleOverlay, { width, height })}
+          time={currentTime}
+          frameWidth={width}
+          getFontFamily={getFontFamily}
+        />
       )}
 
       {watermarkOverlay?.enabled &&
@@ -94,34 +101,124 @@ export const SubtitleComposition: React.FC<CompositionProps> = ({
   );
 };
 
+const UPPERCASE_TRACKING = 0.04;
+const BOX_PADDING_X = 0.16;
+
+// Word effect timings, in seconds from when the word is spoken.
+const EFFECT_SECONDS = 0.4;
+const GLOW_SECONDS = 0.9;
+
+const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
+const lerp = (from: number, to: number, p: number) => from + (to - from) * p;
+const easeOutCubic = (p: number) => 1 - (1 - p) ** 3;
+const easeOutBack = (p: number) => {
+  const c1 = 1.70158;
+  return 1 + (c1 + 1) * (p - 1) ** 3 + c1 * (p - 1) ** 2;
+};
+
+/**
+ * A word's effect as a function of time, so every exported frame matches the
+ * preview. `since` is seconds since the word was spoken.
+ */
+function wordEffectStyle(
+  effect: WordEffect,
+  since: number,
+  glowColor: string,
+  baseShadow: string | undefined,
+): React.CSSProperties {
+  if (since < 0) return {};
+  const p = clamp01(since / EFFECT_SECONDS);
+  if (effect === "glow") {
+    if (since >= GLOW_SECONDS) return {};
+    const k =
+      since < 0.12
+        ? since / 0.12
+        : 1 - clamp01((since - 0.12) / (GLOW_SECONDS - 0.12));
+    const glow = `0 0 ${(0.25 * k).toFixed(3)}em ${glowColor}, 0 0 ${(0.6 * k).toFixed(3)}em ${glowColor}`;
+    return {
+      textShadow: baseShadow ? `${glow}, ${baseShadow}` : glow,
+      transform: `scale(${(1 + 0.06 * k).toFixed(3)})`,
+    };
+  }
+  if (p >= 1) return {};
+  switch (effect) {
+    case "pop": {
+      const scale =
+        p < 0.4
+          ? lerp(0.7, 1.3, easeOutCubic(p / 0.4))
+          : lerp(1.3, 1, easeOutCubic((p - 0.4) / 0.6));
+      return { transform: `scale(${scale.toFixed(3)})` };
+    }
+    case "bounce":
+      return {
+        transform: `translateY(${(-0.4 * Math.sin(Math.PI * p)).toFixed(3)}em)`,
+      };
+    case "shake":
+      return {
+        transform: `rotate(${(8 * Math.sin(p * 6 * Math.PI) * (1 - p)).toFixed(2)}deg)`,
+      };
+    case "zoom":
+      return {
+        transform: `scale(${lerp(1.8, 1, easeOutCubic(p)).toFixed(3)})`,
+        opacity: clamp01(p * 3),
+      };
+    case "swing":
+      return {
+        transform: `rotate(${(-14 * (1 - easeOutBack(p))).toFixed(2)}deg)`,
+        transformOrigin: "50% 100%",
+      };
+    default:
+      return {};
+  }
+}
+
 function SubtitleOverlay({
   chunk,
   activeWordIndex,
+  time,
   preset,
   sizePosition,
 }: {
   chunk: SubtitleChunk;
   activeWordIndex: number;
+  /** Seconds into the video, for word effects. */
+  time: number;
   preset: SubtitleStylePreset;
   sizePosition?: SizePositionValues;
 }) {
   const { width: compWidth } = useVideoConfig();
 
   const words = chunk.words?.length
-    ? chunk.words.map((w) => w.word)
-    : chunk.text.split(" ");
+    ? chunk.words.map((w) => ({
+        text: w.word,
+        lineBreak: Boolean(w.lineBreak),
+        start: w.start as number | undefined,
+        effect: w.effect,
+      }))
+    : chunk.text.split(" ").map((text) => ({
+        text,
+        lineBreak: false,
+        start: undefined,
+        effect: undefined,
+      }));
+
+  const glowColor =
+    preset.highlightColor && !preset.highlightColor.startsWith("linear-gradient")
+      ? preset.highlightColor
+      : "#ffffff";
 
   const fontSize = sizePosition?.fontSize ?? preset.fontSize;
   const overlayWidth = sizePosition?.width ?? Math.round(compWidth * 0.85);
   const xOffset = sizePosition?.xAxis ?? 0;
   const yOffset = sizePosition?.yAxis ?? 0;
 
+  const uppercase = preset.textTransform === "uppercase";
   const baseTextStyle: React.CSSProperties = {
     fontFamily: getFontFamily(preset.fontFamily),
     fontWeight: preset.fontWeight,
     fontStyle: preset.fontStyle,
     textTransform: preset.textTransform,
-    letterSpacing: preset.textTransform === "uppercase" ? "0.04em" : undefined,
+    letterSpacing: uppercase ? `${UPPERCASE_TRACKING}em` : undefined,
     textShadow: preset.shadow,
     lineHeight: 1.3,
   };
@@ -156,7 +253,10 @@ function SubtitleOverlay({
         flexWrap: "wrap",
         justifyContent: "center",
         alignContent: "center",
-        gap: "0.5em",
+        // Sized from the text so spacing scales with it.
+        fontSize,
+        columnGap: "0.32em",
+        rowGap: "0.08em",
         ...containerStyle,
       }}
     >
@@ -177,58 +277,62 @@ function SubtitleOverlay({
             }
           : { color: wordColor };
 
+        const boxed = isActive && Boolean(preset.highlightBgColor);
+        // The negative margin keeps words from shifting as the box moves; it
+        // stays inside the gap. Tracking adds space after the last letter.
         const highlightBgStyle: React.CSSProperties =
-          isActive && preset.highlightBgColor
+          boxed && preset.highlightBgColor
             ? {
                 ...(preset.highlightBgColor.startsWith("linear-gradient")
                   ? { backgroundImage: preset.highlightBgColor }
                   : { backgroundColor: preset.highlightBgColor }),
-                padding: "0.06em 0.24em",
-                margin: "-0.06em -0.24em",
+                padding: `0.04em ${BOX_PADDING_X - (uppercase ? UPPERCASE_TRACKING : 0)}em 0.04em ${BOX_PADDING_X}em`,
+                margin: `-0.04em -${BOX_PADDING_X}em`,
                 borderRadius: "0.18em",
               }
             : {};
 
         return (
-          <span
-            key={`${i}-${word}`}
-            style={{
-              ...baseTextStyle,
-              ...strokeStyle,
-              ...colorStyle,
-              ...highlightBgStyle,
-              fontSize,
-            }}
-          >
-            {word}
-          </span>
+          <React.Fragment key={`${i}-${word.text}`}>
+            <span
+              style={{
+                ...baseTextStyle,
+                // The box gives enough contrast; an outline on it looks muddy.
+                ...(boxed ? {} : strokeStyle),
+                ...colorStyle,
+                ...highlightBgStyle,
+                fontSize,
+                ...(word.effect && word.start !== undefined
+                  ? wordEffectStyle(
+                      word.effect,
+                      time - word.start,
+                      glowColor,
+                      preset.shadow,
+                    )
+                  : {}),
+              }}
+            >
+              {word.text}
+            </span>
+            {/* A full-width empty item forces the next word onto a new row. */}
+            {word.lineBreak ? (
+              <span style={{ flexBasis: "100%", height: 0 }} />
+            ) : null}
+          </React.Fragment>
         );
       })}
-    </div>
-  );
-}
-
-function TitleOverlay({ config }: { config: TitleOverlayConfig }) {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        top: `${8 + config.yAxis}%`,
-        left: `${50 + config.xAxis}%`,
-        transform: "translateX(-50%)",
-        width: `${config.width ?? 90}%`,
-        zIndex: 20,
-        fontFamily: getFontFamily("inter"),
-        fontSize: config.fontSize,
-        fontWeight: config.fontWeight,
-        color: config.color,
-        textAlign: "center",
-        whiteSpace: "pre-wrap",
-        textShadow: "0 2px 8px rgba(0,0,0,0.5)",
-        lineHeight: 1.2,
-      }}
-    >
-      {config.text}
+      {chunk.emoji ? (
+        <span
+          style={{
+            flexBasis: "100%",
+            textAlign: "center",
+            fontSize: "1.1em",
+            lineHeight: 1.2,
+          }}
+        >
+          {chunk.emoji}
+        </span>
+      ) : null}
     </div>
   );
 }

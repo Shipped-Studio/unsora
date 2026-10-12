@@ -92,7 +92,6 @@ function SubtitleProject({ id }: { id: string }) {
       isStarting={data.isStarting}
       onStartTranscription={data.startTranscription}
       onChunksChange={data.setChunks}
-      onMaxWordsChange={data.setMaxWords}
       onRefreshExports={data.refreshExports}
     />
   );

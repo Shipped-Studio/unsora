@@ -74,6 +74,13 @@ export interface ExportRequest {
   height: number;
 }
 
+/** A caption style the user saved; `style` holds the preset fields. */
+export interface SavedSubtitlePreset {
+  id: string;
+  name: string;
+  style: Record<string, unknown>;
+}
+
 export interface ExportQueued {
   taskId?: string;
   creditsUsed?: number;
@@ -177,6 +184,25 @@ export function useSubtitleApi() {
           method: "PUT",
           body: JSON.stringify(body),
         }),
+
+      /** Writes a hook title from the transcript; accent words come in *asterisks*. */
+      generateHookTitle: (id: string, previousHooks: string[]) =>
+        request<{ hook: string }>(`/api/subtitles/${id}/hook-title`, {
+          method: "POST",
+          body: JSON.stringify({ previousHooks }),
+        }),
+
+      listSubtitlePresets: () =>
+        request<SavedSubtitlePreset[]>("/api/subtitles/presets"),
+
+      createSubtitlePreset: (name: string, style: Record<string, unknown>) =>
+        request<SavedSubtitlePreset>("/api/subtitles/presets", {
+          method: "POST",
+          body: JSON.stringify({ name, style }),
+        }),
+
+      deleteSubtitlePreset: (id: string) =>
+        request<unknown>(`/api/subtitles/presets/${id}`, { method: "DELETE" }),
 
       deleteTranscription: (id: string) =>
         request<unknown>(`/api/subtitles/${id}`, { method: "DELETE" }),

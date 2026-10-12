@@ -181,6 +181,9 @@ importers:
       '@remotion/lambda':
         specifier: 4.0.377
         version: 4.0.377(@remotion/bundler@4.0.377(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      mediabunny:
+        specifier: 1.40.1
+        version: 1.40.1
       react:
         specifier: ^19.2.0
         version: 19.2.0

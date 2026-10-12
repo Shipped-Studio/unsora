@@ -40,6 +40,7 @@ model User {
   creditTransactions CreditTransaction[]
   aiClippings        AIClipping[]
   apiKeys            ApiKey[]
+  subtitlePresets    SubtitlePreset[]
 
   stripeCustomerId       String?   @unique @map(name: "stripe_customer_id")
   stripeSubscriptionId   String?   @unique @map(name: "stripe_subscription_id")
@@ -318,6 +319,21 @@ model ProcessedVideo {
   @@index([status, createdAt(sort: Desc)])
   @@index([userId, operations])
   @@map("processed_videos")
+}
+
+/// Caption styles a user saved from the subtitle editor's Customize panel.
+model SubtitlePreset {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  /// The editor's SubtitleStylePreset fields, without id and name.
+  style     Json
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("subtitle_presets")
 }
 
 model Transcription {

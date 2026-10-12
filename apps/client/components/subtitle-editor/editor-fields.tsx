@@ -4,10 +4,18 @@ import { useId } from "react";
 import { ArrowCounterClockwise, Plus } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
+import { FONT_OPTIONS, getFontFamily } from "@/remotion/fonts";
 
 /** Swatches offered for title and watermark text. */
 export const OVERLAY_COLORS = [
@@ -22,6 +30,34 @@ export const OVERLAY_COLORS = [
   "#ec4899",
   "#06b6d4",
 ] as const;
+
+export interface SelectOption {
+  value: string;
+  label: string;
+}
+
+export const FONT_SELECT_OPTIONS: SelectOption[] = FONT_OPTIONS.map(
+  (font) => ({ value: font.key, label: font.label }),
+);
+
+export const FONT_WEIGHT_OPTIONS: SelectOption[] = [
+  { value: "300", label: "Light" },
+  { value: "400", label: "Regular" },
+  { value: "500", label: "Medium" },
+  { value: "600", label: "Semibold" },
+  { value: "700", label: "Bold" },
+  { value: "800", label: "Extra bold" },
+  { value: "900", label: "Black" },
+];
+
+/** Shows each font's name in that font. */
+export function renderFontOption(option: SelectOption) {
+  return (
+    <span style={{ fontFamily: getFontFamily(option.value) }}>
+      {option.label}
+    </span>
+  );
+}
 
 /** One titled block inside an editor tab. */
 export function EditorSection({
@@ -207,13 +243,13 @@ export function ColorField({
             "relative flex size-7 cursor-pointer items-center justify-center rounded-full border border-dashed border-foreground/30 text-muted-foreground transition-colors hover:text-foreground has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50",
             isCustom && "ring-2 ring-foreground ring-offset-2 ring-offset-background",
           )}
-          style={isCustom ? { backgroundColor: value } : undefined}
+          style={isCustom ? { background: value } : undefined}
         >
           {isCustom ? null : <Plus className="size-3.5" />}
           <input
             type="color"
             aria-label={`Custom ${label.toLowerCase()}`}
-            value={value}
+            value={/^#[0-9a-f]{6}$/i.test(value) ? value : "#000000"}
             onChange={(event) => onChange(event.target.value)}
             className="absolute inset-0 cursor-pointer opacity-0"
           />
@@ -273,5 +309,45 @@ export function ChoiceItem({
     >
       {children}
     </ToggleGroupItem>
+  );
+}
+
+/** Labelled dropdown for a fixed list of options. */
+export function SelectField({
+  label,
+  options,
+  value,
+  onChange,
+  renderOption,
+}: {
+  label: string;
+  options: SelectOption[];
+  value: string;
+  onChange: (value: string) => void;
+  renderOption?: (option: SelectOption) => React.ReactNode;
+}) {
+  const labelId = useId();
+  return (
+    <div className="space-y-2">
+      <FieldCaption id={labelId}>{label}</FieldCaption>
+      <Select
+        items={options}
+        value={value}
+        onValueChange={(next) => {
+          if (typeof next === "string") onChange(next);
+        }}
+      >
+        <SelectTrigger aria-labelledby={labelId} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {renderOption ? renderOption(option) : option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }

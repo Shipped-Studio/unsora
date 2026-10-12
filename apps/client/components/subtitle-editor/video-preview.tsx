@@ -16,11 +16,13 @@ import { Slider } from "@/components/ui/slider";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/states";
 import { VideoComposition } from "@/components/subtitle-editor/video-composition";
 import { formatClock } from "@/components/subtitle-editor/format";
+import { PreviewDragLayer } from "@/components/subtitle-editor/preview-drag-layer";
 import type { SubtitleStylePreset } from "@/components/subtitle-editor/style-presets";
 import type { SizePositionValues } from "@/components/subtitle-editor/tabs/style-subtitles-tab";
-import type { TitleOverlayConfig } from "@/components/subtitle-editor/tabs/edit-title-tab";
+import type { TitleOverlayConfig } from "@/components/subtitle-editor/title-overlay";
 import type { WatermarkOverlayConfig } from "@/components/subtitle-editor/tabs/edit-watermark-tab";
 import {
+  PreviewStyleControls,
   getCompositionDimensions,
   type PreviewStyleConfig,
 } from "@/components/subtitle-editor/tabs/preview-style-tab";
@@ -192,6 +194,11 @@ function PlayerControls({
   );
 }
 
+/** Jumps the preview to `seconds`; `preview` also plays a short moment. */
+export type SeekFn = (seconds: number, options?: { preview?: boolean }) => void;
+
+const PREVIEW_PLAY_MS = 1200;
+
 interface VideoPreviewProps {
   videoUrl: string | null;
   /** Used when the file doesn't report its own duration. */
@@ -202,10 +209,13 @@ interface VideoPreviewProps {
   titleOverlay: TitleOverlayConfig;
   watermarkOverlay: WatermarkOverlayConfig;
   previewStyle: PreviewStyleConfig;
+  onSizePositionChange: (values: SizePositionValues) => void;
+  onTitleOverlayChange: (config: TitleOverlayConfig) => void;
+  onPreviewStyleChange: (config: PreviewStyleConfig) => void;
   onUploadVideo: () => void;
   onTimeUpdate: (seconds: number) => void;
   /** Filled with a seek function while the player is ready. */
-  seekRef: React.RefObject<((seconds: number) => void) | null>;
+  seekRef: React.RefObject<SeekFn | null>;
 }
 
 /**
@@ -221,10 +231,14 @@ export function VideoPreview({
   titleOverlay,
   watermarkOverlay,
   previewStyle,
+  onSizePositionChange,
+  onTitleOverlayChange,
+  onPreviewStyleChange,
   onUploadVideo,
   onTimeUpdate,
   seekRef,
 }: VideoPreviewProps) {
+  const [hovering, setHovering] = useState(false);
   const { metadata, failed, retry } = useVideoMetadata(
     videoUrl,
     durationSeconds,
@@ -253,9 +267,19 @@ export function VideoPreview({
 
   useEffect(() => {
     if (!playerReady) return;
-    seekRef.current = (seconds: number) =>
-      playerRef.current?.seekTo(Math.round(seconds * FPS));
+    let previewTimer: ReturnType<typeof setTimeout> | undefined;
+    seekRef.current = (seconds, options) => {
+      const player = playerRef.current;
+      if (!player) return;
+      clearTimeout(previewTimer);
+      player.seekTo(Math.round(seconds * FPS));
+      if (!options?.preview) return;
+      // Play a short moment, e.g. to show a word animation just picked.
+      player.play();
+      previewTimer = setTimeout(() => player.pause(), PREVIEW_PLAY_MS);
+    };
     return () => {
+      clearTimeout(previewTimer);
       seekRef.current = null;
     };
   }, [seekRef, playerReady]);
@@ -329,11 +353,13 @@ export function VideoPreview({
       <div className="relative min-h-0 flex-1 [container-type:size]">
         <div className="absolute inset-0 flex items-center justify-center">
           <div
-            className="overflow-hidden rounded-lg bg-media"
+            className="relative overflow-hidden rounded-lg bg-media"
             style={{
               width: `min(100cqw, 100cqh * ${width} / ${height})`,
               aspectRatio: `${width} / ${height}`,
             }}
+            onPointerEnter={() => setHovering(true)}
+            onPointerLeave={() => setHovering(false)}
           >
             <Player
               ref={playerRef}
@@ -346,9 +372,22 @@ export function VideoPreview({
               style={{ width: "100%", height: "100%" }}
               errorFallback={renderPlayerError}
             />
+            <PreviewDragLayer
+              active={hovering}
+              compositionWidth={width}
+              hasSubtitles={subtitleChunks.length > 0}
+              sizePosition={sizePosition}
+              onSizePositionChange={onSizePositionChange}
+              titleOverlay={titleOverlay}
+              onTitleOverlayChange={onTitleOverlayChange}
+            />
           </div>
         </div>
       </div>
+      <PreviewStyleControls
+        config={previewStyle}
+        onChange={onPreviewStyleChange}
+      />
       <PlayerControls
         playerRef={playerRef}
         durationInFrames={metadata.durationInFrames}

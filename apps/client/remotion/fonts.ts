@@ -18,6 +18,11 @@ import { loadFont as loadOrbitron } from "@remotion/google-fonts/Orbitron";
 import { loadFont as loadAnton } from "@remotion/google-fonts/Anton";
 import { loadFont as loadPressStart2p } from "@remotion/google-fonts/PressStart2P";
 import { loadFont as loadCourierPrime } from "@remotion/google-fonts/CourierPrime";
+import { loadFont as loadArchivoBlack } from "@remotion/google-fonts/ArchivoBlack";
+import { loadFont as loadLuckiestGuy } from "@remotion/google-fonts/LuckiestGuy";
+import { loadFont as loadLilitaOne } from "@remotion/google-fonts/LilitaOne";
+import { loadFont as loadTitanOne } from "@remotion/google-fonts/TitanOne";
+import { loadFont as loadBungee } from "@remotion/google-fonts/Bungee";
 
 export type FontFamily =
   | "inter"
@@ -39,7 +44,12 @@ export type FontFamily =
   | "orbitron"
   | "anton"
   | "press-start-2p"
-  | "courier-prime";
+  | "courier-prime"
+  | "archivo-black"
+  | "luckiest-guy"
+  | "lilita-one"
+  | "titan-one"
+  | "bungee";
 
 const FONTS: Record<FontFamily, { fontFamily: string }> = {
   inter: loadInter("normal", { ignoreTooManyRequestsWarning: true }),
@@ -72,6 +82,17 @@ const FONTS: Record<FontFamily, { fontFamily: string }> = {
   "courier-prime": loadCourierPrime("normal", {
     ignoreTooManyRequestsWarning: true,
   }),
+  "archivo-black": loadArchivoBlack("normal", {
+    ignoreTooManyRequestsWarning: true,
+  }),
+  "luckiest-guy": loadLuckiestGuy("normal", {
+    ignoreTooManyRequestsWarning: true,
+  }),
+  "lilita-one": loadLilitaOne("normal", {
+    ignoreTooManyRequestsWarning: true,
+  }),
+  "titan-one": loadTitanOne("normal", { ignoreTooManyRequestsWarning: true }),
+  bungee: loadBungee("normal", { ignoreTooManyRequestsWarning: true }),
 };
 
 export const FONT_OPTIONS: { key: FontFamily; label: string }[] = [
@@ -95,6 +116,11 @@ export const FONT_OPTIONS: { key: FontFamily; label: string }[] = [
   { key: "anton", label: "Anton" },
   { key: "press-start-2p", label: "Press Start 2P" },
   { key: "courier-prime", label: "Courier Prime" },
+  { key: "archivo-black", label: "Archivo Black" },
+  { key: "luckiest-guy", label: "Luckiest Guy" },
+  { key: "lilita-one", label: "Lilita One" },
+  { key: "titan-one", label: "Titan One" },
+  { key: "bungee", label: "Bungee" },
 ];
 
 export const getFontFamily = (font: string): string => {

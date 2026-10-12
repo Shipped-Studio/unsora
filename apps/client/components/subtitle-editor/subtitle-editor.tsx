@@ -7,7 +7,6 @@ import {
   DownloadSimple,
   Drop,
   FloppyDisk,
-  FrameCorners,
   Palette,
   PencilSimple,
   Subtitles,
@@ -42,11 +41,8 @@ import {
   EditSubtitlesTab,
   TRANSCRIPTION_LANGUAGES,
 } from "@/components/subtitle-editor/tabs/edit-subtitles-tab";
-import {
-  EditTitleTab,
-  TITLE_OVERLAY_DEFAULTS,
-  type TitleOverlayConfig,
-} from "@/components/subtitle-editor/tabs/edit-title-tab";
+import { EditTitleTab } from "@/components/subtitle-editor/tabs/edit-title-tab";
+import { normalizeTitleOverlay } from "@/components/subtitle-editor/title-overlay";
 import {
   EditWatermarkTab,
   WATERMARK_OVERLAY_DEFAULTS,
@@ -55,7 +51,6 @@ import {
 import { ExportsTab } from "@/components/subtitle-editor/tabs/exports-tab";
 import {
   PREVIEW_STYLE_DEFAULTS,
-  PreviewStyleTab,
   getCompositionDimensions,
   type PreviewStyleConfig,
 } from "@/components/subtitle-editor/tabs/preview-style-tab";
@@ -65,7 +60,10 @@ import {
   type SizePositionValues,
 } from "@/components/subtitle-editor/tabs/style-subtitles-tab";
 import { UploadDialog } from "@/components/subtitle-editor/upload-dialog";
-import { VideoPreview } from "@/components/subtitle-editor/video-preview";
+import {
+  VideoPreview,
+  type SeekFn,
+} from "@/components/subtitle-editor/video-preview";
 import { useCreateProject } from "@/hooks/subtitle/use-create-project";
 import { useExportJob } from "@/hooks/subtitle/use-export-job";
 import { useSubtitleApi } from "@/hooks/subtitle/use-subtitle-api";
@@ -74,6 +72,7 @@ import {
   useDeleteSubtitleExport,
 } from "@/hooks/subtitle/use-subtitle-queries";
 import type { TranscriptionStatus } from "@/hooks/subtitle/use-transcription-data";
+import { cn } from "@/lib/utils";
 import type {
   SubtitleChunk,
   TranscriptionData,
@@ -82,33 +81,49 @@ import type {
 
 export const EDITOR_PARENTS = [{ label: "Subtitles", href: "/subtitle-editor" }];
 
-const PANEL_CLASS = "max-w-3xl px-4 py-6 md:px-6";
-const PREVIEW_CLASS =
-  "border-t p-4 md:p-6 lg:sticky lg:top-18 lg:h-[calc(100svh-5.5rem)] lg:self-start lg:border-t-0 lg:border-l";
+/** Two cards side by side on large screens; each scrolls on its own. */
 const LAYOUT_CLASS =
-  "grid grid-cols-1 lg:min-h-[calc(100svh-5.5rem)] lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]";
+  "grid grid-cols-1 gap-4 p-4 md:p-6 lg:h-[calc(100svh-5.5rem)] lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]";
+const CARD_CLASS = "min-h-0 min-w-0 overflow-hidden rounded-2xl border bg-card";
+const PANEL_CLASS = "mx-auto w-full max-w-3xl px-4 py-5 md:px-6";
+const PREVIEW_CLASS = cn(CARD_CLASS, "p-4 md:p-5");
+/** Vertical menu items; a scrolling row on small screens. */
+const NAV_ITEM_CLASS =
+  "h-9 flex-none justify-start px-3 after:hidden data-active:bg-muted! data-active:text-foreground max-md:w-auto!";
 
 interface StoredSettings {
   selectedPresetId?: string;
+  /** The selected preset with any customizations. */
+  preset?: SubtitleStylePreset;
   sizePosition?: Partial<SizePositionValues>;
-  titleOverlay?: Partial<TitleOverlayConfig>;
+  titleOverlay?: unknown;
   watermarkOverlay?: Partial<WatermarkOverlayConfig>;
   previewStyle?: Partial<PreviewStyleConfig>;
 }
 
 function readSettings(project: TranscriptionData) {
   const stored = (project.editorSettings ?? {}) as StoredSettings;
+  const previewStyle = { ...PREVIEW_STYLE_DEFAULTS, ...stored.previewStyle };
   return {
     preset:
-      SUBTITLE_PRESETS.find((p) => p.id === stored.selectedPresetId) ??
-      SUBTITLE_PRESETS[0],
+      stored.preset && stored.preset.id === stored.selectedPresetId
+        ? stored.preset
+        : (SUBTITLE_PRESETS.find((p) => p.id === stored.selectedPresetId) ??
+          SUBTITLE_PRESETS[0]),
     sizePosition: { ...SIZE_POSITION_DEFAULTS, ...stored.sizePosition },
-    titleOverlay: { ...TITLE_OVERLAY_DEFAULTS, ...stored.titleOverlay },
+    titleOverlay: normalizeTitleOverlay(
+      stored.titleOverlay,
+      getCompositionDimensions(
+        previewStyle,
+        project.width ?? 1080,
+        project.height ?? 1920,
+      ),
+    ),
     watermarkOverlay: {
       ...WATERMARK_OVERLAY_DEFAULTS,
       ...stored.watermarkOverlay,
     },
-    previewStyle: { ...PREVIEW_STYLE_DEFAULTS, ...stored.previewStyle },
+    previewStyle,
   };
 }
 
@@ -138,7 +153,6 @@ interface SubtitleEditorProps {
     maxWordsPerChunk: number;
   }) => void;
   onChunksChange: (chunks: SubtitleChunk[]) => void;
-  onMaxWordsChange: (value: number) => void;
   onRefreshExports: () => Promise<void>;
 }
 
@@ -153,7 +167,6 @@ export function SubtitleEditor({
   isStarting,
   onStartTranscription,
   onChunksChange,
-  onMaxWordsChange,
   onRefreshExports,
 }: SubtitleEditorProps) {
   const api = useSubtitleApi();
@@ -182,7 +195,7 @@ export function SubtitleEditor({
   const [pendingDelete, setPendingDelete] = useState<VideoExportItem | null>(
     null,
   );
-  const seekRef = useRef<((seconds: number) => void) | null>(null);
+  const seekRef = useRef<SeekFn | null>(null);
 
   const exportJob = useExportJob({ onSettled: () => void onRefreshExports() });
 
@@ -202,8 +215,13 @@ export function SubtitleEditor({
     seekRef.current?.(seconds);
   }, []);
 
+  const handlePlayFrom = useCallback((seconds: number) => {
+    seekRef.current?.(seconds, { preview: true });
+  }, []);
+
   const currentSettings = () => ({
     selectedPresetId: preset.id,
+    preset,
     sizePosition,
     titleOverlay,
     watermarkOverlay,
@@ -249,6 +267,15 @@ export function SubtitleEditor({
     return true;
   };
 
+  const generateHook = async (previousHooks: string[]) => {
+    const result = await api.generateHookTitle(project.id, previousHooks);
+    if (!result.success || !result.data) {
+      toast.error(failureMessage("write a hook", result.error));
+      return null;
+    }
+    return result.data.hook;
+  };
+
   const startExport = async (fileName: string) => {
     if (!videoUrl) return;
     setExportName(fileName);
@@ -262,7 +289,7 @@ export function SubtitleEditor({
       transcriptionId: project.id,
       videoUrl,
       subtitleChunks: chunks,
-      style: { fileName, preset, ...currentSettings() },
+      style: { fileName, ...currentSettings() },
       duration: project.duration ?? 0,
       width,
       height,
@@ -320,50 +347,48 @@ export function SubtitleEditor({
 
       <div className={LAYOUT_CLASS}>
         <Tabs
+          orientation="vertical"
           value={activeTab}
           onValueChange={(value) => setActiveTab(String(value))}
-          className="min-w-0 gap-0"
+          className={cn(CARD_CLASS, "flex-col gap-0 md:flex-row")}
         >
-          <div className="sticky top-14 z-20 border-b bg-background">
-            <div className="overflow-x-auto px-4 pt-1 pb-0.5 md:px-6">
-              <TabsList variant="line">
-                <TabsTrigger value="style">
-                  <Palette />
-                  Style
-                </TabsTrigger>
-                <TabsTrigger value="edit">
-                  <Subtitles />
-                  Edit subtitles
-                </TabsTrigger>
-                <TabsTrigger value="title">
-                  <TextT />
-                  Title
-                </TabsTrigger>
-                <TabsTrigger value="watermark">
-                  <Drop />
-                  Watermark
-                </TabsTrigger>
-                <TabsTrigger value="preview-style">
-                  <FrameCorners />
-                  Preview style
-                </TabsTrigger>
-                <TabsTrigger value="exports">
-                  <DownloadSimple />
-                  Exports
-                  {exportCount > 0 ? (
-                    <span className="text-xs tabular-nums text-muted-foreground">
-                      {exportCount}
-                    </span>
-                  ) : null}
-                </TabsTrigger>
-              </TabsList>
-            </div>
-          </div>
+          <TabsList
+            variant="line"
+            aria-label="Editor sections"
+            className="h-auto! w-full shrink-0 justify-start overflow-x-auto border-b p-2 max-md:flex-row! md:w-48 md:items-stretch md:border-r md:border-b-0 md:p-3"
+          >
+            <TabsTrigger value="style" className={NAV_ITEM_CLASS}>
+              <Palette />
+              Style
+            </TabsTrigger>
+            <TabsTrigger value="edit" className={NAV_ITEM_CLASS}>
+              <Subtitles />
+              Subtitles
+            </TabsTrigger>
+            <TabsTrigger value="title" className={NAV_ITEM_CLASS}>
+              <TextT />
+              Hook title
+            </TabsTrigger>
+            <TabsTrigger value="watermark" className={NAV_ITEM_CLASS}>
+              <Drop />
+              Watermark
+            </TabsTrigger>
+            <TabsTrigger value="exports" className={NAV_ITEM_CLASS}>
+              <DownloadSimple />
+              Exports
+              {exportCount > 0 ? (
+                <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                  {exportCount}
+                </span>
+              ) : null}
+            </TabsTrigger>
+          </TabsList>
 
+          <div className="min-h-0 flex-1 overflow-y-auto">
           <TabsContent value="style" className={PANEL_CLASS}>
             <StyleSubtitlesTab
-              selectedPresetId={preset.id}
-              onSelectPreset={setPreset}
+              preset={preset}
+              onPresetChange={setPreset}
               sizePosition={sizePosition}
               onSizePositionChange={setSizePosition}
             />
@@ -377,21 +402,23 @@ export function SubtitleEditor({
               isStarting={isStarting}
               activeChunkIndex={activeChunkIndex}
               language={language}
-              onLanguageChange={setLanguage}
               maxWordsPerChunk={project.maxWordsPerChunk}
-              onMaxWordsChange={onMaxWordsChange}
-              onStartTranscription={() =>
-                onStartTranscription({
-                  language,
-                  maxWordsPerChunk: project.maxWordsPerChunk,
-                })
-              }
+              onStartTranscription={(options) => {
+                setLanguage(options.language);
+                onStartTranscription(options);
+              }}
               onChunksChange={onChunksChange}
               onSeek={handleSeek}
+              onPlayFrom={handlePlayFrom}
             />
           </TabsContent>
           <TabsContent value="title" className={PANEL_CLASS}>
-            <EditTitleTab config={titleOverlay} onChange={setTitleOverlay} />
+            <EditTitleTab
+              config={titleOverlay}
+              onChange={setTitleOverlay}
+              onGenerate={generateHook}
+              canGenerate={Boolean(project.text?.trim())}
+            />
           </TabsContent>
           <TabsContent value="watermark" className={PANEL_CLASS}>
             <EditWatermarkTab
@@ -399,15 +426,13 @@ export function SubtitleEditor({
               onChange={setWatermarkOverlay}
             />
           </TabsContent>
-          <TabsContent value="preview-style" className={PANEL_CLASS}>
-            <PreviewStyleTab config={previewStyle} onChange={setPreviewStyle} />
-          </TabsContent>
           <TabsContent value="exports" className={PANEL_CLASS}>
             <ExportsTab
               exports={project.videoExports}
               onDelete={setPendingDelete}
             />
           </TabsContent>
+          </div>
         </Tabs>
 
         <aside aria-label="Preview" className={PREVIEW_CLASS}>
@@ -421,6 +446,9 @@ export function SubtitleEditor({
               titleOverlay={titleOverlay}
               watermarkOverlay={watermarkOverlay}
               previewStyle={previewStyle}
+              onSizePositionChange={setSizePosition}
+              onTitleOverlayChange={setTitleOverlay}
+              onPreviewStyleChange={setPreviewStyle}
               onUploadVideo={() => setUploadOpen(true)}
               onTimeUpdate={handleTimeUpdate}
               seekRef={seekRef}
@@ -549,10 +577,10 @@ function RenameForm({
 export function SubtitleEditorSkeleton() {
   return (
     <div className={LAYOUT_CLASS} aria-busy>
-      <div className="min-w-0">
-        <div className="flex gap-4 border-b px-4 py-2.5 md:px-6">
+      <div className={cn(CARD_CLASS, "flex flex-col md:flex-row")}>
+        <div className="flex shrink-0 gap-2 border-b p-2 md:w-48 md:flex-col md:border-r md:border-b-0 md:p-3">
           {Array.from({ length: 5 }, (_, i) => (
-            <Skeleton key={i} className="h-5 w-20" />
+            <Skeleton key={i} className="h-9 w-24 md:w-full" />
           ))}
         </div>
         <div className={`${PANEL_CLASS} space-y-3`}>

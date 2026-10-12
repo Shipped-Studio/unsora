@@ -1,7 +1,15 @@
+import type { TitleOverlayConfig } from "./title-overlay";
+
+/** An animation a word plays the moment it's spoken. */
+export type WordEffect = "pop" | "bounce" | "shake" | "zoom" | "swing" | "glow";
+
 export interface WordTimestamp {
   word: string;
   start: number;
   end: number;
+  /** Start a new row on screen after this word. */
+  lineBreak?: boolean;
+  effect?: WordEffect;
 }
 
 export interface SubtitleChunk {
@@ -9,6 +17,10 @@ export interface SubtitleChunk {
   start: number;
   end: number;
   words: WordTimestamp[];
+  /** Kept in the transcript but not drawn on the video. */
+  hidden?: boolean;
+  /** Shown on its own row under the line. */
+  emoji?: string;
 }
 
 export interface SubtitleStylePreset {
@@ -18,7 +30,7 @@ export interface SubtitleStylePreset {
   fontSize: number;
   fontWeight: number;
   fontStyle: "normal" | "italic";
-  textTransform: "none" | "uppercase";
+  textTransform: "none" | "uppercase" | "lowercase";
   color: string;
   highlightColor?: string;
   highlightBgColor?: string;
@@ -37,16 +49,7 @@ export interface SizePositionValues {
   yAxis: number;
 }
 
-export interface TitleOverlayConfig {
-  enabled: boolean;
-  text: string;
-  fontSize: number;
-  fontWeight: number;
-  color: string;
-  xAxis: number;
-  yAxis: number;
-  width: number;
-}
+export type { TitleOverlayConfig };
 
 export type WatermarkPosition =
   | "top-left"
