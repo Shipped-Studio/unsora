@@ -192,19 +192,57 @@ function AccountRow({
  * Connect choice: approve access here, or copy a link for whoever owns the
  * account (a client, a teammate) to connect it from their own device.
  */
+/** Connect route for Instagram through Facebook Login (shown as its own card). */
+const INSTAGRAM_FACEBOOK = "instagram/facebook";
+
+/** One card in the connect grid. `key` is the path segment under /api/connect. */
+interface ConnectOption {
+  key: string;
+  provider: Provider;
+  /** Full name, for dialogs and labels. */
+  name: string;
+  /** Short name shown on the card. */
+  label: string;
+  note?: string;
+}
+
+function connectOptionsFor(provider: Provider): ConnectOption[] {
+  const spec = PLATFORMS[provider];
+  const options: ConnectOption[] = [
+    {
+      key: provider,
+      provider,
+      name: spec.name,
+      label: spec.shortName ?? spec.name,
+      note: spec.connectNote,
+    },
+  ];
+  if (provider === "instagram") {
+    options.push({
+      key: INSTAGRAM_FACEBOOK,
+      provider,
+      name: "Instagram via Facebook",
+      label: "Instagram via Facebook",
+      note: "Sign in with Facebook. Your Instagram business or creator account must be linked to a Facebook Page you manage.",
+    });
+  }
+  return options;
+}
+
 function ConnectChoiceDialog({
-  provider,
+  option,
   onOpenChange,
   onConnectSelf,
   connecting,
 }: {
-  provider: Provider | null;
+  option: ConnectOption | null;
   onOpenChange: (open: boolean) => void;
-  onConnectSelf: (provider: Provider) => void;
+  onConnectSelf: (option: ConnectOption) => void;
   connecting: boolean;
 }) {
   const share = useShareConnectLink();
-  const name = provider ? PLATFORMS[provider].name : "";
+  const provider = option?.provider ?? null;
+  const name = option?.name ?? "";
   // Bluesky's sign-in starts from the account's handle, so it can't be shared.
   const canShare = provider !== null && provider !== "bluesky";
 
@@ -212,11 +250,11 @@ function ConnectChoiceDialog({
     share.reset();
     // Reset when another platform is chosen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [provider]);
+  }, [option?.key]);
 
   const createLink = () => {
-    if (!provider) return;
-    share.mutate(provider, {
+    if (!option) return;
+    share.mutate(option.key, {
       onSuccess: (url) => void copyText(url, "Invite link copied. It works for 1 hour."),
       onError: (error) => toast.error(error.message),
     });
@@ -234,9 +272,9 @@ function ConnectChoiceDialog({
             Connect it here, or copy a link for whoever owns the account. The link works for 1
             hour.
           </DialogDescription>
-          {provider && PLATFORMS[provider].connectNote ? (
+          {option?.note ? (
             <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-              {PLATFORMS[provider].connectNote}
+              {option.note}
             </p>
           ) : null}
         </DialogHeader>
@@ -245,7 +283,7 @@ function ConnectChoiceDialog({
           <Button
             className="w-full"
             disabled={connecting}
-            onClick={() => provider && onConnectSelf(provider)}
+            onClick={() => option && onConnectSelf(option)}
           >
             {connecting ? <Spinner /> : <Plugs />}
             Connect
@@ -362,8 +400,8 @@ export function ConnectGrid({
   const { usage } = useUserUsage();
   const { openPricing } = usePricing();
   const [blueskyOpen, setBlueskyOpen] = useState(false);
-  const [target, setTarget] = useState<Provider | null>(null);
-  const [choice, setChoice] = useState<Provider | null>(null);
+  const [target, setTarget] = useState<string | null>(null);
+  const [choice, setChoice] = useState<ConnectOption | null>(null);
 
   const plan = (usage?.user?.plan ?? "free").toLowerCase();
   const isPaid = Boolean(usage?.user?.isActive) && plan !== "free";
@@ -371,12 +409,12 @@ export function ConnectGrid({
   const used = usage?.counts?.socialAccounts ?? 0;
   const atLimit = isPaid && limit > 0 && used >= limit;
 
-  const start = (provider: Provider, handle?: string) => {
+  const start = (key: string, handle?: string) => {
     if (!isPaid) {
       openPricing();
       return;
     }
-    if (provider === "bluesky" && !handle) {
+    if (key === "bluesky" && !handle) {
       setBlueskyOpen(true);
       return;
     }
@@ -385,8 +423,8 @@ export function ConnectGrid({
     } catch {
       // Ignore storage errors.
     }
-    setTarget(provider);
-    connect.mutate({ provider, handle }, { onError: () => setTarget(null) });
+    setTarget(key);
+    connect.mutate({ provider: key, handle }, { onError: () => setTarget(null) });
   };
 
   const { isEnabled, isLoading: platformsLoading } = useEnabledPlatforms();
@@ -395,7 +433,7 @@ export function ConnectGrid({
   const platforms = [
     ...PLATFORM_ORDER.filter((p) => isEnabled(p)),
     ...PLATFORM_ORDER.filter((p) => !isEnabled(p)),
-  ];
+  ].flatMap(connectOptionsFor);
 
   return (
     <>
@@ -420,15 +458,15 @@ export function ConnectGrid({
           compact ? "sm:grid-cols-3" : "sm:grid-cols-3 lg:grid-cols-4",
         )}
       >
-        {platforms.map((provider) => {
-          const spec = PLATFORMS[provider];
-          const pending = connect.isPending && target === provider;
+        {platforms.map((option) => {
+          const { provider } = option;
+          const pending = connect.isPending && target === option.key;
           const live = isEnabled(provider);
           if (!live) {
             return (
               <div
-                key={provider}
-                aria-label={`${spec.name}: coming soon`}
+                key={option.key}
+                aria-label={`${option.name}: coming soon`}
                 className={cn(
                   "flex min-w-0 items-center gap-3 rounded-xl bg-muted p-3 opacity-60",
                   platformsLoading && "animate-pulse",
@@ -436,7 +474,7 @@ export function ConnectGrid({
               >
                 <PlatformIcon provider={provider} className="size-8 grayscale" />
                 <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                  {spec.shortName ?? spec.name}
+                  {option.label}
                 </span>
                 {platformsLoading ? null : (
                   <span className="shrink-0 rounded-full bg-background px-2 py-0.5 text-2xs text-muted-foreground">
@@ -448,16 +486,16 @@ export function ConnectGrid({
           }
           return (
             <button
-              key={provider}
+              key={option.key}
               type="button"
-              disabled={atLimit || (connect.isPending && target !== provider)}
-              onClick={() => (isPaid ? setChoice(provider) : openPricing())}
-              aria-label={`Connect ${spec.name}`}
+              disabled={atLimit || (connect.isPending && target !== option.key)}
+              onClick={() => (isPaid ? setChoice(option) : openPricing())}
+              aria-label={`Connect ${option.name}`}
               className="group flex min-w-0 items-center gap-3 rounded-xl bg-muted p-3 text-left transition-colors outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <PlatformIcon provider={provider} className="size-8" />
               <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                {spec.shortName ?? spec.name}
+                {option.label}
               </span>
               <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity group-hover:opacity-90">
                 {pending ? <Spinner /> : <Plus className="size-3.5" weight="bold" />}
@@ -467,12 +505,12 @@ export function ConnectGrid({
         })}
       </div>
       <ConnectChoiceDialog
-        provider={choice}
+        option={choice}
         onOpenChange={(open) => !open && setChoice(null)}
         connecting={connect.isPending}
-        onConnectSelf={(provider) => {
+        onConnectSelf={(option) => {
           setChoice(null);
-          start(provider);
+          start(option.key);
         }}
       />
       <BlueskyDialog
@@ -567,7 +605,10 @@ export function AccountsView() {
                         account.provider === "bluesky"
                           ? toast.info("Use Connect on Bluesky below with the same handle.")
                           : connect.mutate({
-                              provider: account.provider,
+                              provider:
+                                account.provider === "instagram" && account.connectedVia === "facebook"
+                                  ? INSTAGRAM_FACEBOOK
+                                  : account.provider,
                               reconnectAccountId: account.id,
                             })
                       }

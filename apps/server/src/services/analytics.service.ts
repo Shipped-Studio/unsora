@@ -3,6 +3,7 @@ import axios from "axios";
 import { prisma } from "../lib/db";
 import { tokenRefreshService } from "./token-refresh.service";
 import { PINTEREST_API } from "../oauth/pinterest";
+import { instagramGraphBase } from "../oauth/instagram-facebook";
 
 /**
  * Post analytics service.
@@ -863,7 +864,7 @@ export class AnalyticsService {
       // call (requires instagram_business_manage_insights).
       try {
         const response = await axios.get(
-          `https://graph.instagram.com/v24.0/${mediaId}/insights`,
+          `${instagramGraphBase(account)}/${mediaId}/insights`,
           {
             params: {
               access_token: account.accessToken,
@@ -899,7 +900,7 @@ export class AnalyticsService {
       if (!fetchedAnything) {
         try {
           const response = await axios.get(
-            `https://graph.instagram.com/v24.0/${mediaId}`,
+            `${instagramGraphBase(account)}/${mediaId}`,
             {
               params: {
                 access_token: account.accessToken,
