@@ -21,6 +21,7 @@ export const PLATFORM_KEYS = [
   "google",
   "tiktok",
   "instagram",
+  "instagram_facebook",
   "facebook",
   "threads",
   "bluesky",
@@ -37,6 +38,7 @@ const REQUIRED_ENV: Record<PlatformKey, string[]> = {
   google: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
   tiktok: ["TIKTOK_CLIENT_KEY", "TIKTOK_CLIENT_SECRET"],
   instagram: ["IG_APP_ID", "IG_APP_SECRET"],
+  instagram_facebook: ["FB_APP_ID", "FB_APP_SECRET", "IG_FB_REDIRECT"],
   facebook: ["FB_APP_ID", "FB_APP_SECRET"],
   threads: ["THREADS_APP_ID", "THREADS_APP_SECRET"],
   bluesky: [],
@@ -54,6 +56,7 @@ const NAMES: Record<PlatformKey, string> = {
   google: "YouTube",
   tiktok: "TikTok",
   instagram: "Instagram",
+  instagram_facebook: "Instagram via Facebook",
   facebook: "Facebook",
   threads: "Threads",
   bluesky: "Bluesky",
@@ -95,14 +98,7 @@ async function switchedOn(): Promise<{ on: Set<PlatformKey>; source: SwitchSourc
 
 /** Env vars a platform still needs before it can work here. */
 export function missingCredentials(platform: PlatformKey): string[] {
-  const missing = REQUIRED_ENV[platform].filter((name) => !process.env[name]?.trim());
-  // Instagram can connect directly (IG_*) or through Facebook Login (FB_* plus
-  // IG_FB_REDIRECT); either set is enough.
-  if (platform === "instagram" && missing.length > 0) {
-    const viaFacebook = ["FB_APP_ID", "FB_APP_SECRET", "IG_FB_REDIRECT"];
-    if (viaFacebook.every((name) => process.env[name]?.trim())) return [];
-  }
-  return missing;
+  return REQUIRED_ENV[platform].filter((name) => !process.env[name]?.trim());
 }
 
 export async function isPlatformEnabled(platform: string): Promise<boolean> {
