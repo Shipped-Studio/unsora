@@ -122,6 +122,9 @@ function AccountRow({
         <p className="truncate text-sm font-medium">{accountLabel(account)}</p>
         <p className="truncate text-xs text-muted-foreground">
           {accountHandle(account) || platformName(account.provider)}
+          {account.provider === "instagram" && account.connectedVia === "facebook"
+            ? " · via Facebook"
+            : null}
         </p>
         <div className="mt-0.5 sm:hidden">
           <HealthNote account={account} />
