@@ -4,6 +4,7 @@ import { refreshGoogleToken } from "../oauth/google.js";
 import { refreshTikTokToken } from "../oauth/tiktok.js";
 import { refreshFacebookToken } from "../oauth/facebook.js";
 import { refreshInstagramToken } from "../oauth/instagram.js";
+import { isFacebookLoginAccount } from "../oauth/instagram-facebook.js";
 
 export async function ensureValidToken(accountId: string) {
   const account = await prisma.socialAccount.findUnique({
@@ -32,7 +33,10 @@ export async function ensureValidToken(accountId: string) {
       newToken = await refreshFacebookToken(account.accessToken as string);
       break;
     case "instagram":
-      newToken = await refreshInstagramToken(account.accessToken as string);
+      // Facebook Login connections hold a Page token; refresh it like Facebook's.
+      newToken = isFacebookLoginAccount(account)
+        ? await refreshFacebookToken(account.accessToken as string)
+        : await refreshInstagramToken(account.accessToken as string);
       break;
     default:
       throw new Error("Unknown provider");

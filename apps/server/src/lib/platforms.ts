@@ -95,7 +95,14 @@ async function switchedOn(): Promise<{ on: Set<PlatformKey>; source: SwitchSourc
 
 /** Env vars a platform still needs before it can work here. */
 export function missingCredentials(platform: PlatformKey): string[] {
-  return REQUIRED_ENV[platform].filter((name) => !process.env[name]?.trim());
+  const missing = REQUIRED_ENV[platform].filter((name) => !process.env[name]?.trim());
+  // Instagram can connect directly (IG_*) or through Facebook Login (FB_* plus
+  // IG_FB_REDIRECT); either set is enough.
+  if (platform === "instagram" && missing.length > 0) {
+    const viaFacebook = ["FB_APP_ID", "FB_APP_SECRET", "IG_FB_REDIRECT"];
+    if (viaFacebook.every((name) => process.env[name]?.trim())) return [];
+  }
+  return missing;
 }
 
 export async function isPlatformEnabled(platform: string): Promise<boolean> {
