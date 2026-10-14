@@ -10,6 +10,7 @@ import {
   exchangeForLongLivedFacebookUserToken,
   exchangeInstagramFacebookCode,
   FACEBOOK_LOGIN_SCOPE,
+  describeFacebookGrant,
   getInstagramFacebookAuthUrl,
   getLinkedInstagramAccounts,
   instagramFacebookConfigured,
@@ -170,6 +171,10 @@ export class InstagramSchedulerController {
       );
 
       if (accounts.length === 0) {
+        console.warn(
+          "Instagram (Facebook Login): no linked Instagram account found.",
+          JSON.stringify(await describeFacebookGrant(longLivedUser.access_token)),
+        );
         return res.redirect(
           redirect(
             "error",

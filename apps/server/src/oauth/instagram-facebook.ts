@@ -151,6 +151,57 @@ export async function getLinkedInstagramAccounts(
   return accounts;
 }
 
+/**
+ * What Facebook actually granted, for logging when no Instagram account turns
+ * up. Counts and permission names only: no tokens, no IDs.
+ */
+export async function describeFacebookGrant(userAccessToken: string) {
+  const summary: Record<string, unknown> = {};
+  const call = async (path: string, params: Record<string, string>) => {
+    try {
+      const res = await axios.get(`https://graph.facebook.com/${GRAPH_VERSION}/${path}`, {
+        params,
+      });
+      return res.data;
+    } catch (error: any) {
+      return { __error: error?.response?.data?.error?.message || error.message };
+    }
+  };
+
+  const permissions = await call("me/permissions", { access_token: userAccessToken });
+  summary.permissions = permissions.__error
+    ? permissions.__error
+    : (permissions.data ?? []).map((p: any) => `${p.permission}:${p.status}`);
+
+  const pages = await call("me/accounts", {
+    access_token: userAccessToken,
+    fields: "instagram_business_account{id}",
+    limit: "100",
+  });
+  if (pages.__error) {
+    summary.pages = pages.__error;
+  } else {
+    const list: any[] = pages.data ?? [];
+    summary.pages = {
+      returned: list.length,
+      withLinkedInstagram: list.filter((p) => p.instagram_business_account?.id).length,
+    };
+  }
+
+  // Granular grants: which assets each permission was given for.
+  const debug = await call("debug_token", {
+    input_token: userAccessToken,
+    access_token: `${process.env.FB_APP_ID}|${process.env.FB_APP_SECRET}`,
+  });
+  summary.granularScopes = debug.__error
+    ? debug.__error
+    : (debug.data?.granular_scopes ?? []).map(
+        (g: any) => `${g.scope}:${(g.target_ids ?? []).length} target(s)`,
+      );
+
+  return summary;
+}
+
 /** Fresh username and avatar for an account connected via Facebook. */
 export async function getInstagramFacebookAccountInfo(
   igUserId: string,
