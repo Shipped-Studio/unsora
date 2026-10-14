@@ -1,6 +1,5 @@
 import { defineConfig } from "@trigger.dev/sdk";
 import { ffmpeg } from "@trigger.dev/build/extensions/core";
-import { puppeteer } from "@trigger.dev/build/extensions/puppeteer";
 import { prismaExtension } from "@trigger.dev/build/extensions/prisma";
 import * as Sentry from "@sentry/node";
 
@@ -21,7 +20,6 @@ export default defineConfig({
   // Native deps the tasks rely on inside the deployed container:
   //  - prismaExtension: runs `prisma generate` at build so @prisma/client works
   //  - ffmpeg: provides the ffmpeg binary for fluent-ffmpeg (video/subtitle tasks)
-  //  - puppeteer: installs Chromium for puppeteer-service (video-process scraping)
   build: {
     // sharp 0.35 ships only an `exports` map. Auto-detection links its dist/
     // folder into the dev worker, so Node can't load it (trigger.dev#4511);
@@ -30,7 +28,6 @@ export default defineConfig({
     extensions: [
       prismaExtension({ mode: "legacy", schema: "prisma/schema.prisma" }),
       ffmpeg(),
-      puppeteer(),
     ],
   },
   // Compute-time cap per run. Long provider polls use `wait.for`, which suspends
