@@ -50,7 +50,7 @@ router.get(
 router.get(
   "/instagram/facebook",
   requireAuth,
-  requirePlatform("instagram"),
+  requirePlatform("instagram_facebook"),
   requirePaidPlan,
   checkSocialAccountLimit,
   connectController.getInstagramFacebookAuthUrl

@@ -202,6 +202,8 @@ const INSTAGRAM_FACEBOOK = "instagram/facebook";
 interface ConnectOption {
   key: string;
   provider: Provider;
+  /** Admin platform switch that decides whether this card is live. */
+  platform: string;
   /** Full name, for dialogs and labels. */
   name: string;
   /** Short name shown on the card. */
@@ -215,6 +217,7 @@ function connectOptionsFor(provider: Provider): ConnectOption[] {
     {
       key: provider,
       provider,
+      platform: provider,
       name: spec.name,
       label: spec.shortName ?? spec.name,
       note: spec.connectNote,
@@ -224,6 +227,7 @@ function connectOptionsFor(provider: Provider): ConnectOption[] {
     options.push({
       key: INSTAGRAM_FACEBOOK,
       provider,
+      platform: "instagram_facebook",
       name: "Instagram via Facebook",
       label: "Instagram via Facebook",
       note: "Sign in with Facebook. Your Instagram business or creator account must be linked to a Facebook Page you manage.",
@@ -433,10 +437,11 @@ export function ConnectGrid({
   const { isEnabled, isLoading: platformsLoading } = useEnabledPlatforms();
   // Live platforms first; the rest show as "Coming soon" so people can see
   // what's on the way.
+  const options = PLATFORM_ORDER.flatMap(connectOptionsFor);
   const platforms = [
-    ...PLATFORM_ORDER.filter((p) => isEnabled(p)),
-    ...PLATFORM_ORDER.filter((p) => !isEnabled(p)),
-  ].flatMap(connectOptionsFor);
+    ...options.filter((o) => isEnabled(o.platform)),
+    ...options.filter((o) => !isEnabled(o.platform)),
+  ];
 
   return (
     <>
@@ -464,7 +469,7 @@ export function ConnectGrid({
         {platforms.map((option) => {
           const { provider } = option;
           const pending = connect.isPending && target === option.key;
-          const live = isEnabled(provider);
+          const live = isEnabled(option.platform);
           if (!live) {
             return (
               <div
@@ -533,7 +538,11 @@ export function AccountsView() {
   const connect = useConnectAccount();
 
   const { isEnabled } = useEnabledPlatforms();
-  const visible = (accounts ?? []).filter((a) => isEnabled(a.provider));
+  const visible = (accounts ?? []).filter(
+    (a) =>
+      isEnabled(a.provider) ||
+      (a.connectedVia === "facebook" && isEnabled("instagram_facebook")),
+  );
   const grouped = PLATFORM_ORDER.map((provider) => ({
     provider,
     accounts: visible.filter((a) => a.provider === provider),
