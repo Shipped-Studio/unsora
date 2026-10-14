@@ -96,56 +96,114 @@ export interface LinkedInstagramAccount {
   pageId: string;
 }
 
-/**
- * Every Instagram professional account linked to a Page the user manages.
- * Pages without a linked account are skipped.
- */
-export async function getLinkedInstagramAccounts(
-  userAccessToken: string,
-): Promise<LinkedInstagramAccount[]> {
-  const accounts: LinkedInstagramAccount[] = [];
-  const seen = new Set<string>();
+const PAGE_FIELDS =
+  "id,access_token,instagram_business_account{id,username,name,profile_picture_url}";
 
+/** Pages from /me/accounts. Pages managed through a Business portfolio may be missing here. */
+async function listPagesFromAccounts(userAccessToken: string): Promise<any[]> {
+  const pages: any[] = [];
   let url: string | null = `https://graph.facebook.com/${GRAPH_VERSION}/me/accounts`;
   let params: Record<string, string> | undefined = {
     access_token: userAccessToken,
-    fields:
-      "id,access_token,instagram_business_account{id,username,name,profile_picture_url}",
+    fields: PAGE_FIELDS,
     limit: "100",
   };
 
   while (url) {
     const res: { data: any } = await axios.get(url, { params });
-
-    for (const page of res.data?.data ?? []) {
-      const ig = page.instagram_business_account;
-      if (!ig?.id || !page.access_token || seen.has(ig.id)) continue;
-      seen.add(ig.id);
-
-      // Re-host the avatar: Instagram CDN URLs are signed and expire.
-      let profilePicture: string | null = null;
-      if (ig.profile_picture_url) {
-        try {
-          const uploaded = await uploadUrlToStorage(ig.profile_picture_url);
-          profilePicture = uploaded.fileUrl || null;
-        } catch (uploadError) {
-          console.error("Failed to re-host Instagram avatar:", uploadError);
-        }
-      }
-
-      accounts.push({
-        id: ig.id,
-        username: ig.username || null,
-        name: ig.name || null,
-        profilePicture,
-        pageAccessToken: page.access_token,
-        pageId: page.id,
-      });
-    }
-
+    pages.push(...(res.data?.data ?? []));
     // `paging.next` is a full URL that already carries the query string.
     url = res.data?.paging?.next ?? null;
     params = undefined;
+  }
+  return pages;
+}
+
+/**
+ * Pages Facebook granted to the app, fetched by ID from the token's granular
+ * scopes. /me/accounts leaves out Pages owned through a Business portfolio
+ * unless business_management is granted; reading the Page directly works.
+ */
+async function listPagesFromGrant(userAccessToken: string): Promise<any[]> {
+  try {
+    const debug = await axios.get(`https://graph.facebook.com/${GRAPH_VERSION}/debug_token`, {
+      params: {
+        input_token: userAccessToken,
+        access_token: `${process.env.FB_APP_ID}|${process.env.FB_APP_SECRET}`,
+      },
+    });
+    const pageIds = new Set<string>();
+    for (const grant of debug.data?.data?.granular_scopes ?? []) {
+      if (grant.scope === "pages_show_list" || grant.scope === "pages_read_engagement") {
+        for (const id of grant.target_ids ?? []) pageIds.add(String(id));
+      }
+    }
+
+    const pages: any[] = [];
+    for (const id of pageIds) {
+      try {
+        const res = await axios.get(`https://graph.facebook.com/${GRAPH_VERSION}/${id}`, {
+          params: { access_token: userAccessToken, fields: PAGE_FIELDS },
+        });
+        pages.push(res.data);
+      } catch (error: any) {
+        console.error(
+          "Could not read a granted Page:",
+          error?.response?.data?.error?.message || error.message,
+        );
+      }
+    }
+    return pages;
+  } catch (error: any) {
+    console.error(
+      "Could not read granted Pages from the token:",
+      error?.response?.data?.error?.message || error.message,
+    );
+    return [];
+  }
+}
+
+/**
+ * Every Instagram professional account linked to a Page the user granted.
+ * Pages without a linked account are skipped.
+ */
+export async function getLinkedInstagramAccounts(
+  userAccessToken: string,
+): Promise<LinkedInstagramAccount[]> {
+  const hasInstagram = (page: any) => page?.instagram_business_account?.id && page?.access_token;
+
+  let pages = await listPagesFromAccounts(userAccessToken);
+  if (!pages.some(hasInstagram)) {
+    pages = [...pages, ...(await listPagesFromGrant(userAccessToken))];
+  }
+
+  const accounts: LinkedInstagramAccount[] = [];
+  const seen = new Set<string>();
+
+  for (const page of pages) {
+    const ig = page.instagram_business_account;
+    if (!hasInstagram(page) || seen.has(ig.id)) continue;
+    seen.add(ig.id);
+
+    // Re-host the avatar: Instagram CDN URLs are signed and expire.
+    let profilePicture: string | null = null;
+    if (ig.profile_picture_url) {
+      try {
+        const uploaded = await uploadUrlToStorage(ig.profile_picture_url);
+        profilePicture = uploaded.fileUrl || null;
+      } catch (uploadError) {
+        console.error("Failed to re-host Instagram avatar:", uploadError);
+      }
+    }
+
+    accounts.push({
+      id: ig.id,
+      username: ig.username || null,
+      name: ig.name || null,
+      profilePicture,
+      pageAccessToken: page.access_token,
+      pageId: page.id,
+    });
   }
 
   return accounts;
