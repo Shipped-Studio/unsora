@@ -12,7 +12,6 @@ onlyBuiltDependencies:
   - '@prisma/engines'
   - esbuild
   - prisma
-  - puppeteer # downloads Chrome for scraping
   - sharp
   - unrs-resolver # eslint import resolver
 
