@@ -397,10 +397,12 @@ export class AnalyticsService {
   // ─── Pinterest ───
 
   /**
-   * Fetch metrics for pins via the batched analytics endpoint (up to 100
-   * pin ids per request). Pinterest reports impressions/saves/clicks, not
-   * likes/comments — impressions map to views, outbound clicks to shares.
-   * Some metrics require a business account; missing ones read as 0.
+   * Fetch metrics per pin via /pins/{id}/analytics. The batched
+   * /pins/analytics endpoint answers 401 "restricted feature" for our app,
+   * while the per-pin one is available. Pinterest reports
+   * impressions/saves/clicks, not likes/comments — impressions map to views,
+   * outbound clicks to shares. Some metrics require a business account;
+   * missing ones read as 0.
    */
   private async fetchPinterestMetrics(
     account: SocialAccount,
@@ -410,7 +412,6 @@ export class AnalyticsService {
     const byPinId = new Map(
       postAccounts.map((pa) => [pa.publishedPostId as string, pa.id]),
     );
-    const pinIds = [...byPinId.keys()];
 
     const endDate = new Date().toISOString().slice(0, 10);
     const startDate = new Date(
@@ -419,16 +420,13 @@ export class AnalyticsService {
       .toISOString()
       .slice(0, 10);
 
-    for (let i = 0; i < pinIds.length; i += 100) {
-      const batch = pinIds.slice(i, i + 100);
-
+    for (const [pinId, postAccountId] of byPinId) {
       try {
         const response = await axios.get(
-          `${PINTEREST_API}/pins/analytics`,
+          `${PINTEREST_API}/pins/${pinId}/analytics`,
           {
             headers: { Authorization: `Bearer ${account.accessToken}` },
             params: {
-              pin_ids: batch.join(","),
               start_date: startDate,
               end_date: endDate,
               metric_types: "IMPRESSION,SAVE,PIN_CLICK,OUTBOUND_CLICK",
@@ -436,26 +434,22 @@ export class AnalyticsService {
           },
         );
 
-        for (const [pinId, data] of Object.entries(
-          (response.data ?? {}) as Record<string, any>,
-        )) {
-          const postAccountId = byPinId.get(pinId);
-          if (!postAccountId) continue;
+        const summary =
+          response.data?.all?.summary_metrics ??
+          response.data?.all?.lifetime_metrics ??
+          {};
 
-          const summary =
-            data?.all?.summary_metrics ?? data?.all?.lifetime_metrics ?? {};
-
-          result.set(postAccountId, {
-            views: summary.IMPRESSION ?? 0,
-            likes: 0, // not exposed by Pinterest
-            comments: 0, // not exposed by Pinterest
-            shares: summary.OUTBOUND_CLICK ?? 0,
-            saves: summary.SAVE ?? 0,
-          });
-        }
+        result.set(postAccountId, {
+          views: summary.IMPRESSION ?? 0,
+          likes: 0, // not exposed by Pinterest
+          comments: 0, // not exposed by Pinterest
+          shares: summary.OUTBOUND_CLICK ?? 0,
+          saves: summary.SAVE ?? 0,
+        });
       } catch (error: any) {
         console.error("Pinterest analytics query failed:", {
           accountId: account.id,
+          pinId,
           message: error.message,
           response: error.response?.data,
         });
