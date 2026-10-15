@@ -71,7 +71,7 @@ export class UnsoraApi {
   }
 
   /**
-   * Poll a job every 15 s (by default) until COMPLETED or FAILED. Returns
+   * Poll a job every 30 s (by default) until COMPLETED or FAILED. Returns
    * `done: false` only if `maxAttempts` runs out first. Rate limits, 5xx
    * answers and network errors are retried; any other error is thrown.
    */
@@ -133,7 +133,7 @@ export class UnsoraApi {
 }
 
 /** How often a wait_for_* call checks the job. */
-const DEFAULT_INTERVAL_MS = 15_000;
+const DEFAULT_INTERVAL_MS = 30_000;
 
 export interface PollOptions {
   maxAttempts?: number;
