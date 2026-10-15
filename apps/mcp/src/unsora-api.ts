@@ -70,161 +70,97 @@ export class UnsoraApi {
     return data as T;
   }
 
-  async pollImageStatus(
-    id: string,
-    opts?: { maxAttempts?: number; intervalMs?: number },
-  ) {
-    const max = opts?.maxAttempts ?? 60;
-    const intervalMs = opts?.intervalMs ?? 5000;
+  /**
+   * Poll a job every 15 s (by default) until COMPLETED or FAILED. Returns
+   * `done: false` only if `maxAttempts` runs out first. Rate limits, 5xx
+   * answers and network errors are retried; any other error is thrown.
+   */
+  private async pollStatus<T extends { data?: { status?: string } }>(
+    path: string,
+    defaultMaxAttempts: number,
+    opts?: PollOptions,
+  ): Promise<T & PollResult> {
+    const max = opts?.maxAttempts ?? defaultMaxAttempts;
+    const intervalMs = opts?.intervalMs ?? DEFAULT_INTERVAL_MS;
 
-    for (let attempt = 1; attempt <= max; attempt++) {
-      const data = await this.request<{
-        success: boolean;
-        data: {
-          status: string;
-          outputUrl?: string | null;
-          error?: string | null;
-        };
-      }>("GET", `/image/status/${id}`);
-
-      const status = data.data?.status;
-      if (status === "COMPLETED" || status === "FAILED") {
-        return { ...data, attempts: attempt };
+    let last: T | undefined;
+    let attempt = 0;
+    while (attempt < max) {
+      attempt++;
+      try {
+        last = await this.request<T>("GET", path);
+        const status = last.data?.status;
+        if (status === "COMPLETED" || status === "FAILED") {
+          return { ...last, attempts: attempt, done: true };
+        }
+      } catch (error) {
+        if (!isTransient(error)) throw error;
       }
-
-      if (attempt < max) {
-        await sleep(intervalMs);
-      }
+      if (attempt >= max) break;
+      await sleep(intervalMs);
     }
 
-    throw new Error(
-      `Image job ${id} did not finish after ${max} poll attempts`,
-    );
+    return {
+      ...(last ?? ({} as T)),
+      attempts: attempt,
+      done: false,
+      note: "Still processing. Call this tool again with the same id to keep waiting.",
+    };
   }
 
-  async pollMusicStatus(
-    id: string,
-    opts?: { maxAttempts?: number; intervalMs?: number },
-  ) {
-    const max = opts?.maxAttempts ?? 120;
-    const intervalMs = opts?.intervalMs ?? 5000;
-
-    for (let attempt = 1; attempt <= max; attempt++) {
-      const data = await this.request<{
-        success: boolean;
-        data: {
-          status: string;
-          outputUrl?: string | null;
-          error?: string | null;
-        };
-      }>("GET", `/music/status/${id}`);
-
-      const status = data.data?.status;
-      if (status === "COMPLETED" || status === "FAILED") {
-        return { ...data, attempts: attempt };
-      }
-
-      if (attempt < max) {
-        await sleep(intervalMs);
-      }
-    }
-
-    throw new Error(
-      `Music job ${id} did not finish after ${max} poll attempts`,
-    );
+  pollImageStatus(id: string, opts?: PollOptions) {
+    return this.pollStatus<StatusResponse>(`/image/status/${id}`, 60, opts);
   }
 
-  async pollVoiceoverStatus(
-    id: string,
-    opts?: { maxAttempts?: number; intervalMs?: number },
-  ) {
-    const max = opts?.maxAttempts ?? 60;
-    const intervalMs = opts?.intervalMs ?? 5000;
-
-    for (let attempt = 1; attempt <= max; attempt++) {
-      const data = await this.request<{
-        success: boolean;
-        data: {
-          status: string;
-          outputUrl?: string | null;
-          error?: string | null;
-        };
-      }>("GET", `/voiceovers/status/${id}`);
-
-      const status = data.data?.status;
-      if (status === "COMPLETED" || status === "FAILED") {
-        return { ...data, attempts: attempt };
-      }
-
-      if (attempt < max) {
-        await sleep(intervalMs);
-      }
-    }
-
-    throw new Error(
-      `Voiceover job ${id} did not finish after ${max} poll attempts`,
-    );
+  pollMusicStatus(id: string, opts?: PollOptions) {
+    return this.pollStatus<StatusResponse>(`/music/status/${id}`, 120, opts);
   }
 
-  async pollClippingStatus(
-    id: string,
-    opts?: { maxAttempts?: number; intervalMs?: number },
-  ) {
-    const max = opts?.maxAttempts ?? 120;
-    const intervalMs = opts?.intervalMs ?? 5000;
-
-    for (let attempt = 1; attempt <= max; attempt++) {
-      const data = await this.request<{
-        success: boolean;
-        data: { status: string; clips?: unknown[] };
-      }>("GET", `/clippings/refresh/${id}`);
-
-      const status = data.data?.status;
-      if (status === "COMPLETED" || status === "FAILED") {
-        return { ...data, attempts: attempt };
-      }
-
-      if (attempt < max) {
-        await sleep(intervalMs);
-      }
-    }
-
-    throw new Error(
-      `Clipping job ${id} did not finish after ${max} poll attempts`,
-    );
+  pollVoiceoverStatus(id: string, opts?: PollOptions) {
+    return this.pollStatus<StatusResponse>(`/voiceovers/status/${id}`, 60, opts);
   }
 
-  async pollVideoStatus(
-    id: string,
-    opts?: { maxAttempts?: number; intervalMs?: number },
-  ) {
-    const max = opts?.maxAttempts ?? 120;
-    const intervalMs = opts?.intervalMs ?? 5000;
-
-    for (let attempt = 1; attempt <= max; attempt++) {
-      const data = await this.request<{
-        success: boolean;
-        data: {
-          status: string;
-          outputUrl?: string | null;
-          error?: string | null;
-        };
-      }>("GET", `/video/status/${id}`);
-
-      const status = data.data?.status;
-      if (status === "COMPLETED" || status === "FAILED") {
-        return { ...data, attempts: attempt };
-      }
-
-      if (attempt < max) {
-        await sleep(intervalMs);
-      }
-    }
-
-    throw new Error(
-      `Video job ${id} did not finish after ${max} poll attempts`,
-    );
+  pollClippingStatus(id: string, opts?: PollOptions) {
+    return this.pollStatus<{
+      success: boolean;
+      data: { status: string; clips?: unknown[] };
+    }>(`/clippings/refresh/${id}`, 120, opts);
   }
+
+  pollVideoStatus(id: string, opts?: PollOptions) {
+    return this.pollStatus<StatusResponse>(`/video/status/${id}`, 120, opts);
+  }
+}
+
+/** How often a wait_for_* call checks the job. */
+const DEFAULT_INTERVAL_MS = 15_000;
+
+export interface PollOptions {
+  maxAttempts?: number;
+  intervalMs?: number;
+}
+
+interface PollResult {
+  attempts: number;
+  done: boolean;
+  note?: string;
+}
+
+interface StatusResponse {
+  success: boolean;
+  data: {
+    status: string;
+    outputUrl?: string | null;
+    error?: string | null;
+  };
+}
+
+/** Rate limits, server errors and network failures are worth retrying. */
+function isTransient(error: unknown): boolean {
+  if (error instanceof UnsoraApiError) {
+    return error.status === 429 || error.status >= 500;
+  }
+  return true;
 }
 
 function sleep(ms: number) {
