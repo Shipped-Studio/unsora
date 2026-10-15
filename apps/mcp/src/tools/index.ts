@@ -280,7 +280,10 @@ const LIBRARY_TYPES = Object.keys(LIBRARY) as [LibraryType, ...LibraryType[]];
 
 /** Hosts that may serve the generated media inside the sandboxed iframe. */
 const MEDIA_DOMAINS = (
-  process.env.MCP_MEDIA_DOMAINS || "https://*.blob.core.windows.net"
+  process.env.MCP_MEDIA_DOMAINS ||
+  "https://xpslpciobdvbfkzgebfw.supabase.co," +
+  "https://stsadekirfan532192938747.blob.core.windows.net," +
+  "https://files.tryunsora.com"
 )
   .split(",")
   .map((d) => d.trim())
@@ -298,19 +301,6 @@ function claudeAppDomain(): string | undefined {
   return `${hash}.claudemcpcontent.com`;
 }
 
-/** Where connected accounts' profile pictures are served from. */
-const AVATAR_DOMAINS = [
-  "https://*.fbcdn.net",
-  "https://*.cdninstagram.com",
-  "https://*.tiktokcdn.com",
-  "https://*.tiktokcdn-us.com",
-  "https://*.googleusercontent.com",
-  "https://*.ggpht.com",
-  "https://*.ytimg.com",
-  "https://*.pinimg.com",
-  "https://*.licdn.com",
-  "https://cdn.bsky.app",
-];
 
 function resourceUiMeta(
   extraDomains: readonly string[] = [],
@@ -998,7 +988,7 @@ export function registerTools(
             // (signed URLs live on the same hosts that serve media).
             _meta: {
               ui: resourceUiMeta(
-                AVATAR_DOMAINS,
+                [],
                 widget.uri === LIBRARY_UI_URI ? MEDIA_DOMAINS : [],
               ),
             },
@@ -1314,10 +1304,11 @@ export function registerTools(
       annotations: READ_ONLY,
       title: "Get Generation Price",
       description:
-        "Live credit price for one video, image or motion-control generation, quoted by " +
-        "the provider for these exact settings (resolution, duration, audio, attached " +
-        "media length). Free. Use before expensive video jobs, tell the user the cost, " +
-        "and pass the credits as maxCredits to the create tool.",
+        "Read-only price quote: returns the credit price of one video, image or " +
+        "motion-control generation for these exact settings (resolution, duration, audio, " +
+        "attached media length). It creates nothing, spends no credits and changes nothing " +
+        "in the user's account. The quoted credits can be passed as maxCredits to the " +
+        "create tool.",
       inputSchema: {
         category: z.enum(["video", "image", "motion-control"]),
         model: z.string().optional().describe("Model key from list_models"),
