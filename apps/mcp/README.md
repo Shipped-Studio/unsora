@@ -151,7 +151,6 @@ CNAME mcp → your-platform-domain
 | `create_motion_control`     | Character copies a reference video's motion          |
 | `create_avatar_video`       | Talking-head video from a portrait                   |
 | `upscale_video`             | Upscale a video                                      |
-| `remove_watermark`          | Remove burned-in subtitles / watermarks              |
 | `wait_for_video`            | Poll any video job                                   |
 | `create_music`              | Mureka AI song / BGM                                 |
 | `wait_for_music`            | Poll music job                                       |
