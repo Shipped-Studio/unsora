@@ -96,7 +96,6 @@ const GENERATIONS = {
   movie_material: { kind: "image", status: "/image/status", wait: "wait_for_image" },
   video: { kind: "video", status: "/video/status", wait: "wait_for_video" },
   video_upscale: { kind: "video", status: "/video/status", wait: "wait_for_video" },
-  watermark_removal: { kind: "video", status: "/video/status", wait: "wait_for_video" },
   motion_control: { kind: "video", status: "/video/status", wait: "wait_for_video" },
   avatar: { kind: "video", status: "/video/status", wait: "wait_for_video" },
   music: { kind: "audio", status: "/music/status", wait: "wait_for_music" },
@@ -269,10 +268,6 @@ const LIBRARY = {
   clipping: { list: "/clippings/all", item: "/clippings" },
   image_upscale: { list: "/image-upscaler/all", item: "/image-upscaler" },
   video_upscale: { list: "/video-upscaler/all", item: "/video-upscaler" },
-  watermark_removal: {
-    list: "/watermark-removal/all",
-    item: "/watermark-removal",
-  },
   motion_control: { list: "/motion-control/all", item: "/motion-control" },
   avatar: { list: "/avatar-generations/all", item: "/avatar-generations" },
   movie_material: { list: "/movie-materials/all", item: "/movie-materials" },
@@ -535,13 +530,6 @@ function extractGenerationIds(payload: unknown): string[] {
   if (Array.isArray(gens)) {
     for (const g of gens) {
       const id = (g as Record<string, unknown> | null)?.id;
-      if (typeof id === "string") out.push(id);
-    }
-  }
-
-  // Watermark removal returns the processed video ids as `videoIds`.
-  if (Array.isArray(root.videoIds)) {
-    for (const id of root.videoIds) {
       if (typeof id === "string") out.push(id);
     }
   }
@@ -867,10 +855,6 @@ into a cloned voice → wait_for_voiceover.
 ## Upscaling
 upscale_image (2k / 4k / 8k) → wait_for_image.
 upscale_video (standard / ultra-1080p / ultra-4k) → wait_for_video.
-
-## Subtitle & watermark removal
-remove_watermark (direct video file URL) → wait_for_video. Strips burned-in
-subtitles, captions, watermarks and logos.
 
 ## Motion control & talking avatars (video jobs)
 create_motion_control (inputs.video = motion reference, inputs.image =
@@ -1856,7 +1840,7 @@ export function registerTools(
       title: "Wait for Video",
       description:
         "Poll a video job until COMPLETED or FAILED: create_video, create_motion_control, " +
-        "create_avatar_video, upscale_video and remove_watermark.",
+        "create_avatar_video and upscale_video.",
       inputSchema: {
         generationId: z.string(),
         maxAttempts: z.number().int().min(1).max(180).optional(),
@@ -1939,40 +1923,6 @@ export function registerTools(
         { body },
       );
       return previewResult(payload, "video_upscale", "upscale_video");
-    },
-  );
-
-  registerAppTool(
-    server,
-    "remove_watermark",
-    {
-      title: "Remove Subtitles & Watermarks",
-      description:
-        "Remove burned-in subtitles, captions, watermarks, logos or on-screen text from a video " +
-        "(Subtitle Remover). Costs 10 credits per started 10 seconds of video. Pass a direct " +
-        "video file URL (e.g. .mp4) — page links (YouTube, TikTok) don't work; use upload_file " +
-        "first for a file the user provides. Poll with wait_for_video. Renders a live preview " +
-        "in app-capable hosts.",
-      inputSchema: {
-        videoUrl: z.string().url().describe("Direct URL of the video file."),
-        name: z
-          .string()
-          .max(200)
-          .optional()
-          .describe("Label in the user's library. Defaults to the file name."),
-      },
-      _meta: { ui: { resourceUri: VIDEO_UI_URI } },
-    },
-    async (args, extra) => {
-      const body: Record<string, unknown> = { videoUrl: args.videoUrl };
-      if (args.name) body.name = args.name;
-
-      const payload = await unsoraFor(resolveUnsora, extra.authInfo).request(
-        "POST",
-        "/watermark-removal/create",
-        { body },
-      );
-      return previewResult(payload, "watermark_removal", "remove_watermark");
     },
   );
 
@@ -3050,7 +3000,7 @@ export function registerTools(
       description:
         "Browse the user's past results for one feature, newest first, with status and " +
         "output URLs: image, video, music, voiceover, influencer, thumbnail, clipping, " +
-        "image_upscale, video_upscale, watermark_removal, motion_control, avatar, " +
+        "image_upscale, video_upscale, motion_control, avatar, " +
         "movie_material, voice_change. Use it to find something made earlier (e.g. to post " +
         "or reuse it). Uploaded files are in list_uploads." + SHOWN_IN_UI,
       inputSchema: {
