@@ -1145,7 +1145,7 @@ export function registerTools(
         "Poll an AI clipping job until COMPLETED or FAILED. Returns clips with output URLs. " +
         "Do NOT use this when the live preview panel is rendered (it polls by itself) — " +
         "only in hosts without the preview, or when the user explicitly asks for output URLs." +
-        " Checks every 15 seconds until the job is COMPLETED or FAILED.",
+        " Checks every 30 seconds until the job is COMPLETED or FAILED.",
       inputSchema: {
         clippingId: z.string(),
         maxAttempts: z.number().int().min(1).max(240).optional(),
@@ -1158,7 +1158,7 @@ export function registerTools(
           args.clippingId,
           {
             maxAttempts: args.maxAttempts,
-            intervalMs: (args.intervalSeconds ?? 15) * 1000,
+            intervalMs: (args.intervalSeconds ?? 30) * 1000,
           },
         ),
       ),
@@ -1359,7 +1359,7 @@ export function registerTools(
       description:
         "Poll an image job until COMPLETED or FAILED: create_image, create_influencer, " +
         "create_thumbnail, upscale_image and create_movie_material." +
-        " Checks every 15 seconds until the job is COMPLETED or FAILED.",
+        " Checks every 30 seconds until the job is COMPLETED or FAILED.",
       inputSchema: {
         generationId: z.string(),
         maxAttempts: z.number().int().min(1).max(120).optional(),
@@ -1372,7 +1372,7 @@ export function registerTools(
           args.generationId,
           {
             maxAttempts: args.maxAttempts,
-            intervalMs: (args.intervalSeconds ?? 15) * 1000,
+            intervalMs: (args.intervalSeconds ?? 30) * 1000,
           },
         ),
       ),
@@ -1518,7 +1518,7 @@ export function registerTools(
       title: "Wait for Music",
       description:
         "Poll music status until COMPLETED or FAILED." +
-        " Checks every 15 seconds until the job is COMPLETED or FAILED.",
+        " Checks every 30 seconds until the job is COMPLETED or FAILED.",
       inputSchema: {
         generationId: z.string(),
         maxAttempts: z.number().int().min(1).max(180).optional(),
@@ -1531,7 +1531,7 @@ export function registerTools(
           args.generationId,
           {
             maxAttempts: args.maxAttempts,
-            intervalMs: (args.intervalSeconds ?? 15) * 1000,
+            intervalMs: (args.intervalSeconds ?? 30) * 1000,
           },
         ),
       ),
@@ -1662,7 +1662,7 @@ export function registerTools(
       title: "Wait for Voiceover",
       description:
         "Poll a voiceover or change_voice job until COMPLETED or FAILED." +
-        " Checks every 15 seconds until the job is COMPLETED or FAILED.",
+        " Checks every 30 seconds until the job is COMPLETED or FAILED.",
       inputSchema: {
         generationId: z.string(),
         maxAttempts: z.number().int().min(1).max(180).optional(),
@@ -1675,7 +1675,7 @@ export function registerTools(
           args.generationId,
           {
             maxAttempts: args.maxAttempts,
-            intervalMs: (args.intervalSeconds ?? 15) * 1000,
+            intervalMs: (args.intervalSeconds ?? 30) * 1000,
           },
         ),
       ),
@@ -1837,7 +1837,7 @@ export function registerTools(
       description:
         "Poll a video job until COMPLETED or FAILED: create_video, create_motion_control, " +
         "create_avatar_video and upscale_video." +
-        " Checks every 15 seconds until the job is COMPLETED or FAILED.",
+        " Checks every 30 seconds until the job is COMPLETED or FAILED.",
       inputSchema: {
         generationId: z.string(),
         maxAttempts: z.number().int().min(1).max(180).optional(),
@@ -1850,7 +1850,7 @@ export function registerTools(
           args.generationId,
           {
             maxAttempts: args.maxAttempts,
-            intervalMs: (args.intervalSeconds ?? 15) * 1000,
+            intervalMs: (args.intervalSeconds ?? 30) * 1000,
           },
         ),
       ),
