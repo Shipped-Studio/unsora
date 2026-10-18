@@ -1,6 +1,6 @@
 import { task } from "@trigger.dev/sdk";
 import { Input, FilePathSource, MP4 } from "mediabunny";
-import { transcribeVideo, groupWordsIntoChunks } from "../lib/transcription";
+import { transcribeVideo, splitIntoCaptionLines } from "../lib/transcription";
 import { downloadVideo } from "../lib/audio";
 import fs from "fs";
 import path from "path";
@@ -106,16 +106,11 @@ export const subtitleProcessingTask = task({
 
       const transcription = await transcribeVideo(tempVideoPath, language);
 
-      // Group word timestamps into evenly-sized chunks. Whisper's raw
-      // segments are sentence-length and wildly inconsistent on screen.
-      const existingRow = await prisma.transcription.findUnique({
-        where: { id: dbTranscriptionId },
-        select: { maxWordsPerChunk: true },
-      });
-      const maxWordsPerChunk = existingRow?.maxWordsPerChunk || 5;
+      // Split into caption lines at sentence ends, commas and pauses.
+      // Whisper's raw segments are sentence-length and uneven on screen.
       const allWords = transcription.segments.flatMap((s) => s.words);
       const subtitleChunks = allWords.length
-        ? groupWordsIntoChunks(allWords, maxWordsPerChunk)
+        ? splitIntoCaptionLines(allWords, transcription.text)
         : transcription.segments;
 
       const savedTranscription = await updateTranscriptionData(
@@ -126,7 +121,6 @@ export const subtitleProcessingTask = task({
           duration: transcription.duration,
           segments: transcription.segments,
           subtitleChunks,
-          maxWordsPerChunk,
           width: videoDimensions.width,
           height: videoDimensions.height,
         },

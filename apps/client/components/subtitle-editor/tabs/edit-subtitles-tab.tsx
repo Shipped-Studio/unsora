@@ -55,12 +55,6 @@ const LANGUAGE_ITEMS = TRANSCRIPTION_LANGUAGES.map((l) => ({
   label: l.label,
 }));
 
-const WORDS_PER_LINE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-const WORDS_PER_LINE_ITEMS = WORDS_PER_LINE.map((n) => ({
-  value: String(n),
-  label: String(n),
-}));
-
 function LabelledSelect({
   label,
   value,
@@ -106,20 +100,20 @@ function LabelledSelect({
 
 export interface TranscriptionOptions {
   language: string;
-  maxWordsPerChunk: number;
 }
 
-/** Language and line length live here; they only matter when transcribing. */
+/**
+ * Language lives here; it only matters when transcribing. Lines are split
+ * at sentence ends, commas and pauses, so there's no words-per-line setting.
+ */
 function TranscribePopover({
   language,
-  maxWordsPerChunk,
   hasLines,
   isStarting,
   onStart,
   variant,
 }: {
   language: string;
-  maxWordsPerChunk: number;
   hasLines: boolean;
   isStarting: boolean;
   onStart: (options: TranscriptionOptions) => void;
@@ -127,7 +121,6 @@ function TranscribePopover({
 }) {
   const [open, setOpen] = useState(false);
   const [draftLanguage, setDraftLanguage] = useState(language);
-  const [draftWords, setDraftWords] = useState(maxWordsPerChunk);
   const label = hasLines ? "Transcribe again" : "Transcribe";
 
   return (
@@ -136,7 +129,6 @@ function TranscribePopover({
       onOpenChange={(next) => {
         if (next) {
           setDraftLanguage(language);
-          setDraftWords(maxWordsPerChunk);
         }
         setOpen(next);
       }}
@@ -156,28 +148,19 @@ function TranscribePopover({
               : "Creates timed subtitle lines from the audio."}
           </PopoverDescription>
         </PopoverHeader>
-        <div className="grid grid-cols-[1fr_auto] gap-3">
-          <LabelledSelect
-            label="Audio language"
-            value={draftLanguage}
-            items={LANGUAGE_ITEMS}
-            onChange={setDraftLanguage}
-            className="w-full"
-          />
-          <LabelledSelect
-            label="Words per line"
-            value={String(draftWords)}
-            items={WORDS_PER_LINE_ITEMS}
-            onChange={(value) => setDraftWords(Number(value))}
-            className="w-20"
-          />
-        </div>
+        <LabelledSelect
+          label="Audio language"
+          value={draftLanguage}
+          items={LANGUAGE_ITEMS}
+          onChange={setDraftLanguage}
+          className="w-full"
+        />
         <Button
           variant={hasLines ? "destructive" : "default"}
           className="w-full"
           onClick={() => {
             setOpen(false);
-            onStart({ language: draftLanguage, maxWordsPerChunk: draftWords });
+            onStart({ language: draftLanguage });
           }}
         >
           <Waveform />
@@ -196,7 +179,6 @@ interface EditSubtitlesTabProps {
   isStarting: boolean;
   activeChunkIndex: number;
   language: string;
-  maxWordsPerChunk: number;
   onStartTranscription: (options: TranscriptionOptions) => void;
   onChunksChange: (chunks: SubtitleChunk[]) => void;
   onSeek: (seconds: number) => void;
@@ -212,7 +194,6 @@ export function EditSubtitlesTab({
   isStarting,
   activeChunkIndex,
   language,
-  maxWordsPerChunk,
   onStartTranscription,
   onChunksChange,
   onSeek,
@@ -250,7 +231,6 @@ export function EditSubtitlesTab({
   const transcribe = (variant: "default" | "outline") => (
     <TranscribePopover
       language={language}
-      maxWordsPerChunk={maxWordsPerChunk}
       hasLines={chunks.length > 0}
       isStarting={isStarting}
       onStart={onStartTranscription}

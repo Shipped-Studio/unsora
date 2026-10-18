@@ -156,10 +156,7 @@ export class SubtitleController {
       const clerkUserId = req.auth.userId;
 
       const { id } = req.params;
-      const { language, maxWordsPerChunk } = (req.body ?? {}) as {
-        language?: string;
-        maxWordsPerChunk?: number;
-      };
+      const { language } = (req.body ?? {}) as { language?: string };
 
       const user = await prisma.user.findUnique({
         where: { clerkId: clerkUserId },
@@ -213,9 +210,6 @@ export class SubtitleController {
           status: "pending",
           error: null,
           ...(language ? { language } : {}),
-          ...(maxWordsPerChunk && maxWordsPerChunk >= 1
-            ? { maxWordsPerChunk }
-            : {}),
           ...(isRerun
             ? {
                 text: "",

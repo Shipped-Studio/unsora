@@ -148,10 +148,7 @@ interface SubtitleEditorProps {
   status: TranscriptionStatus;
   transcriptionError: string | null;
   isStarting: boolean;
-  onStartTranscription: (options: {
-    language: string;
-    maxWordsPerChunk: number;
-  }) => void;
+  onStartTranscription: (options: { language: string }) => void;
   onChunksChange: (chunks: SubtitleChunk[]) => void;
   onRefreshExports: () => Promise<void>;
 }
@@ -237,10 +234,7 @@ export function SubtitleEditor({
       // Don't overwrite the transcript the server is about to write.
       ...(isTranscribing
         ? {}
-        : {
-            subtitleChunks: chunks,
-            maxWordsPerChunk: project.maxWordsPerChunk,
-          }),
+        : { subtitleChunks: chunks }),
     });
     setIsSaving(false);
     if (!result.success) {
@@ -402,7 +396,6 @@ export function SubtitleEditor({
               isStarting={isStarting}
               activeChunkIndex={activeChunkIndex}
               language={language}
-              maxWordsPerChunk={project.maxWordsPerChunk}
               onStartTranscription={(options) => {
                 setLanguage(options.language);
                 onStartTranscription(options);

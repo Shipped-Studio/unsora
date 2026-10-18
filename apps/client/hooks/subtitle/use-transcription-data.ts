@@ -145,7 +145,7 @@ export function useTranscriptionData(transcriptionId: string) {
   }, [videoExports, refreshExports]);
 
   const startTranscription = useCallback(
-    async (options: { language?: string; maxWordsPerChunk?: number }) => {
+    async (options: { language?: string }) => {
       setIsStarting(true);
       const result = await api.startTranscription(transcriptionId, options);
       setIsStarting(false);

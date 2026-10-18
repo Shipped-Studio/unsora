@@ -169,7 +169,7 @@ export function useSubtitleApi() {
       /** Queues transcription for a draft project. */
       startTranscription: (
         id: string,
-        options: { language?: string; maxWordsPerChunk?: number } = {},
+        options: { language?: string } = {},
       ) =>
         request<{ id: string; taskId: string; status: string }>(
           `/api/subtitles/${id}/start`,
