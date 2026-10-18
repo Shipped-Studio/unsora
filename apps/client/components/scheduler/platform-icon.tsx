@@ -27,6 +27,7 @@ export function PlatformIcon({
 
   switch (provider) {
     case "instagram":
+    case "instagram_facebook":
       return <InstagramIcon className={base} aria-hidden />;
     case "tiktok":
       return <TikTokIcon className={base} aria-hidden />;

@@ -71,6 +71,8 @@ export type AccountHealth = "ok" | "expiring" | "reconnect";
 
 export interface ConnectedAccount extends AccountSummary {
   providerAccountId: string;
+  /** "facebook" for Instagram accounts connected through Facebook Login. */
+  connectedVia?: "facebook" | null;
   expiresAt: string | null;
   createdAt: string;
   status: AccountHealth;

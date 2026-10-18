@@ -3,6 +3,7 @@ import { prisma } from "../lib/db";
 import { refreshGoogleToken } from "../oauth/google";
 import { refreshFacebookToken } from "../oauth/facebook";
 import { refreshInstagramToken } from "../oauth/instagram";
+import { isFacebookLoginAccount } from "../oauth/instagram-facebook";
 import { refreshLinkedInToken } from "../oauth/linkedin";
 import { refreshPinterestToken } from "../oauth/pinterest";
 import { refreshThreadsToken } from "../oauth/threads";
@@ -65,9 +66,10 @@ export class TokenRefreshService {
 
         case "instagram":
           try {
-            const instagramData = await refreshInstagramToken(
-              account.accessToken
-            );
+            // Facebook Login connections hold a Page token; refresh it like Facebook's.
+            const instagramData = isFacebookLoginAccount(account)
+              ? await refreshFacebookToken(account.accessToken)
+              : await refreshInstagramToken(account.accessToken);
             newAccessToken = instagramData?.access_token ?? null;
 
             // Instagram long-lived tokens expire in 60 days

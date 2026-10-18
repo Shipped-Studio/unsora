@@ -35,6 +35,10 @@ export class ConnectController {
 
   getInstagramAuthUrl = this.instagramController.getInstagramAuthUrl;
   handleInstagramCallback = this.instagramController.handleInstagramCallback;
+  getInstagramFacebookAuthUrl =
+    this.instagramController.getInstagramFacebookAuthUrl;
+  handleInstagramFacebookCallback =
+    this.instagramController.handleInstagramFacebookCallback;
 
   getBlueskyAuthUrl = this.blueskyController.getBlueskyAuthUrl;
   handleBlueskyCallback = this.blueskyController.handleBlueskyCallback;

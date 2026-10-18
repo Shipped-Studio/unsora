@@ -96,7 +96,6 @@ const GENERATIONS = {
   movie_material: { kind: "image", status: "/image/status", wait: "wait_for_image" },
   video: { kind: "video", status: "/video/status", wait: "wait_for_video" },
   video_upscale: { kind: "video", status: "/video/status", wait: "wait_for_video" },
-  watermark_removal: { kind: "video", status: "/video/status", wait: "wait_for_video" },
   motion_control: { kind: "video", status: "/video/status", wait: "wait_for_video" },
   avatar: { kind: "video", status: "/video/status", wait: "wait_for_video" },
   music: { kind: "audio", status: "/music/status", wait: "wait_for_music" },
@@ -269,10 +268,6 @@ const LIBRARY = {
   clipping: { list: "/clippings/all", item: "/clippings" },
   image_upscale: { list: "/image-upscaler/all", item: "/image-upscaler" },
   video_upscale: { list: "/video-upscaler/all", item: "/video-upscaler" },
-  watermark_removal: {
-    list: "/watermark-removal/all",
-    item: "/watermark-removal",
-  },
   motion_control: { list: "/motion-control/all", item: "/motion-control" },
   avatar: { list: "/avatar-generations/all", item: "/avatar-generations" },
   movie_material: { list: "/movie-materials/all", item: "/movie-materials" },
@@ -285,7 +280,10 @@ const LIBRARY_TYPES = Object.keys(LIBRARY) as [LibraryType, ...LibraryType[]];
 
 /** Hosts that may serve the generated media inside the sandboxed iframe. */
 const MEDIA_DOMAINS = (
-  process.env.MCP_MEDIA_DOMAINS || "https://*.blob.core.windows.net"
+  process.env.MCP_MEDIA_DOMAINS ||
+  "https://xpslpciobdvbfkzgebfw.supabase.co," +
+  "https://stsadekirfan532192938747.blob.core.windows.net," +
+  "https://files.tryunsora.com"
 )
   .split(",")
   .map((d) => d.trim())
@@ -303,19 +301,6 @@ function claudeAppDomain(): string | undefined {
   return `${hash}.claudemcpcontent.com`;
 }
 
-/** Where connected accounts' profile pictures are served from. */
-const AVATAR_DOMAINS = [
-  "https://*.fbcdn.net",
-  "https://*.cdninstagram.com",
-  "https://*.tiktokcdn.com",
-  "https://*.tiktokcdn-us.com",
-  "https://*.googleusercontent.com",
-  "https://*.ggpht.com",
-  "https://*.ytimg.com",
-  "https://*.pinimg.com",
-  "https://*.licdn.com",
-  "https://cdn.bsky.app",
-];
 
 function resourceUiMeta(
   extraDomains: readonly string[] = [],
@@ -535,13 +520,6 @@ function extractGenerationIds(payload: unknown): string[] {
   if (Array.isArray(gens)) {
     for (const g of gens) {
       const id = (g as Record<string, unknown> | null)?.id;
-      if (typeof id === "string") out.push(id);
-    }
-  }
-
-  // Watermark removal returns the processed video ids as `videoIds`.
-  if (Array.isArray(root.videoIds)) {
-    for (const id of root.videoIds) {
       if (typeof id === "string") out.push(id);
     }
   }
@@ -868,10 +846,6 @@ into a cloned voice → wait_for_voiceover.
 upscale_image (2k / 4k / 8k) → wait_for_image.
 upscale_video (standard / ultra-1080p / ultra-4k) → wait_for_video.
 
-## Subtitle & watermark removal
-remove_watermark (direct video file URL) → wait_for_video. Strips burned-in
-subtitles, captions, watermarks and logos.
-
 ## Motion control & talking avatars (video jobs)
 create_motion_control (inputs.video = motion reference, inputs.image =
 character) → wait_for_video. The character performs the reference video's
@@ -1014,7 +988,7 @@ export function registerTools(
             // (signed URLs live on the same hosts that serve media).
             _meta: {
               ui: resourceUiMeta(
-                AVATAR_DOMAINS,
+                [],
                 widget.uri === LIBRARY_UI_URI ? MEDIA_DOMAINS : [],
               ),
             },
@@ -1170,7 +1144,8 @@ export function registerTools(
       description:
         "Poll an AI clipping job until COMPLETED or FAILED. Returns clips with output URLs. " +
         "Do NOT use this when the live preview panel is rendered (it polls by itself) — " +
-        "only in hosts without the preview, or when the user explicitly asks for output URLs.",
+        "only in hosts without the preview, or when the user explicitly asks for output URLs." +
+        " Checks every 30 seconds until the job is COMPLETED or FAILED.",
       inputSchema: {
         clippingId: z.string(),
         maxAttempts: z.number().int().min(1).max(240).optional(),
@@ -1183,7 +1158,7 @@ export function registerTools(
           args.clippingId,
           {
             maxAttempts: args.maxAttempts,
-            intervalMs: (args.intervalSeconds ?? 5) * 1000,
+            intervalMs: (args.intervalSeconds ?? 30) * 1000,
           },
         ),
       ),
@@ -1329,10 +1304,11 @@ export function registerTools(
       annotations: READ_ONLY,
       title: "Get Generation Price",
       description:
-        "Live credit price for one video, image or motion-control generation, quoted by " +
-        "the provider for these exact settings (resolution, duration, audio, attached " +
-        "media length). Free. Use before expensive video jobs, tell the user the cost, " +
-        "and pass the credits as maxCredits to the create tool.",
+        "Read-only price quote: returns the credit price of one video, image or " +
+        "motion-control generation for these exact settings (resolution, duration, audio, " +
+        "attached media length). It creates nothing, spends no credits and changes nothing " +
+        "in the user's account. The quoted credits can be passed as maxCredits to the " +
+        "create tool.",
       inputSchema: {
         category: z.enum(["video", "image", "motion-control"]),
         model: z.string().optional().describe("Model key from list_models"),
@@ -1382,7 +1358,8 @@ export function registerTools(
       title: "Wait for Image",
       description:
         "Poll an image job until COMPLETED or FAILED: create_image, create_influencer, " +
-        "create_thumbnail, upscale_image and create_movie_material.",
+        "create_thumbnail, upscale_image and create_movie_material." +
+        " Checks every 30 seconds until the job is COMPLETED or FAILED.",
       inputSchema: {
         generationId: z.string(),
         maxAttempts: z.number().int().min(1).max(120).optional(),
@@ -1395,7 +1372,7 @@ export function registerTools(
           args.generationId,
           {
             maxAttempts: args.maxAttempts,
-            intervalMs: (args.intervalSeconds ?? 5) * 1000,
+            intervalMs: (args.intervalSeconds ?? 30) * 1000,
           },
         ),
       ),
@@ -1539,7 +1516,9 @@ export function registerTools(
     {
       annotations: READ_ONLY,
       title: "Wait for Music",
-      description: "Poll music status until COMPLETED or FAILED",
+      description:
+        "Poll music status until COMPLETED or FAILED." +
+        " Checks every 30 seconds until the job is COMPLETED or FAILED.",
       inputSchema: {
         generationId: z.string(),
         maxAttempts: z.number().int().min(1).max(180).optional(),
@@ -1552,7 +1531,7 @@ export function registerTools(
           args.generationId,
           {
             maxAttempts: args.maxAttempts,
-            intervalMs: (args.intervalSeconds ?? 5) * 1000,
+            intervalMs: (args.intervalSeconds ?? 30) * 1000,
           },
         ),
       ),
@@ -1682,7 +1661,8 @@ export function registerTools(
       annotations: READ_ONLY,
       title: "Wait for Voiceover",
       description:
-        "Poll a voiceover or change_voice job until COMPLETED or FAILED.",
+        "Poll a voiceover or change_voice job until COMPLETED or FAILED." +
+        " Checks every 30 seconds until the job is COMPLETED or FAILED.",
       inputSchema: {
         generationId: z.string(),
         maxAttempts: z.number().int().min(1).max(180).optional(),
@@ -1695,7 +1675,7 @@ export function registerTools(
           args.generationId,
           {
             maxAttempts: args.maxAttempts,
-            intervalMs: (args.intervalSeconds ?? 5) * 1000,
+            intervalMs: (args.intervalSeconds ?? 30) * 1000,
           },
         ),
       ),
@@ -1856,7 +1836,8 @@ export function registerTools(
       title: "Wait for Video",
       description:
         "Poll a video job until COMPLETED or FAILED: create_video, create_motion_control, " +
-        "create_avatar_video, upscale_video and remove_watermark.",
+        "create_avatar_video and upscale_video." +
+        " Checks every 30 seconds until the job is COMPLETED or FAILED.",
       inputSchema: {
         generationId: z.string(),
         maxAttempts: z.number().int().min(1).max(180).optional(),
@@ -1869,7 +1850,7 @@ export function registerTools(
           args.generationId,
           {
             maxAttempts: args.maxAttempts,
-            intervalMs: (args.intervalSeconds ?? 5) * 1000,
+            intervalMs: (args.intervalSeconds ?? 30) * 1000,
           },
         ),
       ),
@@ -1939,40 +1920,6 @@ export function registerTools(
         { body },
       );
       return previewResult(payload, "video_upscale", "upscale_video");
-    },
-  );
-
-  registerAppTool(
-    server,
-    "remove_watermark",
-    {
-      title: "Remove Subtitles & Watermarks",
-      description:
-        "Remove burned-in subtitles, captions, watermarks, logos or on-screen text from a video " +
-        "(Subtitle Remover). Costs 10 credits per started 10 seconds of video. Pass a direct " +
-        "video file URL (e.g. .mp4) — page links (YouTube, TikTok) don't work; use upload_file " +
-        "first for a file the user provides. Poll with wait_for_video. Renders a live preview " +
-        "in app-capable hosts.",
-      inputSchema: {
-        videoUrl: z.string().url().describe("Direct URL of the video file."),
-        name: z
-          .string()
-          .max(200)
-          .optional()
-          .describe("Label in the user's library. Defaults to the file name."),
-      },
-      _meta: { ui: { resourceUri: VIDEO_UI_URI } },
-    },
-    async (args, extra) => {
-      const body: Record<string, unknown> = { videoUrl: args.videoUrl };
-      if (args.name) body.name = args.name;
-
-      const payload = await unsoraFor(resolveUnsora, extra.authInfo).request(
-        "POST",
-        "/watermark-removal/create",
-        { body },
-      );
-      return previewResult(payload, "watermark_removal", "remove_watermark");
     },
   );
 
@@ -2526,6 +2473,15 @@ export function registerTools(
       });
 
       const finished = await unsora.pollImageStatus(created.generation.id);
+      if (!finished.done) {
+        return jsonResult({
+          imageJob: finished,
+          generationId: created.generation.id,
+          note:
+            "The image is still generating, so no post was created yet. Call wait_for_image " +
+            "with generationId until it is COMPLETED, then create_post with its outputUrl.",
+        });
+      }
       const outputUrl = finished.data?.outputUrl;
       if (!outputUrl) {
         throw new Error(
@@ -3050,7 +3006,7 @@ export function registerTools(
       description:
         "Browse the user's past results for one feature, newest first, with status and " +
         "output URLs: image, video, music, voiceover, influencer, thumbnail, clipping, " +
-        "image_upscale, video_upscale, watermark_removal, motion_control, avatar, " +
+        "image_upscale, video_upscale, motion_control, avatar, " +
         "movie_material, voice_change. Use it to find something made earlier (e.g. to post " +
         "or reuse it). Uploaded files are in list_uploads." + SHOWN_IN_UI,
       inputSchema: {

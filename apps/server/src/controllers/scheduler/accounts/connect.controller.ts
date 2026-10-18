@@ -9,6 +9,10 @@ import {
   getInstagramAccountInfo,
   refreshInstagramToken,
 } from "../../../oauth/instagram";
+import {
+  getInstagramFacebookAccountInfo,
+  isFacebookLoginAccount,
+} from "../../../oauth/instagram-facebook";
 import { getTikTokUserInfo, refreshTikTokToken } from "../../../oauth/tiktok";
 import {
   getBlueskyAgent,
@@ -103,6 +107,7 @@ export class SchedulerAccountsController {
           profilePicture: true,
           expiresAt: true,
           refreshToken: true,
+          scope: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -135,7 +140,7 @@ export class SchedulerAccountsController {
         lastPublished.map((p) => [p.accountId, p._max.publishedAt]),
       );
 
-      const data = accounts.map(({ refreshToken, updatedAt, ...account }) => {
+      const data = accounts.map(({ refreshToken, updatedAt, scope, ...account }) => {
         const health = accountHealth({
           expiresAt: account.expiresAt,
           hasRefreshToken: Boolean(refreshToken),
@@ -144,6 +149,10 @@ export class SchedulerAccountsController {
         });
         return {
           ...account,
+          // Instagram accounts can be connected directly or via Facebook Login.
+          connectedVia: isFacebookLoginAccount({ ...account, scope })
+            ? ("facebook" as const)
+            : null,
           status: health.status,
           statusReason: health.reason,
           lastPublishedAt: publishedByAccount.get(account.id) ?? null,
@@ -268,14 +277,22 @@ export class SchedulerAccountsController {
             });
           }
 
-          const longLivedToken = await refreshInstagramToken(account.accessToken);
+          const viaFacebook = isFacebookLoginAccount(account);
+          const longLivedToken = viaFacebook
+            ? await refreshFacebookToken(account.accessToken)
+            : await refreshInstagramToken(account.accessToken);
 
           let accountInfo: {
             username: string | null;
             profilePicture: string | null;
           } | null = null;
           if (account.providerAccountId) {
-            accountInfo = await getInstagramAccountInfo(longLivedToken.access_token);
+            accountInfo = viaFacebook
+              ? await getInstagramFacebookAccountInfo(
+                  account.providerAccountId,
+                  longLivedToken.access_token,
+                )
+              : await getInstagramAccountInfo(longLivedToken.access_token);
           }
 
           updatedData = {

@@ -1,6 +1,7 @@
 import { SocialAccount } from "@prisma/client";
 import type { PostMediaWithAsset } from "../post.service";
 import axios from "axios";
+import { instagramGraphBase } from "../../oauth/instagram-facebook";
 
 /**
  * Instagram API Service
@@ -10,8 +11,6 @@ import axios from "axios";
  * container, wait for Instagram to process it, then publish the container.
  * Carousels add one child container per image before the parent container.
  */
-
-const BASE_URL = "https://graph.instagram.com/v24.0";
 
 /** Instagram allows a maximum of 10 items per carousel. */
 const MAX_CAROUSEL_IMAGES = 10;
@@ -32,20 +31,23 @@ export class InstagramService {
   ): Promise<{ postId: string; postUrl: string }> {
     const igUserId = account.providerAccountId;
     const accessToken = account.accessToken;
+    // Accounts connected through Facebook Login use a Page token, which only
+    // works against graph.facebook.com.
+    const baseUrl = instagramGraphBase(account);
 
     let postId: string;
 
     if (postType === "VIDEO") {
-      postId = await this.publishReel(media, caption, igUserId, accessToken);
+      postId = await this.publishReel(media, caption, igUserId, accessToken, baseUrl);
     } else if (postType === "CAROUSEL" || postType === "IMAGE") {
-      postId = await this.publishPhotos(media, caption, igUserId, accessToken);
+      postId = await this.publishPhotos(media, caption, igUserId, accessToken, baseUrl);
     } else {
       throw new Error(
         "Instagram supports video reels and image posts (single or carousel) only",
       );
     }
 
-    const postUrl = await this.getMediaPermalink(postId, accessToken);
+    const postUrl = await this.getMediaPermalink(postId, accessToken, baseUrl);
 
     return { postId, postUrl };
   }
@@ -58,6 +60,7 @@ export class InstagramService {
     caption: string,
     igUserId: string,
     accessToken: string,
+    baseUrl: string,
   ): Promise<string> {
     const videoMedia = media.find((m) => m.type === "VIDEO");
     const coverMedia = media.find((m) => m.type === "THUMBNAIL");
@@ -84,9 +87,10 @@ export class InstagramService {
       const creationId = await this.createProcessedContainer(
         igUserId,
         accessToken,
+        baseUrl,
         containerPayload,
       );
-      return await this.publishContainer(igUserId, accessToken, creationId);
+      return await this.publishContainer(igUserId, accessToken, baseUrl, creationId);
     } catch (error: any) {
       this.handleInstagramError(error, "Instagram Reel upload");
     }
@@ -100,6 +104,7 @@ export class InstagramService {
     caption: string,
     igUserId: string,
     accessToken: string,
+    baseUrl: string,
   ): Promise<string> {
     const images = media
       .filter((m) => m.type === "IMAGE")
@@ -110,10 +115,10 @@ export class InstagramService {
     }
 
     if (images.length === 1) {
-      return this.publishSingleImage(images[0], caption, igUserId, accessToken);
+      return this.publishSingleImage(images[0], caption, igUserId, accessToken, baseUrl);
     }
 
-    return this.publishCarousel(images, caption, igUserId, accessToken);
+    return this.publishCarousel(images, caption, igUserId, accessToken, baseUrl);
   }
 
   private async publishSingleImage(
@@ -121,14 +126,16 @@ export class InstagramService {
     caption: string,
     igUserId: string,
     accessToken: string,
+    baseUrl: string,
   ): Promise<string> {
     try {
       const creationId = await this.createProcessedContainer(
         igUserId,
         accessToken,
+        baseUrl,
         { image_url: imageMedia.asset.url, caption },
       );
-      return await this.publishContainer(igUserId, accessToken, creationId);
+      return await this.publishContainer(igUserId, accessToken, baseUrl, creationId);
     } catch (error: any) {
       this.handleInstagramError(error, "Instagram image upload");
     }
@@ -139,6 +146,7 @@ export class InstagramService {
     caption: string,
     igUserId: string,
     accessToken: string,
+    baseUrl: string,
   ): Promise<string> {
     if (images.length > MAX_CAROUSEL_IMAGES) {
       throw new Error(
@@ -151,7 +159,7 @@ export class InstagramService {
       const childIds: string[] = [];
       for (const image of images) {
         childIds.push(
-          await this.createProcessedContainer(igUserId, accessToken, {
+          await this.createProcessedContainer(igUserId, accessToken, baseUrl, {
             image_url: image.asset.url,
             is_carousel_item: true,
           }),
@@ -161,10 +169,11 @@ export class InstagramService {
       const parentId = await this.createProcessedContainer(
         igUserId,
         accessToken,
+        baseUrl,
         { media_type: "CAROUSEL", children: childIds, caption },
       );
 
-      return await this.publishContainer(igUserId, accessToken, parentId);
+      return await this.publishContainer(igUserId, accessToken, baseUrl, parentId);
     } catch (error: any) {
       this.handleInstagramError(error, "Instagram carousel upload");
     }
@@ -179,17 +188,18 @@ export class InstagramService {
   private async createProcessedContainer(
     igUserId: string,
     accessToken: string,
+    baseUrl: string,
     payload: Record<string, unknown>,
   ): Promise<string> {
     const response = await axios.post(
-      `${BASE_URL}/${igUserId}/media`,
+      `${baseUrl}/${igUserId}/media`,
       { access_token: accessToken, ...payload },
       { headers: { "Content-Type": "application/json" } },
     );
 
     const containerId = response.data.id;
 
-    const isReady = await this.pollContainerStatus(containerId, accessToken);
+    const isReady = await this.pollContainerStatus(containerId, accessToken, baseUrl);
     if (!isReady) {
       throw new Error("Instagram media processing timed out");
     }
@@ -205,13 +215,14 @@ export class InstagramService {
   private async publishContainer(
     igUserId: string,
     accessToken: string,
+    baseUrl: string,
     creationId: string,
     maxAttempts: number = 4,
   ): Promise<string> {
     for (let attempt = 1; ; attempt++) {
       try {
         const response = await axios.post(
-          `${BASE_URL}/${igUserId}/media_publish`,
+          `${baseUrl}/${igUserId}/media_publish`,
           { access_token: accessToken, creation_id: creationId },
           { headers: { "Content-Type": "application/json" } },
         );
@@ -243,12 +254,13 @@ export class InstagramService {
   private async pollContainerStatus(
     containerId: string,
     accessToken: string,
+    baseUrl: string,
     maxAttempts: number = 60,
     intervalMs: number = 5000,
   ): Promise<boolean> {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const response = await axios.get(`${BASE_URL}/${containerId}`, {
+        const response = await axios.get(`${baseUrl}/${containerId}`, {
           params: { access_token: accessToken, fields: "status_code" },
         });
 
@@ -294,9 +306,10 @@ export class InstagramService {
   private async getMediaPermalink(
     mediaId: string,
     accessToken: string,
+    baseUrl: string,
   ): Promise<string> {
     try {
-      const response = await axios.get(`${BASE_URL}/${mediaId}`, {
+      const response = await axios.get(`${baseUrl}/${mediaId}`, {
         params: { access_token: accessToken, fields: "permalink" },
       });
 

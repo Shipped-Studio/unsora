@@ -2,7 +2,6 @@ import { task } from "@trigger.dev/sdk";
 import { WavespeedAPI, WavespeedResult, getWavespeedClient } from "../lib/wavespeed-api";
 import prisma from "../lib/db";
 import { uploadVideoToStorage } from "../lib/upload";
-import { puppeteerService } from "../lib/puppeteer-service";
 import { SHORT_RETRY, CANCELLED_ERROR } from "./task-utils";
 import { createAsset, createVideoAssetWithProbe } from "../lib/asset-utils";
 import { refundConsumption } from "../lib/credits";
@@ -86,30 +85,8 @@ export const videoProcessingTask = task({
       }
 
       if (method === "url" && !processedVideo.originalAssetId) {
-        const isWebpage =
-          video.videoUrl.includes("sora.chatgpt.com") ||
-          video.videoUrl.includes("openai.com") ||
-          (!video.videoUrl.endsWith(".mp4") &&
-            !video.videoUrl.endsWith(".webm") &&
-            !video.videoUrl.endsWith(".mov") &&
-            !video.videoUrl.includes("blob:"));
-
-        let videoUrlToProcess = video.videoUrl;
-
-        if (isWebpage) {
-          const videoSources = await puppeteerService.extractVideoSources(
-            video.videoUrl,
-          );
-
-          if (videoSources.length === 0) {
-            throw new Error("No video sources found on the webpage");
-          }
-
-          videoUrlToProcess = videoSources[0].videoUrl;
-        }
-
         const { fileUrl } = await uploadVideoToStorage(
-          videoUrlToProcess,
+          video.videoUrl,
           video.originalName,
         );
 

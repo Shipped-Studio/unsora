@@ -46,6 +46,15 @@ router.get(
   checkSocialAccountLimit,
   connectController.getInstagramAuthUrl
 );
+// Instagram through Facebook Login (Page-linked professional accounts).
+router.get(
+  "/instagram/facebook",
+  requireAuth,
+  requirePlatform("instagram_facebook"),
+  requirePaidPlan,
+  checkSocialAccountLimit,
+  connectController.getInstagramFacebookAuthUrl
+);
 router.get(
   "/bluesky",
   requireAuth,
@@ -114,6 +123,10 @@ router.get("/google/callback", connectController.handleGoogleCallback);
 router.get("/tt/callback", connectController.handleTikTokCallback);
 router.get("/facebook/callback", connectController.handleFacebookCallback);
 router.get("/instagram/callback", connectController.handleInstagramCallback);
+router.get(
+  "/instagram/facebook/callback",
+  connectController.handleInstagramFacebookCallback
+);
 router.get("/bluesky/callback", connectController.handleBlueskyCallback);
 router.get("/threads/callback", connectController.handleThreadsCallback);
 router.get("/pinterest/callback", connectController.handlePinterestCallback);
