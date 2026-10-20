@@ -26,8 +26,12 @@ import {
 import {
   ChoiceGroup,
   ChoiceItem,
-  ColorField,
 } from "@/components/subtitle-editor/editor-fields";
+import type {
+  BrollLayout,
+  ZoomStyle,
+} from "@/components/subtitle-editor/caption-style";
+import type { ZoomEvent } from "@/components/subtitle-editor/caption-animations";
 
 export type AspectRatioId = "original" | "9:16" | "1:1" | "4:5" | "16:9";
 export type VideoFitId = "contain" | "cover" | "blur";
@@ -36,6 +40,12 @@ export interface PreviewStyleConfig {
   aspectRatio: AspectRatioId;
   videoFit: VideoFitId;
   backgroundColor: string;
+  /** Moves the video at key moments. */
+  zoom?: ZoomStyle;
+  /** Default layout for B-roll clips. */
+  brollLayout?: BrollLayout;
+  /** A zoom per scene, from AI Auto Zooms; wins over `zoom`. */
+  zooms?: ZoomEvent[];
 }
 
 export const PREVIEW_STYLE_DEFAULTS: PreviewStyleConfig = {
@@ -63,17 +73,6 @@ const VIDEO_FITS: { id: VideoFitId; label: string; icon: Icon }[] = [
   { id: "cover", label: "Fill", icon: ArrowsOut },
   { id: "blur", label: "Blur", icon: DropHalf },
 ];
-
-const BACKGROUND_COLORS = [
-  "#000000",
-  "#ffffff",
-  "#18181b",
-  "#1e3a5f",
-  "#166534",
-  "#7c2d12",
-  "#4c1d95",
-  "#831843",
-] as const;
 
 /**
  * Canvas size for an aspect ratio. Fixed ratios use 1080 on the short side;
@@ -131,9 +130,10 @@ export function PreviewStyleControls({
         <SelectTrigger variant="ghost" size="sm" aria-label="Aspect ratio">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        {/* Wider than its trigger and above it, so the hints aren't cut off. */}
+        <SelectContent side="top" alignItemWithTrigger={false} className="w-60">
           {ASPECT_RATIOS.map((option) => (
-            <SelectItem key={option.id} value={option.id}>
+            <SelectItem key={option.id} value={option.id} className="pr-8">
               <span
                 aria-hidden
                 className="flex size-5 items-center justify-center"
@@ -144,7 +144,7 @@ export function PreviewStyleControls({
                 />
               </span>
               {option.label}
-              <span className="text-xs text-muted-foreground">
+              <span className="ml-auto text-xs text-muted-foreground">
                 {option.hint}
               </span>
             </SelectItem>
@@ -155,7 +155,7 @@ export function PreviewStyleControls({
       <Popover>
         <PopoverTrigger
           render={
-            <Button variant="ghost" size="icon-sm" aria-label="Fill and background" />
+            <Button variant="ghost" size="icon-sm" aria-label="Video fill" />
           }
         >
           <SlidersHorizontal />
@@ -184,14 +184,7 @@ export function PreviewStyleControls({
               </ChoiceItem>
             ))}
           </ChoiceGroup>
-          {config.videoFit === "contain" ? (
-            <ColorField
-              label="Background"
-              value={config.backgroundColor}
-              options={BACKGROUND_COLORS}
-              onChange={(color) => update("backgroundColor", color)}
-            />
-          ) : null}
+
         </PopoverContent>
       </Popover>
     </div>

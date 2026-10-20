@@ -6,6 +6,7 @@ import { useSubtitleApi } from "@/hooks/subtitle/use-subtitle-api";
 import { isExportRunning } from "@/hooks/subtitle/use-subtitle-queries";
 import { failureMessage } from "@/components/subtitle-editor/format";
 import type { SubtitleChunk, TranscriptionData } from "@/remotion/types";
+import type { CaptionLayout } from "@/components/subtitle-editor/caption-style";
 
 export type TranscriptionStatus =
   | "draft"
@@ -45,6 +46,7 @@ function normalize(raw: Project): Project {
       raw.editorSettings,
       undefined,
     ),
+    metadata: parseJsonField<Project["metadata"]>(raw.metadata, null),
     maxWordsPerChunk: raw.maxWordsPerChunk || DEFAULT_MAX_WORDS,
     videoExports: raw.videoExports ?? [],
   };
@@ -129,6 +131,82 @@ export function useTranscriptionData(transcriptionId: string) {
     };
   }, [api, transcriptionId, isTranscribing]);
 
+  const aiTools = project?.metadata?.aiTools ?? {};
+  const toolRunning = Object.values(aiTools).some((t) => t.status === "running");
+
+  // A video pass replaces the video and retimes the captions when it's done.
+  useEffect(() => {
+    if (!toolRunning) return;
+    let settled = false;
+    const timer = setInterval(async () => {
+      const result = await api.getTranscription(transcriptionId);
+      if (settled || !result.success || !result.data) return;
+      const next = normalize(result.data);
+      const tools = next.metadata?.aiTools ?? {};
+      if (Object.values(tools).some((t) => t.status === "running")) return;
+      settled = true;
+      clearInterval(timer);
+      setProject(next);
+      for (const state of Object.values(tools)) {
+        if (state.status === "failed") {
+          toast.error(failureMessage("finish the AI tool", state.error));
+        }
+      }
+    }, TRANSCRIPTION_POLL_MS);
+    return () => {
+      settled = true;
+      clearInterval(timer);
+    };
+  }, [api, transcriptionId, toolRunning]);
+
+  const reload = useCallback(async () => {
+    const result = await api.getTranscription(transcriptionId);
+    if (result.success && result.data) setProject(normalize(result.data));
+  }, [api, transcriptionId]);
+
+  /** Starts an AI Tools pass; returns the scenes for Auto Zooms. */
+  const runAiTool = useCallback(
+    async (tool: string) => {
+      const result = await api.runAiTool(transcriptionId, tool);
+      if (!result.success || !result.data) {
+        toast.error(failureMessage("run the tool", result.error));
+        return null;
+      }
+      if (result.data.status === "running") {
+        setProject(
+          (prev) =>
+            prev && {
+              ...prev,
+              metadata: {
+                ...prev.metadata,
+                aiTools: {
+                  ...prev.metadata?.aiTools,
+                  [tool]: { status: "running", updatedAt: new Date().toISOString() },
+                },
+              },
+            },
+        );
+      } else {
+        await reload();
+      }
+      return result.data;
+    },
+    [api, transcriptionId, reload],
+  );
+
+  const removeAiTool = useCallback(
+    async (tool: string) => {
+      const result = await api.removeAiTool(transcriptionId, tool);
+      if (!result.success) {
+        toast.error(failureMessage("remove the tool", result.error));
+        return false;
+      }
+      await reload();
+      return true;
+    },
+    [api, transcriptionId, reload],
+  );
+
   /** Reloads only the export list, so unsaved subtitle edits survive. */
   const refreshExports = useCallback(async () => {
     const result = await api.getTranscription(transcriptionId);
@@ -145,7 +223,7 @@ export function useTranscriptionData(transcriptionId: string) {
   }, [videoExports, refreshExports]);
 
   const startTranscription = useCallback(
-    async (options: { language?: string }) => {
+    async (options: { language?: string; layout?: CaptionLayout }) => {
       setIsStarting(true);
       const result = await api.startTranscription(transcriptionId, options);
       setIsStarting(false);
@@ -173,5 +251,8 @@ export function useTranscriptionData(transcriptionId: string) {
     startTranscription,
     setChunks,
     refreshExports,
+    aiTools,
+    runAiTool,
+    removeAiTool,
   };
 }

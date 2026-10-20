@@ -18,7 +18,7 @@ import { VideoComposition } from "@/components/subtitle-editor/video-composition
 import { formatClock } from "@/components/subtitle-editor/format";
 import { PreviewDragLayer } from "@/components/subtitle-editor/preview-drag-layer";
 import type { SubtitleStylePreset } from "@/components/subtitle-editor/style-presets";
-import type { SizePositionValues } from "@/components/subtitle-editor/tabs/style-subtitles-tab";
+import type { CaptionPlacement } from "@/components/subtitle-editor/caption-style";
 import type { TitleOverlayConfig } from "@/components/subtitle-editor/title-overlay";
 import type { WatermarkOverlayConfig } from "@/components/subtitle-editor/tabs/edit-watermark-tab";
 import {
@@ -27,6 +27,10 @@ import {
   type PreviewStyleConfig,
 } from "@/components/subtitle-editor/tabs/preview-style-tab";
 import type { SubtitleChunk } from "@/remotion/types";
+import {
+  timelineDuration,
+  type Timeline,
+} from "@/components/subtitle-editor/caption-style";
 
 const FPS = 30;
 const FALLBACK_WIDTH = 1080;
@@ -205,12 +209,14 @@ interface VideoPreviewProps {
   durationSeconds: number;
   subtitleChunks: SubtitleChunk[];
   selectedPreset: SubtitleStylePreset;
-  sizePosition: SizePositionValues;
+  placement: CaptionPlacement;
   titleOverlay: TitleOverlayConfig;
   watermarkOverlay: WatermarkOverlayConfig;
   previewStyle: PreviewStyleConfig;
-  onSizePositionChange: (values: SizePositionValues) => void;
+  timeline: Timeline;
+  onPlacementChange: (values: CaptionPlacement) => void;
   onTitleOverlayChange: (config: TitleOverlayConfig) => void;
+  onTimelineChange: (timeline: Timeline) => void;
   onPreviewStyleChange: (config: PreviewStyleConfig) => void;
   onUploadVideo: () => void;
   onTimeUpdate: (seconds: number) => void;
@@ -227,12 +233,14 @@ export function VideoPreview({
   durationSeconds,
   subtitleChunks,
   selectedPreset,
-  sizePosition,
+  placement,
   titleOverlay,
   watermarkOverlay,
   previewStyle,
-  onSizePositionChange,
+  timeline,
+  onPlacementChange,
   onTitleOverlayChange,
+  onTimelineChange,
   onPreviewStyleChange,
   onUploadVideo,
   onTimeUpdate,
@@ -244,6 +252,10 @@ export function VideoPreview({
     durationSeconds,
   );
   const playerRef = useRef<PlayerRef>(null);
+  const trimStartRef = useRef(0);
+  useEffect(() => {
+    trimStartRef.current = timeline.trim?.start ?? 0;
+  }, [timeline.trim?.start]);
   const onTimeUpdateRef = useRef(onTimeUpdate);
   const playerReady = Boolean(metadata && videoUrl);
 
@@ -255,8 +267,9 @@ export function VideoPreview({
     if (!playerReady) return;
     const player = playerRef.current;
     if (!player) return;
+    // The editor works in source-video time; a trim shifts the player's.
     const onFrame = (event: { detail: { frame: number } }) =>
-      onTimeUpdateRef.current(event.detail.frame / FPS);
+      onTimeUpdateRef.current(event.detail.frame / FPS + trimStartRef.current);
     player.addEventListener("frameupdate", onFrame);
     player.addEventListener("seeked", onFrame);
     return () => {
@@ -272,7 +285,7 @@ export function VideoPreview({
       const player = playerRef.current;
       if (!player) return;
       clearTimeout(previewTimer);
-      player.seekTo(Math.round(seconds * FPS));
+      player.seekTo(Math.max(0, Math.round((seconds - trimStartRef.current) * FPS)));
       if (!options?.preview) return;
       // Play a short moment, e.g. to show a word animation just picked.
       player.play();
@@ -289,16 +302,18 @@ export function VideoPreview({
       videoUrl: videoUrl ?? "",
       subtitleChunks,
       selectedPreset,
-      sizePosition,
+      placement,
       titleOverlay,
       watermarkOverlay,
       previewStyle,
+      timeline,
     }),
     [
+      timeline,
       videoUrl,
       subtitleChunks,
       selectedPreset,
-      sizePosition,
+      placement,
       titleOverlay,
       watermarkOverlay,
       previewStyle,
@@ -341,6 +356,11 @@ export function VideoPreview({
     return <LoadingState label="Loading video" className="h-full" />;
   }
 
+  // A trim shortens the video and an outro adds to it.
+  const durationInFrames = Math.max(
+    1,
+    Math.round(timelineDuration(timeline, metadata.durationInFrames / FPS) * FPS),
+  );
   const { width, height } = getCompositionDimensions(
     previewStyle,
     metadata.width,
@@ -365,7 +385,7 @@ export function VideoPreview({
               ref={playerRef}
               component={VideoComposition}
               inputProps={inputProps}
-              durationInFrames={metadata.durationInFrames}
+              durationInFrames={durationInFrames}
               compositionWidth={width}
               compositionHeight={height}
               fps={FPS}
@@ -376,10 +396,12 @@ export function VideoPreview({
               active={hovering}
               compositionWidth={width}
               hasSubtitles={subtitleChunks.length > 0}
-              sizePosition={sizePosition}
-              onSizePositionChange={onSizePositionChange}
+              placement={placement}
+              onPlacementChange={onPlacementChange}
               titleOverlay={titleOverlay}
               onTitleOverlayChange={onTitleOverlayChange}
+              timeline={timeline}
+              onTimelineChange={onTimelineChange}
             />
           </div>
         </div>
@@ -390,7 +412,7 @@ export function VideoPreview({
       />
       <PlayerControls
         playerRef={playerRef}
-        durationInFrames={metadata.durationInFrames}
+        durationInFrames={durationInFrames}
       />
     </div>
   );

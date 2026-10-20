@@ -11,6 +11,41 @@ import { generateObject } from "ai";
 import { z } from "zod";
 import { openrouter } from "../lib/ai-client";
 import { hookTitlePrompt } from "../../prompts/hook-title.prompt";
+import { normalizeCaptionLayout } from "../lib/caption-layout";
+import { findCaptionKeywords } from "../lib/caption-keywords";
+import {
+  captionOptimizePrompt,
+  captionTranslatePrompt,
+} from "../../prompts/caption-edit.prompt";
+import {
+  InsufficientCreditsError,
+  consumeCredits,
+  refundConsumption,
+} from "../lib/credits";
+import {
+  AI_IMAGE_CREDITS,
+  PexelsNotConfiguredError,
+  autoBrollCredits,
+  generateBrollImage,
+  planAutoBrolls,
+  searchPexelsPhotos,
+  searchPexelsVideos,
+  type Orientation,
+  type VideoType,
+} from "../lib/broll";
+import {
+  AI_TOOL_CREDITS,
+  VIDEO_TOOLS,
+  findScenes,
+  isAiTool,
+  type ToolChunk,
+} from "../lib/subtitle-tools";
+import {
+  setToolState,
+  subtitleToolTask,
+  type SubtitleToolJobData,
+  type ToolState,
+} from "../queue/subtitle-tools.queue";
 
 /** The start of a transcript is plenty to write a hook from. */
 const HOOK_TRANSCRIPT_CHARS = 4000;
@@ -18,7 +53,30 @@ const MAX_PREVIOUS_HOOKS = 10;
 
 const MAX_SAVED_PRESETS = 50;
 const MAX_PRESET_NAME = 40;
-const MAX_PRESET_STYLE_CHARS = 4000;
+const MAX_PRESET_STYLE_CHARS = 12000;
+const MAX_KEYWORD_WORDS = 6000;
+const MAX_CAPTION_LINES = 2000;
+const MAX_LINE_CHARS = 400;
+// Lines sent to the AI per call when translating or fixing captions.
+const LINES_PER_CALL = 80;
+// Translate costs this many credits, as in Submagic.
+const TRANSLATE_CREDITS = 1;
+
+/** Runs `fix` on lines in batches and returns one result per line. */
+async function inBatches<T>(
+  lines: T[],
+  fix: (batch: T[], offset: number) => Promise<Map<number, T>>,
+): Promise<T[]> {
+  const batches: number[] = [];
+  for (let start = 0; start < lines.length; start += LINES_PER_CALL) batches.push(start);
+  const results = await Promise.all(
+    batches.map((start) => fix(lines.slice(start, start + LINES_PER_CALL), start)),
+  );
+  const merged = new Map<number, T>();
+  for (const result of results) for (const [i, line] of result) merged.set(i, line);
+  // A line the AI skipped stays as it was.
+  return lines.map((line, i) => merged.get(i) ?? line);
+}
 
 /*
  * Transcription is free (exports are what's charged), so it's bounded
@@ -156,7 +214,10 @@ export class SubtitleController {
       const clerkUserId = req.auth.userId;
 
       const { id } = req.params;
-      const { language } = (req.body ?? {}) as { language?: string };
+      const { language, layout } = (req.body ?? {}) as {
+        language?: string;
+        layout?: unknown;
+      };
 
       const user = await prisma.user.findUnique({
         where: { clerkId: clerkUserId },
@@ -225,6 +286,7 @@ export class SubtitleController {
         videoUrl: transcription.videoAsset!.url,
         transcriptionId: transcription.id,
         language: whisperLanguage,
+        layout: normalizeCaptionLayout(layout),
       });
 
       res.status(202).json({
@@ -697,6 +759,551 @@ export class SubtitleController {
    * Write a hook title from the transcript. Words to style differently come
    * back wrapped in *asterisks*, and lines are separated by "\n".
    */
+  /**
+   * Marks keywords and emojis on the words the editor sends, so projects
+   * transcribed before the keyword pass, or edited since, can get them.
+   */
+  async findKeywords(req: Request, res: Response) {
+    try {
+      const clerkUserId = req.auth.userId;
+      const { id } = req.params;
+      const words: unknown = req.body?.words;
+      if (
+        !Array.isArray(words) ||
+        words.length === 0 ||
+        words.length > MAX_KEYWORD_WORDS ||
+        !words.every((word) => typeof word === "string" && word.length <= 64)
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: `Send between 1 and ${MAX_KEYWORD_WORDS} words.`,
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { clerkId: clerkUserId },
+        select: { id: true },
+      });
+      if (!user) {
+        return res
+          .status(404)
+          .json({ success: false, error: "User not found" });
+      }
+      const owned = await prisma.transcription.findFirst({
+        where: { id, userId: user.id },
+        select: { id: true },
+      });
+      if (!owned) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Transcription not found" });
+      }
+
+      const markup = await findCaptionKeywords(words as string[]);
+      res.status(200).json({ success: true, data: markup });
+    } catch (error) {
+      console.error("Error finding caption keywords:", error);
+      res.status(500).json({
+        success: false,
+        error: "Try again in a moment.",
+      });
+    }
+  }
+
+  /**
+   * Runs one of the AI Tools. Credits are spent straight away, as in
+   * Submagic; video passes run in the background and refund on failure.
+   */
+  async runAiTool(req: Request, res: Response) {
+    const tool = req.params.tool;
+    if (!isAiTool(tool)) {
+      return res.status(404).json({ success: false, error: "Unknown tool" });
+    }
+    if (tool === "eye-contact") {
+      return res.status(501).json({
+        success: false,
+        error: "Correct Eye Contact isn't available yet.",
+      });
+    }
+    let transactionId: string | null = null;
+    try {
+      const owner = await this.ownedTranscription(req, res);
+      if (!owner) return;
+      const row = await prisma.transcription.findUnique({
+        where: { id: owner.transcriptionId },
+        select: { status: true, subtitleChunks: true, duration: true, metadata: true, videoAssetId: true },
+      });
+      if (!row?.videoAssetId || row.status !== "completed") {
+        return res.status(400).json({
+          success: false,
+          error: "Transcribe the video first.",
+        });
+      }
+      const aiTools = ((row.metadata as Record<string, unknown> | null)?.aiTools ?? {}) as Record<
+        string,
+        ToolState
+      >;
+      if (Object.values(aiTools).some((t) => t.status === "running")) {
+        return res.status(409).json({
+          success: false,
+          error: "Another tool is still running. Try again when it's done.",
+        });
+      }
+
+      const charge = await consumeCredits({
+        userId: owner.userId,
+        amount: AI_TOOL_CREDITS[tool],
+        reason: `AI tool: ${tool}`,
+        metadata: { transcriptionId: owner.transcriptionId, tool },
+      });
+      transactionId = charge.transactionId;
+
+      if (tool === "auto-zooms") {
+        const chunks = (
+          typeof row.subtitleChunks === "string"
+            ? JSON.parse(row.subtitleChunks)
+            : (row.subtitleChunks ?? [])
+        ) as ToolChunk[];
+        const scenes = await findScenes(chunks, row.duration);
+        await setToolState(owner.transcriptionId, tool, {
+          status: "done",
+          updatedAt: new Date().toISOString(),
+        });
+        return res.status(200).json({
+          success: true,
+          data: { scenes, creditsUsed: AI_TOOL_CREDITS[tool] },
+        });
+      }
+
+      await setToolState(owner.transcriptionId, tool, {
+        status: "running",
+        updatedAt: new Date().toISOString(),
+      });
+      const payload: SubtitleToolJobData = {
+        transcriptionId: owner.transcriptionId,
+        tool: tool as SubtitleToolJobData["tool"],
+        transactionId,
+      };
+      await subtitleToolTask.trigger(payload);
+      res.status(202).json({
+        success: true,
+        data: { status: "running", creditsUsed: AI_TOOL_CREDITS[tool] },
+      });
+    } catch (error) {
+      if (error instanceof InsufficientCreditsError) {
+        return res.status(402).json({
+          success: false,
+          error: `This tool needs ${AI_TOOL_CREDITS[tool]} credits.`,
+        });
+      }
+      console.error(`Error running AI tool ${tool}:`, error);
+      if (transactionId) {
+        await refundConsumption(transactionId, `${tool} failed to start`).catch(
+          (refundError) => console.error("Refund failed:", refundError),
+        );
+        await setToolState(req.params.id, tool, null).catch(() => {});
+      }
+      res.status(500).json({ success: false, error: "Try again in a moment." });
+    }
+  }
+
+  /** Undoes a video pass by putting back the video and captions it replaced. */
+  async removeAiTool(req: Request, res: Response) {
+    const tool = req.params.tool;
+    if (!isAiTool(tool)) {
+      return res.status(404).json({ success: false, error: "Unknown tool" });
+    }
+    try {
+      const owner = await this.ownedTranscription(req, res);
+      if (!owner) return;
+      const row = await prisma.transcription.findUnique({
+        where: { id: owner.transcriptionId },
+        select: { metadata: true },
+      });
+      const aiTools = ((row?.metadata as Record<string, unknown> | null)?.aiTools ?? {}) as Record<
+        string,
+        ToolState
+      >;
+      const state = aiTools[tool];
+      if (!VIDEO_TOOLS.includes(tool) || !state?.snapshot) {
+        await setToolState(owner.transcriptionId, tool, null);
+        return res.status(200).json({ success: true, data: { restored: false } });
+      }
+      // Only the latest pass can be removed, or a later one would be lost too.
+      const later = Object.entries(aiTools).some(
+        ([other, s]) => other !== tool && s.snapshot && s.updatedAt > state.updatedAt,
+      );
+      if (later) {
+        return res.status(409).json({
+          success: false,
+          error: "Remove the tools you ran after this one first.",
+        });
+      }
+      const { snapshot } = state;
+      await setToolState(owner.transcriptionId, tool, null, {
+        videoAssetId: snapshot.videoAssetId,
+        subtitleChunks: JSON.stringify(snapshot.subtitleChunks),
+        segments: JSON.stringify(snapshot.segments),
+        duration: snapshot.duration,
+      });
+      res.status(200).json({ success: true, data: { restored: true } });
+    } catch (error) {
+      console.error(`Error removing AI tool ${tool}:`, error);
+      res.status(500).json({ success: false, error: "Try again in a moment." });
+    }
+  }
+
+  /** Stock B-roll search: Pexels videos or photos. */
+  async searchBroll(req: Request, res: Response) {
+    const query = String(req.query.q ?? "").trim().slice(0, 100);
+    const kind = req.query.type === "photo" ? "photo" : "video";
+    const orientation = (["portrait", "landscape", "square"].includes(String(req.query.orientation))
+      ? req.query.orientation
+      : "portrait") as Orientation;
+    if (!query) {
+      return res.status(400).json({ success: false, error: "Type something to search for." });
+    }
+    try {
+      // Premium and Trendy ask for sharper files than Free.
+      const premium = req.query.tier === "premium" || req.query.tier === "trendy";
+      const results =
+        kind === "photo"
+          ? await searchPexelsPhotos(query, orientation, 24)
+          : await searchPexelsVideos(query, orientation, { perPage: 24, premium });
+      res.status(200).json({ success: true, data: results });
+    } catch (error) {
+      if (error instanceof PexelsNotConfiguredError) {
+        return res.status(503).json({
+          success: false,
+          error: "Stock footage isn't set up yet (PEXELS_API_KEY).",
+        });
+      }
+      console.error("Error searching B-roll:", error);
+      res.status(502).json({ success: false, error: "Search failed. Try again." });
+    }
+  }
+
+  /** Makes one AI B-roll image. Costs credits; refunded if it fails. */
+  async generateBroll(req: Request, res: Response) {
+    const prompt = String(req.body?.prompt ?? "").trim().slice(0, 300);
+    const orientation = (["portrait", "landscape", "square"].includes(req.body?.orientation)
+      ? req.body.orientation
+      : "portrait") as Orientation;
+    if (!prompt) {
+      return res.status(400).json({ success: false, error: "Describe the image." });
+    }
+    let transactionId: string | null = null;
+    try {
+      const user = await prisma.user.findUnique({
+        where: { clerkId: req.auth.userId },
+        select: { id: true },
+      });
+      if (!user) return res.status(404).json({ success: false, error: "User not found" });
+      const charge = await consumeCredits({
+        userId: user.id,
+        amount: AI_IMAGE_CREDITS,
+        reason: "B-roll image",
+      });
+      transactionId = charge.transactionId;
+      const media = await generateBrollImage(prompt, orientation);
+      res.status(200).json({ success: true, data: { media, creditsUsed: AI_IMAGE_CREDITS } });
+    } catch (error) {
+      if (error instanceof InsufficientCreditsError) {
+        return res.status(402).json({
+          success: false,
+          error: `An AI image needs ${AI_IMAGE_CREDITS} credits.`,
+        });
+      }
+      console.error("Error generating B-roll image:", error);
+      if (transactionId) {
+        await refundConsumption(transactionId, "B-roll image failed").catch(() => {});
+      }
+      res.status(500).json({ success: false, error: "Try again in a moment." });
+    }
+  }
+
+  /**
+   * Auto B-rolls: covers about the given percent of the video with footage
+   * for its scenes. Stock is included; AI images cost credits each.
+   */
+  async autoBrolls(req: Request, res: Response) {
+    const percent = Number(req.body?.percent);
+    const videoType = (["free", "premium", "trendy"].includes(req.body?.videoType)
+      ? req.body.videoType
+      : "free") as VideoType;
+    const orientation = (["portrait", "landscape", "square"].includes(req.body?.orientation)
+      ? req.body.orientation
+      : "portrait") as Orientation;
+    const scenes: unknown = req.body?.scenes;
+    if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+      return res.status(400).json({ success: false, error: "Percent must be 0 to 100." });
+    }
+    let transactionId: string | null = null;
+    try {
+      const owner = await this.ownedTranscription(req, res);
+      if (!owner) return;
+      const row = await prisma.transcription.findUnique({
+        where: { id: owner.transcriptionId },
+        select: { subtitleChunks: true, duration: true },
+      });
+      const chunks = (
+        typeof row?.subtitleChunks === "string" ? JSON.parse(row.subtitleChunks) : (row?.subtitleChunks ?? [])
+      ) as ToolChunk[];
+      const sceneList =
+        Array.isArray(scenes) && scenes.length
+          ? (scenes as { start: number; end: number; brollQuery: string; keyword: string }[]).slice(0, 200)
+          : await findScenes(chunks, row?.duration ?? 0);
+
+      // Trendy makes an image per clip; charge for the most it could make.
+      const maxClips = sceneList.length;
+      const credits = autoBrollCredits(videoType, maxClips);
+      if (credits > 0) {
+        const charge = await consumeCredits({
+          userId: owner.userId,
+          amount: credits,
+          reason: "Auto B-rolls (AI images)",
+          metadata: { transcriptionId: owner.transcriptionId },
+        });
+        transactionId = charge.transactionId;
+      }
+      const plan = await planAutoBrolls({
+        scenes: sceneList,
+        duration: row?.duration ?? 0,
+        percent,
+        videoType,
+        transitions: req.body?.transitions !== false,
+        orientation,
+      });
+      // Refund the images that weren't needed.
+      const used = autoBrollCredits(videoType, plan.clips.length);
+      if (transactionId && used < credits) {
+        await refundConsumption(transactionId, "Auto B-rolls: unused images");
+        if (used > 0) {
+          await consumeCredits({
+            userId: owner.userId,
+            amount: used,
+            reason: "Auto B-rolls (AI images)",
+            metadata: { transcriptionId: owner.transcriptionId },
+          });
+        }
+      }
+      res.status(200).json({
+        success: true,
+        data: { ...plan, scenes: sceneList, creditsUsed: used },
+      });
+    } catch (error) {
+      if (error instanceof InsufficientCreditsError) {
+        return res.status(402).json({
+          success: false,
+          error: "You don't have enough credits for AI B-rolls.",
+        });
+      }
+      if (error instanceof PexelsNotConfiguredError) {
+        return res.status(503).json({
+          success: false,
+          error: "Stock footage isn't set up yet (PEXELS_API_KEY).",
+        });
+      }
+      console.error("Error planning B-rolls:", error);
+      if (transactionId) {
+        await refundConsumption(transactionId, "Auto B-rolls failed").catch(() => {});
+      }
+      res.status(500).json({ success: false, error: "Try again in a moment." });
+    }
+  }
+
+  /** Splits the video into AI scenes; free, as the B-rolls tab needs it. */
+  async captionScenes(req: Request, res: Response) {
+    try {
+      const owner = await this.ownedTranscription(req, res);
+      if (!owner) return;
+      const row = await prisma.transcription.findUnique({
+        where: { id: owner.transcriptionId },
+        select: { subtitleChunks: true, duration: true },
+      });
+      const chunks = (
+        typeof row?.subtitleChunks === "string" ? JSON.parse(row.subtitleChunks) : (row?.subtitleChunks ?? [])
+      ) as ToolChunk[];
+      const scenes = await findScenes(chunks, row?.duration ?? 0);
+      res.status(200).json({ success: true, data: { scenes } });
+    } catch (error) {
+      console.error("Error finding scenes:", error);
+      res.status(500).json({ success: false, error: "Try again in a moment." });
+    }
+  }
+
+  /** Names the project from its transcript, as Submagic's "AI title". */
+  async projectTitle(req: Request, res: Response) {
+    try {
+      const owner = await this.ownedTranscription(req, res);
+      if (!owner) return;
+      const row = await prisma.transcription.findUnique({
+        where: { id: owner.transcriptionId },
+        select: { text: true },
+      });
+      if (!row?.text.trim()) {
+        return res.status(400).json({ success: false, error: "Transcribe the video first." });
+      }
+      const { object } = await generateObject({
+        model: openrouter("openai/gpt-4o-mini"),
+        schema: z.object({ title: z.string() }),
+        prompt: `Write a short, specific title (3 to 7 words) for a project folder holding this video, in the transcript's language. No quotes, no emoji, no full stop.\n\nTranscript:\n"""\n${row.text.slice(0, 3000)}\n"""`,
+      });
+      const title = object.title.replace(/^["'“”]+|["'“”.]+$/g, "").trim().slice(0, 120);
+      if (!title) {
+        return res.status(502).json({ success: false, error: "The AI came back empty. Try again." });
+      }
+      await prisma.transcription.update({ where: { id: owner.transcriptionId }, data: { title } });
+      res.status(200).json({ success: true, data: { title } });
+    } catch (error) {
+      console.error("Error writing project title:", error);
+      res.status(500).json({ success: false, error: "Try again in a moment." });
+    }
+  }
+
+  /** Owns-the-project check shared by the caption AI endpoints. */
+  private async ownedTranscription(req: Request, res: Response) {
+    const user = await prisma.user.findUnique({
+      where: { clerkId: req.auth.userId },
+      select: { id: true },
+    });
+    if (!user) {
+      res.status(404).json({ success: false, error: "User not found" });
+      return null;
+    }
+    const owned = await prisma.transcription.findFirst({
+      where: { id: req.params.id, userId: user.id },
+      select: { id: true },
+    });
+    if (!owned) {
+      res.status(404).json({ success: false, error: "Transcription not found" });
+      return null;
+    }
+    return { userId: user.id, transcriptionId: owned.id };
+  }
+
+  /** Translates caption lines. Costs credits; refunded if it fails. */
+  async translateCaptions(req: Request, res: Response) {
+    const language: unknown = req.body?.language;
+    const lines: unknown = req.body?.lines;
+    if (
+      typeof language !== "string" ||
+      !language.trim() ||
+      language.length > 40 ||
+      !Array.isArray(lines) ||
+      lines.length === 0 ||
+      lines.length > MAX_CAPTION_LINES ||
+      !lines.every((l) => typeof l === "string" && l.length <= MAX_LINE_CHARS)
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "Send a language and the caption lines to translate.",
+      });
+    }
+    let transactionId: string | null = null;
+    try {
+      const owner = await this.ownedTranscription(req, res);
+      if (!owner) return;
+      const charge = await consumeCredits({
+        userId: owner.userId,
+        amount: TRANSLATE_CREDITS,
+        reason: "Translate captions",
+        metadata: { transcriptionId: owner.transcriptionId, language },
+      });
+      transactionId = charge.transactionId;
+
+      const translated = await inBatches(lines as string[], async (batch, offset) => {
+        const { object } = await generateObject({
+          model: openrouter("openai/gpt-4o-mini"),
+          schema: z.object({
+            lines: z.array(z.object({ index: z.number().int(), text: z.string() })),
+          }),
+          prompt: captionTranslatePrompt(
+            language,
+            batch.map((line, i) => `${offset + i}: ${line}`).join("\n"),
+          ),
+        });
+        return new Map(
+          object.lines
+            .filter((l) => l.index >= offset && l.index < offset + batch.length && l.text.trim())
+            .map((l) => [l.index, l.text.trim().slice(0, MAX_LINE_CHARS)]),
+        );
+      });
+
+      res.status(200).json({
+        success: true,
+        data: { lines: translated, creditsUsed: TRANSLATE_CREDITS },
+      });
+    } catch (error) {
+      if (error instanceof InsufficientCreditsError) {
+        return res.status(402).json({
+          success: false,
+          error: "You don't have enough credits to translate.",
+        });
+      }
+      console.error("Error translating captions:", error);
+      if (transactionId) {
+        await refundConsumption(transactionId, "Translate captions failed").catch(
+          (refundError) => console.error("Refund failed:", refundError),
+        );
+      }
+      res.status(500).json({ success: false, error: "Try again in a moment." });
+    }
+  }
+
+  /** Fixes speech recognition mistakes in the caption lines' words. */
+  async optimizeCaptions(req: Request, res: Response) {
+    const lines: unknown = req.body?.lines;
+    if (
+      !Array.isArray(lines) ||
+      lines.length === 0 ||
+      lines.length > MAX_CAPTION_LINES ||
+      !lines.every(
+        (line) =>
+          Array.isArray(line) &&
+          line.length <= 40 &&
+          line.every((w) => typeof w === "string" && w.length <= 64),
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "Send the caption lines as lists of words.",
+      });
+    }
+    try {
+      const owner = await this.ownedTranscription(req, res);
+      if (!owner) return;
+      const fixed = await inBatches(lines as string[][], async (batch, offset) => {
+        const { object } = await generateObject({
+          model: openrouter("openai/gpt-4o-mini"),
+          schema: z.object({
+            lines: z.array(
+              z.object({ index: z.number().int(), words: z.array(z.string()) }),
+            ),
+          }),
+          prompt: captionOptimizePrompt(
+            batch.map((words, i) => `${offset + i}: ${words.join(" ")}`).join("\n"),
+          ),
+        });
+        return new Map(
+          object.lines
+            .filter(
+              (l) =>
+                l.index >= offset &&
+                l.index < offset + batch.length &&
+                l.words.length > 0 &&
+                l.words.length <= 40,
+            )
+            .map((l) => [l.index, l.words.map((w) => w.trim().slice(0, 64)).filter(Boolean)]),
+        );
+      });
+      res.status(200).json({ success: true, data: { lines: fixed } });
+    } catch (error) {
+      console.error("Error optimizing captions:", error);
+      res.status(500).json({ success: false, error: "Try again in a moment." });
+    }
+  }
+
   async generateHookTitle(req: Request, res: Response) {
     try {
       const clerkUserId = req.auth.userId;

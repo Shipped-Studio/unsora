@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { SlidersHorizontal, Trash } from "@phosphor-icons/react";
+import { GearSix, Trash } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -11,26 +11,18 @@ import {
 import type { SavedSubtitlePreset } from "@/hooks/subtitle/use-subtitle-api";
 import { cn } from "@/lib/utils";
 import { getFontFamily } from "@/remotion/fonts";
+import {
+  presetShadow,
+  presetStrokeEm,
+  type SubtitleStylePreset,
+  type TemplateGroup,
+} from "@/components/subtitle-editor/caption-style";
+import { CAPTION_TEMPLATES } from "@/components/subtitle-editor/caption-templates";
 
-export interface SubtitleStylePreset {
-  id: string;
-  name: string;
-  fontFamily: string;
-  fontSize: number;
-  fontWeight: number;
-  fontStyle: "normal" | "italic";
-  textTransform: "none" | "uppercase" | "lowercase";
-  color: string;
-  highlightColor?: string;
-  highlightBgColor?: string;
-  strokeColor?: string;
-  strokeWidth?: number;
-  backgroundColor?: string;
-  backgroundPadding?: number;
-  shadow?: string;
-}
+export type { SubtitleStylePreset };
 
-export const SUBTITLE_PRESETS: SubtitleStylePreset[] = [
+/** Our earlier looks, kept under Archived so older projects still open. */
+const ARCHIVED_LOOKS: SubtitleStylePreset[] = [
   {
     id: "gradient-box-focus",
     name: "Aiden",
@@ -548,6 +540,7 @@ function PresetPreview({ preset }: { preset: SubtitleStylePreset }) {
   const upper = preset.textTransform === "uppercase";
   const highlighted = Boolean(preset.highlightColor || preset.highlightBgColor);
   const boxColor = preset.highlightBgColor ?? preset.backgroundColor;
+  const strokeEm = presetStrokeEm(preset, DESIGN_FONT_SIZE);
 
   return (
     <span
@@ -562,11 +555,11 @@ function PresetPreview({ preset }: { preset: SubtitleStylePreset }) {
         textTransform: preset.textTransform,
         letterSpacing: upper ? "0.04em" : undefined,
         lineHeight: 1.25,
-        textShadow: preset.shadow,
+        textShadow: presetShadow(preset),
         // Like the renderer, a boxed word has no outline.
-        ...(preset.strokeColor && preset.strokeWidth && !preset.highlightBgColor
+        ...(strokeEm && !preset.highlightBgColor
           ? {
-              WebkitTextStroke: `${(preset.strokeWidth / DESIGN_FONT_SIZE).toFixed(3)}em ${preset.strokeColor}`,
+              WebkitTextStroke: `${strokeEm.toFixed(3)}em ${preset.strokeColor}`,
               paintOrder: "stroke fill",
             }
           : {}),
@@ -579,7 +572,10 @@ function PresetPreview({ preset }: { preset: SubtitleStylePreset }) {
                 ? { backgroundImage: boxColor }
                 : { backgroundColor: boxColor }),
               padding: `0.04em ${upper ? 0.14 : 0.18}em 0.04em 0.18em`,
-              borderRadius: "0.18em",
+              borderRadius:
+                preset.highlightBgColor || preset.backgroundRadius === undefined
+                  ? "0.18em"
+                  : `${preset.backgroundRadius}em`,
             }
           : {}),
       }}
@@ -589,28 +585,30 @@ function PresetPreview({ preset }: { preset: SubtitleStylePreset }) {
   );
 }
 
-export const PRESET_CATEGORIES: { label: string; ids: string[] }[] = [
-  {
-    label: "Box",
-    ids: ["gradient-box-focus", "red-box-focus", "green-word-box", "cream-box", "white-box", "yellow-box", "grey-box", "black-box", "typewriter", "pill-background"],
-  },
-  {
-    label: "Bold",
-    ids: ["bold-green-highlight", "golden-condensed", "italic-condensed", "heavy-outline", "dark-outlined", "red-outlined", "bold-blue-stroke", "red-stroke-bold"],
-  },
-  {
-    label: "Clean",
-    ids: ["outlined-white", "bold-simple", "soft-shadow", "thin-elegant", "rounded-soft", "mint-fresh"],
-  },
-  {
-    label: "Glow",
-    ids: ["white-glow", "dark-glow", "warm-serif-glow", "neon-glow", "retro-wave"],
-  },
-  { label: "Serif", ids: ["thin-serif", "lime-serif-box", "italic-yellow-highlight", "gold-luxe"] },
-  {
-    label: "Fun",
-    ids: ["thick-white-stroke", "orange-comic", "bubble-outline", "beast-purple", "hand-marker", "rainbow-highlight", "sunset-pop"],
-  },
+/** Template filters, as in Submagic's Style tab. */
+export const PRESET_FILTERS: { label: string; group: TemplateGroup }[] = [
+  { label: "Emojis", group: "emojis" },
+  { label: "Classic", group: "classic" },
+  { label: "Storytelling", group: "storytelling" },
+  { label: "Archived", group: "archived" },
+];
+
+// Archived looks were sized in pixels at 1080 wide and sat near the bottom.
+const ARCHIVED_SIZE = 22;
+const ARCHIVED_POSITION = { x: 50, y: 75 };
+const ARCHIVED_UPPERCASE_TRACKING = 0.04;
+
+export const SUBTITLE_PRESETS: SubtitleStylePreset[] = [
+  ...CAPTION_TEMPLATES,
+  ...ARCHIVED_LOOKS.map((look) => ({
+    ...look,
+    group: "archived" as const,
+    fontSize: ARCHIVED_SIZE,
+    position: ARCHIVED_POSITION,
+    letterSpacing:
+      look.textTransform === "uppercase" ? ARCHIVED_UPPERCASE_TRACKING : undefined,
+    keepThroughSilences: false,
+  })),
 ];
 
 const SAVED_ID_PREFIX = "saved-";
@@ -640,12 +638,15 @@ const ALL = "All";
 
 export function StylePresetsGrid({
   selectedPresetId,
+  projectPreset,
   onSelectPreset,
   savedPresets,
   onCustomize,
   onDeleteSaved,
 }: {
   selectedPresetId: string;
+  /** This project's customized copy of a template, shown first. */
+  projectPreset: SubtitleStylePreset | null;
   onSelectPreset: (preset: SubtitleStylePreset) => void;
   savedPresets: SavedSubtitlePreset[];
   onCustomize: () => void;
@@ -655,7 +656,7 @@ export function StylePresetsGrid({
   const filters = [
     ALL,
     ...(savedPresets.length ? [MINE] : []),
-    ...PRESET_CATEGORIES.map((category) => category.label),
+    ...PRESET_FILTERS.map((f) => f.label),
   ];
   // A filter can vanish (the last saved preset was deleted).
   const active = filters.includes(filter) ? filter : ALL;
@@ -664,12 +665,13 @@ export function StylePresetsGrid({
     active === ALL || active === MINE
       ? savedPresets.map((item) => ({ preset: savedToPreset(item), saved: item }))
       : [];
-  const category = PRESET_CATEGORIES.find((c) => c.label === active);
+  const group = PRESET_FILTERS.find((f) => f.label === active)?.group;
+  // "All" leaves out archived looks, as Submagic does.
   const builtIn =
     active === MINE
       ? []
-      : SUBTITLE_PRESETS.filter(
-          (preset) => !category || category.ids.includes(preset.id),
+      : SUBTITLE_PRESETS.filter((preset) =>
+          group ? preset.group === group : preset.group !== "archived",
         ).map((preset) => ({ preset, saved: null }));
 
   return (
@@ -696,7 +698,13 @@ export function StylePresetsGrid({
         aria-label={`${active} presets`}
         className="grid grid-cols-2 gap-3 sm:grid-cols-3"
       >
-        {[...saved, ...builtIn].map(({ preset, saved: item }) => (
+        {[
+          ...(projectPreset && active === ALL
+            ? [{ preset: projectPreset, saved: null }]
+            : []),
+          ...saved,
+          ...builtIn,
+        ].map(({ preset, saved: item }) => (
           <PresetCard
             key={preset.id}
             preset={preset}
@@ -746,15 +754,15 @@ function PresetCard({
               <Button
                 variant="secondary"
                 size="icon-xs"
-                aria-label={`Customize ${preset.name}`}
+                aria-label={`${preset.name} settings`}
                 onClick={onCustomize}
                 className="absolute right-1.5 bottom-1.5 shadow-sm"
               />
             }
           >
-            <SlidersHorizontal />
+            <GearSix />
           </TooltipTrigger>
-          <TooltipContent>Customize</TooltipContent>
+          <TooltipContent>Settings</TooltipContent>
         </Tooltip>
       ) : null}
       {onDelete ? (

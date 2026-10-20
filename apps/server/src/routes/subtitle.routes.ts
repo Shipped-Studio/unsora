@@ -30,6 +30,19 @@ router.post(
   subtitleController.queueTranscribeVideo.bind(subtitleController),
 );
 
+// B-roll library. Registered before "/:id" so "broll" isn't read as an id.
+router.get(
+  "/broll/search",
+  requireAuth,
+  subtitleController.searchBroll.bind(subtitleController),
+);
+
+router.post(
+  "/broll/image",
+  requireAuth,
+  subtitleController.generateBroll.bind(subtitleController),
+);
+
 // Saved caption presets. Registered before "/:id" so "presets" isn't read as an id.
 router.get(
   "/presets",
@@ -71,6 +84,54 @@ router.post(
   "/:id/hook-title",
   requireAuth,
   subtitleController.generateHookTitle.bind(subtitleController),
+);
+
+router.post(
+  "/:id/brolls/auto",
+  requireAuth,
+  subtitleController.autoBrolls.bind(subtitleController),
+);
+
+router.post(
+  "/:id/project-title",
+  requireAuth,
+  subtitleController.projectTitle.bind(subtitleController),
+);
+
+router.post(
+  "/:id/scenes",
+  requireAuth,
+  subtitleController.captionScenes.bind(subtitleController),
+);
+
+router.post(
+  "/:id/ai-tools/:tool",
+  requireAuth,
+  subtitleController.runAiTool.bind(subtitleController),
+);
+
+router.post(
+  "/:id/ai-tools/:tool/remove",
+  requireAuth,
+  subtitleController.removeAiTool.bind(subtitleController),
+);
+
+router.post(
+  "/:id/translate",
+  requireAuth,
+  subtitleController.translateCaptions.bind(subtitleController),
+);
+
+router.post(
+  "/:id/optimize",
+  requireAuth,
+  subtitleController.optimizeCaptions.bind(subtitleController),
+);
+
+router.post(
+  "/:id/keywords",
+  requireAuth,
+  subtitleController.findKeywords.bind(subtitleController),
 );
 
 router.put(

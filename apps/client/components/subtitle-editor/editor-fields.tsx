@@ -234,7 +234,15 @@ export function ColorField({
                 "size-7 rounded-full border border-foreground/15 outline-none transition-shadow focus-visible:ring-3 focus-visible:ring-ring/50",
                 selected && "ring-2 ring-foreground ring-offset-2 ring-offset-background",
               )}
-              style={{ backgroundColor: color }}
+              style={
+                color === "transparent"
+                  ? {
+                      // A slashed swatch reads as "no color".
+                      backgroundImage:
+                        "linear-gradient(135deg, transparent 44%, #ef4444 44%, #ef4444 56%, transparent 56%)",
+                    }
+                  : { backgroundColor: color }
+              }
             />
           );
         })}

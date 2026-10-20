@@ -8,6 +8,10 @@ import type {
   TranscriptionData,
   VideoExportItem,
 } from "@/remotion/types";
+import type {
+  CaptionLayout,
+  KeywordLevel,
+} from "@/components/subtitle-editor/caption-style";
 
 /** Every subtitle endpoint answers `{ success, data?, error? }`. */
 export interface ApiResult<T> {
@@ -75,6 +79,34 @@ export interface ExportRequest {
 }
 
 /** A caption style the user saved; `style` holds the preset fields. */
+export type BrollOrientation = "portrait" | "landscape" | "square";
+
+export interface BrollMedia {
+  kind: "video" | "image";
+  url: string;
+  thumbnailUrl?: string;
+  width?: number;
+  height?: number;
+  duration?: number;
+  vendor: "pexels" | "ai" | "upload";
+  sourceUrl?: string;
+  author?: string;
+}
+
+/** A part of the video by topic, from the AI scene pass. */
+export interface CaptionScene {
+  start: number;
+  end: number;
+  keyword: string;
+  brollQuery: string;
+  zoom: string | null;
+}
+
+export interface CaptionMarkup {
+  keywords: { index: number; level: KeywordLevel }[];
+  emojis: { index: number; emoji: string }[];
+}
+
 export interface SavedSubtitlePreset {
   id: string;
   name: string;
@@ -169,7 +201,7 @@ export function useSubtitleApi() {
       /** Queues transcription for a draft project. */
       startTranscription: (
         id: string,
-        options: { language?: string } = {},
+        options: { language?: string; layout?: CaptionLayout } = {},
       ) =>
         request<{ id: string; taskId: string; status: string }>(
           `/api/subtitles/${id}/start`,
@@ -190,6 +222,84 @@ export function useSubtitleApi() {
         request<{ hook: string }>(`/api/subtitles/${id}/hook-title`, {
           method: "POST",
           body: JSON.stringify({ previousHooks }),
+        }),
+
+      /** Stock B-roll from Pexels. */
+      searchBroll: (
+        query: string,
+        type: "video" | "photo",
+        orientation: BrollOrientation,
+        tier: "trendy" | "free" | "premium" = "free",
+      ) =>
+        request<BrollMedia[]>(
+          `/api/subtitles/broll/search?${new URLSearchParams({ q: query, type, orientation, tier })}`,
+        ),
+
+      /** One AI B-roll image. Costs credits. */
+      generateBrollImage: (prompt: string, orientation: BrollOrientation) =>
+        request<{ media: BrollMedia; creditsUsed: number }>("/api/subtitles/broll/image", {
+          method: "POST",
+          body: JSON.stringify({ prompt, orientation }),
+        }),
+
+      /** Plans B-roll for about `percent` of the video. AI images cost credits. */
+      autoBrolls: (
+        id: string,
+        body: {
+          percent: number;
+          videoType: "free" | "premium" | "trendy";
+          transitions: boolean;
+          orientation: BrollOrientation;
+          scenes?: CaptionScene[];
+        },
+      ) =>
+        request<{
+          clips: { start: number; end: number; media: BrollMedia; transition?: string }[];
+          sounds: { start: number; sound: string }[];
+          scenes: CaptionScene[];
+          creditsUsed: number;
+        }>(`/api/subtitles/${id}/brolls/auto`, { method: "POST", body: JSON.stringify(body) }),
+
+      /** Names the project from its transcript and saves the name. */
+      writeProjectTitle: (id: string) =>
+        request<{ title: string }>(`/api/subtitles/${id}/project-title`, { method: "POST" }),
+
+      /** Splits the video into scenes by topic. */
+      findScenes: (id: string) =>
+        request<{ scenes: CaptionScene[] }>(`/api/subtitles/${id}/scenes`, { method: "POST" }),
+
+      /** Runs an AI Tools pass. Costs credits; auto-zooms returns the scenes. */
+      runAiTool: (id: string, tool: string) =>
+        request<{ status?: string; scenes?: CaptionScene[]; creditsUsed: number }>(
+          `/api/subtitles/${id}/ai-tools/${tool}`,
+          { method: "POST" },
+        ),
+
+      /** Undoes an AI Tools pass. */
+      removeAiTool: (id: string, tool: string) =>
+        request<{ restored: boolean }>(`/api/subtitles/${id}/ai-tools/${tool}/remove`, {
+          method: "POST",
+        }),
+
+      /** Translates caption lines into a language. Costs credits. */
+      translateCaptions: (id: string, language: string, lines: string[]) =>
+        request<{ lines: string[]; creditsUsed: number }>(
+          `/api/subtitles/${id}/translate`,
+          { method: "POST", body: JSON.stringify({ language, lines }) },
+        ),
+
+      /** Fixes speech recognition mistakes; one word list per line. */
+      optimizeCaptions: (id: string, lines: string[][]) =>
+        request<{ lines: string[][] }>(`/api/subtitles/${id}/optimize`, {
+          method: "POST",
+          body: JSON.stringify({ lines }),
+        }),
+
+      /** Marks keywords and emojis on the words, by their index. */
+      findCaptionKeywords: (id: string, words: string[]) =>
+        request<CaptionMarkup>(`/api/subtitles/${id}/keywords`, {
+          method: "POST",
+          body: JSON.stringify({ words }),
         }),
 
       listSubtitlePresets: () =>

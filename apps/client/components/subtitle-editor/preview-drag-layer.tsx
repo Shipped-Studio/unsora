@@ -2,10 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import type { SizePositionValues } from "@/components/subtitle-editor/tabs/style-subtitles-tab";
+import {
+  WIDGET_DEFAULTS,
+  sizeToPixels,
+  type CaptionPlacement,
+  type Timeline,
+} from "@/components/subtitle-editor/caption-style";
 import type { TitleOverlayConfig } from "@/components/subtitle-editor/title-overlay";
 
-type TargetKey = "subtitles" | "title";
+/** "subtitles", "title", or "widget:<id>" for a speaker tag or call to action. */
+type TargetKey = string;
+const WIDGET_PREFIX = "widget:";
 
 interface Box {
   left: number;
@@ -39,22 +46,24 @@ function subtitleFallback(
   frameWidth: number,
   frameHeight: number,
   {
-    sizePosition,
+    placement,
     hasSubtitles,
     compositionWidth,
   }: {
-    sizePosition: SizePositionValues;
+    placement: CaptionPlacement;
     hasSubtitles: boolean;
     compositionWidth: number;
   },
 ): Box | null {
   if (!hasSubtitles) return null;
-  const scale = frameWidth / compositionWidth;
-  const width = Math.min(sizePosition.width, compositionWidth * 0.9) * scale;
-  const height = sizePosition.fontSize * 1.3 * scale;
+  const width = (placement.width / 100) * frameWidth;
+  const height =
+    sizeToPixels(placement.size, compositionWidth) *
+    1.15 *
+    (frameWidth / compositionWidth);
   return {
-    left: ((50 + sizePosition.xAxis) / 100) * frameWidth - width / 2,
-    top: frameHeight - (sizePosition.yAxis / 100) * frameHeight - height,
+    left: (placement.x / 100) * frameWidth - width / 2,
+    top: (placement.y / 100) * frameHeight - height / 2,
     width,
     height,
   };
@@ -66,8 +75,9 @@ interface Drag {
   side: -1 | 0 | 1;
   startX: number;
   startY: number;
-  sizePosition: SizePositionValues;
+  placement: CaptionPlacement;
   titleOverlay: TitleOverlayConfig;
+  timeline: Timeline;
 }
 
 /**
@@ -79,19 +89,23 @@ export function PreviewDragLayer({
   active,
   compositionWidth,
   hasSubtitles,
-  sizePosition,
-  onSizePositionChange,
+  placement,
+  onPlacementChange,
   titleOverlay,
   onTitleOverlayChange,
+  timeline,
+  onTimelineChange,
 }: {
   /** Measure only while the pointer is over the preview. */
   active: boolean;
   compositionWidth: number;
   hasSubtitles: boolean;
-  sizePosition: SizePositionValues;
-  onSizePositionChange: (values: SizePositionValues) => void;
+  placement: CaptionPlacement;
+  onPlacementChange: (values: CaptionPlacement) => void;
   titleOverlay: TitleOverlayConfig;
   onTitleOverlayChange: (config: TitleOverlayConfig) => void;
+  timeline: Timeline;
+  onTimelineChange: (timeline: Timeline) => void;
 }) {
   const layerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag | null>(null);
@@ -103,15 +117,17 @@ export function PreviewDragLayer({
 
   // Latest props for the pointer handlers, which outlive a render.
   const latest = useRef({
-    sizePosition,
+    placement,
     titleOverlay,
+    timeline,
     hasSubtitles,
     compositionWidth,
   });
   useEffect(() => {
     latest.current = {
-      sizePosition,
+      placement,
       titleOverlay,
+      timeline,
       hasSubtitles,
       compositionWidth,
     };
@@ -127,8 +143,7 @@ export function PreviewDragLayer({
       const frame = layer?.parentElement;
       if (layer && frame) {
         const origin = frame.getBoundingClientRect();
-        const find = (key: TargetKey): Box | null => {
-          const el = frame.querySelector(`[data-drag-target="${key}"]`);
+        const measureEl = (el: Element | null): Box | null => {
           if (!el) return null;
           const r = el.getBoundingClientRect();
           return {
@@ -138,17 +153,25 @@ export function PreviewDragLayer({
             height: r.height,
           };
         };
-        const next = {
+        const find = (key: TargetKey) =>
+          measureEl(frame.querySelector(`[data-drag-target="${key}"]`));
+        const next: Record<TargetKey, Box | null> = {
           subtitles:
             find("subtitles") ??
             subtitleFallback(origin.width, origin.height, latest.current),
           title: find("title"),
         };
-        setBoxes((prev) =>
-          sameBox(prev.subtitles, next.subtitles) && sameBox(prev.title, next.title)
+        frame
+          .querySelectorAll(`[data-drag-target^="${WIDGET_PREFIX}"]`)
+          .forEach((el) => {
+            next[el.getAttribute("data-drag-target")!] = measureEl(el);
+          });
+        setBoxes((prev) => {
+          const keys = new Set([...Object.keys(prev), ...Object.keys(next)]);
+          return [...keys].every((key) => sameBox(prev[key] ?? null, next[key] ?? null))
             ? prev
-            : next,
-        );
+            : next;
+        });
       }
       raf = requestAnimationFrame(measure);
     };
@@ -171,8 +194,9 @@ export function PreviewDragLayer({
         side,
         startX: event.clientX,
         startY: event.clientY,
-        sizePosition: latest.current.sizePosition,
+        placement: latest.current.placement,
         titleOverlay: latest.current.titleOverlay,
+        timeline: latest.current.timeline,
       };
       setDragging(key);
     };
@@ -185,26 +209,41 @@ export function PreviewDragLayer({
       frame.getBoundingClientRect();
     const dxPct = ((event.clientX - drag.startX) / frameWidth) * 100;
     const dyPct = ((event.clientY - drag.startY) / frameHeight) * 100;
-    const compW = latest.current.compositionWidth;
 
-    if (drag.key === "subtitles") {
-      const start = drag.sizePosition;
-      onSizePositionChange(
+    if (drag.key.startsWith(WIDGET_PREFIX)) {
+      const id = drag.key.slice(WIDGET_PREFIX.length);
+      const start = drag.timeline.widgets.find((w) => w.id === id);
+      if (!start) return;
+      const defaults = WIDGET_DEFAULTS[start.kind];
+      const moved =
         drag.side === 0
           ? {
-              ...latest.current.sizePosition,
-              // yAxis is the distance from the bottom, so dragging down lowers it.
-              yAxis: roundHalf(clamp(start.yAxis - dyPct, 0, 95)),
+              x: roundHalf(clamp((start.x ?? defaults.x) + dxPct, 0, 100)),
+              y: roundHalf(clamp((start.y ?? defaults.y) + dyPct, 0, 100)),
             }
           : {
-              ...latest.current.sizePosition,
-              width: Math.round(
-                clamp(
-                  start.width + ((drag.side * 2 * dxPct) / 100) * compW,
-                  100,
-                  compW * 0.9,
-                ),
+              size: Math.round(
+                clamp((start.size ?? defaults.size) + drag.side * 2 * dxPct, 20, 150),
               ),
+            };
+      const current = latest.current.timeline;
+      onTimelineChange({
+        ...current,
+        widgets: current.widgets.map((w) => (w.id === id ? { ...w, ...moved } : w)),
+      });
+      return;
+    }
+    if (drag.key === "subtitles") {
+      const start = drag.placement;
+      onPlacementChange(
+        drag.side === 0
+          ? {
+              ...latest.current.placement,
+              y: roundHalf(clamp(start.y + dyPct, 0, 100)),
+            }
+          : {
+              ...latest.current.placement,
+              width: Math.round(clamp(start.width + drag.side * 2 * dxPct, 10, 100)),
             },
       );
     } else {
@@ -231,15 +270,36 @@ export function PreviewDragLayer({
   };
 
   const nudge = (key: TargetKey) => (event: React.KeyboardEvent) => {
+    if (key.startsWith(WIDGET_PREFIX)) {
+      const dx = event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
+      const dy = event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0;
+      if (!dx && !dy) return;
+      event.preventDefault();
+      const id = key.slice(WIDGET_PREFIX.length);
+      const current = latest.current.timeline;
+      onTimelineChange({
+        ...current,
+        widgets: current.widgets.map((w) => {
+          if (w.id !== id) return w;
+          const defaults = WIDGET_DEFAULTS[w.kind];
+          return {
+            ...w,
+            x: clamp((w.x ?? defaults.x) + dx * KEY_STEP, 0, 100),
+            y: clamp((w.y ?? defaults.y) + dy * KEY_STEP, 0, 100),
+          };
+        }),
+      });
+      return;
+    }
     const direction =
       event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0;
     if (!direction) return;
     event.preventDefault();
     if (key === "subtitles") {
-      const sp = latest.current.sizePosition;
-      onSizePositionChange({
-        ...sp,
-        yAxis: clamp(sp.yAxis - direction * KEY_STEP, 0, 95),
+      const current = latest.current.placement;
+      onPlacementChange({
+        ...current,
+        y: clamp(current.y + direction * KEY_STEP, 0, 100),
       });
     } else {
       const title = latest.current.titleOverlay;
@@ -253,6 +313,12 @@ export function PreviewDragLayer({
   const targets: { key: TargetKey; label: string }[] = [
     { key: "subtitles", label: "Subtitles" },
     { key: "title", label: "Hook title" },
+    ...Object.keys(boxes)
+      .filter((key) => key.startsWith(WIDGET_PREFIX))
+      .map((key) => {
+        const widget = timeline.widgets.find((w) => w.id === key.slice(WIDGET_PREFIX.length));
+        return { key, label: widget?.kind === "cta" ? "Call to action" : "Speaker" };
+      }),
   ];
 
   return (
@@ -267,7 +333,11 @@ export function PreviewDragLayer({
             data-drag-box
             role="group"
             tabIndex={0}
-            aria-label={`${label}: drag to move up or down, drag a corner to resize. Arrow keys move it too.`}
+            aria-label={
+              key.startsWith(WIDGET_PREFIX)
+                ? `${label}: drag to move it, drag a corner to resize. Arrow keys move it too.`
+                : `${label}: drag to move up or down, drag a corner to resize. Arrow keys move it too.`
+            }
             onPointerDown={startDrag(key, 0)}
             onPointerMove={onPointerMove}
             onPointerUp={endDrag}
@@ -282,7 +352,7 @@ export function PreviewDragLayer({
               top: box.top - BOX_PADDING,
               width: box.width + BOX_PADDING * 2,
               height: box.height + BOX_PADDING * 2,
-              zIndex: key === "title" ? 2 : 1,
+              zIndex: key === "subtitles" ? 1 : 2,
             }}
           >
             <div

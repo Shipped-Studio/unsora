@@ -93,6 +93,9 @@ function SubtitleProject({ id }: { id: string }) {
       onStartTranscription={data.startTranscription}
       onChunksChange={data.setChunks}
       onRefreshExports={data.refreshExports}
+      aiTools={data.aiTools}
+      onRunAiTool={data.runAiTool}
+      onRemoveAiTool={data.removeAiTool}
     />
   );
 }

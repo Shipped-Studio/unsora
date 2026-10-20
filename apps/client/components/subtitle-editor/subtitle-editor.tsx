@@ -7,10 +7,11 @@ import {
   DownloadSimple,
   Drop,
   FloppyDisk,
+  FilmStrip,
   Palette,
+  Sparkle,
   PencilSimple,
   Subtitles,
-  TextT,
 } from "@phosphor-icons/react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,41 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  attachPunctuation,
+  resplitChunks,
+  sameCaptionCuts,
+  type CaptionLayout,
+} from "@/components/subtitle-editor/caption-layout";
+import {
+  CAPTION_PLACEMENT_LIMITS,
+  DEFAULT_CAPTION_WIDTH,
+  presetLayout,
+  presetPlacement,
+  timelineDuration,
+  EMPTY_TIMELINE,
+  type CaptionPlacement,
+  type Timeline,
+  type TransitionId,
+  type ZoomStyle,
+} from "@/components/subtitle-editor/caption-style";
+
+// An AI zoom eases back within this long, however long its scene is.
+const AUTO_ZOOM_SECONDS = 2.5;
+import {
+  applyCaptionMarkup,
+  replaceLineWords,
+} from "@/components/subtitle-editor/chunk-edits";
 import { DeleteDialog } from "@/components/subtitle-editor/delete-dialog";
 import {
   ExportPopover,
@@ -38,10 +74,9 @@ import {
   type SubtitleStylePreset,
 } from "@/components/subtitle-editor/style-presets";
 import {
-  EditSubtitlesTab,
+  CaptionsTab,
   TRANSCRIPTION_LANGUAGES,
 } from "@/components/subtitle-editor/tabs/edit-subtitles-tab";
-import { EditTitleTab } from "@/components/subtitle-editor/tabs/edit-title-tab";
 import { normalizeTitleOverlay } from "@/components/subtitle-editor/title-overlay";
 import {
   EditWatermarkTab,
@@ -54,11 +89,13 @@ import {
   getCompositionDimensions,
   type PreviewStyleConfig,
 } from "@/components/subtitle-editor/tabs/preview-style-tab";
+import { StyleSubtitlesTab } from "@/components/subtitle-editor/tabs/style-subtitles-tab";
+import { BrollsTab } from "@/components/subtitle-editor/tabs/brolls-tab";
 import {
-  SIZE_POSITION_DEFAULTS,
-  StyleSubtitlesTab,
-  type SizePositionValues,
-} from "@/components/subtitle-editor/tabs/style-subtitles-tab";
+  AI_TOOL_ICONS,
+  AiToolsTab,
+  type AiToolRow,
+} from "@/components/subtitle-editor/tabs/ai-tools-tab";
 import { UploadDialog } from "@/components/subtitle-editor/upload-dialog";
 import {
   VideoPreview,
@@ -74,19 +111,21 @@ import {
 import type { TranscriptionStatus } from "@/hooks/subtitle/use-transcription-data";
 import { cn } from "@/lib/utils";
 import type {
+  AiToolState,
   SubtitleChunk,
   TranscriptionData,
   VideoExportItem,
 } from "@/remotion/types";
+import type { CaptionScene } from "@/hooks/subtitle/use-subtitle-api";
 
 export const EDITOR_PARENTS = [{ label: "Subtitles", href: "/subtitle-editor" }];
 
-/** Two cards side by side on large screens; each scrolls on its own. */
+/** Editor and preview side by side on large screens; each scrolls on its own. */
 const LAYOUT_CLASS =
-  "grid grid-cols-1 gap-4 p-4 md:p-6 lg:h-[calc(100svh-5.5rem)] lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]";
-const CARD_CLASS = "min-h-0 min-w-0 overflow-hidden rounded-2xl border bg-card";
+  "grid grid-cols-1 lg:h-[calc(100svh-5.5rem)] lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]";
+const CARD_CLASS = "min-h-0 min-w-0 overflow-hidden";
 const PANEL_CLASS = "mx-auto w-full max-w-3xl px-4 py-5 md:px-6";
-const PREVIEW_CLASS = cn(CARD_CLASS, "p-4 md:p-5");
+const PREVIEW_CLASS = cn(CARD_CLASS, "border-t p-4 md:p-5 lg:border-t-0 lg:border-l");
 /** Vertical menu items; a scrolling row on small screens. */
 const NAV_ITEM_CLASS =
   "h-9 flex-none justify-start px-3 after:hidden data-active:bg-muted! data-active:text-foreground max-md:w-auto!";
@@ -95,22 +134,65 @@ interface StoredSettings {
   selectedPresetId?: string;
   /** The selected preset with any customizations. */
   preset?: SubtitleStylePreset;
-  sizePosition?: Partial<SizePositionValues>;
+  placement?: Partial<CaptionPlacement>;
+  /** Projects saved before placement: pixels, measured from the bottom. */
+  sizePosition?: { fontSize?: number; xAxis?: number; yAxis?: number; width?: number };
   titleOverlay?: unknown;
   watermarkOverlay?: Partial<WatermarkOverlayConfig>;
   previewStyle?: Partial<PreviewStyleConfig>;
+  /** AI scenes, from AI Auto Zooms or the B-rolls tab. */
+  scenes?: CaptionScene[];
+  timeline?: Partial<Timeline>;
+}
+
+const clampTo = (n: number, { min, max }: { min: number; max: number }) =>
+  Math.min(max, Math.max(min, n));
+
+/** The project's template; older saves get today's version of their look. */
+function readPreset(stored: StoredSettings): SubtitleStylePreset {
+  const builtIn = SUBTITLE_PRESETS.find((p) => p.id === stored.selectedPresetId);
+  const saved =
+    stored.preset && stored.preset.id === stored.selectedPresetId
+      ? stored.preset
+      : undefined;
+  if (saved?.position) return saved;
+  return builtIn ?? (saved ? { ...SUBTITLE_PRESETS[0], ...saved } : SUBTITLE_PRESETS[0]);
+}
+
+function readPlacement(
+  stored: StoredSettings,
+  preset: SubtitleStylePreset,
+  frameWidth: number,
+): CaptionPlacement {
+  if (stored.placement) {
+    return { ...presetPlacement(preset), ...stored.placement };
+  }
+  const old = stored.sizePosition;
+  if (!old) return presetPlacement(preset);
+  const limits = CAPTION_PLACEMENT_LIMITS;
+  return {
+    size: clampTo(((old.fontSize ?? 43) * 540) / frameWidth, limits.size),
+    x: clampTo(50 + (old.xAxis ?? 0), limits.x),
+    // The old value was the distance of the text's bottom from the frame's.
+    y: clampTo(97 - (old.yAxis ?? 20), limits.y),
+    width: old.width
+      ? clampTo((old.width / frameWidth) * 100, limits.width)
+      : DEFAULT_CAPTION_WIDTH,
+  };
 }
 
 function readSettings(project: TranscriptionData) {
   const stored = (project.editorSettings ?? {}) as StoredSettings;
   const previewStyle = { ...PREVIEW_STYLE_DEFAULTS, ...stored.previewStyle };
+  const frame = getCompositionDimensions(
+    previewStyle,
+    project.width ?? 1080,
+    project.height ?? 1920,
+  );
+  const preset = readPreset(stored);
   return {
-    preset:
-      stored.preset && stored.preset.id === stored.selectedPresetId
-        ? stored.preset
-        : (SUBTITLE_PRESETS.find((p) => p.id === stored.selectedPresetId) ??
-          SUBTITLE_PRESETS[0]),
-    sizePosition: { ...SIZE_POSITION_DEFAULTS, ...stored.sizePosition },
+    preset,
+    placement: readPlacement(stored, preset, frame.width),
     titleOverlay: normalizeTitleOverlay(
       stored.titleOverlay,
       getCompositionDimensions(
@@ -124,6 +206,8 @@ function readSettings(project: TranscriptionData) {
       ...stored.watermarkOverlay,
     },
     previewStyle,
+    scenes: Array.isArray(stored.scenes) ? stored.scenes : [],
+    timeline: { ...EMPTY_TIMELINE, ...stored.timeline },
   };
 }
 
@@ -148,9 +232,15 @@ interface SubtitleEditorProps {
   status: TranscriptionStatus;
   transcriptionError: string | null;
   isStarting: boolean;
-  onStartTranscription: (options: { language: string }) => void;
+  onStartTranscription: (options: {
+    language: string;
+    layout: CaptionLayout;
+  }) => void;
   onChunksChange: (chunks: SubtitleChunk[]) => void;
   onRefreshExports: () => Promise<void>;
+  aiTools: Record<string, AiToolState>;
+  onRunAiTool: (tool: string) => Promise<{ scenes?: CaptionScene[] } | null>;
+  onRemoveAiTool: (tool: string) => Promise<boolean>;
 }
 
 /**
@@ -165,6 +255,9 @@ export function SubtitleEditor({
   onStartTranscription,
   onChunksChange,
   onRefreshExports,
+  aiTools,
+  onRunAiTool,
+  onRemoveAiTool,
 }: SubtitleEditorProps) {
   const api = useSubtitleApi();
   const queryClient = useQueryClient();
@@ -174,7 +267,7 @@ export function SubtitleEditor({
   const [initial] = useState(() => readSettings(project));
   const [title, setTitle] = useState(() => projectDisplayTitle(project));
   const [preset, setPreset] = useState<SubtitleStylePreset>(initial.preset);
-  const [sizePosition, setSizePosition] = useState(initial.sizePosition);
+  const [placement, setPlacement] = useState(initial.placement);
   const [titleOverlay, setTitleOverlay] = useState(initial.titleOverlay);
   const [watermarkOverlay, setWatermarkOverlay] = useState(
     initial.watermarkOverlay,
@@ -184,6 +277,7 @@ export function SubtitleEditor({
 
   const [activeTab, setActiveTab] = useState("edit");
   const [activeChunkIndex, setActiveChunkIndex] = useState(-1);
+  const [activeWord, setActiveWord] = useState<{ c: number; w: number } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -193,6 +287,14 @@ export function SubtitleEditor({
     null,
   );
   const seekRef = useRef<SeekFn | null>(null);
+  // Set once the user chooses to keep hand-edited lines over a style's cut.
+  const [keepLines, setKeepLines] = useState(false);
+  const [pendingPreset, setPendingPreset] =
+    useState<SubtitleStylePreset | null>(null);
+  const currentTimeRef = useRef(0);
+  const [captionsView, setCaptionsView] = useState<"captions" | "hook">("captions");
+  const [scenes, setScenes] = useState<CaptionScene[]>(initial.scenes);
+  const [timeline, setTimeline] = useState<Timeline>(initial.timeline);
 
   const exportJob = useExportJob({ onSettled: () => void onRefreshExports() });
 
@@ -200,10 +302,145 @@ export function SubtitleEditor({
   const chunks = project.subtitleChunks;
   const exportCount = project.videoExports.length;
 
+  const isTranscribing = status === "pending" || status === "processing";
+
+  /** Older transcripts have no punctuation on their words; it's read from the text. */
+  const withPunctuation = (list: SubtitleChunk[]): SubtitleChunk[] => {
+    if (list.some((c) => c.words.some((w) => w.punctuation !== undefined))) {
+      return list;
+    }
+    const words = attachPunctuation(
+      list.flatMap((c) => c.words),
+      project.text ?? "",
+    );
+    let index = 0;
+    return list.map((chunk) => ({
+      ...chunk,
+      words: chunk.words.map(() => words[index++]),
+    }));
+  };
+
+  const recut = (list: SubtitleChunk[], layout: CaptionLayout) =>
+    resplitChunks(withPunctuation(list), layout);
+
+  /** True when the lines are exactly as `layout` would cut them. */
+  const linesUntouched = (layout: CaptionLayout) =>
+    sameCaptionCuts(chunks, recut(chunks, layout));
+
+  const changePreset = (next: SubtitleStylePreset) => {
+    // A different template brings its own size and position, as in Submagic.
+    if (next.id !== preset.id) {
+      setPlacement(presetPlacement(next, placement.width));
+    }
+    const before = presetLayout(preset);
+    const after = presetLayout(next);
+    const layoutChanged = JSON.stringify(before) !== JSON.stringify(after);
+    if (!layoutChanged || keepLines || isTranscribing || !chunks.length) {
+      setPreset(next);
+      return;
+    }
+    if (linesUntouched(before)) {
+      setPreset(next);
+      onChunksChange(recut(chunks, after));
+      return;
+    }
+    setPendingPreset(next);
+  };
+
+  /** Re-runs the AI emoji picks; a transcript with no highlights gets those too. */
+  const regenerateEmojis = async () => {
+    const words = chunks.flatMap((c) => c.words.map((w) => w.word));
+    if (!words.length) return;
+    const untouched = !keepLines && linesUntouched(presetLayout(preset));
+    const result = await api.findCaptionKeywords(project.id, words);
+    if (!result.success || !result.data) {
+      toast.error(failureMessage("pick emojis", result.error));
+      return;
+    }
+    const hasHighlights = chunks.some((c) => c.words.some((w) => w.keyword));
+    const current = chunks.flatMap((c) => c.words);
+    const marked = applyCaptionMarkup(chunks, {
+      emojis: result.data.emojis,
+      keywords: hasHighlights
+        ? current.flatMap((w, index) => (w.keyword ? [{ index, level: w.keyword }] : []))
+        : result.data.keywords,
+    });
+    // Solo keywords depend on highlights, so untouched lines are re-cut.
+    onChunksChange(
+      untouched && !hasHighlights ? recut(marked, presetLayout(preset)) : marked,
+    );
+    toast.success(`Picked ${result.data.emojis.length} emojis`);
+  };
+
+  const optimize = async () => {
+    const result = await api.optimizeCaptions(
+      project.id,
+      chunks.map((c) => c.words.map((w) => w.word)),
+    );
+    if (!result.success || !result.data) {
+      toast.error(failureMessage("optimize the captions", result.error));
+      return;
+    }
+    const before = chunks.map((c) => c.words.map((w) => w.word).join(" "));
+    const changed = result.data.lines.filter((line, i) => line.join(" ") !== before[i]).length;
+    onChunksChange(replaceLineWords(chunks, result.data.lines));
+    toast.success(
+      changed
+        ? `Fixed ${changed} ${changed === 1 ? "line" : "lines"}`
+        : "No mistakes found",
+    );
+  };
+
+  const translate = async (targetLanguage: string) => {
+    const result = await api.translateCaptions(
+      project.id,
+      targetLanguage,
+      chunks.map((c) => c.words.map((w) => w.word).join(" ")),
+    );
+    if (!result.success || !result.data) {
+      toast.error(failureMessage("translate the captions", result.error));
+      return false;
+    }
+    const translated = replaceLineWords(
+      chunks,
+      result.data.lines.map((line) => line.split(/\s+/)),
+    ).map((chunk) => ({
+      ...chunk,
+      // The highlights and emojis were for the old words.
+      words: chunk.words.map((word) => {
+        const fresh = { ...word };
+        delete fresh.keyword;
+        delete fresh.emoji;
+        delete fresh.punctuation;
+        return fresh;
+      }),
+    }));
+    onChunksChange(recut(translated, presetLayout(preset)));
+    toast.success(`Translated to ${targetLanguage}`);
+    return true;
+  };
+
+  // Whisper's confidence, weighted by how long each segment is.
+  const accuracy = (() => {
+    const scored = (project.segments ?? []).filter(
+      (s) => typeof s.confidence === "number",
+    );
+    const total = scored.reduce((n, s) => n + (s.end - s.start), 0);
+    if (!total) return null;
+    return (
+      (scored.reduce((n, s) => n + s.confidence! * (s.end - s.start), 0) / total) * 100
+    );
+  })();
+
   const handleTimeUpdate = useCallback(
     (time: number) => {
-      const index = chunks.findIndex((c) => time >= c.start && time <= c.end);
+      currentTimeRef.current = time;
+      const index = chunks.findIndex((c) => time >= c.start && time < c.end);
       setActiveChunkIndex(index);
+      const w = index < 0 ? -1 : chunks[index].words.findIndex((x) => time >= x.start && time < x.end);
+      setActiveWord((prev) =>
+        w < 0 ? null : prev?.c === index && prev.w === w ? prev : { c: index, w },
+      );
     },
     [chunks],
   );
@@ -212,22 +449,21 @@ export function SubtitleEditor({
     seekRef.current?.(seconds);
   }, []);
 
-  const handlePlayFrom = useCallback((seconds: number) => {
-    seekRef.current?.(seconds, { preview: true });
-  }, []);
 
   const currentSettings = () => ({
     selectedPresetId: preset.id,
     preset,
-    sizePosition,
+    placement,
     titleOverlay,
     watermarkOverlay,
     previewStyle,
+    scenes,
+    timeline,
   });
 
-  const save = async () => {
+  /** Saves the project; `quiet` skips the toast. Resolves true when saved. */
+  const save = async (quiet = false) => {
     setIsSaving(true);
-    const isTranscribing = status === "pending" || status === "processing";
     const result = await api.updateTranscription(project.id, {
       title,
       editorSettings: currentSettings(),
@@ -239,12 +475,227 @@ export function SubtitleEditor({
     setIsSaving(false);
     if (!result.success) {
       toast.error(failureMessage("save your changes", result.error));
-      return;
+      return false;
     }
-    toast.success("Changes saved");
+    if (!quiet) toast.success("Changes saved");
     void queryClient.invalidateQueries({
       queryKey: subtitleQueryKeys.projects(),
     });
+    return true;
+  };
+
+  // AI Tools ---------------------------------------------------------------
+
+  const toolState = (tool: string): Pick<AiToolRow, "status" | "note"> => {
+    const state = aiTools[tool];
+    if (!state) return { status: "inactive" };
+    if (state.status === "running") return { status: "running" };
+    if (state.status === "failed") return { status: "failed", note: state.error };
+    // A pass that changed nothing can be run again.
+    return state.snapshot ? { status: "active" } : { status: "inactive", note: state.note };
+  };
+
+  /** Video passes work on the saved project, so it's saved first. */
+  const runVideoTool = async (tool: string) => {
+    if (!(await save(true))) return;
+    await onRunAiTool(tool);
+  };
+
+  const activateZooms = async () => {
+    if (!(await save(true))) return;
+    const result = await onRunAiTool("auto-zooms");
+    if (!result?.scenes) return;
+    setScenes(result.scenes);
+    setPreviewStyle({
+      ...previewStyle,
+      zooms: result.scenes.flatMap((scene) =>
+        scene.zoom
+          ? [
+              {
+                start: scene.start,
+                end: Math.min(scene.end, scene.start + AUTO_ZOOM_SECONDS),
+                type: scene.zoom as ZoomStyle,
+              },
+            ]
+          : [],
+      ),
+    });
+    toast.success(`Added zooms to ${result.scenes.filter((s) => s.zoom).length} scenes`);
+  };
+
+  const activateBrolls = async () => {
+    if (!(await save(true))) return;
+    const result = await api.autoBrolls(project.id, {
+      percent: 49,
+      videoType: "free",
+      transitions: true,
+      orientation: frameOrientation,
+      scenes: scenes.length ? scenes : undefined,
+    });
+    if (!result.success || !result.data) {
+      toast.error(failureMessage("add B-rolls", result.error));
+      return;
+    }
+    if (!scenes.length) setScenes(result.data.scenes);
+    setTimeline({
+      ...timeline,
+      brolls: result.data.clips.map((clip, n) => ({
+        id: `${Date.now()}-${n}`,
+        start: clip.start,
+        end: clip.end,
+        kind: clip.media.kind,
+        url: clip.media.url,
+        thumbnailUrl: clip.media.thumbnailUrl,
+        vendor: clip.media.vendor,
+        sourceUrl: clip.media.sourceUrl,
+        author: clip.media.author,
+        layout: (["cover", "split-50-50", "split-35-65"] as const)[n % 3],
+      })),
+      transitions: result.data.clips.flatMap((clip) =>
+        clip.transition ? [{ at: clip.start, id: clip.transition as TransitionId }] : [],
+      ),
+    });
+    toast.success(`Added ${result.data.clips.length} B-rolls`);
+  };
+
+  const activateHook = async () => {
+    const hook = await generateHook(titleOverlay.history);
+    if (!hook) return;
+    setTitleOverlay({
+      ...titleOverlay,
+      enabled: true,
+      text: hook,
+      history: [hook, ...titleOverlay.history.filter((h) => h !== hook)].slice(0, 10),
+    });
+  };
+
+  const hasCaptions = chunks.some((c) => !c.hidden);
+  const frame = getCompositionDimensions(
+    previewStyle,
+    project.width ?? 1080,
+    project.height ?? 1920,
+  );
+  const frameOrientation =
+    frame.width === frame.height ? "square" : frame.width > frame.height ? "landscape" : "portrait";
+  const toolGroups: { title: string; tools: AiToolRow[] }[] = [
+    {
+      title: "Hook Them",
+      tools: [
+        {
+          id: "captions",
+          name: "AI Captions",
+          description: "Auto-generate styled subtitles",
+          icon: AI_TOOL_ICONS.captions,
+          status: isTranscribing ? "running" : hasCaptions ? "active" : "inactive",
+          actions: [
+            { label: "Style", onClick: () => setActiveTab("style") },
+            { label: "Edit", onClick: () => openCaptions("captions") },
+          ],
+          onRemove: () => onChunksChange(chunks.map((c) => ({ ...c, hidden: true }))),
+          onActivate: () =>
+            chunks.length
+              ? onChunksChange(chunks.map((c) => ({ ...c, hidden: false })))
+              : onStartTranscription({ language, layout: presetLayout(preset) }),
+        },
+        {
+          id: "brolls",
+          name: "AI Auto B-rolls",
+          description: "Swap moments with relevant footage",
+          icon: AI_TOOL_ICONS.brolls,
+          status: timeline.brolls.length ? "active" : "inactive",
+          actions: [{ label: "Edit", onClick: () => setActiveTab("brolls") }],
+          onRemove: () => setTimeline({ ...timeline, brolls: [], transitions: [] }),
+          onActivate: activateBrolls,
+        },
+        {
+          id: "auto-zooms",
+          name: "AI Auto Zooms",
+          description: "Auto-zoom on key moments",
+          icon: AI_TOOL_ICONS.zooms,
+          credits: 1,
+          status: previewStyle.zooms?.length ? "active" : "inactive",
+          onActivate: activateZooms,
+          onRemove: () => setPreviewStyle({ ...previewStyle, zooms: undefined }),
+        },
+        {
+          id: "hook",
+          name: "AI Hook Title",
+          description: "Generate an attention-grabbing intro",
+          icon: AI_TOOL_ICONS.hook,
+          status: titleOverlay.enabled && titleOverlay.text.trim() ? "active" : "inactive",
+          actions: [{ label: "Edit", onClick: () => openCaptions("hook") }],
+          onRemove: () => setTitleOverlay({ ...titleOverlay, enabled: false, text: "" }),
+          onActivate: activateHook,
+        },
+      ],
+    },
+    {
+      title: "Sound Good",
+      tools: [
+        {
+          id: "clean-audio",
+          name: "Clean Audio",
+          description: "Make your audio sound professional",
+          icon: AI_TOOL_ICONS.cleanAudio,
+          credits: 2,
+          ...toolState("clean-audio"),
+          onActivate: () => runVideoTool("clean-audio"),
+          onRemove: () => void onRemoveAiTool("clean-audio"),
+        },
+        {
+          id: "remove-silence",
+          name: "Remove Silence",
+          description: "Cut pauses to tighten pacing",
+          icon: AI_TOOL_ICONS.silence,
+          credits: 2,
+          ...toolState("remove-silence"),
+          onActivate: () => runVideoTool("remove-silence"),
+          onRemove: () => void onRemoveAiTool("remove-silence"),
+        },
+      ],
+    },
+    {
+      title: "Look Good",
+      tools: [
+        {
+          id: "eye-contact",
+          name: "Correct Eye Contact",
+          description: "Make eyes look at the camera",
+          icon: AI_TOOL_ICONS.eyeContact,
+          credits: 3,
+          status: "unavailable",
+        },
+        {
+          id: "remove-bad-takes",
+          name: "Remove Bad Takes",
+          description: "Detect and remove repeated takes",
+          icon: AI_TOOL_ICONS.badTakes,
+          credits: 2,
+          ...toolState("remove-bad-takes"),
+          onActivate: () => runVideoTool("remove-bad-takes"),
+          onRemove: () => void onRemoveAiTool("remove-bad-takes"),
+        },
+      ],
+    },
+  ];
+
+  const openCaptions = (view: "captions" | "hook") => {
+    setCaptionsView(view);
+    setActiveTab("edit");
+  };
+
+  const [isTitling, setIsTitling] = useState(false);
+  const writeTitle = async () => {
+    setIsTitling(true);
+    const result = await api.writeProjectTitle(project.id);
+    setIsTitling(false);
+    if (!result.success || !result.data) {
+      toast.error(failureMessage("write a title", result.error));
+      return;
+    }
+    setTitle(result.data.title);
+    toast.success("Project renamed");
+    void queryClient.invalidateQueries({ queryKey: subtitleQueryKeys.projects() });
   };
 
   const rename = async (next: string) => {
@@ -284,7 +735,7 @@ export function SubtitleEditor({
       videoUrl,
       subtitleChunks: chunks,
       style: { fileName, ...currentSettings() },
-      duration: project.duration ?? 0,
+      duration: timelineDuration(timeline, project.duration ?? 0),
       width,
       height,
     });
@@ -312,6 +763,15 @@ export function SubtitleEditor({
         actions={
           <>
             <Button
+              variant="outline"
+              size="sm"
+              disabled={isTitling || !project.text?.trim()}
+              onClick={writeTitle}
+            >
+              {isTitling ? <Spinner /> : <Sparkle />}
+              AI title
+            </Button>
+            <Button
               variant="ghost"
               size="icon-sm"
               aria-label="Rename project"
@@ -321,7 +781,7 @@ export function SubtitleEditor({
             </Button>
             <Button
               variant="outline"
-              onClick={save}
+              onClick={() => void save()}
               disabled={isSaving}
             >
               {isSaving ? <Spinner /> : <FloppyDisk />}
@@ -357,11 +817,15 @@ export function SubtitleEditor({
             </TabsTrigger>
             <TabsTrigger value="edit" className={NAV_ITEM_CLASS}>
               <Subtitles />
-              Subtitles
+              Captions
             </TabsTrigger>
-            <TabsTrigger value="title" className={NAV_ITEM_CLASS}>
-              <TextT />
-              Hook title
+            <TabsTrigger value="ai" className={NAV_ITEM_CLASS}>
+              <Sparkle />
+              AI Tools
+            </TabsTrigger>
+            <TabsTrigger value="brolls" className={NAV_ITEM_CLASS}>
+              <FilmStrip />
+              B-rolls
             </TabsTrigger>
             <TabsTrigger value="watermark" className={NAV_ITEM_CLASS}>
               <Drop />
@@ -382,35 +846,73 @@ export function SubtitleEditor({
           <TabsContent value="style" className={PANEL_CLASS}>
             <StyleSubtitlesTab
               preset={preset}
-              onPresetChange={setPreset}
-              sizePosition={sizePosition}
-              onSizePositionChange={setSizePosition}
+              onPresetChange={changePreset}
+              placement={placement}
+              onPlacementChange={setPlacement}
+              previewStyle={previewStyle}
+              onPreviewStyleChange={setPreviewStyle}
             />
           </TabsContent>
           <TabsContent value="edit" className={PANEL_CLASS}>
-            <EditSubtitlesTab
+            <CaptionsTab
               hasVideo={Boolean(videoUrl)}
               status={status}
               transcriptionError={transcriptionError}
               chunks={chunks}
               isStarting={isStarting}
               activeChunkIndex={activeChunkIndex}
+              activeWord={activeWord}
               language={language}
               onStartTranscription={(options) => {
                 setLanguage(options.language);
-                onStartTranscription(options);
+                setKeepLines(false);
+                onStartTranscription({
+                  ...options,
+                  layout: presetLayout(preset),
+                });
               }}
               onChunksChange={onChunksChange}
               onSeek={handleSeek}
-              onPlayFrom={handlePlayFrom}
+              preset={preset}
+              placement={placement}
+              templates={SUBTITLE_PRESETS.filter((p) => p.group !== "archived")}
+              accuracy={accuracy}
+              onOptimize={optimize}
+              onRegenerateEmojis={regenerateEmojis}
+              onTranslate={translate}
+              titleOverlay={titleOverlay}
+              onTitleOverlayChange={setTitleOverlay}
+              onGenerateHook={generateHook}
+              canGenerateHook={Boolean(project.text?.trim())}
+              getCurrentTime={() => currentTimeRef.current}
+              view={captionsView}
+              onViewChange={setCaptionsView}
             />
           </TabsContent>
-          <TabsContent value="title" className={PANEL_CLASS}>
-            <EditTitleTab
-              config={titleOverlay}
-              onChange={setTitleOverlay}
-              onGenerate={generateHook}
-              canGenerate={Boolean(project.text?.trim())}
+          <TabsContent value="ai" className={PANEL_CLASS}>
+            <AiToolsTab groups={toolGroups} />
+          </TabsContent>
+          <TabsContent value="brolls" className={PANEL_CLASS}>
+            <BrollsTab
+              api={api}
+              projectId={project.id}
+              videoUrl={videoUrl}
+              chunks={chunks}
+              duration={project.duration ?? 0}
+              currentTime={chunks[activeChunkIndex]?.start ?? -1}
+              orientation={frameOrientation}
+              scenes={scenes}
+              onScenesChange={setScenes}
+              timeline={timeline}
+              onTimelineChange={setTimeline}
+              zooms={previewStyle.zooms ?? []}
+              onZoomsChange={(zooms) =>
+                setPreviewStyle({ ...previewStyle, zooms: zooms.length ? zooms : undefined })
+              }
+              defaultLayout={previewStyle.brollLayout}
+              onAutoZooms={activateZooms}
+              onOpenHookTitle={() => openCaptions("hook")}
+              onSeek={handleSeek}
             />
           </TabsContent>
           <TabsContent value="watermark" className={PANEL_CLASS}>
@@ -435,12 +937,14 @@ export function SubtitleEditor({
               durationSeconds={project.duration ?? 0}
               subtitleChunks={chunks}
               selectedPreset={preset}
-              sizePosition={sizePosition}
+              placement={placement}
               titleOverlay={titleOverlay}
               watermarkOverlay={watermarkOverlay}
               previewStyle={previewStyle}
-              onSizePositionChange={setSizePosition}
+              timeline={timeline}
+              onPlacementChange={setPlacement}
               onTitleOverlayChange={setTitleOverlay}
+              onTimelineChange={setTimeline}
               onPreviewStyleChange={setPreviewStyle}
               onUploadVideo={() => setUploadOpen(true)}
               onTimeUpdate={handleTimeUpdate}
@@ -472,6 +976,48 @@ export function SubtitleEditor({
         onConfirm={confirmDeleteExport}
         onCancel={() => setPendingDelete(null)}
       />
+
+      <AlertDialog
+        open={pendingPreset !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingPreset(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Re-cut the lines for this style?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingPreset
+                ? `${pendingPreset.name} shows up to ${presetLayout(pendingPreset).wordsPerCaption} ${presetLayout(pendingPreset).wordsPerCaption === 1 ? "word" : "words"} at a time. `
+                : ""}
+              Re-cutting replaces line breaks and lines you moved or split by
+              hand. Your word edits stay.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                if (pendingPreset) setPreset(pendingPreset);
+                setKeepLines(true);
+                setPendingPreset(null);
+              }}
+            >
+              Keep my lines
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingPreset) {
+                  setPreset(pendingPreset);
+                  onChunksChange(recut(chunks, presetLayout(pendingPreset)));
+                }
+                setPendingPreset(null);
+              }}
+            >
+              Re-cut lines
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <ExportProgressDialog
         open={exportOpen}

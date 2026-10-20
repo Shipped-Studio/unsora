@@ -1,39 +1,44 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useState } from "react";
 import {
-  ClockCounterClockwise,
+  ArrowLeft,
+  ArrowsClockwise,
+  Clock,
   KeyReturn,
+  Plus,
   Sparkle,
   Trash,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
-  PopoverHeader,
-  PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
-import { Textarea } from "@/components/ui/textarea";
 import {
-  ChoiceGroup,
-  ChoiceItem,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   ColorField,
   EditorSection,
   FONT_SELECT_OPTIONS,
-  FONT_WEIGHT_OPTIONS,
-  FieldCaption,
   OVERLAY_COLORS,
   SelectField,
   SliderField,
   SwitchRow,
   renderFontOption,
 } from "@/components/subtitle-editor/editor-fields";
+import { formatTimestamp } from "@/components/subtitle-editor/format";
 import {
   TITLE_OVERLAY_DEFAULTS,
   parseTitle,
+  serializeTitle,
+  type TitleHighlight,
   type TitleOverlayConfig,
   type TitleStyle,
   type TitleWord,
@@ -43,49 +48,49 @@ import {
   type TitleTheme,
 } from "@/components/subtitle-editor/title-themes";
 import { cn } from "@/lib/utils";
-import { getFontFamily } from "@/remotion/fonts";
+import { fontWeights, getFontFamily } from "@/remotion/fonts";
 
 const MAX_HISTORY = 10;
 
-/** Writes lines back as text, grouping neighbouring accent words: `*a b*`. */
-function serializeTitle(lines: TitleWord[][]): string {
-  return lines
-    .map((line) => {
-      const parts: string[] = [];
-      let accent: string[] = [];
-      const flush = () => {
-        if (accent.length) parts.push(`*${accent.join(" ")}*`);
-        accent = [];
-      };
-      for (const word of line) {
-        if (word.accent) accent.push(word.text);
-        else {
-          flush();
-          parts.push(word.text);
-        }
-      }
-      flush();
-      return parts.join(" ");
-    })
-    .join("\n");
-}
+const WEIGHT_LABELS: Record<number, string> = {
+  100: "Thin",
+  200: "Extra Light",
+  300: "Light",
+  400: "Regular",
+  500: "Medium",
+  600: "Semi Bold",
+  700: "Bold",
+  800: "Extra Bold",
+  900: "Black",
+};
 
-interface EditTitleTabProps {
+const weightOptions = (font: string) =>
+  fontWeights(font).map((weight) => ({
+    value: String(weight),
+    label: WEIGHT_LABELS[weight] ?? String(weight),
+  }));
+
+interface HookTitleEditorProps {
   config: TitleOverlayConfig;
   onChange: (config: TitleOverlayConfig) => void;
   /** Resolves to a new hook, or null if it failed (the caller reports why). */
   onGenerate: (previousHooks: string[]) => Promise<string | null>;
   /** False until the video has a transcript to write a hook from. */
   canGenerate: boolean;
+  /** Where the preview is, for Set start time. */
+  getCurrentTime: () => number;
+  onBack: () => void;
 }
 
-export function EditTitleTab({
+/** The hook title editor from Submagic's Captions tab. */
+export function HookTitleEditor({
   config,
   onChange,
   onGenerate,
   canGenerate,
-}: EditTitleTabProps) {
-  const textId = useId();
+  getCurrentTime,
+  onBack,
+}: HookTitleEditorProps) {
   const [isGenerating, setIsGenerating] = useState(false);
 
   const update = <K extends keyof TitleOverlayConfig>(
@@ -98,20 +103,8 @@ export function EditTitleTab({
     value: TitleStyle[K],
   ) => onChange({ ...config, style: { ...config.style, [key]: value } });
 
-  const lines = parseTitle(config.text);
 
-  const toggleAccent = (lineIndex: number, wordIndex: number) => {
-    const next = lines.map((line, l) =>
-      line.map((word, w) =>
-        l === lineIndex && w === wordIndex
-          ? { ...word, accent: !word.accent }
-          : word,
-      ),
-    );
-    update("text", serializeTitle(next));
-  };
-
-  const generate = async () => {
+  const regenerate = async () => {
     setIsGenerating(true);
     const hook = await onGenerate(config.history);
     setIsGenerating(false);
@@ -128,98 +121,65 @@ export function EditTitleTab({
   };
 
   return (
-    <div className="space-y-8">
-      <EditorSection
-        title="Hook title"
-        description="Shown at the start of the video to make viewers keep watching."
-        actions={
-          <>
-            <HistoryPopover
-              history={config.history}
-              onPick={(hook) => update("text", hook)}
-            />
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Clear title"
-              disabled={!config.text}
-              onClick={() => update("text", "")}
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <Button
+          variant="outline"
+          size="icon-sm"
+          aria-label="Back to captions"
+          onClick={onBack}
+        >
+          <ArrowLeft />
+        </Button>
+        <h2 className="text-sm font-medium">Hook Title</h2>
+      </div>
+
+      <section className="space-y-5 rounded-2xl border p-4">
+        <div className="flex items-center justify-between gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2 py-1 text-sm font-medium text-primary">
+            <Sparkle weight="fill" />
+            Hook Title
+          </span>
+          <div className="flex items-center gap-0.5">
+            <IconAction
+              label={
+                config.fullVideo
+                  ? "Set start time (off while shown for the full video)"
+                  : `Set start time (now ${formatTimestamp(config.start ?? 0)})`
+              }
+              disabled={config.fullVideo}
+              onClick={() => onChange({ ...config, start: Math.max(0, getCurrentTime()) })}
+            >
+              <Clock />
+            </IconAction>
+            <IconAction
+              label="Regenerate"
+              disabled={!canGenerate || isGenerating}
+              onClick={regenerate}
+            >
+              {isGenerating ? <Spinner /> : <ArrowsClockwise />}
+            </IconAction>
+            <IconAction
+              label="Delete"
+              disabled={!config.text && !config.enabled}
+              onClick={() => onChange({ ...config, enabled: false, text: "" })}
             >
               <Trash />
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!canGenerate || isGenerating}
-              onClick={generate}
-            >
-              {isGenerating ? <Spinner /> : <Sparkle />}
-              {config.text ? "Rewrite with AI" : "Write with AI"}
-            </Button>
-          </>
-        }
-      >
-        <SwitchRow
-          label="Show hook title"
-          checked={config.enabled}
-          onCheckedChange={(checked) => update("enabled", checked)}
-        />
-        <div className="space-y-2">
-          <FieldCaption htmlFor={textId}>Text</FieldCaption>
-          <Textarea
-            id={textId}
-            rows={2}
-            value={config.text}
-            onChange={(event) => update("text", event.target.value)}
-            placeholder={
-              canGenerate
-                ? "Write a hook, or let AI write one from your video"
-                : "Write a hook"
-            }
-          />
-        </div>
-        {lines.length > 0 ? (
-          <div className="space-y-2">
-            <span className="text-xs font-medium text-muted-foreground">
-              Tap words to give them the accent style
-            </span>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {lines.map((line, lineIndex) => (
-                <div key={lineIndex} className="contents">
-                  {lineIndex > 0 ? (
-                    <KeyReturn
-                      aria-label="Line break"
-                      className="size-4 text-muted-foreground"
-                    />
-                  ) : null}
-                  {line.map((word, wordIndex) => (
-                    <button
-                      key={wordIndex}
-                      type="button"
-                      aria-pressed={word.accent}
-                      onClick={() => toggleAccent(lineIndex, wordIndex)}
-                      className={cn(
-                        "rounded-md border px-2 py-1 text-sm outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
-                        word.accent
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-input text-foreground hover:bg-muted",
-                      )}
-                    >
-                      {word.text}
-                    </button>
-                  ))}
-                </div>
-              ))}
-            </div>
+            </IconAction>
           </div>
-        ) : null}
-      </EditorSection>
+        </div>
+
+        <TitleWords
+          text={config.text}
+          onChange={(text) => onChange({ ...config, enabled: Boolean(text.trim()), text })}
+          canGenerate={canGenerate}
+        />
 
       <EditorSection title="Theme">
         <div
           role="group"
-          aria-label="Title themes"
-          className="grid grid-cols-3 gap-2 sm:grid-cols-4"
+          aria-label="Hook title themes"
+          className="grid grid-cols-2 gap-2 sm:grid-cols-3"
         >
           {TITLE_THEMES.map((theme) => (
             <ThemeCard
@@ -234,125 +194,85 @@ export function EditTitleTab({
         </div>
       </EditorSection>
 
+      </section>
+
       <EditorSection title="Font">
         <div className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2">
           <SelectField
-            label="Font"
+            label="Font family"
             options={FONT_SELECT_OPTIONS}
             value={config.style.fontFamily}
             onChange={(value) => updateStyle("fontFamily", value)}
             renderOption={renderFontOption}
           />
           <SelectField
-            label="Weight"
-            options={FONT_WEIGHT_OPTIONS}
+            label="Font weight"
+            options={weightOptions(config.style.fontFamily)}
             value={String(config.style.fontWeight)}
             onChange={(value) => updateStyle("fontWeight", Number(value))}
           />
           <SelectField
-            label="Accent font"
+            label="Secondary font"
             options={FONT_SELECT_OPTIONS}
             value={config.style.accentFontFamily}
             onChange={(value) => updateStyle("accentFontFamily", value)}
             renderOption={renderFontOption}
           />
           <SelectField
-            label="Accent weight"
-            options={FONT_WEIGHT_OPTIONS}
+            label="Secondary weight"
+            options={weightOptions(config.style.accentFontFamily)}
             value={String(config.style.accentFontWeight)}
             onChange={(value) => updateStyle("accentFontWeight", Number(value))}
           />
         </div>
-        <div className="space-y-2">
-          <span className="text-xs font-medium text-muted-foreground">
-            Case
-          </span>
-          <ChoiceGroup
-            label="Letter case"
-            value={config.style.textTransform}
-            onChange={(value) => updateStyle("textTransform", value)}
-            className="grid grid-cols-2"
-          >
-            <ChoiceItem value="none">As typed</ChoiceItem>
-            <ChoiceItem value="uppercase">UPPERCASE</ChoiceItem>
-          </ChoiceGroup>
-        </div>
         <ColorField
-          label="Text color"
+          label="Font color"
           value={config.style.color}
           options={OVERLAY_COLORS}
           onChange={(color) => updateStyle("color", color)}
         />
-        <ColorField
-          label="Accent color"
-          value={config.style.accentColor}
-          options={OVERLAY_COLORS}
-          onChange={(color) => updateStyle("accentColor", color)}
-        />
       </EditorSection>
 
-      <EditorSection title="Size and position">
+      <EditorSection title="Size and timing">
         <div className="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2">
           <SliderField
             label="Size"
             unit="%"
-            value={config.size}
-            min={3}
-            max={15}
-            step={0.5}
+            value={Math.round(config.size)}
+            min={0}
+            max={80}
             defaultValue={TITLE_OVERLAY_DEFAULTS.size}
             onChange={(value) => update("size", value)}
           />
           <SliderField
-            label="Width"
+            label="Position Y"
             unit="%"
-            value={config.width}
-            min={10}
-            max={100}
-            defaultValue={TITLE_OVERLAY_DEFAULTS.width}
-            onChange={(value) => update("width", value)}
-          />
-          <SliderField
-            label="Horizontal position"
-            unit="%"
-            value={config.positionX}
+            value={Math.round(config.positionY)}
             min={0}
-            max={100}
-            defaultValue={TITLE_OVERLAY_DEFAULTS.positionX}
-            onChange={(value) => update("positionX", value)}
-          />
-          <SliderField
-            label="Vertical position"
-            unit="%"
-            value={config.positionY}
-            min={0}
-            max={100}
+            max={80}
             defaultValue={TITLE_OVERLAY_DEFAULTS.positionY}
             onChange={(value) => update("positionY", value)}
           />
         </div>
-      </EditorSection>
-
-      <EditorSection title="Timing and animation">
-        <SwitchRow
-          label="Show for the whole video"
-          checked={config.fullVideo}
-          onCheckedChange={(checked) => update("fullVideo", checked)}
-        />
         {config.fullVideo ? null : (
           <SliderField
             label="Duration"
             unit="s"
             value={config.duration}
-            min={1}
-            max={10}
-            step={0.5}
+            min={0}
+            max={6}
+            step={0.1}
             defaultValue={TITLE_OVERLAY_DEFAULTS.duration}
             onChange={(value) => update("duration", value)}
           />
         )}
         <SwitchRow
-          label="Animate in"
+          label="Show for full video"
+          checked={config.fullVideo}
+          onCheckedChange={(checked) => update("fullVideo", checked)}
+        />
+        <SwitchRow
+          label="Animation"
           checked={config.animation}
           onCheckedChange={(checked) => update("animation", checked)}
         />
@@ -361,54 +281,7 @@ export function EditTitleTab({
   );
 }
 
-function HistoryPopover({
-  history,
-  onPick,
-}: {
-  history: string[];
-  onPick: (hook: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Earlier hooks"
-            disabled={history.length === 0}
-          />
-        }
-      >
-        <ClockCounterClockwise />
-      </PopoverTrigger>
-      <PopoverContent align="end" sideOffset={8} className="w-80">
-        <PopoverHeader>
-          <PopoverTitle>Earlier hooks</PopoverTitle>
-        </PopoverHeader>
-        <ul className="-mx-1 max-h-72 space-y-0.5 overflow-y-auto">
-          {history.map((hook) => (
-            <li key={hook}>
-              <button
-                type="button"
-                onClick={() => {
-                  onPick(hook);
-                  setOpen(false);
-                }}
-                className="w-full rounded-md px-2 py-1.5 text-left text-sm whitespace-pre-line outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                {hook.replace(/\*/g, "")}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-/** The theme's name drawn in its accent style. */
+/** The theme's name drawn in its style. */
 function ThemeCard({
   theme,
   selected,
@@ -440,7 +313,7 @@ function ThemeCard({
       aria-label={`${theme.name} theme`}
       onClick={onSelect}
       className={cn(
-        "flex h-14 min-w-0 items-center justify-center overflow-hidden rounded-lg bg-slate-600 px-2 outline-none ring-offset-2 ring-offset-background transition-shadow hover:ring-2 hover:ring-foreground/20 focus-visible:ring-3 focus-visible:ring-ring/50",
+        "relative flex h-[88px] min-w-0 items-center justify-center rounded-lg bg-[#4B5563] px-2 outline-none ring-offset-2 ring-offset-background transition-shadow hover:ring-2 hover:ring-foreground/20 focus-visible:ring-3 focus-visible:ring-ring/50",
         selected && "ring-2 ring-foreground hover:ring-foreground",
       )}
     >
@@ -448,12 +321,13 @@ function ThemeCard({
         aria-hidden
         className="whitespace-nowrap"
         style={{
-          fontFamily: getFontFamily(style.accentFontFamily),
-          fontWeight: style.accentFontWeight,
-          fontSize: 18 * (style.accentScale ?? 1),
+          fontFamily: getFontFamily(style.fontFamily),
+          fontWeight: style.fontWeight,
+          fontSize: 20,
           lineHeight: 1.2,
+          letterSpacing: style.letterSpacing ? `${style.letterSpacing}em` : undefined,
           textTransform: style.textTransform,
-          color: style.accentColor,
+          color: style.color,
           textShadow: style.shadow,
           ...(style.strokeColor && style.strokeWidth
             ? {
@@ -466,6 +340,282 @@ function ThemeCard({
       >
         {theme.name}
       </span>
+      {NEW_THEMES.has(theme.id) ? (
+        <span className="absolute -top-2 right-1 rounded-md bg-sky-100 px-1.5 py-0.5 text-xs font-medium text-sky-600 dark:bg-sky-500/20 dark:text-sky-300">
+          New
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
+// Themes Submagic marks as new.
+const NEW_THEMES = new Set(["pierre", "neo", "sam"]);
+
+// Underlines for highlighted words in the editor, as in the caption list.
+const HIGHLIGHT_UNDERLINE: Record<TitleHighlight, string> = {
+  1: "#F64F46",
+  2: "#E8B04A",
+  3: "#3F83F8",
+};
+
+const TITLE_HIGHLIGHTS: { value: TitleHighlight | undefined; label: string; key: string }[] = [
+  { value: undefined, label: "None", key: "n" },
+  { value: 1, label: "Main", key: "h" },
+  { value: 2, label: "Second", key: "j" },
+  { value: 3, label: "Third", key: "k" },
+];
+
+function IconAction({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            aria-label={label}
+            disabled={disabled}
+            onClick={onClick}
+            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-40 [&_svg]:size-[18px]"
+          />
+        }
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+interface FlatWord {
+  text: string;
+  level?: TitleHighlight;
+  /** A line break follows this word. */
+  break: boolean;
+}
+
+const flatten = (text: string): FlatWord[] =>
+  parseTitle(text).flatMap((line, l, lines) =>
+    line.map((word, w) => ({
+      text: word.text,
+      level: word.level,
+      break: w === line.length - 1 && l < lines.length - 1,
+    })),
+  );
+
+function unflatten(words: FlatWord[]): string {
+  const lines: TitleWord[][] = [[]];
+  words.forEach((word, i) => {
+    if (!word.text.trim()) return;
+    lines[lines.length - 1].push({ text: word.text.trim(), level: word.level, accent: word.level === 3 });
+    if (word.break && i < words.length - 1) lines.push([]);
+  });
+  return serializeTitle(lines.filter((line) => line.length));
+}
+
+/** The hook as a line of words, edited in place like the caption list. */
+function TitleWords({
+  text,
+  onChange,
+  canGenerate,
+}: {
+  text: string;
+  onChange: (text: string) => void;
+  canGenerate: boolean;
+}) {
+  const [open, setOpen] = useState<number | null>(null);
+  const [draft, setDraft] = useState("");
+  const words = flatten(text);
+  const set = (next: FlatWord[]) => onChange(unflatten(next));
+  const at = (i: number, patch: Partial<FlatWord>) =>
+    set(words.map((word, j) => (j === i ? { ...word, ...patch } : word)));
+
+  if (!words.length) {
+    return (
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (draft.trim()) onChange(draft.trim());
+          setDraft("");
+        }}
+      >
+        <Input
+          aria-label="Hook title"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder={canGenerate ? "Write a hook and press Enter, or Regenerate" : "Write a hook and press Enter"}
+        />
+      </form>
+    );
+  }
+
+  return (
+    <div className="group flex flex-wrap items-center text-base leading-5 text-[#212224] dark:text-foreground">
+      {words.map((word, i) => (
+        <span key={`${i}-${word.text}`} className="contents">
+          <Popover open={open === i} onOpenChange={(next) => setOpen(next ? i : null)}>
+            <PopoverTrigger
+              nativeButton={false}
+              render={
+                <span
+                  role="textbox"
+                  aria-label={`Word "${word.text}"`}
+                  contentEditable
+                  suppressContentEditableWarning
+                  spellCheck={false}
+                  onBlur={(event) => {
+                    const next = (event.currentTarget.textContent ?? "").trim();
+                    if (next === word.text) return;
+                    set(next ? words.map((w, j) => (j === i ? { ...w, text: next } : w)) : words.filter((_, j) => j !== i));
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      event.currentTarget.blur();
+                      return;
+                    }
+                    if (!(event.metaKey || event.ctrlKey)) return;
+                    const key = event.key.toLowerCase();
+                    const highlight = TITLE_HIGHLIGHTS.find((h) => h.key === key);
+                    if (highlight) {
+                      event.preventDefault();
+                      at(i, { level: highlight.value });
+                    } else if (key === "b" && i < words.length - 1) {
+                      event.preventDefault();
+                      at(i, { break: !word.break });
+                    }
+                  }}
+                  className="relative mx-0.5 inline-flex min-h-7 items-center rounded-[4px] border border-transparent px-0.5 outline-none transition-colors duration-200 hover:border-[#3F83F8] focus:border-[#3F83F8] data-[popup-open]:border-[#3F83F8]"
+                />
+              }
+            >
+              {word.text}
+              {word.level ? (
+                <span
+                  aria-hidden
+                  contentEditable={false}
+                  className="pointer-events-none absolute bottom-[0.1em] left-0 h-0.5 w-full shadow-[0_1px_3px_rgba(0,0,0,0.3)]"
+                  style={{ background: HIGHLIGHT_UNDERLINE[word.level] }}
+                />
+              ) : null}
+            </PopoverTrigger>
+            <PopoverContent align="start" sideOffset={6} initialFocus={false} className="w-64 gap-3 p-3">
+              <div className="space-y-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Highlight color</span>
+                <div role="group" aria-label="Highlight color" className="grid grid-cols-4 gap-1">
+                  {TITLE_HIGHLIGHTS.map((option) => (
+                    <button
+                      key={option.label}
+                      type="button"
+                      title={`⌘${option.key.toUpperCase()}`}
+                      aria-pressed={word.level === option.value}
+                      onClick={() => at(i, { level: option.value })}
+                      className="flex h-8 items-center justify-center gap-1 rounded-md border text-xs outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-primary"
+                    >
+                      {option.value ? (
+                        <span
+                          aria-hidden
+                          className="h-0.5 w-2.5 rounded"
+                          style={{ background: HIGHLIGHT_UNDERLINE[option.value] }}
+                        />
+                      ) : null}
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">Third uses the secondary font.</p>
+              </div>
+              <div className="-mx-1 grid border-t pt-1">
+                {i < words.length - 1 ? (
+                  <TitleAction keys="⌘B" onClick={() => at(i, { break: !word.break })}>
+                    <KeyReturn />
+                    {word.break ? "Remove line break" : "Add line break"}
+                  </TitleAction>
+                ) : null}
+                <TitleAction
+                  keys=""
+                  onClick={() => {
+                    set([...words.slice(0, i + 1), { text: "word", break: false }, ...words.slice(i + 1)]);
+                    setOpen(i + 1);
+                  }}
+                >
+                  <Plus />
+                  Add word
+                </TitleAction>
+                <TitleAction
+                  keys=""
+                  destructive
+                  onClick={() => {
+                    set(words.filter((_, j) => j !== i));
+                    setOpen(null);
+                  }}
+                >
+                  <Trash />
+                  Remove word
+                </TitleAction>
+              </div>
+            </PopoverContent>
+          </Popover>
+          {word.break && i < words.length - 1 ? (
+            <button
+              type="button"
+              aria-label="Remove line break"
+              title="Remove line break"
+              onClick={() => at(i, { break: false })}
+              className="mr-1 inline-flex items-center text-[#9CA3AF] outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <KeyReturn className="size-4" />
+            </button>
+          ) : null}
+        </span>
+      ))}
+      <button
+        type="button"
+        aria-label="Add a word"
+        onClick={() => {
+          set([...words, { text: "word", break: false }]);
+          setOpen(words.length);
+        }}
+        className="ml-0.5 inline-flex size-6 items-center justify-center rounded-md text-[#A9A9AE] opacity-0 outline-none transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 group-hover:opacity-100"
+      >
+        <Plus className="size-4" />
+      </button>
+    </div>
+  );
+}
+
+function TitleAction({
+  keys,
+  destructive,
+  onClick,
+  children,
+}: {
+  keys: string;
+  destructive?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-muted focus-visible:bg-muted [&_svg]:size-4 [&_svg]:shrink-0",
+        destructive ? "text-destructive" : "[&_svg]:text-muted-foreground",
+      )}
+    >
+      {children}
+      {keys ? <span className="ml-auto text-xs text-muted-foreground">{keys}</span> : null}
     </button>
   );
 }
