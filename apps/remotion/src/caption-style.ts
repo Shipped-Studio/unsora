@@ -467,7 +467,8 @@ export interface BrollClip {
   kind: "video" | "image";
   url: string;
   thumbnailUrl?: string;
-  vendor: "pexels" | "ai" | "upload";
+  /** "pexels" is for clips saved before the switch to Pixabay. */
+  vendor: "pixabay" | "pexels" | "ai" | "upload";
   layout: ClipLayout;
   /** The page to credit, for stock footage. */
   sourceUrl?: string;

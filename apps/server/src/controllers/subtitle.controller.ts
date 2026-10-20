@@ -24,15 +24,29 @@ import {
 } from "../lib/credits";
 import {
   AI_IMAGE_CREDITS,
-  PexelsNotConfiguredError,
+  InvalidStockUrlError,
+  PixabayNotConfiguredError,
+  StockRateLimitError,
   autoBrollCredits,
   generateBrollImage,
+  importStockImage,
   planAutoBrolls,
-  searchPexelsPhotos,
-  searchPexelsVideos,
+  searchStockPhotos,
+  searchStockVideos,
   type Orientation,
   type VideoType,
 } from "../lib/broll";
+
+/** The response for a stock footage (Pixabay) failure, or null for other errors. */
+function stockFootageError(error: unknown): { status: number; error: string } | null {
+  if (error instanceof PixabayNotConfiguredError) {
+    return { status: 503, error: "Stock footage isn't set up yet (PIXABAY_API_KEY)." };
+  }
+  if (error instanceof StockRateLimitError) {
+    return { status: 429, error: "Too many stock searches right now. Try again in a minute." };
+  }
+  return null;
+}
 import {
   AI_TOOL_CREDITS,
   VIDEO_TOOLS,
@@ -953,7 +967,7 @@ export class SubtitleController {
     }
   }
 
-  /** Stock B-roll search: Pexels videos or photos. */
+  /** Stock B-roll search: Pixabay videos or photos. */
   async searchBroll(req: Request, res: Response) {
     const query = String(req.query.q ?? "").trim().slice(0, 100);
     const kind = req.query.type === "photo" ? "photo" : "video";
@@ -968,18 +982,32 @@ export class SubtitleController {
       const premium = req.query.tier === "premium" || req.query.tier === "trendy";
       const results =
         kind === "photo"
-          ? await searchPexelsPhotos(query, orientation, 24)
-          : await searchPexelsVideos(query, orientation, { perPage: 24, premium });
+          ? await searchStockPhotos(query, orientation, 24)
+          : await searchStockVideos(query, orientation, { perPage: 24, premium });
       res.status(200).json({ success: true, data: results });
     } catch (error) {
-      if (error instanceof PexelsNotConfiguredError) {
-        return res.status(503).json({
-          success: false,
-          error: "Stock footage isn't set up yet (PEXELS_API_KEY).",
-        });
-      }
+      const stock = stockFootageError(error);
+      if (stock) return res.status(stock.status).json({ success: false, error: stock.error });
       console.error("Error searching B-roll:", error);
       res.status(502).json({ success: false, error: "Search failed. Try again." });
+    }
+  }
+
+  /**
+   * Copies a stock photo the user picked to our storage. Pixabay doesn't
+   * allow keeping its image URLs, so the video uses our copy instead.
+   */
+  async importBroll(req: Request, res: Response) {
+    const url = String(req.body?.url ?? "");
+    try {
+      const stored = await importStockImage(url);
+      res.status(200).json({ success: true, data: { url: stored } });
+    } catch (error) {
+      if (error instanceof InvalidStockUrlError) {
+        return res.status(400).json({ success: false, error: "Only Pixabay images can be added." });
+      }
+      console.error("Error importing B-roll image:", error);
+      res.status(502).json({ success: false, error: "Couldn't add the image. Try again." });
     }
   }
 
@@ -1098,16 +1126,12 @@ export class SubtitleController {
           error: "You don't have enough credits for AI B-rolls.",
         });
       }
-      if (error instanceof PexelsNotConfiguredError) {
-        return res.status(503).json({
-          success: false,
-          error: "Stock footage isn't set up yet (PEXELS_API_KEY).",
-        });
-      }
       console.error("Error planning B-rolls:", error);
       if (transactionId) {
         await refundConsumption(transactionId, "Auto B-rolls failed").catch(() => {});
       }
+      const stock = stockFootageError(error);
+      if (stock) return res.status(stock.status).json({ success: false, error: stock.error });
       res.status(500).json({ success: false, error: "Try again in a moment." });
     }
   }

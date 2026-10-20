@@ -85,10 +85,13 @@ export interface BrollMedia {
   kind: "video" | "image";
   url: string;
   thumbnailUrl?: string;
+  /** A smaller file for previewing a video before it's picked; `url` is what's used. */
+  previewUrl?: string;
   width?: number;
   height?: number;
   duration?: number;
-  vendor: "pexels" | "ai" | "upload";
+  /** "pexels" is for clips saved before the switch to Pixabay. */
+  vendor: "pixabay" | "pexels" | "ai" | "upload";
   sourceUrl?: string;
   author?: string;
 }
@@ -224,7 +227,7 @@ export function useSubtitleApi() {
           body: JSON.stringify({ previousHooks }),
         }),
 
-      /** Stock B-roll from Pexels. */
+      /** Stock B-roll from Pixabay. */
       searchBroll: (
         query: string,
         type: "video" | "photo",
@@ -234,6 +237,16 @@ export function useSubtitleApi() {
         request<BrollMedia[]>(
           `/api/subtitles/broll/search?${new URLSearchParams({ q: query, type, orientation, tier })}`,
         ),
+
+      /**
+       * Copies a picked stock photo to our storage; resolves to its URL there.
+       * Pixabay doesn't allow keeping its image URLs in the video.
+       */
+      importBroll: (url: string) =>
+        request<{ url: string }>("/api/subtitles/broll/import", {
+          method: "POST",
+          body: JSON.stringify({ url }),
+        }),
 
       /** One AI B-roll image. Costs credits. */
       generateBrollImage: (prompt: string, orientation: BrollOrientation) =>

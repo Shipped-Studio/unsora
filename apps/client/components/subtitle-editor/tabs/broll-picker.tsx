@@ -11,6 +11,14 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { failureMessage } from "@/components/subtitle-editor/format";
@@ -74,7 +82,29 @@ export function BrollPicker({
   const [results, setResults] = useState<BrollMedia[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
   const searchId = useRef(0);
+
+  /**
+   * Stock photos are copied to our storage before they go in the video:
+   * Pixabay doesn't allow keeping its image URLs. Its videos may be used
+   * directly, so they're picked as they are.
+   */
+  const pickStock = async (media: BrollMedia) => {
+    if (media.kind !== "image" || media.vendor !== "pixabay") {
+      onPick(media);
+      return;
+    }
+    if (isImporting) return;
+    setIsImporting(true);
+    const result = await api.importBroll(media.url);
+    setIsImporting(false);
+    if (!result.success || !result.data) {
+      toast.error(failureMessage("add the image", result.error));
+      return;
+    }
+    onPick({ ...media, url: result.data.url, thumbnailUrl: result.data.url });
+  };
 
   // Search as the user types, and whenever the source or tier changes.
   useEffect(() => {
@@ -174,17 +204,24 @@ export function BrollPicker({
           {searchError ? (
             <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{searchError}</p>
           ) : null}
+          {isImporting ? (
+            <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Spinner />
+              Adding image…
+            </p>
+          ) : null}
           <MediaGrid
             items={results}
             portrait={portrait}
             loading={isSearching && !results.length}
-            onPick={onPick}
+            onPick={(media) => void pickStock(media)}
             empty={query.trim() ? "Nothing found. Try other words." : "Search for footage."}
           />
           {results.length ? (
+            // Pixabay asks that results always say where they come from.
             <p className="text-xs text-muted-foreground">
-              <a href="https://www.pexels.com" target="_blank" rel="noreferrer" className="underline">
-                {source === "video" ? "Videos" : "Photos"} provided by Pexels
+              <a href="https://pixabay.com" target="_blank" rel="noreferrer" className="underline">
+                {source === "video" ? "Videos" : "Photos"} provided by Pixabay
               </a>
             </p>
           ) : null}
@@ -211,6 +248,9 @@ function MediaGrid({
   empty: string;
   onPick: (media: BrollMedia) => void;
 }) {
+  /** The video open in the preview, before the user decides to use it. */
+  const [previewing, setPreviewing] = useState<BrollMedia | null>(null);
+
   if (loading) {
     return (
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
@@ -227,41 +267,66 @@ function MediaGrid({
     return <p className="rounded-xl bg-muted px-4 py-10 text-center text-sm text-muted-foreground">{empty}</p>;
   }
   return (
-    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-      {items.map((media) => (
-        <MediaTile key={media.url} media={media} portrait={portrait} onPick={() => onPick(media)} />
-      ))}
-    </div>
+    <>
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+        {items.map((media) => (
+          <MediaTile
+            key={media.url}
+            media={media}
+            portrait={portrait}
+            // Videos open a preview first; a picture is all there in its tile.
+            onClick={() => (media.kind === "video" ? setPreviewing(media) : onPick(media))}
+          />
+        ))}
+      </div>
+      <ClipPreviewDialog
+        media={previewing}
+        onClose={() => setPreviewing(null)}
+        onUse={(media) => {
+          setPreviewing(null);
+          onPick(media);
+        }}
+      />
+    </>
   );
 }
 
-/** A result; videos play while hovered. */
+/** A result; videos play, muted, while hovered. */
 function MediaTile({
   media,
   portrait,
-  onPick,
+  onClick,
 }: {
   media: BrollMedia;
   portrait: boolean;
-  onPick: () => void;
+  onClick: () => void;
 }) {
   const [hovering, setHovering] = useState(false);
+  const by = media.author ? ` by ${media.author}` : "";
   return (
     <button
       type="button"
-      onClick={onPick}
+      onClick={onClick}
       onPointerEnter={() => setHovering(true)}
       onPointerLeave={() => setHovering(false)}
       onFocus={() => setHovering(true)}
       onBlur={() => setHovering(false)}
-      aria-label={media.author ? `Use clip by ${media.author}` : "Use this clip"}
+      aria-label={media.kind === "video" ? `Preview clip${by}` : `Use image${by}`}
       className={cn(
         "relative overflow-hidden rounded-lg bg-muted outline-none ring-offset-2 ring-offset-background transition-shadow hover:ring-2 hover:ring-[#3F83F8] focus-visible:ring-3 focus-visible:ring-ring/50",
         portrait ? "aspect-[9/16]" : "aspect-video",
       )}
     >
       {media.kind === "video" && hovering ? (
-        <video src={media.url} poster={media.thumbnailUrl} muted autoPlay loop playsInline className="size-full object-cover" />
+        <video
+          src={media.previewUrl ?? media.url}
+          poster={media.thumbnailUrl}
+          muted
+          autoPlay
+          loop
+          playsInline
+          className="size-full object-cover"
+        />
       ) : (
          
         <img src={media.thumbnailUrl ?? media.url} alt="" loading="lazy" className="size-full object-cover" />
@@ -272,6 +337,68 @@ function MediaTile({
         </span>
       ) : null}
     </button>
+  );
+}
+
+/**
+ * A video at a watchable size, with controls, before it's added. It plays
+ * the smaller preview file; picking it uses the full-quality one.
+ */
+function ClipPreviewDialog({
+  media,
+  onClose,
+  onUse,
+}: {
+  /** The video to show; the dialog is open while it's set. */
+  media: BrollMedia | null;
+  onClose: () => void;
+  onUse: (media: BrollMedia) => void;
+}) {
+  const site = media?.vendor === "pixabay" ? "Pixabay" : media?.vendor === "pexels" ? "Pexels" : null;
+  const details = media
+    ? [
+        media.duration ? clock(media.duration) : null,
+        media.width && media.height ? `${media.width}×${media.height}` : null,
+      ].filter(Boolean)
+    : [];
+
+  return (
+    <Dialog open={media !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Preview clip</DialogTitle>
+        </DialogHeader>
+        {media ? (
+          <>
+            {/* Starts muted, so browsers let it autoplay; unmute with its controls. */}
+            <video
+              key={media.url}
+              src={media.previewUrl ?? media.url}
+              poster={media.thumbnailUrl}
+              controls
+              autoPlay
+              muted
+              loop
+              playsInline
+              aria-label="Clip preview"
+              className="max-h-[60svh] w-full rounded-lg bg-black object-contain"
+            />
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span className="tabular-nums">{details.join(" · ")}</span>
+              {site && media.sourceUrl ? (
+                <a href={media.sourceUrl} target="_blank" rel="noreferrer" className="underline">
+                  {media.author ? `By ${media.author} on ${site}` : `From ${site}`}
+                </a>
+              ) : null}
+            </div>
+          </>
+        ) : null}
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+          <Button onClick={() => media && onUse(media)}>Use this clip</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

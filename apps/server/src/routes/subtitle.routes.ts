@@ -43,6 +43,12 @@ router.post(
   subtitleController.generateBroll.bind(subtitleController),
 );
 
+router.post(
+  "/broll/import",
+  requireAuth,
+  subtitleController.importBroll.bind(subtitleController),
+);
+
 // Saved caption presets. Registered before "/:id" so "presets" isn't read as an id.
 router.get(
   "/presets",

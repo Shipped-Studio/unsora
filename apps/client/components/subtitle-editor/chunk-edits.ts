@@ -9,6 +9,9 @@ import type { WordSound } from "@/components/subtitle-editor/caption-style";
 /**
  * Word-level edits for subtitle lines. Each returns a new chunk list and
  * keeps every touched line's text and times in step with its words.
+ *
+ * A "chunk" is one caption line. Functions take the line's index in the
+ * list (`lineIndex`) and the word's index in that line (`wordIndex`).
  */
 
 /** Seconds a newly added word lasts when there's room for it. */
@@ -25,83 +28,92 @@ function withWords(chunk: SubtitleChunk, rawWords: WordTimestamp[]): SubtitleChu
   return {
     ...chunk,
     words,
-    text: words.map((w) => w.word).join(" "),
+    text: words.map((word) => word.word).join(" "),
     start: words[0].start,
     end: words[words.length - 1].end,
   };
 }
 
-/** Replaces line `c`, dropping it if it has no words left. */
+/** Replaces line `lineIndex`, dropping it if it has no words left. */
 function replaceChunk(
   chunks: SubtitleChunk[],
-  c: number,
+  lineIndex: number,
   ...next: SubtitleChunk[]
 ): SubtitleChunk[] {
   const kept = next.filter((chunk) => chunk.words.length > 0);
-  return [...chunks.slice(0, c), ...kept, ...chunks.slice(c + 1)];
+  return [...chunks.slice(0, lineIndex), ...kept, ...chunks.slice(lineIndex + 1)];
+}
+
+/** Applies `change` to one word, then refreshes its line's text and times. */
+function updateWord(
+  chunks: SubtitleChunk[],
+  lineIndex: number,
+  wordIndex: number,
+  change: (word: WordTimestamp) => WordTimestamp,
+): SubtitleChunk[] {
+  const line = chunks[lineIndex];
+  const words = line.words.map((word, i) => (i === wordIndex ? change(word) : word));
+  return replaceChunk(chunks, lineIndex, withWords(line, words));
 }
 
 export function setWordText(
   chunks: SubtitleChunk[],
-  c: number,
-  w: number,
+  lineIndex: number,
+  wordIndex: number,
   text: string,
 ): SubtitleChunk[] {
-  const words = chunks[c].words.map((word, i) =>
-    i === w ? { ...word, word: text } : word,
-  );
-  return replaceChunk(chunks, c, withWords(chunks[c], words));
+  return updateWord(chunks, lineIndex, wordIndex, (word) => ({ ...word, word: text }));
 }
 
 export function setWordTiming(
   chunks: SubtitleChunk[],
-  c: number,
-  w: number,
+  lineIndex: number,
+  wordIndex: number,
   timing: { start?: number; end?: number },
 ): SubtitleChunk[] {
-  const words = chunks[c].words.map((word, i) => {
-    if (i !== w) return word;
+  return updateWord(chunks, lineIndex, wordIndex, (word) => {
     const start = Math.max(0, timing.start ?? word.start);
     const end = Math.max(start, timing.end ?? word.end);
     return { ...word, start, end };
   });
-  return replaceChunk(chunks, c, withWords(chunks[c], words));
 }
 
 export function setWordEffect(
   chunks: SubtitleChunk[],
-  c: number,
-  w: number,
+  lineIndex: number,
+  wordIndex: number,
   effect: WordEffect | undefined,
 ): SubtitleChunk[] {
-  const words = chunks[c].words.map((word, i) =>
-    i === w ? { ...word, effect } : word,
-  );
-  return replaceChunk(chunks, c, withWords(chunks[c], words));
+  return updateWord(chunks, lineIndex, wordIndex, (word) => ({ ...word, effect }));
 }
 
 export function withWordSound(
   chunks: SubtitleChunk[],
-  c: number,
-  w: number,
+  lineIndex: number,
+  wordIndex: number,
   sound: WordSound | undefined,
 ): SubtitleChunk[] {
-  const words = chunks[c].words.map((word, i) =>
-    i === w ? { ...word, sound } : word,
-  );
-  return replaceChunk(chunks, c, withWords(chunks[c], words));
+  return updateWord(chunks, lineIndex, wordIndex, (word) => ({ ...word, sound }));
 }
 
 export function setWordKeyword(
   chunks: SubtitleChunk[],
-  c: number,
-  w: number,
+  lineIndex: number,
+  wordIndex: number,
   keyword: KeywordLevel | undefined,
 ): SubtitleChunk[] {
-  const words = chunks[c].words.map((word, i) =>
-    i === w ? { ...word, keyword } : word,
-  );
-  return replaceChunk(chunks, c, withWords(chunks[c], words));
+  return updateWord(chunks, lineIndex, wordIndex, (word) => ({ ...word, keyword }));
+}
+
+export function toggleLineBreak(
+  chunks: SubtitleChunk[],
+  lineIndex: number,
+  wordIndex: number,
+): SubtitleChunk[] {
+  return updateWord(chunks, lineIndex, wordIndex, (word) => ({
+    ...word,
+    lineBreak: !word.lineBreak,
+  }));
 }
 
 /** Sets keywords and emojis on every word, by the word's place in the transcript. */
@@ -124,114 +136,110 @@ export function applyCaptionMarkup(
   }));
 }
 
-export function toggleLineBreak(
-  chunks: SubtitleChunk[],
-  c: number,
-  w: number,
-): SubtitleChunk[] {
-  const words = chunks[c].words.map((word, i) =>
-    i === w ? { ...word, lineBreak: !word.lineBreak } : word,
-  );
-  return replaceChunk(chunks, c, withWords(chunks[c], words));
-}
-
-/** Moves words up to and including word `w` to the end of the line before it. */
+/** Moves words up to and including `wordIndex` to the end of the line before. */
 export function moveToPreviousLine(
   chunks: SubtitleChunk[],
-  c: number,
-  w = 0,
+  lineIndex: number,
+  wordIndex = 0,
 ): SubtitleChunk[] {
-  if (c === 0) return chunks;
-  const moving = chunks[c].words.slice(0, w + 1).map((word) => ({
+  if (lineIndex === 0) return chunks;
+  const line = chunks[lineIndex];
+  const moving = line.words.slice(0, wordIndex + 1).map((word) => ({
     ...word,
     lineBreak: false,
   }));
-  const rest = chunks[c].words.slice(w + 1);
-  const previous = chunks[c - 1];
+  const rest = line.words.slice(wordIndex + 1);
+  const previous = chunks[lineIndex - 1];
   const previousWords = previous.words.map((word, i, all) =>
     i === all.length - 1 ? { ...word, lineBreak: false } : word,
   );
   return replaceChunk(
-    replaceChunk(chunks, c, withWords(chunks[c], rest)),
-    c - 1,
+    replaceChunk(chunks, lineIndex, withWords(line, rest)),
+    lineIndex - 1,
     withWords(previous, [...previousWords, ...moving]),
   );
 }
 
 /**
- * Moves word `w` of line `c` into line `toC` before its word `toW` (or to
- * the end). The word keeps its timing; a line left empty is dropped.
+ * Moves a word into line `toLine`, before its word `toWord` (or to the end).
+ * The word keeps its timing; a line left empty is dropped.
  */
 export function moveWord(
   chunks: SubtitleChunk[],
-  c: number,
-  w: number,
-  toC: number,
-  toW: number,
+  lineIndex: number,
+  wordIndex: number,
+  toLine: number,
+  toWord: number,
 ): SubtitleChunk[] {
-  if (c === toC && (toW === w || toW === w + 1)) return chunks;
-  const word = { ...chunks[c].words[w], lineBreak: false };
+  const staysPut =
+    lineIndex === toLine && (toWord === wordIndex || toWord === wordIndex + 1);
+  if (staysPut) return chunks;
+
+  const word = { ...chunks[lineIndex].words[wordIndex], lineBreak: false };
   const withoutWord = chunks.map((chunk, i) =>
-    i === c ? withWords(chunk, chunk.words.filter((_, j) => j !== w)) : chunk,
+    i === lineIndex
+      ? withWords(chunk, chunk.words.filter((_, j) => j !== wordIndex))
+      : chunk,
   );
-  const target = withoutWord[toC];
-  const at = c === toC && toW > w ? toW - 1 : toW;
+  const target = withoutWord[toLine];
+  // Taking the word out shifts the later words on its own line back by one.
+  const at = lineIndex === toLine && toWord > wordIndex ? toWord - 1 : toWord;
   const words = [...target.words.slice(0, at), word, ...target.words.slice(at)];
   return withoutWord
-    .map((chunk, i) => (i === toC ? withWords(chunk, words) : chunk))
+    .map((chunk, i) => (i === toLine ? withWords(chunk, words) : chunk))
     .filter((chunk) => chunk.words.length > 0);
 }
 
-/** Starts a new line at word `w`. */
+/** Starts a new line at word `wordIndex`. */
 export function splitLine(
   chunks: SubtitleChunk[],
-  c: number,
-  w: number,
+  lineIndex: number,
+  wordIndex: number,
 ): SubtitleChunk[] {
-  if (w === 0) return chunks;
-  const chunk = chunks[c];
-  const before = chunk.words
-    .slice(0, w)
+  if (wordIndex === 0) return chunks;
+  const line = chunks[lineIndex];
+  const before = line.words
+    .slice(0, wordIndex)
     .map((word, i, all) =>
       i === all.length - 1 ? { ...word, lineBreak: false } : word,
     );
   return replaceChunk(
     chunks,
-    c,
-    withWords(chunk, before),
+    lineIndex,
+    withWords(line, before),
     // The new line keeps the emoji off; it belongs to the original line.
-    withWords({ ...chunk, emoji: undefined }, chunk.words.slice(w)),
+    withWords({ ...line, emoji: undefined }, line.words.slice(wordIndex)),
   );
 }
 
-/** Adds a placeholder word after word `w`, timed into the gap after it. */
+/** Adds a placeholder word after `wordIndex`, timed into the gap after it. */
 export function addWordAfter(
   chunks: SubtitleChunk[],
-  c: number,
-  w: number,
+  lineIndex: number,
+  wordIndex: number,
   text = "word",
 ): SubtitleChunk[] {
-  const words = chunks[c].words;
-  const current = words[w];
-  const nextStart = words[w + 1]?.start ?? chunks[c + 1]?.start;
+  const words = chunks[lineIndex].words;
+  const current = words[wordIndex];
+  const nextStart = words[wordIndex + 1]?.start ?? chunks[lineIndex + 1]?.start;
   const room = nextStart !== undefined ? nextStart - current.end : Infinity;
   const start = current.end;
   const end = start + Math.max(0, Math.min(NEW_WORD_SECONDS, room));
   const next = [
-    ...words.slice(0, w + 1),
+    ...words.slice(0, wordIndex + 1),
     { word: text, start, end },
-    ...words.slice(w + 1),
+    ...words.slice(wordIndex + 1),
   ];
-  return replaceChunk(chunks, c, withWords(chunks[c], next));
+  return replaceChunk(chunks, lineIndex, withWords(chunks[lineIndex], next));
 }
 
 export function removeWord(
   chunks: SubtitleChunk[],
-  c: number,
-  w: number,
+  lineIndex: number,
+  wordIndex: number,
 ): SubtitleChunk[] {
-  const words = chunks[c].words.filter((_, i) => i !== w);
-  return replaceChunk(chunks, c, withWords(chunks[c], words));
+  const words = chunks[lineIndex].words.filter((_, i) => i !== wordIndex);
+  return replaceChunk(chunks, lineIndex, withWords(chunks[lineIndex], words));
 }
 
 /** A line's own settings from the line menu. */
@@ -243,10 +251,10 @@ const LINE_SETTING_KEYS = ["size", "positionY", "style", "emphasize"] as const;
 
 export function setLine(
   chunks: SubtitleChunk[],
-  c: number,
+  lineIndex: number,
   patch: Partial<Pick<SubtitleChunk, "hidden" | "emoji"> & LineSettings>,
 ): SubtitleChunk[] {
-  return chunks.map((chunk, i) => (i === c ? { ...chunk, ...patch } : chunk));
+  return chunks.map((chunk, i) => (i === lineIndex ? { ...chunk, ...patch } : chunk));
 }
 
 function withoutSettings(chunk: SubtitleChunk): SubtitleChunk {
@@ -255,42 +263,41 @@ function withoutSettings(chunk: SubtitleChunk): SubtitleChunk {
   return next;
 }
 
-/** Gives every line line `c`'s size, position, style and emphasis. */
-export function applyLineToAll(chunks: SubtitleChunk[], c: number): SubtitleChunk[] {
+/** Gives every line the size, position, style and emphasis of line `lineIndex`. */
+export function applyLineToAll(chunks: SubtitleChunk[], lineIndex: number): SubtitleChunk[] {
+  const source = chunks[lineIndex];
   const settings: LineSettings = {};
   for (const key of LINE_SETTING_KEYS) {
-    if (chunks[c][key] !== undefined) Object.assign(settings, { [key]: chunks[c][key] });
+    if (source[key] !== undefined) Object.assign(settings, { [key]: source[key] });
   }
   return chunks.map((chunk) => ({ ...withoutSettings(chunk), ...settings }));
 }
 
-export function resetLine(chunks: SubtitleChunk[], c: number): SubtitleChunk[] {
-  return chunks.map((chunk, i) => (i === c ? withoutSettings(chunk) : chunk));
+export function resetLine(chunks: SubtitleChunk[], lineIndex: number): SubtitleChunk[] {
+  return chunks.map((chunk, i) => (i === lineIndex ? withoutSettings(chunk) : chunk));
 }
 
 export function resetAllLines(chunks: SubtitleChunk[]): SubtitleChunk[] {
   return chunks.map(withoutSettings);
 }
 
-/** Adds a placeholder word at the end of line `c`. */
-export function addWordAtEnd(chunks: SubtitleChunk[], c: number): SubtitleChunk[] {
-  const words = chunks[c].words;
-  if (!words.length) {
-    const chunk = chunks[c];
-    return replaceChunk(
-      chunks,
-      c,
-      withWords(chunk, [
-        { word: "word", start: chunk.start, end: Math.max(chunk.end, chunk.start + NEW_WORD_SECONDS) },
-      ]),
-    );
+/** Adds a placeholder word at the end of line `lineIndex`. */
+export function addWordAtEnd(chunks: SubtitleChunk[], lineIndex: number): SubtitleChunk[] {
+  const line = chunks[lineIndex];
+  if (line.words.length) {
+    return addWordAfter(chunks, lineIndex, line.words.length - 1);
   }
-  return addWordAfter(chunks, c, words.length - 1);
+  const end = Math.max(line.end, line.start + NEW_WORD_SECONDS);
+  return replaceChunk(
+    chunks,
+    lineIndex,
+    withWords(line, [{ word: "word", start: line.start, end }]),
+  );
 }
 
 /** Spreads a line's time over new words by their length. */
 function retime(words: string[], start: number, end: number): WordTimestamp[] {
-  const weights = words.map((w) => Math.max(1, w.length));
+  const weights = words.map((word) => Math.max(1, word.length));
   const total = weights.reduce((a, b) => a + b, 0);
   let at = start;
   return words.map((word, i) => {
@@ -309,16 +316,16 @@ export function replaceLineWords(
   chunks: SubtitleChunk[],
   lines: string[][],
 ): SubtitleChunk[] {
-  return chunks.map((chunk, c) => {
-    const next = lines[c]?.filter(Boolean);
+  return chunks.map((chunk, lineIndex) => {
+    const next = lines[lineIndex]?.filter(Boolean);
     if (!next?.length) return chunk;
     if (next.length === chunk.words.length) {
       return withWords(
         chunk,
-        chunk.words.map((word, w) =>
-          word.word === next[w]
+        chunk.words.map((word, wordIndex) =>
+          word.word === next[wordIndex]
             ? word
-            : { ...word, word: next[w], punctuation: "" },
+            : { ...word, word: next[wordIndex], punctuation: "" },
         ),
       );
     }
@@ -329,19 +336,28 @@ export function replaceLineWords(
 const comparable = (text: string) =>
   text.toLowerCase().replace(/[^\p{L}\p{N}']+/gu, "");
 
-/** Where a word or phrase occurs, as line and first-word indexes. */
-export function findPhrase(
-  chunks: SubtitleChunk[],
-  phrase: string,
-): { c: number; w: number; length: number }[] {
+/** Where a word is: its line, and its place in that line. */
+export interface WordPosition {
+  lineIndex: number;
+  wordIndex: number;
+}
+
+/** One place a phrase occurs: its first word, and how many words it spans. */
+export interface PhraseMatch extends WordPosition {
+  length: number;
+}
+
+/** Where a word or phrase occurs across the transcript. */
+export function findPhrase(chunks: SubtitleChunk[], phrase: string): PhraseMatch[] {
   const needle = phrase.split(/\s+/).map(comparable).filter(Boolean);
   if (!needle.length) return [];
-  const found: { c: number; w: number; length: number }[] = [];
-  chunks.forEach((chunk, c) => {
-    for (let w = 0; w + needle.length <= chunk.words.length; w++) {
-      if (needle.every((part, k) => comparable(chunk.words[w + k].word) === part)) {
-        found.push({ c, w, length: needle.length });
-      }
+  const found: PhraseMatch[] = [];
+  chunks.forEach((chunk, lineIndex) => {
+    for (let wordIndex = 0; wordIndex + needle.length <= chunk.words.length; wordIndex++) {
+      const matches = needle.every(
+        (part, k) => comparable(chunk.words[wordIndex + k].word) === part,
+      );
+      if (matches) found.push({ lineIndex, wordIndex, length: needle.length });
     }
   });
   return found;
@@ -357,9 +373,9 @@ export function replacePhrase(
   if (!matches.length) return chunks;
   const words = replacement.split(/\s+/).filter(Boolean);
   // Right to left, so earlier indexes stay valid.
-  return [...matches].reverse().reduce((list, { c, w, length }) => {
-    const chunk = list[c];
-    const span = chunk.words.slice(w, w + length);
+  return [...matches].reverse().reduce((list, { lineIndex, wordIndex, length }) => {
+    const line = list[lineIndex];
+    const span = line.words.slice(wordIndex, wordIndex + length);
     const last = span[span.length - 1];
     const timed = words.length
       ? retime(words, span[0].start, last.end).map((word, i) => ({
@@ -368,7 +384,11 @@ export function replacePhrase(
           punctuation: i === words.length - 1 ? last.punctuation : "",
         }))
       : [];
-    const next = [...chunk.words.slice(0, w), ...timed, ...chunk.words.slice(w + length)];
-    return replaceChunk(list, c, withWords(chunk, next));
+    const next = [
+      ...line.words.slice(0, wordIndex),
+      ...timed,
+      ...line.words.slice(wordIndex + length),
+    ];
+    return replaceChunk(list, lineIndex, withWords(line, next));
   }, chunks);
 }

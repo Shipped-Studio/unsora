@@ -3,17 +3,20 @@ import { uploadUrlToStorage } from "./upload";
 
 /**
  * B-roll footage for the subtitle editor, as in Submagic's B-rolls tab:
- * stock clips from Pexels (Free and Premium) and AI images (Trendy).
+ * stock clips and photos from Pixabay (Free and Premium) and AI images (Trendy).
  */
 
 export type BrollKind = "video" | "image";
-export type BrollVendor = "pexels" | "ai" | "upload";
+/** "pexels" is kept for clips saved before the switch to Pixabay. */
+export type BrollVendor = "pixabay" | "pexels" | "ai" | "upload";
 export type VideoType = "free" | "premium" | "trendy";
 
 export interface BrollMedia {
   kind: BrollKind;
   url: string;
   thumbnailUrl?: string;
+  /** A smaller file for previewing a video before it's picked; `url` is what's used. */
+  previewUrl?: string;
   width?: number;
   height?: number;
   /** Seconds, for videos. */
@@ -26,114 +29,222 @@ export interface BrollMedia {
 
 export type Orientation = "portrait" | "landscape" | "square";
 
-const PEXELS_API = "https://api.pexels.com";
+// ── Pixabay ──────────────────────────────────────────────────────────────
+//
+// The rules from https://pixabay.com/api/docs/ that shape this code:
+// - Requests must be cached for 24 hours; the limit is 100 requests a minute.
+// - Image URLs may only be shown temporarily, as search results. An image a
+//   user puts in a video is copied to our storage first (importStockImage).
+// - Videos may be embedded directly, so their Pixabay URLs are kept.
+// - Wherever results are shown, say they come from Pixabay (the client does).
 
-export class PexelsNotConfiguredError extends Error {
+const PIXABAY_API = "https://pixabay.com/api";
+/** Pixabay rejects longer queries. */
+const MAX_QUERY_LENGTH = 100;
+/** Pixabay asks that searches be cached for this long. */
+const CACHE_MS = 24 * 60 * 60 * 1000;
+/** Searches kept in memory; the oldest is dropped past this. */
+const CACHE_MAX_ENTRIES = 1000;
+
+export class PixabayNotConfiguredError extends Error {
   constructor() {
-    super("PEXELS_API_KEY is not set");
+    super("PIXABAY_API_KEY is not set");
   }
 }
 
-function pexelsKey(): string {
-  const key = process.env.PEXELS_API_KEY;
-  if (!key) throw new PexelsNotConfiguredError();
+/** Over Pixabay's 100 requests a minute; resets within the minute. */
+export class StockRateLimitError extends Error {
+  constructor() {
+    super("Pixabay rate limit exceeded");
+  }
+}
+
+/** The URL to copy wasn't a Pixabay image. */
+export class InvalidStockUrlError extends Error {
+  constructor() {
+    super("Not a Pixabay image URL");
+  }
+}
+
+function pixabayKey(): string {
+  const key = process.env.PIXABAY_API_KEY;
+  if (!key) throw new PixabayNotConfiguredError();
   return key;
 }
 
-interface PexelsVideoFile {
-  link: string;
-  width: number;
-  height: number;
-  quality: string | null;
-  file_type: string;
+const cache = new Map<string, { at: number; data: unknown }>();
+
+/** A Pixabay search, cached for 24 hours as Pixabay requires. */
+async function pixabaySearch<T>(
+  endpoint: "images" | "videos",
+  params: Record<string, string>,
+): Promise<T> {
+  const query = new URLSearchParams({ ...params, safesearch: "true" });
+  // The key isn't part of the cache key, so rotating it keeps the cache.
+  const cacheKey = `${endpoint}?${query}`;
+  const hit = cache.get(cacheKey);
+  if (hit && Date.now() - hit.at < CACHE_MS) return hit.data as T;
+
+  query.set("key", pixabayKey());
+  const path = endpoint === "videos" ? "/videos/" : "/";
+  const response = await fetch(`${PIXABAY_API}${path}?${query}`);
+  if (response.status === 429) throw new StockRateLimitError();
+  if (!response.ok) throw new Error(`Pixabay search failed: HTTP ${response.status}`);
+  const data = (await response.json()) as T;
+
+  cache.delete(cacheKey);
+  if (cache.size >= CACHE_MAX_ENTRIES) cache.delete(cache.keys().next().value!);
+  cache.set(cacheKey, { at: Date.now(), data });
+  return data;
 }
 
-interface PexelsVideo {
+interface PixabayVideoFile {
+  /** Empty when Pixabay has no file at this size (only ever "large"). */
   url: string;
-  image: string;
+  width: number;
+  height: number;
+  size: number;
+  thumbnail: string;
+}
+
+interface PixabayVideo {
+  pageURL: string;
   duration: number;
-  width: number;
-  height: number;
-  user?: { name?: string };
-  video_files: PexelsVideoFile[];
+  user: string;
+  videos: Record<"large" | "medium" | "small" | "tiny", PixabayVideoFile>;
 }
 
-interface PexelsPhoto {
-  url: string;
-  width: number;
-  height: number;
-  photographer?: string;
-  src: { large2x: string; large: string; medium: string };
+interface PixabayImage {
+  pageURL: string;
+  /** Up to 640px. Valid for 24 hours: for showing results only. */
+  webformatURL: string;
+  /** Up to 1280px on the long edge. */
+  largeImageURL: string;
+  imageWidth: number;
+  imageHeight: number;
+  user: string;
 }
 
-/** Picks the MP4 closest to `target` pixels on the short edge, never far above. */
-function pickFile(files: PexelsVideoFile[], target: number): PexelsVideoFile | undefined {
-  const mp4 = files.filter((f) => f.file_type === "video/mp4" && f.link);
-  const edge = (f: PexelsVideoFile) => Math.min(f.width, f.height);
-  return [...mp4].sort(
-    (a, b) => Math.abs(edge(a) - target) - Math.abs(edge(b) - target),
-  )[0];
+/** Largest edge of `largeImageURL`. */
+const LARGE_IMAGE_EDGE = 1280;
+
+function orientationOf(width: number, height: number): Orientation {
+  const ratio = width / height;
+  if (ratio > 0.9 && ratio < 1.1) return "square";
+  return ratio > 1 ? "landscape" : "portrait";
 }
 
-/** Stock videos for a search. Premium asks for sharper files. */
-export async function searchPexelsVideos(
+/** The file closest to `target` pixels on its short edge. */
+function pickFile(video: PixabayVideo, target: number): PixabayVideoFile | undefined {
+  const files = Object.values(video.videos).filter((file) => file?.url);
+  const edge = (f: PixabayVideoFile) => Math.min(f.width, f.height);
+  return files.sort((a, b) => Math.abs(edge(a) - target) - Math.abs(edge(b) - target))[0];
+}
+
+/**
+ * Stock videos for a search. Premium asks for sharper files.
+ *
+ * Pixabay can't filter videos by orientation and most of its footage is
+ * landscape, so clips in the wanted orientation come first and the rest
+ * follow; the editor's layouts crop them to the frame.
+ */
+export async function searchStockVideos(
   query: string,
   orientation: Orientation,
   options: { perPage?: number; premium?: boolean } = {},
 ): Promise<BrollMedia[]> {
-  const params = new URLSearchParams({
-    query,
-    orientation,
-    per_page: String(options.perPage ?? 12),
-    size: options.premium ? "large" : "medium",
+  const perPage = options.perPage ?? 12;
+  const { hits } = await pixabaySearch<{ hits: PixabayVideo[] }>("videos", {
+    q: query.slice(0, MAX_QUERY_LENGTH),
+    // Fetch extra, so there's room to put the right orientation first.
+    per_page: String(Math.min(200, Math.max(20, perPage * 3))),
   });
-  const response = await fetch(`${PEXELS_API}/videos/search?${params}`, {
-    headers: { Authorization: pexelsKey() },
-  });
-  if (!response.ok) throw new Error(`Pexels search failed: HTTP ${response.status}`);
-  const { videos } = (await response.json()) as { videos: PexelsVideo[] };
   const target = options.premium ? 2160 : 1080;
-  return videos.flatMap((video) => {
-    const file = pickFile(video.video_files, target);
-    return file
-      ? [
-          {
-            kind: "video" as const,
-            url: file.link,
-            thumbnailUrl: video.image,
-            width: file.width,
-            height: file.height,
-            duration: video.duration,
-            vendor: "pexels" as const,
-            sourceUrl: video.url,
-            author: video.user?.name,
-          },
-        ]
-      : [];
+  const media = hits.flatMap((video): BrollMedia[] => {
+    const file = pickFile(video, target);
+    if (!file) return [];
+    return [
+      {
+        kind: "video",
+        url: file.url,
+        thumbnailUrl: file.thumbnail || video.videos.medium?.thumbnail,
+        // The smallest file (about 960x540) streams quickly for previews.
+        previewUrl: video.videos.tiny?.url || video.videos.small?.url || file.url,
+        width: file.width,
+        height: file.height,
+        duration: video.duration,
+        vendor: "pixabay",
+        sourceUrl: video.pageURL,
+        author: video.user,
+      },
+    ];
   });
+  const fits = (m: BrollMedia) => orientationOf(m.width ?? 1, m.height ?? 1) === orientation;
+  return [...media.filter(fits), ...media.filter((m) => !fits(m))].slice(0, perPage);
 }
 
-export async function searchPexelsPhotos(
+const IMAGE_ORIENTATION: Record<Orientation, string> = {
+  portrait: "vertical",
+  landscape: "horizontal",
+  square: "all",
+};
+
+/**
+ * Stock photos for a search. Their URLs are only for showing results: an
+ * image the user picks is copied to our storage with importStockImage.
+ */
+export async function searchStockPhotos(
   query: string,
   orientation: Orientation,
   perPage = 12,
 ): Promise<BrollMedia[]> {
-  const params = new URLSearchParams({ query, orientation, per_page: String(perPage) });
-  const response = await fetch(`${PEXELS_API}/v1/search?${params}`, {
-    headers: { Authorization: pexelsKey() },
+  const { hits } = await pixabaySearch<{ hits: PixabayImage[] }>("images", {
+    q: query.slice(0, MAX_QUERY_LENGTH),
+    image_type: "photo",
+    orientation: IMAGE_ORIENTATION[orientation],
+    per_page: String(Math.min(200, Math.max(3, perPage))),
   });
-  if (!response.ok) throw new Error(`Pexels search failed: HTTP ${response.status}`);
-  const { photos } = (await response.json()) as { photos: PexelsPhoto[] };
-  return photos.map((photo) => ({
-    kind: "image",
-    url: photo.src.large2x,
-    thumbnailUrl: photo.src.medium,
-    width: photo.width,
-    height: photo.height,
-    vendor: "pexels",
-    sourceUrl: photo.url,
-    author: photo.photographer,
-  }));
+  return hits.map((image) => {
+    const scale = Math.min(1, LARGE_IMAGE_EDGE / Math.max(image.imageWidth, image.imageHeight));
+    return {
+      kind: "image",
+      url: image.largeImageURL,
+      thumbnailUrl: image.webformatURL,
+      width: Math.round(image.imageWidth * scale),
+      height: Math.round(image.imageHeight * scale),
+      vendor: "pixabay",
+      sourceUrl: image.pageURL,
+      author: image.user,
+    };
+  });
+}
+
+/** True for https URLs on pixabay.com or its subdomains (e.g. cdn.pixabay.com). */
+function isPixabayUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      (url.hostname === "pixabay.com" || url.hostname.endsWith(".pixabay.com"))
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Copies a Pixabay image to our storage and returns its URL there. Pixabay
+ * doesn't allow keeping its image URLs in an app, so a picked image is
+ * copied once, before it goes in the video. Only Pixabay URLs are accepted,
+ * so this can't be used to make the server fetch other addresses.
+ */
+export async function importStockImage(url: string): Promise<string> {
+  if (!isPixabayUrl(url)) throw new InvalidStockUrlError();
+  const stored = await uploadUrlToStorage(url, "broll.jpg", "brolls");
+  if (!stored.success || !stored.fileUrl) {
+    throw new Error(stored.success ? "Upload failed" : stored.error);
+  }
+  return stored.fileUrl;
 }
 
 /** Credits an AI B-roll image costs; the same as Seedream v5 Lite elsewhere. */
@@ -270,7 +381,7 @@ export async function planAutoBrolls(options: {
     if (videoType === "trendy") {
       media = await generateBrollImage(scene.keyword || scene.brollQuery, orientation);
     } else {
-      const found = await searchPexelsVideos(scene.brollQuery, orientation, {
+      const found = await searchStockVideos(scene.brollQuery, orientation, {
         perPage: 8,
         premium: videoType === "premium",
       });

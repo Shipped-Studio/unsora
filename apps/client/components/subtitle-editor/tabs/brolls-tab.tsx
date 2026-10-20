@@ -135,6 +135,12 @@ const seconds = (n: number) => String(Number(n.toFixed(2)));
 const overlaps = (start: number, end: number, a: number, b: number) =>
   start < b && end > a;
 
+/** "By Jane on Pixabay": the credit for a stock clip. Older clips are from Pexels. */
+const stockCredit = (vendor: "pixabay" | "pexels", author?: string) => {
+  const site = vendor === "pixabay" ? "Pixabay" : "Pexels";
+  return author ? `By ${author} on ${site}` : `From ${site}`;
+};
+
 /** A clip layout from the project's B-roll default. */
 function resolveLayout(layout: BrollLayout | undefined, n: number): ClipLayout {
   if (!layout || layout === "random") return RANDOM_LAYOUTS[n % RANDOM_LAYOUTS.length];
@@ -286,6 +292,29 @@ export function BrollsTab({
         onPick={(media) => {
           addClip(mediaFor.scene, media);
           setMediaFor(null);
+        }}
+      />
+    );
+  }
+
+  // The transition library slides in the same way.
+  if (transitionAt !== null && scenes[transitionAt]) {
+    const at = scenes[transitionAt].start;
+    /** A transition belongs to the cut it starts at, give or take a frame. */
+    const isAtCut = (t: { at: number }) => Math.abs(t.at - at) < 0.05;
+    return (
+      <TransitionPicker
+        sceneNumber={transitionAt + 1}
+        current={timeline.transitions.find(isAtCut)?.id}
+        onBack={() => setTransitionAt(null)}
+        onApply={(id) => {
+          update({
+            transitions: [
+              ...timeline.transitions.filter((t) => !isAtCut(t)),
+              ...(id === "none" ? [] : [{ at, id }]),
+            ],
+          });
+          setTransitionAt(null);
         }}
       />
     );
@@ -486,26 +515,6 @@ export function BrollsTab({
         </Button>
       )}
 
-      <TransitionDialog
-        open={transitionAt !== null}
-        current={
-          transitionAt !== null
-            ? timeline.transitions.find((t) => Math.abs(t.at - scenes[transitionAt].start) < 0.05)?.id
-            : undefined
-        }
-        onOpenChange={(open) => !open && setTransitionAt(null)}
-        onApply={(id) => {
-          if (transitionAt === null) return;
-          const at = scenes[transitionAt].start;
-          update({
-            transitions: [
-              ...timeline.transitions.filter((t) => Math.abs(t.at - at) >= 0.05),
-              ...(id === "none" ? [] : [{ at, id }]),
-            ],
-          });
-          setTransitionAt(null);
-        }}
-      />
       <OutroDialog
         open={outroOpen}
         onOpenChange={setOutroOpen}
@@ -706,7 +715,7 @@ function AutoBrollsPopover({
           <p className="text-xs text-muted-foreground">
             {videoType === "trendy"
               ? `AI images, ✦ ${AI_IMAGE_CREDITS} each.`
-              : "Stock video from Pexels, included."}
+              : "Stock video from Pixabay, included."}
           </p>
         </div>
         <SwitchRow label="Enable Transitions" checked={transitions} onCheckedChange={setTransitions} />
@@ -1003,14 +1012,14 @@ function BrollChip({
         <ArrowsClockwise />
         <span className="flex-1">Replace</span>
       </button>
-      {clip.vendor === "pexels" && clip.sourceUrl ? (
+      {(clip.vendor === "pixabay" || clip.vendor === "pexels") && clip.sourceUrl ? (
         <a
           href={clip.sourceUrl}
           target="_blank"
           rel="noreferrer"
           className="px-2 py-1 text-xs text-muted-foreground underline"
         >
-          {clip.author ? `By ${clip.author} on Pexels` : "From Pexels"}
+          {stockCredit(clip.vendor, clip.author)}
         </a>
       ) : null}
       <DeleteRow onDelete={onDelete} />
@@ -1157,84 +1166,84 @@ function WidgetChip({
   );
 }
 
-function TransitionDialog({
-  open,
+/**
+ * The transition library. It slides in over the scenes like the B-roll
+ * library: hover a tile to preview it, click to pick it, then Apply.
+ */
+function TransitionPicker({
+  sceneNumber,
   current,
-  onOpenChange,
+  onBack,
   onApply,
 }: {
-  open: boolean;
+  /** The scene the transition leads into, counting from 1. */
+  sceneNumber: number;
   current: TransitionId | undefined;
-  onOpenChange: (open: boolean) => void;
+  onBack: () => void;
   onApply: (id: TransitionId) => void;
 }) {
-  const [picked, setPicked] = useState<TransitionId>("none");
+  const [picked, setPicked] = useState<TransitionId>(current ?? "none");
   const [hovered, setHovered] = useState<TransitionId | null>(null);
-  const [shownFor, setShownFor] = useState<string | null>(null);
-  const key = open ? (current ?? "none") : null;
-  if (key !== shownFor) {
-    setShownFor(key);
-    setPicked(current ?? "none");
-    setHovered(null);
-  }
   const previewing = hovered ?? picked;
   const info = transitionInfo(previewing);
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl">
-        <DialogHeader className="flex-row items-center gap-2">
-          <Button variant="ghost" size="icon-sm" aria-label="Back" onClick={() => onOpenChange(false)}>
-            <ArrowLeft />
-          </Button>
-          <DialogTitle>Transition</DialogTitle>
-        </DialogHeader>
-        <div className="flex flex-col gap-4 sm:flex-row">
-          <div className="flex shrink-0 flex-col items-center gap-2 sm:w-44">
-            <div className="aspect-[9/16] w-36 overflow-hidden rounded-xl bg-black sm:w-44">
-              <TransitionPlayer id={previewing} />
-            </div>
-            <p className="text-sm font-medium">{info.label}</p>
-            <p className="text-xs text-muted-foreground">
-              {previewing === "none"
-                ? "A straight cut"
-                : `${info.kind === "overlay" ? "Overlay" : "Motion"} · ${info.frames} frames`}
-            </p>
-          </div>
-          <div
-            role="group"
-            aria-label="Transitions"
-            onPointerLeave={() => setHovered(null)}
-            className="grid max-h-[60svh] flex-1 grid-cols-3 gap-2 overflow-y-auto pr-1 sm:grid-cols-4"
-          >
-            {TRANSITIONS.map((t) => (
-              <button
-                key={t.value}
-                type="button"
-                aria-pressed={picked === t.value}
-                onPointerEnter={() => setHovered(t.value)}
-                onFocus={() => setHovered(t.value)}
-                onClick={() => {
-                  setPicked(t.value);
-                  if (t.sound) playSound(t.sound);
-                }}
-                className={cn(
-                  "group/tile flex flex-col gap-1.5 rounded-xl border p-1.5 text-left text-xs outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
-                  picked === t.value && "border-primary ring-1 ring-primary",
-                )}
-              >
-                <span className="aspect-[9/16] w-full overflow-hidden rounded-lg bg-black">
-                  <TransitionThumbnail id={t.value} />
-                </span>
-                <span className="truncate px-0.5 font-medium">{t.label}</span>
-              </button>
-            ))}
-          </div>
+    <div className="space-y-4 duration-200 animate-in fade-in slide-in-from-right-6">
+      <div className="flex items-center gap-3">
+        <Button variant="outline" size="icon-sm" aria-label="Back to scenes" onClick={onBack}>
+          <ArrowLeft />
+        </Button>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-medium">Transition</h2>
+          <p className="text-xs text-muted-foreground">Into scene {sceneNumber}</p>
         </div>
-        <DialogFooter>
-          <Button onClick={() => onApply(picked)}>Apply</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <Button size="sm" onClick={() => onApply(picked)}>
+          Apply
+        </Button>
+      </div>
+
+      <div className="flex flex-col items-center gap-2 rounded-xl bg-muted p-3">
+        <div className="aspect-[9/16] w-36 overflow-hidden rounded-xl bg-black">
+          <TransitionPlayer id={previewing} />
+        </div>
+        <p className="text-sm font-medium">{info.label}</p>
+        <p className="text-xs text-muted-foreground">
+          {previewing === "none"
+            ? "A straight cut"
+            : `${info.kind === "overlay" ? "Overlay" : "Motion"} · ${info.frames} frames`}
+        </p>
+      </div>
+
+      <div
+        role="group"
+        aria-label="Transitions"
+        onPointerLeave={() => setHovered(null)}
+        className="grid grid-cols-3 gap-2 sm:grid-cols-4"
+      >
+        {TRANSITIONS.map((t) => (
+          <button
+            key={t.value}
+            type="button"
+            aria-pressed={picked === t.value}
+            onPointerEnter={() => setHovered(t.value)}
+            onFocus={() => setHovered(t.value)}
+            onClick={() => {
+              setPicked(t.value);
+              if (t.sound) playSound(t.sound);
+            }}
+            className={cn(
+              "group/tile flex flex-col gap-1.5 rounded-xl border p-1.5 text-left text-xs outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
+              picked === t.value && "border-primary ring-1 ring-primary",
+            )}
+          >
+            <span className="aspect-[9/16] w-full overflow-hidden rounded-lg bg-black">
+              <TransitionThumbnail id={t.value} />
+            </span>
+            <span className="truncate px-0.5 font-medium">{t.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
