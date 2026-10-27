@@ -30,7 +30,7 @@ import {
 } from "@/components/billing/format";
 import { redirectToStripe } from "@/components/billing/redirect-to-stripe";
 import { useAuthFetch } from "@/hooks/use-auth-fetch";
-import { useSubscriptionPlans } from "@/hooks/use-subscription-plans";
+import { findUserPlan, useSubscriptionPlans } from "@/hooks/use-subscription-plans";
 import { useUserUsage } from "@/hooks/use-user-usage";
 import { cn } from "@/lib/utils";
 
@@ -49,10 +49,10 @@ export function PricingDialog({ open, onOpenChange }: PricingDialogProps) {
   const { usage } = useUserUsage();
   const { plans, loading, error, refetch } = useSubscriptionPlans();
 
-  const currentKey = (usage?.user.plan ?? "free").toLowerCase();
+  const currentPlan = findUserPlan(plans, usage?.user.plan);
+  const currentKey = currentPlan?.key ?? (usage?.user.plan ?? "free").toLowerCase();
   const isPaid = usage?.user.isActive === true && currentKey !== "free";
-  const currentPrice =
-    plans?.find((p) => p.key === currentKey)?.priceUsd ?? 0;
+  const currentPrice = currentPlan?.priceUsd ?? 0;
 
   const handleSelect = async (planKey: string) => {
     setPendingKey(planKey);

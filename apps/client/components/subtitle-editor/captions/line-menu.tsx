@@ -68,7 +68,7 @@ export function LineMenu({ lineIndex }: { lineIndex: number }) {
           <button
             type="button"
             aria-label={`Size and position of line ${lineIndex + 1}`}
-            className={cn(ROW_ICON_CLASS, hasOwnSettings && "text-[#3F83F8]")}
+            className={cn(ROW_ICON_CLASS, hasOwnSettings && "text-info")}
           />
         }
       >
@@ -112,17 +112,17 @@ export function LineMenu({ lineIndex }: { lineIndex: number }) {
         />
         <div className="-mx-1 grid gap-0.5 border-t pt-2">
           <LineAction onClick={() => finish(applyLineToAll(chunks, lineIndex))}>
-            Apply to All Lines
+            Apply to all lines
           </LineAction>
           <LineAction onClick={() => finish(resetAllLines(chunks))}>
-            Reset All Lines
+            Reset all lines
           </LineAction>
           <LineAction onClick={() => finish(resetLine(chunks, lineIndex))}>Reset</LineAction>
           <LineAction
             destructive
             onClick={() => finish(chunks.filter((_, i) => i !== lineIndex))}
           >
-            Delete Line
+            Delete line
           </LineAction>
         </div>
       </PopoverContent>

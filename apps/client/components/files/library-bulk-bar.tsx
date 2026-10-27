@@ -14,6 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Spinner } from "@/components/ui/spinner";
 import { MoveToFolderMenu } from "@/components/files/library-folders";
 import {
   libraryDeletePath,
@@ -184,6 +185,7 @@ export function LibraryBulkBar({
               disabled={remove.isPending}
               onClick={handleDelete}
             >
+              {remove.isPending ? <Spinner data-icon="inline-start" /> : null}
               {remove.isPending ? "Deleting…" : `Delete ${files(deletable)}`}
             </AlertDialogAction>
           </AlertDialogFooter>

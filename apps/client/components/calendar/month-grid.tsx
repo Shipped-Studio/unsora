@@ -74,9 +74,9 @@ function DayCell({
           <Link
             href={newPostHref(day)}
             aria-label={`New post on ${format(day, "MMMM d")}`}
-            className="flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity group-hover/day:opacity-100 hover:bg-accent hover:text-foreground focus-visible:opacity-100"
+            className="flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity group-hover/day:opacity-100 pointer-coarse:opacity-100 hover:bg-accent hover:text-foreground focus-visible:opacity-100"
           >
-            <Plus className="size-3.5" />
+            <Plus aria-hidden className="size-3.5" />
           </Link>
         ) : null}
       </div>
@@ -93,8 +93,8 @@ function DayCell({
         ))}
         {hidden > 0 ? (
           <Popover>
-            <PopoverTrigger className="rounded px-1.5 text-left text-[0.8125rem] text-muted-foreground hover:text-foreground">
-              {hidden} more
+            <PopoverTrigger className="rounded-md px-1.5 text-left text-xs text-muted-foreground tabular-nums outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+              +{hidden} more
             </PopoverTrigger>
             <PopoverContent align="start" className="w-72 gap-1.5 p-2">
               <p className="px-1 pb-1 text-xs font-medium text-muted-foreground">

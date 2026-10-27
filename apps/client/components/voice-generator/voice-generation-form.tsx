@@ -144,7 +144,7 @@ export function VoiceGenerationForm({
             value={text}
             onChange={(e) => setText(e.target.value)}
             disabled={submitting}
-            placeholder="What should the voice say?"
+            placeholder="Welcome back. Today we're planning a full week of posts in ten minutes."
             rows={8}
             className="field-sizing-fixed min-h-40 resize-y leading-relaxed"
           />

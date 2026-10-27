@@ -168,7 +168,7 @@ export function InfluencerPromptForm({
           value={prompt}
           onChange={setPrompt}
           onSubmit={() => void handleSubmit()}
-          placeholder="Describe the person"
+          placeholder="Woman in her late 20s, curly hair, denim jacket, on a city street"
           label="Influencer prompt"
           disabled={submitting}
         />

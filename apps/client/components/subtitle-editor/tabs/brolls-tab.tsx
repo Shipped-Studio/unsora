@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import { toast } from "sonner";
 import {
   ArrowClockwise,
+  ArrowCounterClockwise,
   ArrowLeft,
   ArrowsClockwise,
   ArrowsHorizontal,
@@ -19,6 +20,7 @@ import {
   MagnifyingGlassPlus,
   MusicNotes,
   Palette,
+  PencilSimple,
   Plus,
   Scissors,
   Sparkle,
@@ -30,7 +32,9 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -92,6 +96,7 @@ import {
   SliderField,
   SwitchRow,
 } from "@/components/subtitle-editor/editor-fields";
+import { DeleteDialog } from "@/components/subtitle-editor/delete-dialog";
 import { failureMessage } from "@/components/subtitle-editor/format";
 import type {
   BrollMedia,
@@ -102,6 +107,7 @@ import type {
 import { cn } from "@/lib/utils";
 import type { SubtitleChunk } from "@/remotion/types";
 import { BrollPicker } from "@/components/subtitle-editor/tabs/broll-picker";
+import { IconButton } from "@/components/subtitle-editor/icon-button";
 
 type Api = ReturnType<typeof useSubtitleApi>;
 
@@ -367,17 +373,18 @@ export function BrollsTab({
               <div
                 className={cn(
                   "space-y-2 rounded-xl px-3 py-2.5 transition-colors duration-200",
-                  isActive ? "bg-[#F2F3F5] dark:bg-muted" : "hover:bg-[#F9FAFB] dark:hover:bg-muted/40",
+                  isActive ? "bg-muted" : "hover:bg-muted/40",
                 )}
               >
                 <button
                   type="button"
                   onClick={() => onSeek(scene.start)}
-                  className="rounded-md bg-black/[0.04] px-1.5 py-px text-xs font-medium tabular-nums text-[#8C8C92] outline-none transition-colors hover:bg-black/[0.08] focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-white/10"
+                  aria-label={`Play from ${seconds(scene.start)} seconds`}
+                  className="rounded-md bg-foreground/5 px-1.5 py-px text-xs font-medium tabular-nums text-muted-foreground outline-none transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
-                  {seconds(scene.start)} - {seconds(scene.end)}
+                  {seconds(scene.start)}–{seconds(scene.end)}s
                 </button>
-                <p className="text-sm leading-6 text-[#212224] dark:text-foreground">
+                <p className="text-sm leading-6 text-foreground">
                   {text || scene.keyword}
                 </p>
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -470,7 +477,7 @@ export function BrollsTab({
                           }
                           onClick={() => setTransitionAt(i + 1)}
                           className={cn(
-                            "relative flex size-8 items-center justify-center rounded-lg border bg-white text-muted-foreground shadow-xs outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-background [&_svg]:size-4",
+                            "relative flex size-8 items-center justify-center rounded-lg border bg-card text-muted-foreground shadow-xs outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 [&_svg]:size-4",
                             transition && "border-primary/30 bg-primary/10 text-primary dark:bg-primary/15",
                           )}
                         />
@@ -479,7 +486,7 @@ export function BrollsTab({
                       <Infinity />
                     </TooltipTrigger>
                     <TooltipContent>
-                      {transition ? transitionInfo(transition.id).label : "Transition"}
+                      {transition ? transitionInfo(transition.id).label : "Add a transition"}
                     </TooltipContent>
                   </Tooltip>
                 </div>
@@ -496,22 +503,18 @@ export function BrollsTab({
           </span>
           <div className="flex gap-1">
             <Button variant="ghost" size="sm" onClick={() => setOutroOpen(true)}>
+              <PencilSimple />
               Edit
             </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Remove outro"
-              onClick={() => update({ outro: undefined })}
-            >
+            <IconButton label="Remove outro" onClick={() => update({ outro: undefined })}>
               <Trash />
-            </Button>
+            </IconButton>
           </div>
         </div>
       ) : (
         <Button variant="outline" className="w-full" onClick={() => setOutroOpen(true)}>
           <Plus />
-          Add Outro
+          Add outro
         </Button>
       )}
 
@@ -585,27 +588,25 @@ function Toolbar({
         }}
       >
         {zooming ? <Spinner /> : <MagnifyingGlassPlus />}
-        Auto Zooms
-        <span className="text-xs text-muted-foreground">✦ 1</span>
+        Auto zooms
+        <span className="text-xs tabular-nums text-muted-foreground">✦ 1</span>
       </Button>
       <Button variant="outline" size="sm" onClick={onOpenHookTitle}>
         <TextT />
-        Hook Title
+        Hook title
       </Button>
       <Button variant="outline" size="sm" onClick={onTrim}>
         <Scissors />
         Trim
       </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Re-split into scenes"
+      <IconButton
+        label="Split into scenes again"
         className="ml-auto"
         disabled={isRefreshing}
         onClick={onRefresh}
       >
         {isRefreshing ? <Spinner /> : <ArrowClockwise />}
-      </Button>
+      </IconButton>
     </div>
   );
 }
@@ -634,6 +635,17 @@ function AutoBrollsPopover({
   const [videoType, setVideoType] = useState<"free" | "premium" | "trendy">("trendy");
   const [transitions, setTransitions] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  const deleteAll = () => {
+    onTimelineChange({
+      ...timeline,
+      brolls: [],
+      transitions: [],
+      sounds: timeline.sounds.filter((s) => !s.id.startsWith("auto-")),
+    });
+    setConfirmingDelete(false);
+  };
 
   const run = async () => {
     setIsUpdating(true);
@@ -683,6 +695,7 @@ function AutoBrollsPopover({
   };
 
   return (
+    <>
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger render={<Button size="sm" />}>
         <FilmStrip />
@@ -701,7 +714,7 @@ function AutoBrollsPopover({
           onChange={setPercent}
         />
         <div className="space-y-2">
-          <span className="text-xs font-medium text-muted-foreground">Video Type</span>
+          <span className="text-xs font-medium text-muted-foreground">Video type</span>
           <ChoiceGroup
             label="Video type"
             value={videoType}
@@ -718,31 +731,37 @@ function AutoBrollsPopover({
               : "Stock video from Pixabay, included."}
           </p>
         </div>
-        <SwitchRow label="Enable Transitions" checked={transitions} onCheckedChange={setTransitions} />
+        <SwitchRow label="Add transitions" checked={transitions} onCheckedChange={setTransitions} />
         <div className="flex gap-2">
           <Button
             variant="outline"
             className="flex-1"
             disabled={!timeline.brolls.length || isUpdating}
             onClick={() => {
-              onTimelineChange({
-                ...timeline,
-                brolls: [],
-                transitions: [],
-                sounds: timeline.sounds.filter((s) => !s.id.startsWith("auto-")),
-              });
               setOpen(false);
+              setConfirmingDelete(true);
             }}
           >
-            Delete
+            <Trash />
+            Remove all
           </Button>
           <Button className="flex-1" disabled={isUpdating} onClick={run}>
-            {isUpdating ? <Spinner /> : null}
-            Update
+            {isUpdating ? <Spinner /> : <Sparkle />}
+            {isUpdating ? "Updating…" : "Update"}
           </Button>
         </div>
       </PopoverContent>
     </Popover>
+    <DeleteDialog
+      open={confirmingDelete}
+      title="Remove all B-rolls?"
+      description="Every B-roll and transition comes off this video, with the sounds Auto B-rolls added. Sounds you added stay."
+      isDeleting={false}
+      confirmLabel="Remove all"
+      onConfirm={deleteAll}
+      onCancel={() => setConfirmingDelete(false)}
+    />
+    </>
   );
 }
 
@@ -764,7 +783,7 @@ function AddMenu({
           <button
             type="button"
             aria-label="Add to this scene"
-            className="flex size-9 items-center justify-center rounded-lg border bg-white text-[#212224] shadow-xs outline-none transition-colors hover:bg-[#F9FAFB] focus-visible:ring-3 focus-visible:ring-ring/50 data-[popup-open]:border-[#3F83F8] dark:bg-background dark:text-foreground [&_svg]:size-4"
+            className="flex size-9 items-center justify-center rounded-lg border bg-card text-foreground shadow-xs outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 data-[popup-open]:border-info [&_svg]:size-4"
           />
         }
       >
@@ -772,14 +791,14 @@ function AddMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
         <DropdownMenuGroup>
-          <DropdownMenuLabel>Medias</DropdownMenuLabel>
+          <DropdownMenuLabel>Media</DropdownMenuLabel>
           <DropdownMenuItem onClick={() => onMedia("video")}>
             <FilmStrip />
-            Brolls
+            B-roll video
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => onMedia("photo")}>
             <ImageIcon />
-            Images
+            Image
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
@@ -815,7 +834,7 @@ function AddMenu({
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuLabel>Widget</DropdownMenuLabel>
+          <DropdownMenuLabel>Widgets</DropdownMenuLabel>
           <DropdownMenuItem onClick={() => onWidget("speaker")}>
             <User />
             Speaker
@@ -831,9 +850,9 @@ function AddMenu({
 }
 
 const CHIP_CLASS =
-  "inline-flex h-9 items-center gap-2 rounded-lg border bg-white pl-1 pr-2.5 text-[13px] font-medium text-[#212224] shadow-xs outline-none transition-colors hover:bg-[#F9FAFB] focus-visible:ring-3 focus-visible:ring-ring/50 data-[popup-open]:border-[#3F83F8] dark:bg-background dark:text-foreground";
+  "inline-flex h-9 items-center gap-2 rounded-lg border bg-card pl-1 pr-2.5 text-[13px] font-medium text-foreground shadow-xs outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 data-[popup-open]:border-info";
 const CHIP_THUMB_CLASS =
-  "flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#F2F3F5] text-[#212224] dark:bg-muted dark:text-foreground [&_svg]:size-4";
+  "flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-foreground [&_svg]:size-4";
 
 /** A layer on a scene: a thumbnail or icon and its name. */
 function LayerChip({ label, thumb }: { label: string; thumb: React.ReactNode }) {
@@ -972,6 +991,7 @@ function PercentRow({
 function DeleteRow({ onDelete }: { onDelete: () => void }) {
   return (
     <Button variant="outline" className="mt-1 w-full" onClick={onDelete}>
+      <Trash />
       Delete
     </Button>
   );
@@ -1190,9 +1210,9 @@ function TransitionPicker({
   return (
     <div className="space-y-4 duration-200 animate-in fade-in slide-in-from-right-6">
       <div className="flex items-center gap-3">
-        <Button variant="outline" size="icon-sm" aria-label="Back to scenes" onClick={onBack}>
+        <IconButton variant="outline" label="Back to scenes" onClick={onBack}>
           <ArrowLeft />
-        </Button>
+        </IconButton>
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-medium">Transition</h2>
           <p className="text-xs text-muted-foreground">Into scene {sceneNumber}</p>
@@ -1258,51 +1278,56 @@ function OutroDialog({
   outro: Timeline["outro"];
   onSave: (outro: NonNullable<Timeline["outro"]>) => void;
 }) {
-  const titleId = useId();
-  const subtitleId = useId();
-  const [title, setTitle] = useState("");
-  const [subtitle, setSubtitle] = useState("");
-  const [duration, setDuration] = useState(3);
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (next) {
-          setTitle(outro?.title ?? "Thanks for watching");
-          setSubtitle(outro?.subtitle ?? "Follow for more");
-          setDuration(outro?.duration ?? 3);
-        }
-        onOpenChange(next);
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Outro</DialogTitle>
+          <DialogTitle>{outro ? "Edit outro" : "Add outro"}</DialogTitle>
+          <DialogDescription>A closing card shown after the video ends.</DialogDescription>
         </DialogHeader>
-        <form
-          className="space-y-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (title.trim()) onSave({ title: title.trim(), subtitle: subtitle.trim() || undefined, duration });
-          }}
-        >
-          <div className="space-y-1.5">
-            <Label htmlFor={titleId}>Title</Label>
-            <Input id={titleId} autoFocus value={title} maxLength={60} onChange={(e) => setTitle(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor={subtitleId}>Subtitle</Label>
-            <Input id={subtitleId} value={subtitle} maxLength={80} onChange={(e) => setSubtitle(e.target.value)} />
-          </div>
-          <SliderField label="Duration" unit="s" value={duration} min={1} max={8} step={0.5} onChange={setDuration} />
-          <DialogFooter>
-            <Button type="submit" disabled={!title.trim()}>
-              Save
-            </Button>
-          </DialogFooter>
-        </form>
+        {/* The popup unmounts when closed, so each open starts from `outro`. */}
+        <OutroForm outro={outro} onSave={onSave} />
       </DialogContent>
     </Dialog>
+  );
+}
+
+function OutroForm({
+  outro,
+  onSave,
+}: {
+  outro: Timeline["outro"];
+  onSave: (outro: NonNullable<Timeline["outro"]>) => void;
+}) {
+  const titleId = useId();
+  const subtitleId = useId();
+  const [title, setTitle] = useState(outro?.title ?? "Thanks for watching");
+  const [subtitle, setSubtitle] = useState(outro?.subtitle ?? "Follow for more");
+  const [duration, setDuration] = useState(outro?.duration ?? 3);
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (title.trim()) onSave({ title: title.trim(), subtitle: subtitle.trim() || undefined, duration });
+      }}
+    >
+      <div className="space-y-1.5">
+        <Label htmlFor={titleId}>Title</Label>
+        <Input id={titleId} autoFocus value={title} maxLength={60} onChange={(e) => setTitle(e.target.value)} />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor={subtitleId}>Subtitle</Label>
+        <Input id={subtitleId} value={subtitle} maxLength={80} onChange={(e) => setSubtitle(e.target.value)} />
+      </div>
+      <SliderField label="Duration" unit="s" value={duration} min={1} max={8} step={0.5} onChange={setDuration} />
+      <DialogFooter>
+        <DialogClose render={<Button type="button" variant="outline" />}>Cancel</DialogClose>
+        <Button type="submit" disabled={!title.trim()}>
+          Save
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }
 
@@ -1319,61 +1344,75 @@ function TrimDialog({
   trim: Timeline["trim"];
   onApply: (trim: Timeline["trim"]) => void;
 }) {
-  const [start, setStart] = useState(0);
-  const [end, setEnd] = useState(duration);
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (next) {
-          setStart(trim?.start ?? 0);
-          setEnd(trim?.end ?? duration);
-        }
-        onOpenChange(next);
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Trim</DialogTitle>
+          <DialogDescription>Choose where the exported video starts and ends.</DialogDescription>
         </DialogHeader>
-        <SliderField
-          label="Start"
-          unit="s"
-          value={Number(start.toFixed(1))}
-          min={0}
-          max={Math.max(0, end - 1)}
-          step={0.1}
-          onChange={setStart}
+        {/* The popup unmounts when closed, so each open starts from `trim`. */}
+        <TrimForm
+          duration={duration}
+          trim={trim}
+          onApply={(next) => {
+            onApply(next);
+            onOpenChange(false);
+          }}
         />
-        <SliderField
-          label="End"
-          unit="s"
-          value={Number(end.toFixed(1))}
-          min={Math.min(duration, start + 1)}
-          max={duration}
-          step={0.1}
-          onChange={setEnd}
-        />
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => {
-              onApply(undefined);
-              onOpenChange(false);
-            }}
-          >
-            Reset
-          </Button>
-          <Button
-            onClick={() => {
-              onApply(start <= 0 && end >= duration ? undefined : { start, end });
-              onOpenChange(false);
-            }}
-          >
-            Apply
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function TrimForm({
+  duration,
+  trim,
+  onApply,
+}: {
+  duration: number;
+  trim: Timeline["trim"];
+  onApply: (trim: Timeline["trim"]) => void;
+}) {
+  const [start, setStart] = useState(trim?.start ?? 0);
+  const [end, setEnd] = useState(trim?.end ?? duration);
+  const isFull = start <= 0 && end >= duration;
+  return (
+    <>
+      <SliderField
+        label="Start"
+        unit="s"
+        value={Number(start.toFixed(1))}
+        min={0}
+        max={Math.max(0, end - 1)}
+        step={0.1}
+        onChange={setStart}
+      />
+      <SliderField
+        label="End"
+        unit="s"
+        value={Number(end.toFixed(1))}
+        min={Math.min(duration, start + 1)}
+        max={duration}
+        step={0.1}
+        onChange={setEnd}
+      />
+      <DialogFooter>
+        <Button
+          variant="ghost"
+          className="sm:mr-auto"
+          disabled={isFull}
+          onClick={() => {
+            setStart(0);
+            setEnd(duration);
+          }}
+        >
+          <ArrowCounterClockwise />
+          Reset
+        </Button>
+        <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+        <Button onClick={() => onApply(isFull ? undefined : { start, end })}>Apply</Button>
+      </DialogFooter>
+    </>
   );
 }

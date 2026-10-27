@@ -29,11 +29,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
 import { SchedulePicker } from "@/components/composer/schedule-picker";
-import {
-  AccountAvatar,
-  accountHandle,
-  accountLabel,
-} from "@/components/scheduler/account-avatar";
+import { AccountAvatar, accountHandle, accountLabel } from "@/components/scheduler/account-avatar";
 import { PostStatusBadge } from "@/components/scheduler/post-status-badge";
 import { PublishNowDialog } from "@/components/scheduler/publish-now-dialog";
 import { readableError } from "@/components/scheduler/readable-error";
@@ -137,7 +133,13 @@ function PostMediaPreview({ post }: { post: Post }) {
       </div>
     );
   }
-  return null;
+  if (post.type === "TEXT") return null;
+  // The files were removed from the Library after the post was made.
+  return (
+    <p className="rounded-xl bg-muted px-4 py-3 text-sm text-muted-foreground">
+      The media for this post is no longer in your Library.
+    </p>
+  );
 }
 
 /** Everything about one post plus its actions. Used by the sheet and the page. */
@@ -186,7 +188,7 @@ export function PostDetails({
         <span className="text-sm text-muted-foreground">· {format.label}</span>
         {post.source !== "WEB" ? (
           <span className="flex items-center gap-1 text-sm text-muted-foreground">
-            · <Robot className="size-3.5" />
+            · <Robot aria-hidden className="size-3.5" />
             {post.source === "MCP" ? "Created by your agent" : "Created with the API"}
           </span>
         ) : null}
@@ -197,11 +199,13 @@ export function PostDetails({
           title={post.error}
           className="flex items-start gap-2 rounded-xl bg-destructive-subtle p-3 text-sm"
         >
-          <WarningCircle className="mt-0.5 size-4 shrink-0 text-destructive" />
-          <span className="min-w-0 break-words">{readableError(
+          <WarningCircle aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
+          <span className="min-w-0 break-words">
+            {readableError(
               post.error,
               "Couldn't publish. Try again, or reconnect the account if it keeps failing.",
-            )}</span>
+            )}
+          </span>
         </div>
       ) : null}
 
@@ -299,9 +303,7 @@ export function PostDetails({
         </Button>
         {canDelete(post.status) ? (
           <AlertDialog>
-            <AlertDialogTrigger
-              render={<Button size="sm" variant="ghost" className="text-muted-foreground" />}
-            >
+            <AlertDialogTrigger render={<Button size="sm" variant="destructive" />}>
               <Trash />
               Delete
             </AlertDialogTrigger>
@@ -315,13 +317,13 @@ export function PostDetails({
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel disabled={remove.isPending}>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   variant="destructive"
-                  onClick={() =>
-                    remove.mutate(post.id, { onSuccess: () => onDeleted?.() })
-                  }
+                  disabled={remove.isPending}
+                  onClick={() => remove.mutate(post.id, { onSuccess: () => onDeleted?.() })}
                 >
+                  {remove.isPending ? <Spinner /> : null}
                   Delete post
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -348,58 +350,71 @@ export function PostDetails({
 
       <section className="space-y-2">
         <h3 className="text-sm font-medium">Accounts</h3>
-        <ul className="divide-y divide-border rounded-xl border border-border">
-          {post.postAccounts.map((leg) => {
-            const legMetrics = metrics?.[leg.id];
-            return (
-              <li key={leg.id} className="space-y-2 p-3">
-                <div className="flex items-center gap-3">
-                  <AccountAvatar account={leg.account} size="md" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{accountLabel(leg.account)}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {platformName(leg.account.provider)}
-                      {accountHandle(leg.account) ? ` · ${accountHandle(leg.account)}` : ""}
-                    </p>
+        {post.postAccounts.length === 0 ? (
+          <p className="rounded-xl bg-muted px-4 py-3 text-sm text-muted-foreground">
+            {post.status === "DRAFT"
+              ? "No accounts picked yet."
+              : post.publishedAt || post.status === "PUBLISHED"
+                ? "The accounts this went to are no longer connected."
+                : "The accounts this was meant for are no longer connected."}
+          </p>
+        ) : (
+          <ul className="divide-y divide-border rounded-xl border border-border">
+            {post.postAccounts.map((leg) => {
+              const legMetrics = metrics?.[leg.id];
+              return (
+                <li key={leg.id} className="space-y-2 p-3">
+                  <div className="flex items-center gap-3">
+                    <AccountAvatar account={leg.account} size="md" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{accountLabel(leg.account)}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {platformName(leg.account.provider)}
+                        {accountHandle(leg.account) ? ` · ${accountHandle(leg.account)}` : ""}
+                      </p>
+                    </div>
+                    <LegStatus leg={leg} postStatus={post.status} />
+                    {leg.publishedUrl ? (
+                      <a
+                        href={leg.publishedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={buttonVariants({
+                          variant: "ghost",
+                          size: "icon-sm",
+                        })}
+                        aria-label={`Open on ${platformName(leg.account.provider)}`}
+                      >
+                        <ArrowSquareOut />
+                      </a>
+                    ) : null}
                   </div>
-                  <LegStatus leg={leg} postStatus={post.status} />
-                  {leg.publishedUrl ? (
-                    <a
-                      href={leg.publishedUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
-                      aria-label={`Open on ${platformName(leg.account.provider)}`}
-                    >
-                      <ArrowSquareOut />
-                    </a>
+                  {leg.title ? (
+                    <p className="pl-12 text-xs text-muted-foreground">Title: {leg.title}</p>
                   ) : null}
-                </div>
-                {leg.title ? (
-                  <p className="pl-12 text-xs text-muted-foreground">Title: {leg.title}</p>
-                ) : null}
-                {leg.customCaption ? (
-                  <p className="line-clamp-3 pl-12 text-xs text-muted-foreground">
-                    {leg.customCaption}
-                  </p>
-                ) : null}
-                {leg.error && !leg.published ? (
-                  <p title={leg.error} className="pl-12 text-xs break-words text-destructive">
-                    {readableError(leg.error, "Couldn't publish to this account.")}
-                  </p>
-                ) : null}
-                {legMetrics ? (
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 pl-12 text-xs text-muted-foreground tabular-nums">
-                    <span>{compact(legMetrics.views)} views</span>
-                    <span>{compact(legMetrics.likes)} likes</span>
-                    <span>{compact(legMetrics.comments)} comments</span>
-                    {legMetrics.shares ? <span>{compact(legMetrics.shares)} shares</span> : null}
-                  </div>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
+                  {leg.customCaption ? (
+                    <p className="line-clamp-3 pl-12 text-xs text-muted-foreground">
+                      {leg.customCaption}
+                    </p>
+                  ) : null}
+                  {leg.error && !leg.published ? (
+                    <p title={leg.error} className="pl-12 text-xs break-words text-destructive">
+                      {readableError(leg.error, "Couldn't publish to this account.")}
+                    </p>
+                  ) : null}
+                  {legMetrics ? (
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 pl-12 text-xs text-muted-foreground tabular-nums">
+                      <span>{compact(legMetrics.views)} views</span>
+                      <span>{compact(legMetrics.likes)} likes</span>
+                      <span>{compact(legMetrics.comments)} comments</span>
+                      {legMetrics.shares ? <span>{compact(legMetrics.shares)} shares</span> : null}
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </section>
     </div>
   );

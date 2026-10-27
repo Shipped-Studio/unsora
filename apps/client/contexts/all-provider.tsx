@@ -45,7 +45,12 @@ export default function AllProvider({
               options={{ showSpinner: false }}
               showOnShallow
             />
-            <Toaster position="top-center" />
+            {/* Below the page header, so toasts don't cover titles or header actions. */}
+            <Toaster
+              position="top-center"
+              offset={{ top: "5.25rem" }}
+              mobileOffset={{ top: "4.5rem" }}
+            />
           </TooltipProvider>
         </ThemeProvider>
       </QueryClientProvider>

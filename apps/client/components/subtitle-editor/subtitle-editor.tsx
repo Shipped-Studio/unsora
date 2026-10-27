@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { CaptionLayout } from "@/components/subtitle-editor/caption-layout";
 import { presetLayout } from "@/components/subtitle-editor/caption-style";
 import { CaptionsEditorProvider } from "@/components/subtitle-editor/captions/captions-context";
@@ -159,15 +160,27 @@ export function SubtitleEditor({
               {actions.isTitling ? <Spinner /> : <Sparkle />}
               AI title
             </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Rename project"
+                    onClick={() => setRenameOpen(true)}
+                  />
+                }
+              >
+                <PencilSimple />
+              </TooltipTrigger>
+              <TooltipContent>Rename project</TooltipContent>
+            </Tooltip>
             <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Rename project"
-              onClick={() => setRenameOpen(true)}
+              variant="outline"
+              size="sm"
+              onClick={() => void actions.save()}
+              disabled={actions.isSaving}
             >
-              <PencilSimple />
-            </Button>
-            <Button variant="outline" onClick={() => void actions.save()} disabled={actions.isSaving}>
               {actions.isSaving ? <Spinner /> : <FloppyDisk />}
               <span className="sr-only sm:not-sr-only">
                 {actions.isSaving ? "Saving…" : "Save"}
@@ -205,7 +218,7 @@ export function SubtitleEditor({
             </TabsTrigger>
             <TabsTrigger value="ai" className={NAV_ITEM_CLASS}>
               <Sparkle />
-              AI Tools
+              AI tools
             </TabsTrigger>
             <TabsTrigger value="brolls" className={NAV_ITEM_CLASS}>
               <FilmStrip />

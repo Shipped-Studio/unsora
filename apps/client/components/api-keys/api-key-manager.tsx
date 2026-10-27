@@ -27,6 +27,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
   TableBody,
@@ -309,6 +310,7 @@ export function ApiKeyManager() {
               onClick={handleRevoke}
               disabled={revoke.isPending}
             >
+              {revoke.isPending ? <Spinner data-icon="inline-start" /> : null}
               {revoke.isPending ? "Revoking…" : "Revoke key"}
             </AlertDialogAction>
           </AlertDialogFooter>

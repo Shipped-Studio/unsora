@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import { ErrorState } from "@/components/shared/states";
+import { WarningCircle } from "@phosphor-icons/react";
+import { EmptyState } from "@/components/shared/states";
 
 /**
  * Fallback when a signed-in page throws while rendering. Renders inside the
@@ -20,10 +21,12 @@ export default function ProtectedError({
 
   return (
     <div className="flex flex-1 flex-col justify-center p-4 sm:p-6">
-      <ErrorState
+      <EmptyState
+        icon={WarningCircle}
         title="Something went wrong"
-        description="This page hit an error. Try again, or open another page from the sidebar."
-        onRetry={retry}
+        description="This page hit an error. Try again, or head back home."
+        action={{ label: "Try again", onClick: retry }}
+        secondaryAction={{ label: "Go home", href: "/" }}
       />
     </div>
   );

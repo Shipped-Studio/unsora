@@ -15,7 +15,7 @@ const AUTO_BROLL_LAYOUTS = ["cover", "split-50-50", "split-35-65"] as const;
 export type AiToolGroup = { title: string; tools: AiToolRow[] };
 
 /**
- * The AI Tools tab: each tool's row, and what turning it on or off does.
+ * The AI tools tab: each tool's row, and what turning it on or off does.
  *
  * Tools of two kinds:
  * - Editor tools (captions, B-rolls, zooms, hook) change settings here.
@@ -81,7 +81,12 @@ export function useAiTools({
       if (!(await save(true))) return;
       await onRunAiTool(tool);
     },
-    onRemove: () => void onRemoveAiTool(tool),
+    onRemove: () => onRemoveAiTool(tool),
+    confirmRemove: {
+      title: "Undo this pass?",
+      description:
+        "The video goes back to how it was before. Running it again costs credits again.",
+    },
   });
 
   /** Zooms on each scene's key moment; scenes are found by the server. */
@@ -159,11 +164,11 @@ export function useAiTools({
 
   const groups: AiToolGroup[] = [
     {
-      title: "Hook Them",
+      title: "Hook them",
       tools: [
         {
           id: "captions",
-          name: "AI Captions",
+          name: "AI captions",
           description: "Auto-generate styled subtitles",
           icon: AI_TOOL_ICONS.captions,
           status: isTranscribing ? "running" : hasCaptions ? "active" : "inactive",
@@ -180,27 +185,36 @@ export function useAiTools({
         },
         {
           id: "brolls",
-          name: "AI Auto B-rolls",
+          name: "AI auto B-rolls",
           description: "Swap moments with relevant footage",
           icon: AI_TOOL_ICONS.brolls,
           status: timeline.brolls.length ? "active" : "inactive",
           actions: [{ label: "Edit", onClick: () => onOpenTab("brolls") }],
           onRemove: () => setTimeline({ ...timeline, brolls: [], transitions: [] }),
+          confirmRemove: {
+            title: "Remove all B-rolls?",
+            description: `${timeline.brolls.length === 1 ? "The B-roll" : `All ${timeline.brolls.length} B-rolls`} and every transition come off this video. Getting them back means running Auto B-rolls again.`,
+          },
           onActivate: activateBrolls,
         },
         {
           id: "auto-zooms",
-          name: "AI Auto Zooms",
+          name: "AI auto zooms",
           description: "Auto-zoom on key moments",
           icon: AI_TOOL_ICONS.zooms,
           credits: 1,
           status: previewStyle.zooms?.length ? "active" : "inactive",
           onActivate: activateZooms,
           onRemove: () => setPreviewStyle({ ...previewStyle, zooms: undefined }),
+          confirmRemove: {
+            title: "Remove all zooms?",
+            description:
+              "Every zoom comes off this video, including ones you added by hand. Running AI auto zooms again costs credits.",
+          },
         },
         {
           id: "hook",
-          name: "AI Hook Title",
+          name: "AI hook title",
           description: "Generate an attention-grabbing intro",
           icon: AI_TOOL_ICONS.hook,
           status: titleOverlay.enabled && titleOverlay.text.trim() ? "active" : "inactive",
@@ -211,11 +225,11 @@ export function useAiTools({
       ],
     },
     {
-      title: "Sound Good",
+      title: "Sound good",
       tools: [
         {
           id: "clean-audio",
-          name: "Clean Audio",
+          name: "Clean audio",
           description: "Make your audio sound professional",
           icon: AI_TOOL_ICONS.cleanAudio,
           credits: 2,
@@ -223,7 +237,7 @@ export function useAiTools({
         },
         {
           id: "remove-silence",
-          name: "Remove Silence",
+          name: "Remove silence",
           description: "Cut pauses to tighten pacing",
           icon: AI_TOOL_ICONS.silence,
           credits: 2,
@@ -232,11 +246,11 @@ export function useAiTools({
       ],
     },
     {
-      title: "Look Good",
+      title: "Look good",
       tools: [
         {
           id: "eye-contact",
-          name: "Correct Eye Contact",
+          name: "Correct eye contact",
           description: "Make eyes look at the camera",
           icon: AI_TOOL_ICONS.eyeContact,
           credits: 3,
@@ -244,7 +258,7 @@ export function useAiTools({
         },
         {
           id: "remove-bad-takes",
-          name: "Remove Bad Takes",
+          name: "Remove bad takes",
           description: "Detect and remove repeated takes",
           icon: AI_TOOL_ICONS.badTakes,
           credits: 2,

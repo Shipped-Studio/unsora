@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ScheduleLink } from "@/components/generator/tool-layout";
 import {
   downloadUrl,
@@ -191,16 +192,23 @@ export function ExportCard({
         {url ? (
           <div className="mt-auto flex items-center gap-1">
             <ScheduleLink url={url} mediaType="video" size="xs" variant="outline" />
-            <a
-              href={downloadUrl(url, fileName)}
-              className={cn(
-                buttonVariants({ variant: "ghost", size: "icon-xs" }),
-                TILE_GHOST_BUTTON_CLASS,
-              )}
-              aria-label={`Download ${fileName}`}
-            >
-              <DownloadSimple />
-            </a>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <a
+                    href={downloadUrl(url, fileName)}
+                    className={cn(
+                      buttonVariants({ variant: "ghost", size: "icon-xs" }),
+                      TILE_GHOST_BUTTON_CLASS,
+                    )}
+                    aria-label={`Download ${fileName}`}
+                  />
+                }
+              >
+                <DownloadSimple />
+              </TooltipTrigger>
+              <TooltipContent>Download</TooltipContent>
+            </Tooltip>
           </div>
         ) : null}
       </div>
@@ -217,7 +225,7 @@ export function ExportCard({
               controls
               autoPlay
               playsInline
-              className="max-h-[65svh] w-full rounded-lg bg-media"
+              className="max-h-[min(65svh,calc(100dvh-16rem))] w-full rounded-lg bg-media"
             />
             <DialogFooter>
               <ScheduleLink url={url} mediaType="video" size="default" />

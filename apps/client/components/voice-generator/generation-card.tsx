@@ -6,21 +6,12 @@ import {
   DownloadSimple,
   Pause,
   Play,
+  FileX,
   Trash,
   WarningCircle,
   X,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -32,10 +23,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { friendlyGenerationError } from "@/components/generator/generation-error";
 import {
+  DeleteResultDialog,
   TILE_CLASS,
   TILE_GHOST_BUTTON_CLASS,
   TILE_SKELETON_BAR_CLASS,
   TILE_SKELETON_CLASS,
+  TileDeleteButton,
 } from "@/components/generator/result-tile";
 import { cn } from "@/lib/utils";
 import { getCdnUrl } from "@/lib/video-utils";
@@ -80,6 +73,8 @@ export function VoiceGenerationCard({
     generation.status === "QUEUED" ||
     generation.status === "PROCESSING";
   const failed = generation.status === "FAILED";
+  // Finished, but the audio file is missing.
+  const unavailable = !inProgress && !failed && !audioUrl;
   const title = generation.text || "Untitled";
 
   const status = inProgress
@@ -90,7 +85,9 @@ export function VoiceGenerationCard({
         : "Generating"
     : failed
       ? friendlyGenerationError(generation.error)
-      : generation.meta;
+      : unavailable
+        ? "File unavailable. The file for this result is missing."
+        : generation.meta;
 
   function togglePlay() {
     const audio = audioRef.current;
@@ -127,7 +124,7 @@ export function VoiceGenerationCard({
             variant="outline"
             size="icon"
             onClick={togglePlay}
-            aria-label={playing ? "Pause" : "Play"}
+            aria-label={playing ? `Pause ${title}` : `Play ${title}`}
           >
             {playing ? <Pause weight="fill" /> : <Play weight="fill" />}
           </Button>
@@ -141,6 +138,8 @@ export function VoiceGenerationCard({
         >
           {failed ? (
             <WarningCircle className="size-4 text-destructive" />
+          ) : unavailable ? (
+            <FileX className="size-4 text-muted-foreground" />
           ) : (
             <Spinner className="text-muted-foreground" />
           )}
@@ -169,7 +168,7 @@ export function VoiceGenerationCard({
               buttonVariants({ variant: "ghost", size: "icon-sm" }),
               TILE_GHOST_BUTTON_CLASS,
             )}
-            aria-label="Download audio"
+            aria-label={`Download ${title}`}
           >
             <DownloadSimple />
           </a>
@@ -181,19 +180,12 @@ export function VoiceGenerationCard({
             size="icon-sm"
             className={TILE_GHOST_BUTTON_CLASS}
             onClick={() => onDismiss(generation.id)}
-            aria-label="Dismiss"
+            aria-label={`Dismiss ${title}`}
           >
             <X />
           </Button>
-        ) : onDelete && failed ? (
-          <Button
-            variant="outline"
-            size="icon-sm"
-            onClick={() => setConfirmOpen(true)}
-            aria-label="Delete"
-          >
-            <Trash />
-          </Button>
+        ) : onDelete && (failed || unavailable) ? (
+          <TileDeleteButton onClick={() => setConfirmOpen(true)} />
         ) : onDelete && audioUrl ? (
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -202,7 +194,7 @@ export function VoiceGenerationCard({
                   variant="ghost"
                   size="icon-sm"
                   className={TILE_GHOST_BUTTON_CLASS}
-                  aria-label="More actions"
+                  aria-label={`More actions for ${title}`}
                 />
               }
             >
@@ -222,29 +214,13 @@ export function VoiceGenerationCard({
       </div>
 
       {onDelete ? (
-        <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-          <AlertDialogContent size="sm">
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete this {noun}?</AlertDialogTitle>
-              <AlertDialogDescription>
-                The audio will be removed from your results. This can&apos;t be
-                undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                variant="destructive"
-                onClick={() => {
-                  setConfirmOpen(false);
-                  onDelete(generation.id);
-                }}
-              >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <DeleteResultDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          noun={noun}
+          description="The audio will be removed from your results."
+          onConfirm={() => onDelete(generation.id)}
+        />
       ) : null}
     </article>
   );

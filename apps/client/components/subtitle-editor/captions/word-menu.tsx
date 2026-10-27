@@ -119,7 +119,7 @@ export function EditableWord({
               shortcuts(event);
             }}
             className={cn(
-              "relative z-10 rounded-[4px] border border-transparent px-0.5 outline-none transition-colors duration-200 hover:border-[#3F83F8] focus:border-[#3F83F8] data-[popup-open]:border-[#3F83F8]",
+              "relative z-10 rounded-[4px] border border-transparent px-0.5 outline-none transition-colors duration-200 hover:border-info focus:border-info data-[popup-open]:border-info",
               match && "bg-yellow-200 dark:bg-yellow-500/40",
             )}
           />
@@ -146,7 +146,7 @@ export function EditableWord({
         ) : null}
         {word.sound ? (
           <span contentEditable={false} aria-label="Has a sound" className="ml-0.5 inline-flex">
-            <MusicNotes className="size-3 text-[#3F83F8]" />
+            <MusicNotes className="size-3 text-info" />
           </span>
         ) : null}
       </PopoverTrigger>

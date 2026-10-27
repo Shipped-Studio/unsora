@@ -31,6 +31,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Spinner } from "@/components/ui/spinner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -172,6 +173,7 @@ function FolderNameForm({
           Cancel
         </DialogClose>
         <Button type="submit" disabled={pending}>
+          {pending ? <Spinner data-icon="inline-start" /> : null}
           {pending ? "Saving…" : folder ? "Rename" : "Create folder"}
         </Button>
       </DialogFooter>
@@ -234,6 +236,7 @@ export function DeleteFolderDialog({
               });
             }}
           >
+            {remove.isPending ? <Spinner data-icon="inline-start" /> : null}
             {remove.isPending ? "Deleting…" : "Delete folder"}
           </AlertDialogAction>
         </AlertDialogFooter>

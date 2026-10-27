@@ -59,6 +59,7 @@ import {
   customFontLabel,
   fontWeights,
 } from "@/remotion/fonts";
+import { IconButton } from "@/components/subtitle-editor/icon-button";
 
 const FONT_FILE_TYPES = ".ttf,.otf,.woff,.woff2";
 const COLORS_WITH_NONE = ["transparent", ...OVERLAY_COLORS];
@@ -139,14 +140,9 @@ export function CustomizePresetPanel({
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="icon-sm"
-          aria-label="Back to templates"
-          onClick={onBack}
-        >
+        <IconButton variant="outline" label="Back to templates" onClick={onBack}>
           <ArrowLeft />
-        </Button>
+        </IconButton>
         <h2 className="min-w-0 flex-1 truncate text-sm font-medium">
           {preset.name}
         </h2>
@@ -404,7 +400,7 @@ export function CustomizePresetPanel({
 
           <EditorSection title="Caption lines">
             <SwitchRow
-              label="Line Break"
+              label="Line break"
               checked={layout.breakLines}
               onCheckedChange={(breakLines) => updateLayout({ breakLines })}
             />
@@ -472,7 +468,7 @@ export function CustomizePresetPanel({
             {preset.animation ? (
               <>
                 <SelectField
-                  label="Caption Animation"
+                  label="Caption animation"
                   options={menu(
                     CAPTION_ANIMATIONS,
                     TEMPLATE_CAPTION_ANIMATIONS,
@@ -487,7 +483,7 @@ export function CustomizePresetPanel({
                   }
                 />
                 <SelectField
-                  label="Word Animation"
+                  label="Word animation"
                   options={menu(
                     WORD_ANIMATIONS,
                     TEMPLATE_WORD_ANIMATIONS,
@@ -537,7 +533,7 @@ export function CustomizePresetPanel({
             />
           </EditorSection>
 
-          <EditorSection title="Video Background">
+          <EditorSection title="Video background">
             <ColorField
               label="Color"
               value={previewStyle.backgroundColor}

@@ -20,25 +20,20 @@ const UP_NEXT = [
 export function AuthShowcase() {
   return (
     <div className="relative flex w-full flex-col justify-between gap-12 overflow-hidden rounded-2xl bg-stage px-10 py-10 text-stage-foreground ring-1 ring-stage-border xl:px-14 xl:py-12">
-      {/* Soft brand glow in the corner. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-56 -right-48 size-128 rounded-full bg-brand/10 blur-3xl"
-      />
-
       <div className="relative max-w-md space-y-4">
         <span className="inline-flex items-center gap-2 rounded-full border border-stage-border px-3 py-1 text-xs text-stage-muted">
           <span className="size-1.5 rounded-full bg-brand" />
           Social scheduler and AI studio
         </span>
         <h2 className="font-display text-3xl leading-[1.08] font-bold tracking-[-0.04em] xl:text-4xl">
-          Create it once.
+          Plan it once.
           <br />
           <span className="text-stage-muted">Post it everywhere.</span>
         </h2>
         <p className="text-sm leading-relaxed text-stage-muted">
-          Plan and publish to Instagram, TikTok, YouTube, LinkedIn and more from one calendar,
-          or let Claude and ChatGPT make and schedule posts for you.
+          Schedule posts to Instagram, TikTok, YouTube, LinkedIn and more from one calendar.
+          Make images and video with AI when you need something to post, or let Claude and
+          ChatGPT do it for you.
         </p>
       </div>
 
@@ -48,8 +43,8 @@ export function AuthShowcase() {
           {/* The post being scheduled. */}
           <div className="rounded-2xl border border-stage-border bg-stage-card p-4 shadow-xl">
             <div className="flex gap-4">
-              <div className="relative flex aspect-4/5 w-28 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-brand via-chart-2 to-stage">
-                <span className="flex size-8 items-center justify-center rounded-full bg-stage/60 text-stage-foreground backdrop-blur-sm">
+              <div className="relative flex aspect-4/5 w-28 shrink-0 items-center justify-center rounded-xl bg-brand/20">
+                <span className="flex size-8 items-center justify-center rounded-full bg-stage text-stage-foreground">
                   <Play className="size-3.5" weight="fill" />
                 </span>
               </div>

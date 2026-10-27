@@ -18,7 +18,18 @@ export interface VoiceConversionPayload {
   source_url: string;
 }
 
-const CREDITS = 10;
+/** Charged per started minute of the recording (server: voiceConversionCredits). */
+const CREDITS_PER_MINUTE = 10;
+
+const RECORDING_ACCEPT = "audio/*,video/mp4,video/webm";
+
+function isAcceptedRecording(file: File) {
+  return (
+    file.type.startsWith("audio/") ||
+    file.type === "video/mp4" ||
+    file.type === "video/webm"
+  );
+}
 
 export function VoiceChangerForm({
   onSubmit,
@@ -36,8 +47,8 @@ export function VoiceChangerForm({
     !submitting && !uploading && Boolean(sourceUrl) && voiceId.length > 0;
 
   async function handleUpload(file: File) {
-    if (!file.type.startsWith("audio/") && !file.type.startsWith("video/")) {
-      toast.error("Choose an audio or video file, like MP3, WAV or MP4.");
+    if (!isAcceptedRecording(file)) {
+      toast.error("Choose an MP3, WAV, M4A, MP4 or WebM file.");
       return;
     }
 
@@ -106,7 +117,7 @@ export function VoiceChangerForm({
                   Upload audio or video
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  MP3, WAV, M4A or MP4, up to 5 minutes
+                  MP3, WAV, M4A, MP4 or WebM, up to 5 minutes
                 </span>
               </>
             )}
@@ -114,7 +125,7 @@ export function VoiceChangerForm({
           <input
             ref={fileInputRef}
             type="file"
-            accept="audio/*,video/mp4,video/webm"
+            accept={RECORDING_ACCEPT}
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
@@ -136,7 +147,7 @@ export function VoiceChangerForm({
       <ToolSidebarFooter>
         <GenerateButton
           label="Change voice"
-          credits={CREDITS}
+          costLabel={`${CREDITS_PER_MINUTE} credits/min`}
           disabled={!canSubmit}
           submitting={submitting}
           submitState={uploading ? "uploading" : undefined}

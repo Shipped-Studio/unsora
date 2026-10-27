@@ -19,6 +19,13 @@ import {
 import type { ImageUpscale } from "@/hooks/use-image-upscales-query";
 import { getCdnUrl } from "@/lib/video-utils";
 
+/**
+ * Media height cap: 60vh on tall screens, and on short ones whatever is left
+ * after the header and footer (~14rem with stacked buttons), so Download and
+ * Schedule stay on screen.
+ */
+const MEDIA_MAX_HEIGHT = "max(12rem, min(60vh, calc(100dvh - 14rem)))";
+
 interface UpscaleDetailDialogProps {
   job: ImageUpscale | null;
   name: string;
@@ -36,7 +43,7 @@ export function UpscaleDetailDialog({
 
   return (
     <Dialog open={job !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-4xl">
+      <DialogContent className="gap-0 p-0 sm:max-w-4xl">
         {job ? (
           <>
             <DialogHeader className="p-4 pr-12">
@@ -58,7 +65,7 @@ export function UpscaleDetailDialog({
                       <ReactCompareSliderImage
                         src={inputUrl}
                         alt="Original"
-                        style={{ maxHeight: "60vh", objectFit: "contain" }}
+                        style={{ maxHeight: MEDIA_MAX_HEIGHT, objectFit: "contain" }}
                       />
                       <Badge variant="secondary" className="absolute top-3 left-3">
                         Original
@@ -70,7 +77,7 @@ export function UpscaleDetailDialog({
                       <ReactCompareSliderImage
                         src={outputUrl}
                         alt="Upscaled"
-                        style={{ maxHeight: "60vh", objectFit: "contain" }}
+                        style={{ maxHeight: MEDIA_MAX_HEIGHT, objectFit: "contain" }}
                       />
                       <Badge
                         variant="secondary"
@@ -85,7 +92,8 @@ export function UpscaleDetailDialog({
                 <img
                   src={outputUrl}
                   alt={name}
-                  className="mx-auto max-h-[60vh] object-contain"
+                  style={{ maxHeight: MEDIA_MAX_HEIGHT }}
+                  className="mx-auto object-contain"
                 />
               ) : null}
             </div>

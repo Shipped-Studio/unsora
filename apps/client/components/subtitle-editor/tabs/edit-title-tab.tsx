@@ -10,7 +10,6 @@ import {
   Sparkle,
   Trash,
 } from "@phosphor-icons/react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Popover,
@@ -49,6 +48,7 @@ import {
 } from "@/components/subtitle-editor/title-themes";
 import { cn } from "@/lib/utils";
 import { fontWeights, getFontFamily } from "@/remotion/fonts";
+import { IconButton } from "@/components/subtitle-editor/icon-button";
 
 const MAX_HISTORY = 10;
 
@@ -123,22 +123,17 @@ export function HookTitleEditor({
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Button
-          variant="outline"
-          size="icon-sm"
-          aria-label="Back to captions"
-          onClick={onBack}
-        >
+        <IconButton variant="outline" label="Back to captions" onClick={onBack}>
           <ArrowLeft />
-        </Button>
-        <h2 className="text-sm font-medium">Hook Title</h2>
+        </IconButton>
+        <h2 className="text-sm font-medium">Hook title</h2>
       </div>
 
       <section className="space-y-5 rounded-2xl border p-4">
         <div className="flex items-center justify-between gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2 py-1 text-sm font-medium text-primary">
             <Sparkle weight="fill" />
-            Hook Title
+            Hook title
           </span>
           <div className="flex items-center gap-0.5">
             <IconAction
@@ -460,7 +455,7 @@ function TitleWords({
   }
 
   return (
-    <div className="group flex flex-wrap items-center text-base leading-5 text-[#212224] dark:text-foreground">
+    <div className="group flex flex-wrap items-center text-base leading-5 text-foreground">
       {words.map((word, i) => (
         <span key={`${i}-${word.text}`} className="contents">
           <Popover open={open === i} onOpenChange={(next) => setOpen(next ? i : null)}>
@@ -495,7 +490,7 @@ function TitleWords({
                       at(i, { break: !word.break });
                     }
                   }}
-                  className="relative mx-0.5 inline-flex min-h-7 items-center rounded-[4px] border border-transparent px-0.5 outline-none transition-colors duration-200 hover:border-[#3F83F8] focus:border-[#3F83F8] data-[popup-open]:border-[#3F83F8]"
+                  className="relative mx-0.5 inline-flex min-h-7 items-center rounded-[4px] border border-transparent px-0.5 outline-none transition-colors duration-200 hover:border-info focus:border-info data-[popup-open]:border-info"
                 />
               }
             >
@@ -572,7 +567,7 @@ function TitleWords({
               aria-label="Remove line break"
               title="Remove line break"
               onClick={() => at(i, { break: false })}
-              className="mr-1 inline-flex items-center text-[#9CA3AF] outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="mr-1 inline-flex items-center text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <KeyReturn className="size-4" />
             </button>
@@ -586,7 +581,7 @@ function TitleWords({
           set([...words, { text: "word", break: false }]);
           setOpen(words.length);
         }}
-        className="ml-0.5 inline-flex size-6 items-center justify-center rounded-md text-[#A9A9AE] opacity-0 outline-none transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 group-hover:opacity-100"
+        className="ml-0.5 inline-flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 outline-none transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 group-hover:opacity-100"
       >
         <Plus className="size-4" />
       </button>

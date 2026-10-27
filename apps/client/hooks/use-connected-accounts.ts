@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/toast-error";
 import { useApi } from "./use-api";
 import { platformName } from "@/lib/scheduler/formats";
 import type { ConnectedAccount } from "@/lib/scheduler/types";
@@ -68,7 +69,7 @@ export function useConnectAccount() {
       if (!authUrl) throw new Error("Couldn't start the connection. Try again.");
       window.location.href = authUrl;
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toastApiError("Couldn't start connecting", error),
   });
 }
 
@@ -97,7 +98,7 @@ export function useRefreshAccount() {
       toast.success("Account refreshed");
       void queryClient.invalidateQueries({ queryKey: connectedAccountsQueryKeys.all });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toastApiError("Couldn't refresh the account", error),
   });
 }
 
@@ -112,7 +113,7 @@ export function useDisconnectAccount() {
       void queryClient.invalidateQueries({ queryKey: connectedAccountsQueryKeys.all });
       void queryClient.invalidateQueries({ queryKey: ["posts"] });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toastApiError("Couldn't disconnect the account", error),
   });
 }
 

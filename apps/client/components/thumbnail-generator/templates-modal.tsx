@@ -67,7 +67,7 @@ export function TemplatesModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[85svh] flex-col gap-4 overflow-hidden sm:max-w-4xl">
+      <DialogContent className="flex flex-col gap-4 overflow-hidden sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>Choose a template</DialogTitle>
           <DialogDescription>

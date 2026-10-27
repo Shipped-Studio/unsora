@@ -11,6 +11,7 @@ import {
   Check,
   CheckCircle,
   Clock,
+  Plugs,
   Sparkle,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { ConnectAgentTabs } from "@/components/agents/connect-agent-tabs";
 import { AccountAvatar, accountLabel } from "@/components/scheduler/account-avatar";
 import { ConnectGrid } from "@/components/scheduler/accounts-view";
+import { usePricing } from "@/contexts/pricing-context";
 import { useConnectedAccounts } from "@/hooks/use-connected-accounts";
 import { useUpdatePreferences } from "@/hooks/use-schedule";
 import { useUserUsage } from "@/hooks/use-user-usage";
@@ -127,8 +129,36 @@ function Stepper({ current }: { current: number }) {
 
 type TitleRef = React.RefObject<HTMLHeadingElement | null>;
 
+/** Same rule as ConnectGrid: connecting accounts needs an active paid plan. */
+function useIsPaid() {
+  const { usage } = useUserUsage();
+  if (!usage) return null;
+  const plan = (usage.user?.plan ?? "free").toLowerCase();
+  return Boolean(usage.user?.isActive) && plan !== "free";
+}
+
+function ChannelsPaywall() {
+  const { openPricing } = usePricing();
+  return (
+    <div className="mx-auto flex max-w-md flex-col items-center gap-4 rounded-xl bg-muted px-6 py-8 text-center">
+      <span className="flex size-10 items-center justify-center rounded-full bg-background text-muted-foreground">
+        <Plugs className="size-5" />
+      </span>
+      <div className="space-y-1.5">
+        <p className="text-sm font-medium">Connecting channels needs a paid plan</p>
+        <p className="text-sm text-muted-foreground">
+          Pick a plan to connect your accounts and start scheduling, or continue without
+          channels and look around first.
+        </p>
+      </div>
+      <Button onClick={openPricing}>See plans</Button>
+    </div>
+  );
+}
+
 function ChannelsStep({ titleRef }: { titleRef: TitleRef }) {
   const { data: accounts } = useConnectedAccounts();
+  const isPaid = useIsPaid();
   return (
     <div className={STEP_BODY}>
       <StepHeading
@@ -151,7 +181,11 @@ function ChannelsStep({ titleRef }: { titleRef: TitleRef }) {
           ))}
         </ul>
       ) : null}
-      <ConnectGrid returnTo={`/?${ONBOARDING_PARAM}=channels`} />
+      {isPaid === false ? (
+        <ChannelsPaywall />
+      ) : (
+        <ConnectGrid returnTo={`/?${ONBOARDING_PARAM}=channels`} />
+      )}
     </div>
   );
 }
@@ -162,7 +196,7 @@ function AgentsStep({ titleRef }: { titleRef: TitleRef }) {
       <StepHeading
         titleRef={titleRef}
         title="Connect your AI agent"
-        description="Pick the agent you use and let it create and schedule posts for you."
+        description="Optional. Pick the agent you use and let it create and schedule posts for you, or skip this for now."
       />
       <ConnectAgentTabs />
     </div>
@@ -205,8 +239,8 @@ function TutorialStep({
         title={embed ? "Learn how to use Unsora" : "Get started"}
         description={
           embed
-            ? "Watch this short video to get the most out of Unsora."
-            : "Here are a few good places to start."
+            ? "A short video on how Unsora works."
+            : "A few good places to start."
         }
       />
       {embed ? (
@@ -329,9 +363,13 @@ export function OnboardingDialog() {
               <ArrowRight />
             </Button>
           ) : (
-            <Button onClick={() => void finish()} disabled={finishing}>
+            // End where the product starts: the composer, once there's somewhere to post.
+            <Button
+              onClick={() => void finish(hasChannels ? "/scheduler/new" : undefined)}
+              disabled={finishing}
+            >
               {finishing ? <Spinner /> : <CheckCircle />}
-              Get started
+              {hasChannels ? "Create your first post" : "Finish setup"}
             </Button>
           )}
         </div>

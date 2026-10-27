@@ -98,9 +98,9 @@ export const CaptionRow = memo(function CaptionRow({
         onDragLeave={() => onDropTargetChange(null)}
         onDrop={(event) => onDropWord(event, lineIndex, line.words.length)}
         className={cn(
-          "flex scroll-mt-1 items-start justify-between gap-3 rounded-lg p-3 transition-colors duration-200 ease-in-out hover:bg-[#F9FAFB] dark:hover:bg-muted/40",
-          isActive && "bg-[#F2F3F5] hover:bg-[#F2F3F5] dark:bg-muted dark:hover:bg-muted",
-          dropTarget === endKey && "ring-1 ring-[#3F83F8]",
+          "flex scroll-mt-1 items-start justify-between gap-3 rounded-lg p-3 transition-colors duration-200 ease-in-out hover:bg-muted/40",
+          isActive && "bg-muted hover:bg-muted",
+          dropTarget === endKey && "ring-1 ring-info",
         )}
       >
         <input
@@ -109,7 +109,7 @@ export const CaptionRow = memo(function CaptionRow({
           checked={isSelected}
           onChange={() => onToggleSelected(lineIndex)}
           className={cn(
-            "mt-0.5 size-4 shrink-0 cursor-pointer rounded-[4px] accent-[#3F83F8] opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100",
+            "mt-0.5 size-4 shrink-0 cursor-pointer rounded-[4px] accent-info opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100",
             (isActive || isSelected) && "opacity-100",
           )}
         />
@@ -119,11 +119,11 @@ export const CaptionRow = memo(function CaptionRow({
             type="button"
             onClick={() => onSeek(line.start)}
             aria-label={`Play line ${lineNumber} from ${formatSeconds(line.start)} seconds`}
-            className="self-start rounded-md px-[5px] py-px text-xs leading-[18px] font-medium tabular-nums text-[#8C8C92] outline-none transition-colors duration-200 hover:bg-black/5 focus-visible:ring-3 focus-visible:ring-ring/50 dark:hover:bg-white/10"
+            className="self-start rounded-md px-[5px] py-px text-xs leading-[18px] font-medium tabular-nums text-muted-foreground outline-none transition-colors duration-200 hover:bg-black/5 focus-visible:ring-3 focus-visible:ring-ring/50 dark:hover:bg-white/10"
           >
             {formatSeconds(line.start)} - {formatSeconds(line.end)}
           </button>
-          <div className="flex flex-wrap items-center text-base leading-5 text-[#212224] dark:text-foreground">
+          <div className="flex flex-wrap items-center text-base leading-5 text-foreground">
             {line.words.map((_, wordIndex) => {
               const key = wordKey(lineIndex, wordIndex);
               return (
@@ -149,7 +149,7 @@ export const CaptionRow = memo(function CaptionRow({
                 onChunksChange(addWordAtEnd(chunks, lineIndex));
                 onOpenWord(wordKey(lineIndex, line.words.length));
               }}
-              className="ml-0.5 inline-flex size-6 items-center justify-center rounded-md text-[#A9A9AE] opacity-0 outline-none transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 group-hover:opacity-100"
+              className="ml-0.5 inline-flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 outline-none transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 group-hover:opacity-100"
             >
               <Plus className="size-4" />
             </button>
@@ -158,7 +158,7 @@ export const CaptionRow = memo(function CaptionRow({
 
         <div
           className={cn(
-            "flex shrink-0 items-center rounded-md bg-white p-0.5 opacity-0 shadow-xs transition-opacity group-hover:opacity-100 focus-within:opacity-100 dark:bg-background",
+            "flex shrink-0 items-center rounded-md bg-card p-0.5 opacity-0 shadow-xs transition-opacity group-hover:opacity-100 focus-within:opacity-100",
             isActive && "opacity-100",
           )}
         >
@@ -188,7 +188,7 @@ export const CaptionRow = memo(function CaptionRow({
         type="button"
         aria-label={`Add a line after line ${lineNumber}`}
         onClick={() => onInsertAfter(lineIndex)}
-        className="absolute bottom-0 left-1/2 z-10 flex size-5 -translate-x-1/2 translate-y-1/2 items-center justify-center rounded-full border bg-white text-[#A9A9AE] opacity-0 shadow-sm outline-none transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 group-hover:opacity-100 dark:bg-background"
+        className="absolute bottom-0 left-1/2 z-10 flex size-5 -translate-x-1/2 translate-y-1/2 items-center justify-center rounded-full border bg-card text-muted-foreground opacity-0 shadow-sm outline-none transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 group-hover:opacity-100 dark:bg-background"
       >
         <Plus className="size-3" />
       </button>
@@ -231,7 +231,7 @@ function CaptionWord({
       <span
         className={cn(
           "group/word relative mx-0.5 inline-flex min-h-7 items-center",
-          isDropTarget && "before:absolute before:-left-1 before:top-1 before:bottom-1 before:w-0.5 before:rounded before:bg-[#3F83F8]",
+          isDropTarget && "before:absolute before:-left-1 before:top-1 before:bottom-1 before:w-0.5 before:rounded before:bg-info",
         )}
         onDragOver={(event) => {
           if (event.dataTransfer.types.includes(DRAG_TYPE)) {
@@ -247,7 +247,7 @@ function CaptionWord({
           aria-hidden
           className={cn(
             "pointer-events-none absolute inset-0 z-0 scale-50 rounded-[4px] bg-transparent transition-[transform,background-color] duration-[470ms,200ms] ease-[cubic-bezier(.23,1,.32,1),ease]",
-            speaking && "scale-100 bg-[#DEE0E3] dark:bg-white/15",
+            speaking && "scale-100 bg-accent",
           )}
         />
         <span
@@ -259,7 +259,7 @@ function CaptionWord({
             event.dataTransfer.effectAllowed = "move";
           }}
           onDragEnd={() => onDropTargetChange(null)}
-          className="absolute -top-4 left-1/2 z-20 flex h-4 w-[29px] -translate-x-1/2 cursor-grab items-center justify-center rounded-full bg-[#3F83F8] text-white opacity-0 transition-opacity duration-200 group-hover/word:opacity-100 active:cursor-grabbing"
+          className="absolute -top-4 left-1/2 z-20 flex h-4 w-[29px] -translate-x-1/2 cursor-grab items-center justify-center rounded-full bg-info text-info-foreground opacity-0 transition-opacity duration-200 group-hover/word:opacity-100 active:cursor-grabbing"
         >
           <List className="size-3" weight="bold" />
         </span>
@@ -282,7 +282,7 @@ function CaptionWord({
           aria-label="Remove line break"
           title="Remove line break"
           onClick={() => onChunksChange(toggleLineBreak(chunks, lineIndex, wordIndex))}
-          className="mr-1 inline-flex cursor-pointer items-center text-[#9CA3AF] outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="mr-1 inline-flex cursor-pointer items-center text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <KeyReturn className="size-4" />
         </button>

@@ -113,10 +113,10 @@ export function SchedulePicker({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="justify-start font-normal"
+                  className="justify-start font-normal tabular-nums"
                   onClick={() => onChange(new Date(iso))}
                 >
-                  <Clock className="text-muted-foreground" />
+                  <Clock aria-hidden className="text-muted-foreground" />
                   {formatDayTime(iso, timezone)}
                 </Button>
               ))}

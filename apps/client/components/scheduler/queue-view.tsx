@@ -1,13 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { Plus, Queue, X } from "@phosphor-icons/react";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/toast-error";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { EmptyState, ErrorState } from "@/components/shared/states";
 import { EmptyArt } from "@/components/graphics/empty-art";
@@ -29,6 +42,42 @@ import { dayKey, formatDay, formatTime } from "@/lib/scheduler/dates";
 import type { Post } from "@/lib/scheduler/types";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const clock = (time: string) => format(new Date(`2000-01-01T${time}:00`), "h:mm a");
+
+/**
+ * Warns before leaving with unsaved posting times: the browser prompt for
+ * reloads and tab closes, and a dialog for in-app links (captured before
+ * Next's Link sees the click; modified clicks and new tabs pass through).
+ */
+function useLeaveGuard(dirty: boolean) {
+  const [leaveHref, setLeaveHref] = useState<string | null>(null);
+  useEffect(() => {
+    if (!dirty) return;
+    const onUnload = (event: BeforeUnloadEvent) => event.preventDefault();
+    const onClick = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const anchor = (event.target as Element | null)?.closest?.("a[href]");
+      if (!(anchor instanceof HTMLAnchorElement) || anchor.target === "_blank") return;
+      const url = new URL(anchor.href, window.location.href);
+      if (url.origin !== window.location.origin) return;
+      if (url.pathname === window.location.pathname && url.search === window.location.search) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      setLeaveHref(url.pathname + url.search + url.hash);
+    };
+    window.addEventListener("beforeunload", onUnload);
+    document.addEventListener("click", onClick, true);
+    return () => {
+      window.removeEventListener("beforeunload", onUnload);
+      document.removeEventListener("click", onClick, true);
+    };
+  }, [dirty]);
+  return { leaveHref, setLeaveHref };
+}
 
 type Row =
   | { kind: "post"; at: string; post: Post }
@@ -156,6 +205,7 @@ function Upcoming({ timeZone, onOpen }: { timeZone: string; onOpen: (id: string)
 }
 
 function PostingTimes({ timeZone }: { timeZone: string }) {
+  const router = useRouter();
   const weekStartsOn = useWeekStartsOn();
   const slotsQuery = usePostingSlots();
   const save = useSavePostingSlots();
@@ -168,6 +218,23 @@ function PostingTimes({ timeZone }: { timeZone: string }) {
   const activeZone = zone ?? timeZone;
   const dirty = draft !== null || zone !== null;
   const order = weekStartsOn === 1 ? [1, 2, 3, 4, 5, 6, 0] : [0, 1, 2, 3, 4, 5, 6];
+  const { leaveHref, setLeaveHref } = useLeaveGuard(dirty && !save.isPending);
+
+  const discard = () => {
+    setDraft(null);
+    setZone(null);
+  };
+  const commit = () =>
+    save.mutate(
+      { slots, timezone: zone ?? undefined },
+      {
+        onSuccess: () => {
+          toast.success("Posting times saved");
+          discard();
+        },
+        onError: (error) => toastApiError("Couldn't save posting times", error),
+      },
+    );
 
   const edit = (next: PostingSlot[]) =>
     setDraft(
@@ -258,16 +325,16 @@ function PostingTimes({ timeZone }: { timeZone: string }) {
                       key={slot.time}
                       className="inline-flex h-7 items-center gap-0.5 rounded-full bg-card pr-0.5 pl-2.5 text-xs tabular-nums"
                     >
-                      {format(new Date(`2000-01-01T${slot.time}:00`), "h:mm a")}
+                      {clock(slot.time)}
                       <button
                         type="button"
-                        aria-label={`Remove ${WEEKDAYS[weekday]} ${slot.time}`}
+                        aria-label={`Remove ${WEEKDAYS[weekday]} ${clock(slot.time)}`}
                         onClick={() =>
                           edit(slots.filter((s) => !(s.weekday === weekday && s.time === slot.time)))
                         }
                         className="relative flex size-6 items-center justify-center rounded-full text-muted-foreground outline-none after:absolute after:-inset-1 hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
                       >
-                        <X className="size-3" />
+                        <X aria-hidden className="size-3" />
                       </button>
                     </span>
                   ))
@@ -280,39 +347,51 @@ function PostingTimes({ timeZone }: { timeZone: string }) {
         })}
       </ul>
 
-      <div className="flex justify-end gap-2">
-        {dirty ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setDraft(null);
-              setZone(null);
-            }}
-          >
+      {dirty ? (
+        <div
+          role="status"
+          className="sticky bottom-3 z-10 flex items-center gap-2 rounded-lg border border-border bg-card py-2 pr-2 pl-3 shadow-sm"
+        >
+          <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-warning" />
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">Unsaved changes</span>
+          <Button variant="ghost" size="sm" disabled={save.isPending} onClick={discard}>
             Discard
           </Button>
-        ) : null}
-        <Button
-          size="sm"
-          disabled={!dirty || save.isPending}
-          onClick={() =>
-            save.mutate(
-              { slots, timezone: zone ?? undefined },
-              {
-                onSuccess: () => {
-                  toast.success("Posting times saved");
-                  setDraft(null);
-                  setZone(null);
-                },
-                onError: (error) => toast.error(error.message),
-              },
-            )
-          }
-        >
-          Save times
-        </Button>
-      </div>
+          <Button size="sm" disabled={save.isPending} onClick={commit}>
+            {save.isPending ? <Spinner /> : null}
+            Save times
+          </Button>
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Changes here aren&apos;t saved until you press Save times.
+        </p>
+      )}
+
+      <AlertDialog open={leaveHref !== null} onOpenChange={(open) => !open && setLeaveHref(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave without saving?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your changes to posting times haven&apos;t been saved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                const href = leaveHref;
+                setLeaveHref(null);
+                discard();
+                if (href) router.push(href);
+              }}
+            >
+              Discard and leave
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

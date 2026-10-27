@@ -36,24 +36,41 @@ export default function GlobalError({
             Something went wrong
           </h1>
           <p style={{ fontSize: 14, opacity: 0.7, margin: "0 0 20px" }}>
-            Unsora hit an unexpected error. Try again, or reload the page.
+            Unsora hit an unexpected error. Try again, or go back home.
           </p>
-          <button
-            type="button"
-            onClick={() => retry()}
-            style={{
-              font: "inherit",
-              fontSize: 14,
-              padding: "8px 16px",
-              borderRadius: 8,
-              border: "none",
-              cursor: "pointer",
-              background: "CanvasText",
-              color: "Canvas",
-            }}
-          >
-            Try again
-          </button>
+          <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+            <button
+              type="button"
+              onClick={() => retry()}
+              style={{
+                font: "inherit",
+                fontSize: 14,
+                padding: "8px 16px",
+                borderRadius: 8,
+                border: "none",
+                cursor: "pointer",
+                background: "CanvasText",
+                color: "Canvas",
+              }}
+            >
+              Try again
+            </button>
+            {/* A full page load, since the app shell itself failed. */}
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+            <a
+              href="/"
+              style={{
+                fontSize: 14,
+                padding: "7px 16px",
+                borderRadius: 8,
+                border: "1px solid color-mix(in srgb, CanvasText 25%, transparent)",
+                color: "inherit",
+                textDecoration: "none",
+              }}
+            >
+              Go home
+            </a>
+          </div>
         </main>
       </body>
     </html>

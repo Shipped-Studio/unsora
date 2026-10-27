@@ -40,7 +40,7 @@ export function AIClippingClipDialog({
     <Dialog open={selected !== null} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          "gap-0 overflow-hidden p-0",
+          "gap-0 p-0 sm:overflow-hidden",
           isVertical ? "sm:max-w-3xl" : "sm:max-w-4xl",
         )}
       >
@@ -80,7 +80,7 @@ function ClipDetails({
       : null;
 
   return (
-    <div className="flex max-h-[85vh] flex-col sm:flex-row">
+    <div className="flex flex-col sm:max-h-[calc(100dvh-2rem)] sm:flex-row">
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center bg-muted">
         {!videoUrl && (rendering || sourceEmbed) ? (
           <p className="flex w-full items-center gap-2 px-4 py-2 text-xs text-muted-foreground">
@@ -95,7 +95,7 @@ function ClipDetails({
         {videoUrl ? (
           <video
             src={getCdnUrl(videoUrl)}
-            className="max-h-[45vh] w-full object-contain sm:max-h-[85vh]"
+            className="max-h-[min(45dvh,28rem)] w-full object-contain sm:max-h-[calc(100dvh-2rem)]"
             controls
             playsInline
             autoPlay
@@ -115,14 +115,14 @@ function ClipDetails({
           <img
             src={getCdnUrl(thumbnailUrl)}
             alt={title}
-            className="max-h-[45vh] w-full object-contain sm:max-h-[85vh]"
+            className="max-h-[min(45dvh,28rem)] w-full object-contain sm:max-h-[calc(100dvh-2rem)]"
           />
         ) : (
           <p className="p-10 text-sm text-muted-foreground">No preview yet</p>
         )}
       </div>
 
-      <div className="flex w-full flex-col gap-4 overflow-y-auto border-t p-5 sm:w-80 sm:shrink-0 sm:border-t-0 sm:border-l">
+      <div className="flex w-full flex-col gap-4 border-t p-5 sm:w-80 sm:shrink-0 sm:overflow-y-auto sm:border-t-0 sm:border-l">
         <div className="space-y-2 pr-8">
           <DialogTitle className="leading-snug">{title}</DialogTitle>
           <DialogDescription className="flex flex-wrap items-center gap-2 text-xs tabular-nums">

@@ -35,7 +35,7 @@ export function VideoCompareDialog({
 }: VideoCompareDialogProps) {
   return (
     <Dialog open={job !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-4xl">
+      <DialogContent className="gap-0 p-0 sm:max-w-4xl">
         {job ? (
           <CompareBody job={job} processedLabel={processedLabel} detail={detail} />
         ) : null}
@@ -107,7 +107,7 @@ function CompareBody({
                 <video
                   ref={originalRef}
                   src={getCdnUrl(job.originalUrl)}
-                  className="max-h-[60vh] object-contain"
+                  className="max-h-[max(12rem,min(60vh,calc(100dvh-14rem)))] object-contain"
                   muted
                   playsInline
                   loop
@@ -124,7 +124,7 @@ function CompareBody({
                 <video
                   ref={processedRef}
                   src={getCdnUrl(outputUrl)}
-                  className="max-h-[60vh] object-contain"
+                  className="max-h-[max(12rem,min(60vh,calc(100dvh-14rem)))] object-contain"
                   muted
                   playsInline
                   loop
@@ -140,7 +140,7 @@ function CompareBody({
         <div className="border-y bg-muted">
           <video
             src={getCdnUrl(outputUrl)}
-            className="mx-auto max-h-[60vh] object-contain"
+            className="mx-auto max-h-[max(12rem,min(60vh,calc(100dvh-14rem)))] object-contain"
             controls
             playsInline
           />

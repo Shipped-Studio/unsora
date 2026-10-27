@@ -18,6 +18,16 @@ export interface SubscriptionPlan {
   features?: string[];
 }
 
+/**
+ * The plan a user is on. `User.plan` holds the Stripe product name, which
+ * only equals the plan key for the default plans ("pro"), so match either.
+ */
+export function findUserPlan(plans: SubscriptionPlan[] | null | undefined, userPlan: string | null | undefined) {
+  const value = (userPlan ?? "").trim().toLowerCase();
+  if (!value || !plans) return undefined;
+  return plans.find((p) => p.key.toLowerCase() === value) ?? plans.find((p) => p.name.trim().toLowerCase() === value);
+}
+
 export const subscriptionPlansQueryKeys = {
   all: ["subscription-plans"] as const,
   list: () => [...subscriptionPlansQueryKeys.all, "list"] as const,

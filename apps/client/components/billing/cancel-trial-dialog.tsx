@@ -32,7 +32,12 @@ export function CancelTrialDialog({
   onConfirm,
 }: CancelTrialDialogProps) {
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!isCancelling) onOpenChange(next);
+      }}
+    >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Cancel your trial?</AlertDialogTitle>
@@ -49,7 +54,7 @@ export function CancelTrialDialog({
             onClick={onConfirm}
           >
             {isCancelling ? <Spinner data-icon="inline-start" /> : null}
-            Cancel trial
+            {isCancelling ? "Cancelling…" : "Cancel trial"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

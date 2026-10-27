@@ -13,6 +13,7 @@ import {
   WarningCircle,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/toast-error";
 import { PageHeader } from "@/components/layout/page-header";
 import {
   AlertDialog,
@@ -46,7 +47,6 @@ import { VideoEditor } from "./media/video-editor";
 import { PlatformOptions } from "./platform-options";
 import { PreviewPanel } from "./post-preview";
 import { SchedulePicker } from "./schedule-picker";
-import { ApiError } from "@/hooks/use-api";
 import { useComposer } from "@/hooks/use-composer";
 import { useConnectedAccounts } from "@/hooks/use-connected-accounts";
 import {
@@ -285,6 +285,28 @@ export function Composer({
     return () => window.removeEventListener("beforeunload", handler);
   }, [composer.dirty, pending]);
 
+  // And before in-app links (sidebar, breadcrumb, "Connect an account"), which
+  // beforeunload doesn't see. Runs in the capture phase so Next's Link never
+  // gets the click; modified clicks and new tabs go through untouched.
+  const [leaveHref, setLeaveHref] = useState<string | null>(null);
+  useEffect(() => {
+    if (!composer.dirty || pending) return;
+    const onClick = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const anchor = (event.target as Element | null)?.closest?.("a[href]");
+      if (!(anchor instanceof HTMLAnchorElement) || anchor.target === "_blank" || anchor.hasAttribute("download")) return;
+      const url = new URL(anchor.href, window.location.href);
+      if (url.origin !== window.location.origin) return;
+      if (url.pathname === window.location.pathname && url.search === window.location.search) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setLeaveHref(url.pathname + url.search + url.hash);
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [composer.dirty, pending]);
+
   const publishIssues = composer.issuesFor("publish", {
     tiktokLimits,
     lockedAccountIds: locked,
@@ -340,9 +362,10 @@ export function Composer({
       const { data: fresh } = await nextSlots.refetch();
       const slot = fresh?.slots[0];
       if (!slot) {
-        toast.error("Set your posting times on the Queue page first.", {
+        toast.error("Your queue has no posting times yet. Pick a time, or add queue times first.", {
           action: { label: "Open Queue", onClick: () => router.push("/scheduler/queue") },
         });
+        setWhenOpen(true);
         return;
       }
       scheduledAt = new Date(slot);
@@ -382,11 +405,7 @@ export function Composer({
 
       router.push(`/scheduler/posts/${saved.id}`);
     } catch (error) {
-      toast.error(
-        error instanceof ApiError || error instanceof Error
-          ? error.message
-          : "Couldn't save the post. Try again.",
-      );
+      toastApiError(intent === "draft" ? "Couldn't save the draft" : "Couldn't save the post", error);
       setPending(null);
     }
   };
@@ -558,6 +577,11 @@ export function Composer({
             </PopoverContent>
           </Popover>
 
+          {!state.scheduledAt && nextSlot ? (
+            <span className="hidden text-sm text-muted-foreground tabular-nums md:inline">
+              Next queue time: {formatDayTime(nextSlot, state.timezone)}
+            </span>
+          ) : null}
           <Button
             type="button"
             variant="outline"
@@ -572,13 +596,11 @@ export function Composer({
             <Button
               type="button"
               disabled={pending !== null}
-              onClick={() =>
-                void submit(state.scheduledAt ? "schedule" : nextSlot ? "queue" : "schedule")
-              }
+              onClick={() => void submit(state.scheduledAt ? "schedule" : "queue")}
               className="flex-1 max-sm:px-3"
             >
               {pending && pending !== "draft" ? <Spinner /> : null}
-              {state.scheduledAt ? "Schedule" : nextSlot ? "Add to queue" : "Schedule"}
+              {state.scheduledAt ? "Schedule" : "Add to queue"}
             </Button>
             <ButtonGroupSeparator className="bg-primary-foreground/25" />
             <DropdownMenu>
@@ -603,7 +625,7 @@ export function Composer({
                   <Queue />
                   <span className="flex-1">Add to queue</span>
                   {nextSlot ? (
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs text-muted-foreground tabular-nums">
                       {formatDayTime(nextSlot, state.timezone)}
                     </span>
                   ) : null}
@@ -620,7 +642,8 @@ export function Composer({
         </div>
         {blocking.length && state.accountIds.length ? (
           <span className="sr-only" aria-live="polite">
-            {blocking.length} issues to fix before scheduling
+            {blocking.length === 1 ? "1 thing" : `${blocking.length} things`} to fix before
+            scheduling
           </span>
         ) : null}
       </div>
@@ -655,6 +678,32 @@ export function Composer({
               }}
             >
               Switch format
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={leaveHref !== null} onOpenChange={(open) => !open && setLeaveHref(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave without saving?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {post
+                ? "Your changes to this post will be lost."
+                : "This post hasn't been saved. Save it as a draft to finish it later."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                const href = leaveHref;
+                setLeaveHref(null);
+                if (href) router.push(href);
+              }}
+            >
+              Discard and leave
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

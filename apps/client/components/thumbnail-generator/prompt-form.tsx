@@ -305,7 +305,7 @@ export function ThumbPromptForm({ onGenerationsStarted }: ThumbPromptFormProps) 
                   if (canSubmit) void handleGenerate();
                 }
               }}
-              placeholder="Describe the thumbnail (optional with a template or context)"
+              placeholder="Surprised face on the right, bold text “30 days later” (optional with a template)"
               aria-label="Thumbnail prompt"
               maxLength={PROMPT_MAX_CHARS}
               disabled={submitting}

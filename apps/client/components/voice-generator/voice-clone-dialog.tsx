@@ -76,8 +76,12 @@ export function VoiceCloneDialog({
   }
 
   async function handleUpload(file: File) {
-    if (!file.type.startsWith("audio/") && !file.type.startsWith("video/")) {
-      toast.error("Choose an audio or video file, like MP3, WAV or M4A.");
+    if (
+      !file.type.startsWith("audio/") &&
+      file.type !== "video/mp4" &&
+      file.type !== "video/webm"
+    ) {
+      toast.error("Choose an MP3, WAV, M4A, MP4 or WebM file.");
       return;
     }
 
@@ -215,7 +219,9 @@ export function VoiceCloneDialog({
               ) : sampleFileName ? (
                 <>
                   <Microphone className="size-5 text-muted-foreground" />
-                  <span className="text-sm font-medium">{sampleFileName}</span>
+                  <span className="max-w-full truncate text-sm font-medium">
+                    {sampleFileName}
+                  </span>
                   <span className="text-xs text-muted-foreground">
                     Click to replace
                   </span>
@@ -225,7 +231,7 @@ export function VoiceCloneDialog({
                   <UploadSimple className="size-5 text-muted-foreground" />
                   <span className="text-sm font-medium">Upload a sample</span>
                   <span className="text-xs text-muted-foreground">
-                    MP3, WAV, M4A or a short video
+                    MP3, WAV, M4A, MP4 or WebM
                   </span>
                 </>
               )}

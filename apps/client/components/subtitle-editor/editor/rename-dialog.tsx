@@ -6,6 +6,7 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -31,6 +32,9 @@ export function RenameDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Rename project</DialogTitle>
+          <DialogDescription className="sr-only">
+            The name shows in your projects list and as the export file name.
+          </DialogDescription>
         </DialogHeader>
         {/* Mounted per opening, so the field starts from the current title. */}
         <RenameForm

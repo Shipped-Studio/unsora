@@ -15,6 +15,7 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -30,6 +31,7 @@ import type {
 import { useLibrary } from "@/hooks/use-library";
 import { uploadFileToStorage } from "@/lib/storage-client";
 import { cn } from "@/lib/utils";
+import { IconButton } from "@/components/subtitle-editor/icon-button";
 
 type Api = ReturnType<typeof useSubtitleApi>;
 type Source = "video" | "image" | "ai" | "assets";
@@ -39,10 +41,10 @@ const AI_IMAGE_CREDITS = 2;
 const SEARCH_DELAY_MS = 400;
 
 const SOURCES: { value: Source; label: string }[] = [
-  { value: "video", label: "Video Stock" },
-  { value: "image", label: "Image Stock" },
-  { value: "ai", label: "AI Generated" },
-  { value: "assets", label: "My Assets" },
+  { value: "video", label: "Stock video" },
+  { value: "image", label: "Stock images" },
+  { value: "ai", label: "AI images" },
+  { value: "assets", label: "My files" },
 ];
 
 const TIERS: { value: Tier; label: string }[] = [
@@ -138,9 +140,9 @@ export function BrollPicker({
   return (
     <div className="space-y-4 duration-200 animate-in fade-in slide-in-from-right-6">
       <div className="flex items-center gap-3">
-        <Button variant="outline" size="icon-sm" aria-label="Back to scenes" onClick={onBack}>
+        <IconButton variant="outline" label="Back to scenes" onClick={onBack}>
           <ArrowLeft />
-        </Button>
+        </IconButton>
         <h2 className="text-sm font-medium">B-rolls</h2>
       </div>
 
@@ -174,7 +176,7 @@ export function BrollPicker({
                   onClick={() => setTier(t.value)}
                   className="inline-flex h-7 items-center gap-1 rounded-md bg-muted px-2.5 text-[13px] text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:bg-foreground aria-pressed:text-background"
                 >
-                  {t.value === "trendy" ? <Fire weight="fill" className="size-3.5 text-orange-500" /> : null}
+                  {t.value === "trendy" ? <Fire weight="fill" className="size-3.5 text-warning" /> : null}
                   {t.label}
                 </button>
               ))}
@@ -188,7 +190,7 @@ export function BrollPicker({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search"
-              className="h-9 w-full rounded-lg border bg-background pr-9 pl-8 text-sm outline-none transition-colors focus:border-[#3F83F8] [&::-webkit-search-cancel-button]:hidden"
+              className="h-9 w-full rounded-lg border bg-background pr-9 pl-8 text-sm outline-none transition-colors focus:border-info [&::-webkit-search-cancel-button]:hidden"
             />
             {query ? (
               <button
@@ -313,7 +315,7 @@ function MediaTile({
       onBlur={() => setHovering(false)}
       aria-label={media.kind === "video" ? `Preview clip${by}` : `Use image${by}`}
       className={cn(
-        "relative overflow-hidden rounded-lg bg-muted outline-none ring-offset-2 ring-offset-background transition-shadow hover:ring-2 hover:ring-[#3F83F8] focus-visible:ring-3 focus-visible:ring-ring/50",
+        "relative overflow-hidden rounded-lg bg-muted outline-none ring-offset-2 ring-offset-background transition-shadow hover:ring-2 hover:ring-info focus-visible:ring-3 focus-visible:ring-ring/50",
         portrait ? "aspect-[9/16]" : "aspect-video",
       )}
     >
@@ -367,6 +369,9 @@ function ClipPreviewDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Preview clip</DialogTitle>
+          <DialogDescription className="sr-only">
+            Watch the clip before adding it to this scene.
+          </DialogDescription>
         </DialogHeader>
         {media ? (
           <>
@@ -381,7 +386,7 @@ function ClipPreviewDialog({
               loop
               playsInline
               aria-label="Clip preview"
-              className="max-h-[60svh] w-full rounded-lg bg-black object-contain"
+              className="max-h-[min(60svh,calc(100dvh-16rem))] w-full rounded-lg bg-black object-contain"
             />
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
               <span className="tabular-nums">{details.join(" · ")}</span>
@@ -442,7 +447,7 @@ function AiGenerated({
       />
       <Button disabled={isGenerating || !prompt.trim()} onClick={generate}>
         {isGenerating ? <Spinner /> : <Sparkle />}
-        Generate
+        {isGenerating ? "Generating…" : "Generate"}
         <span className="rounded bg-primary-foreground/20 px-1.5 text-xs tabular-nums">✦ {AI_IMAGE_CREDITS}</span>
       </Button>
       <MediaGrid

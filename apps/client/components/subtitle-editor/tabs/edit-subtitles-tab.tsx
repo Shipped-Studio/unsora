@@ -155,12 +155,12 @@ function Transcript({
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="outline" size="sm" onClick={onOpenHookTitle}>
           <TextT />
-          Hook Title
+          Hook title
         </Button>
         <TranslateDialog onTranslate={onTranslate} />
         <Button variant="outline" size="sm" disabled={busy !== null} onClick={onRegenerateEmojis}>
           {busy === "emojis" ? <Spinner /> : <SmileyWink />}
-          Regenerate Emojis
+          Regenerate emojis
         </Button>
         <FindReplacePopover
           find={find}
@@ -186,7 +186,7 @@ function Transcript({
         <p className="text-sm">
           {accuracy !== null ? (
             <>
-              Captions accuracy{" "}
+              Caption accuracy{" "}
               <span className="font-medium tabular-nums">{accuracy.toFixed(1)}%</span>
             </>
           ) : (

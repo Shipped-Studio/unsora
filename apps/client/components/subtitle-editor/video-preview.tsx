@@ -11,11 +11,11 @@ import {
   SpeakerHigh,
   SpeakerSlash,
 } from "@phosphor-icons/react";
-import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/states";
 import { VideoComposition } from "@/components/subtitle-editor/video-composition";
 import { formatClock } from "@/components/subtitle-editor/format";
+import { IconButton } from "@/components/subtitle-editor/icon-button";
 import { PreviewDragLayer } from "@/components/subtitle-editor/preview-drag-layer";
 import type { SubtitleStylePreset } from "@/components/subtitle-editor/style-presets";
 import type { CaptionPlacement } from "@/components/subtitle-editor/caption-style";
@@ -152,38 +152,24 @@ function PlayerControls({
       />
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={isPlaying ? "Pause" : "Play"}
+          <IconButton
+            label={isPlaying ? "Pause" : "Play"}
             onClick={() => playerRef.current?.toggle()}
           >
             {isPlaying ? <Pause weight="fill" /> : <Play weight="fill" />}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Back 10 seconds"
-            onClick={() => seek(frame - 10 * FPS)}
-          >
+          </IconButton>
+          <IconButton label="Back 10 seconds" onClick={() => seek(frame - 10 * FPS)}>
             <ClockCounterClockwise />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Forward 10 seconds"
-            onClick={() => seek(frame + 10 * FPS)}
-          >
+          </IconButton>
+          <IconButton label="Forward 10 seconds" onClick={() => seek(frame + 10 * FPS)}>
             <ClockClockwise />
-          </Button>
+          </IconButton>
           <span className="ml-1 text-xs tabular-nums text-muted-foreground">
             {formatClock(frame / FPS)} / {formatClock(durationInFrames / FPS)}
           </span>
         </div>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={isMuted ? "Unmute" : "Mute"}
+        <IconButton
+          label={isMuted ? "Unmute" : "Mute"}
           onClick={() => {
             const player = playerRef.current;
             if (!player) return;
@@ -192,7 +178,7 @@ function PlayerControls({
           }}
         >
           {isMuted ? <SpeakerSlash /> : <SpeakerHigh />}
-        </Button>
+        </IconButton>
       </div>
     </div>
   );

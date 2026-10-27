@@ -7,7 +7,7 @@ import { useUser } from "@clerk/nextjs";
 import { driver, type DriveStep } from "driver.js";
 
 /*
- * The guided tour: dims the app and walks through the rail, one spotlight at
+ * The guided tour: dims the app and walks through the sidebar, one spotlight at
  * a time. Runs once per account (after onboarding, on Home) and can be
  * replayed from the account menu. Targets carry a data-tour attribute; steps
  * whose target isn't on screen (phone layout, setup already done) are left
@@ -70,24 +70,6 @@ const STEPS: DriveStep[] = [
       title: "Create with AI",
       description:
         "Make videos, images, clips, captions, voiceovers and music. Anything you make can be scheduled straight from the result.",
-      side: "right",
-      align: "start",
-    },
-  },
-  {
-    element: target("/files"),
-    popover: {
-      title: "Library",
-      description: "Your uploads and everything you've generated, in one place.",
-      side: "right",
-      align: "start",
-    },
-  },
-  {
-    element: target("/connect-agent"),
-    popover: {
-      title: "Agents",
-      description: "Connect Claude, ChatGPT or Cursor so they can create and schedule posts for you.",
       side: "right",
       align: "start",
     },

@@ -11,16 +11,6 @@ import {
   DownloadSimple,
   Trash,
 } from "@phosphor-icons/react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -35,13 +25,17 @@ import { scheduleHref } from "@/lib/scheduler/formats";
 import { getCdnUrl } from "@/lib/video-utils";
 import { cn } from "@/lib/utils";
 import {
+  DeleteResultDialog,
   FailedState,
   MEDIA_ICON_BUTTON_CLASS,
   PlayBadge,
   TILE_CLASS,
+  TileDeleteButton,
   UnavailableState,
   useImageFade,
 } from "./result-tile";
+
+export { DeleteResultDialog } from "./result-tile";
 
 const cdnLoader = ({ src }: { src: string }) => src;
 
@@ -82,39 +76,6 @@ export async function copyText(text: string, what = "Prompt") {
   }
 }
 
-/** Confirm dialog for deleting a generated file. */
-export function DeleteResultDialog({
-  open,
-  onOpenChange,
-  noun,
-  onConfirm,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  noun: string;
-  onConfirm: () => void;
-}) {
-  return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent size="sm">
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete this {noun}?</AlertDialogTitle>
-          <AlertDialogDescription>
-            It will be removed from this page and from your Library. This can&apos;t be
-            undone.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" onClick={onConfirm}>
-            Delete
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
-
 interface MediaResultCardProps {
   result: MediaResult;
   /** Word used in labels and confirmations: "video", "image", "thumbnail". */
@@ -153,15 +114,7 @@ export function MediaResultCard({
     complete && !!previewUrl && !(result.mediaType === "image" && fade.failed);
 
   const tileAction = canDelete ? (
-    <Button
-      variant="outline"
-      size="xs"
-      className="mt-1"
-      onClick={() => setConfirmDelete(true)}
-    >
-      <Trash />
-      Delete
-    </Button>
+    <TileDeleteButton className="mt-1" onClick={() => setConfirmDelete(true)} />
   ) : onDismiss ? (
     <Button
       variant="outline"

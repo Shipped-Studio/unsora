@@ -136,8 +136,8 @@ export function VideoEditor({
           ) : null}
           {video.status === "error" ? (
             <p className="flex items-center gap-1.5 text-sm text-destructive">
-              <WarningCircle className="size-4" />
-              {video.error || "Upload failed."}
+              <WarningCircle aria-hidden className="size-4 shrink-0" />
+              {video.error || "Upload failed. Replace the file to try again."}
             </p>
           ) : null}
 

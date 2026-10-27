@@ -32,7 +32,12 @@ export function ActivatePlanDialog({
   onConfirm,
 }: ActivatePlanDialogProps) {
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!isActivating) onOpenChange(next);
+      }}
+    >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Activate your {planName} plan now?</AlertDialogTitle>
@@ -45,7 +50,7 @@ export function ActivatePlanDialog({
           <AlertDialogCancel disabled={isActivating}>Not now</AlertDialogCancel>
           <AlertDialogAction disabled={isActivating} onClick={onConfirm}>
             {isActivating ? <Spinner data-icon="inline-start" /> : null}
-            Activate plan
+            {isActivating ? "Activating…" : "Activate plan"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

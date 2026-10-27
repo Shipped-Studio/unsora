@@ -7,6 +7,7 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -50,7 +51,11 @@ export function TranslateDialog({
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Translate your video</DialogTitle>
+          <DialogTitle>Translate captions</DialogTitle>
+          <DialogDescription>
+            Every line is rewritten in the language you pick. Highlights and
+            emojis are cleared, since they were for the old words.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-4">
@@ -83,7 +88,7 @@ export function TranslateDialog({
           </DialogClose>
           <Button disabled={isTranslating} onClick={translate}>
             {isTranslating ? <Spinner /> : null}
-            Translate
+            {isTranslating ? "Translating…" : "Translate"}
             <span className="rounded bg-primary-foreground/20 px-1.5 text-xs tabular-nums">
               ✦ {TRANSLATE_CREDITS}
             </span>

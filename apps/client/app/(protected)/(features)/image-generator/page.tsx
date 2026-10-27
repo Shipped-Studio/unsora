@@ -140,7 +140,7 @@ export default function ImageGeneratorPage() {
           category="image"
           noun="image"
           defaultModel="nano-banana-2"
-          placeholder="Describe the image"
+          placeholder="A ceramic coffee mug on a sunlit desk, shot from above"
           promptLabel="Image prompt"
           onSubmit={submit}
         />

@@ -2,7 +2,6 @@
 
 import { useId } from "react";
 import { ArrowCounterClockwise, Plus } from "@phosphor-icons/react";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -16,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import { FONT_OPTIONS, getFontFamily } from "@/remotion/fonts";
+import { IconButton } from "@/components/subtitle-editor/icon-button";
 
 /** Swatches offered for title and watermark text. */
 export const OVERLAY_COLORS = [
@@ -168,14 +168,13 @@ export function SliderField({
             {unit}
           </span>
           {canReset ? (
-            <Button
-              variant="ghost"
+            <IconButton
               size="icon-xs"
-              aria-label={`Reset ${label.toLowerCase()}`}
+              label={`Reset ${label.toLowerCase()}`}
               onClick={() => onChange(defaultValue)}
             >
               <ArrowCounterClockwise />
-            </Button>
+            </IconButton>
           ) : null}
         </div>
       </div>

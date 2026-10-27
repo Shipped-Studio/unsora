@@ -39,7 +39,7 @@ interface CurrentPlanCardProps {
 function statusLine(state: PlanState, endsOn: string | null) {
   switch (state) {
     case "free":
-      return "Choose a plan to get credits and connect more social accounts.";
+      return "Choose a plan to connect your social accounts, schedule posts and get credits.";
     case "active":
       return endsOn ? `Renews on ${endsOn}.` : "Your subscription is active.";
     case "trialing":
@@ -47,7 +47,9 @@ function statusLine(state: PlanState, endsOn: string | null) {
         ? `Your trial ends on ${endsOn}. Activate now to start your plan, or cancel to return to Free.`
         : "Activate now to start your plan, or cancel to return to Free.";
     case "ending":
-      return "Your plan won't renew. You keep access and your credits until then.";
+      return endsOn
+        ? `Your plan won't renew. You keep access and your credits until ${endsOn}.`
+        : "Your plan won't renew. You keep access and your credits until the period ends.";
   }
 }
 

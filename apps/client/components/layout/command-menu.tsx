@@ -63,6 +63,20 @@ export function CommandMenuProvider({ children }: { children: React.ReactNode })
   );
 }
 
+/**
+ * Whole-word matching instead of cmdk's default fuzzy one, which scores
+ * "subt" higher on "Accounts · Social accounts you can publish to" than on
+ * "Subtitles". Label starts beat word starts beat anything else containing it.
+ */
+function rank(value: string, search: string) {
+  const query = search.trim().toLowerCase();
+  if (!query) return 1;
+  const text = value.toLowerCase();
+  if (text.startsWith(query)) return 1;
+  if (text.split(/[\s·,/-]+/).some((word) => word.startsWith(query))) return 0.7;
+  return text.includes(query) ? 0.4 : 0;
+}
+
 function CommandMenu({
   open,
   onOpenChange,
@@ -94,6 +108,7 @@ function CommandMenu({
       onOpenChange={onOpenChange}
       title="Search"
       description="Jump to a page or run an action"
+      filter={rank}
     >
       <CommandInput placeholder="Search pages and actions" />
       <CommandList>

@@ -5,28 +5,19 @@ import {
   ArrowSquareOut,
   DotsThree,
   DownloadSimple,
-  FilmStrip,
   Trash,
   TrendUp,
 } from "@phosphor-icons/react";
 import {
+  DeleteResultDialog,
   FailedState,
   MEDIA_ICON_BUTTON_CLASS,
   PlayBadge,
+  TileDeleteButton,
   UnavailableState,
   useImageFade,
 } from "@/components/generator/result-tile";
 import { ScheduleLink } from "@/components/generator/tool-layout";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -157,23 +148,22 @@ export function AIClippingClipCard({
         </button>
       ) : failed ? (
         <div className={cn("bg-muted", clipAspectClass(ratio))}>
-          <FailedState error={clip.error} kind="file" title="Clip failed" />
+          <FailedState error={clip.error} kind="file" />
         </div>
-      ) : (
+      ) : preparing ? (
         <div
+          role="status"
           className={cn(
             "flex flex-col items-center justify-center gap-2 bg-muted px-3 text-center",
             clipAspectClass(ratio),
           )}
         >
-          {preparing ? (
-            <>
-              <Spinner className="text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Preparing</span>
-            </>
-          ) : (
-            <FilmStrip className="size-6 text-muted-foreground" />
-          )}
+          <Spinner className="text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Preparing</span>
+        </div>
+      ) : (
+        <div className={cn("bg-muted", clipAspectClass(ratio))}>
+          <UnavailableState />
         </div>
       )}
 
@@ -209,7 +199,7 @@ export function AIClippingClipCard({
                 onClick={() => setConfirmOpen(true)}
               >
                 <Trash />
-                Delete clip
+                Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -228,7 +218,7 @@ export function AIClippingClipCard({
 
         {videoUrl ? (
           <div className="mt-auto flex items-center gap-1">
-            <ScheduleLink url={videoUrl} mediaType="video" size="xs" variant="secondary" />
+            <ScheduleLink url={videoUrl} mediaType="video" size="xs" variant="outline" />
             <a
               href={getCdnUrl(videoUrl, { download: true })}
               download
@@ -238,31 +228,20 @@ export function AIClippingClipCard({
               <DownloadSimple />
             </a>
           </div>
+        ) : !preparing && !rendering ? (
+          <div className="mt-auto flex">
+            <TileDeleteButton onClick={() => setConfirmOpen(true)} />
+          </div>
         ) : null}
       </div>
 
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent size="sm">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this clip?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {title} will be removed from this job. This can&apos;t be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => {
-                setConfirmOpen(false);
-                onDelete();
-              }}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteResultDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        noun="clip"
+        description={`${title} will be removed from this job.`}
+        onConfirm={onDelete}
+      />
     </article>
   );
 }

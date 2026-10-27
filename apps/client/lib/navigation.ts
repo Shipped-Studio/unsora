@@ -58,13 +58,13 @@ export interface NavSection {
 
 export const NAV_SECTIONS: NavSection[] = [
   {
-    label: "Publish",
+    label: "Schedule",
     items: [
       {
         label: "Home",
         href: "/",
         icon: House,
-        description: "What needs attention and what's going out next",
+        description: "Your posting timeline: what went out and what's next",
         exact: true,
       },
       {
@@ -72,8 +72,6 @@ export const NAV_SECTIONS: NavSection[] = [
         href: "/scheduler/calendar",
         icon: CalendarBlank,
         description: "Scheduled and published posts by date",
-        // Queue and Posts are reached from the tabs on these pages.
-        match: ["/scheduler/queue", "/scheduler/posts"],
       },
       {
         label: "Queue",
@@ -136,6 +134,30 @@ export const NAV_SECTIONS: NavSection[] = [
       },
     ],
     more: [
+      {
+        label: "Talking avatar",
+        href: "/ai-avatar-maker",
+        icon: UserSound,
+        description: "A portrait that speaks your script",
+      },
+      {
+        label: "Voice",
+        href: "/voice-generator",
+        icon: Microphone,
+        description: "Text to speech with stock or cloned voices",
+      },
+      {
+        label: "Voice changer",
+        href: "/voice-changer",
+        icon: Waveform,
+        description: "Re-voice a recording with one of your cloned voices",
+      },
+      {
+        label: "Music",
+        href: "/music-generator",
+        icon: MusicNotes,
+        description: "Songs from lyrics and a style prompt",
+      },
       {
         label: "Motion control",
         href: "/motion-control",
@@ -217,30 +239,6 @@ const UNLISTED: NavItem[] = [
     href: "/scheduler/new",
     icon: ListChecks,
     description: "Pick what kind of post to make",
-  },
-  {
-    label: "Music",
-    href: "/music-generator",
-    icon: MusicNotes,
-    description: "Songs from lyrics and a style prompt",
-  },
-  {
-    label: "Voice",
-    href: "/voice-generator",
-    icon: Microphone,
-    description: "Text to speech with stock or cloned voices",
-  },
-  {
-    label: "Voice changer",
-    href: "/voice-changer",
-    icon: Waveform,
-    description: "Re-voice a recording with one of your cloned voices",
-  },
-  {
-    label: "Talking avatar",
-    href: "/ai-avatar-maker",
-    icon: UserSound,
-    description: "A portrait that speaks your script",
   },
   {
     label: "Thumbnail templates",

@@ -5,10 +5,10 @@ import {
   ArrowsLeftRight,
   DotsThree,
   DownloadSimple,
-  FileVideo,
   Trash,
 } from "@phosphor-icons/react";
 import {
+  DeleteResultDialog,
   FailedState,
   MEDIA_ICON_BUTTON_CLASS,
   TILE_GHOST_BUTTON_CLASS,
@@ -16,18 +16,10 @@ import {
   TILE_CLASS,
   TILE_SKELETON_BAR_CLASS,
   TILE_SKELETON_CLASS,
+  TileDeleteButton,
+  UnavailableState,
 } from "@/components/generator/result-tile";
 import { ScheduleLink } from "@/components/generator/tool-layout";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -72,6 +64,8 @@ export function VideoJobCard({
   const active = isVideoJobActive(job);
   const failed = job.status === "failed";
   const outputUrl = job.status === "completed" ? job.processedUrl : null;
+  // Finished, but the processed file is missing.
+  const unavailable = !active && !failed && !outputUrl;
 
   const status = active
     ? job.status === "queued"
@@ -100,18 +94,16 @@ export function VideoJobCard({
         </button>
       ) : failed ? (
         <div className="aspect-video bg-card">
-          <FailedState error={job.error} kind="file" title="Processing failed" />
+          <FailedState error={job.error} kind="file" />
+        </div>
+      ) : unavailable ? (
+        <div className="aspect-video bg-card">
+          <UnavailableState />
         </div>
       ) : (
         <div className="flex aspect-video flex-col items-center justify-center gap-2 bg-card px-4 text-center">
-          {active ? (
-            <>
-              <Spinner className="text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">{status}</span>
-            </>
-          ) : (
-            <FileVideo className="size-6 text-muted-foreground" />
-          )}
+          <Spinner className="text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">{status}</span>
         </div>
       )}
 
@@ -153,7 +145,7 @@ export function VideoJobCard({
           <p className="truncate text-sm font-medium" title={job.originalName}>
             {job.originalName}
           </p>
-          <p className="truncate text-xs text-muted-foreground">{status}</p>
+          <p className="truncate text-xs text-muted-foreground tabular-nums">{status}</p>
         </div>
 
         {outputUrl ? (
@@ -171,39 +163,20 @@ export function VideoJobCard({
               <DownloadSimple />
             </a>
           </div>
-        ) : failed ? (
+        ) : failed || unavailable ? (
           <div className="mt-auto flex">
-            <Button variant="outline" size="xs" onClick={() => setConfirmOpen(true)}>
-              <Trash />
-              Delete
-            </Button>
+            <TileDeleteButton onClick={() => setConfirmOpen(true)} />
           </div>
         ) : null}
       </div>
 
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent size="sm">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this video?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {job.originalName} will be removed from your results. This
-              can&apos;t be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => {
-                setConfirmOpen(false);
-                onDelete();
-              }}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteResultDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        noun="video"
+        description={`${job.originalName} will be removed from your results.`}
+        onConfirm={onDelete}
+      />
     </article>
   );
 }

@@ -48,6 +48,8 @@
   --color-ring: var(--ring);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
+  --color-brand-subtle: var(--brand-subtle);
+  --color-brand-subtle-foreground: var(--brand-subtle-foreground);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -107,10 +109,11 @@
 }
 
 /*
- * Same palette as the landing site: a warm paper canvas, content on white
- * panels, neutral (untinted) greys, ink buttons and one lime brand
- * accent. `accent` is the neutral fill for selected nav, tabs,
- * toggles and menu items.
+ * Same palette as instagramscheduler.com: white surfaces, cool neutral
+ * greys, near-black ink and one green brand colour that is also the primary
+ * action. The app canvas is the sidebar tone, so the white page panel reads
+ * as a sheet on top of it. `accent` is the neutral fill for hovered rows,
+ * tabs and menu items; selected nav uses the soft green `sidebar-accent`.
  *
  * Radius scale (base 10px): xs 5 · sm 6 · md 8 · lg 10 (controls) ·
  * xl 14 (cards, menus) · 2xl 18 (dialogs). Control heights: xs 28 · sm 32 ·
@@ -120,56 +123,58 @@
 .light {
   --radius: 0.625rem;
 
-  --background: #f4f4f0;
-  --foreground: #0a0a0a;
+  --background: #ffffff;
+  --foreground: #111318;
   --card: #ffffff;
-  --card-foreground: #0a0a0a;
+  --card-foreground: #111318;
   --popover: #ffffff;
-  --popover-foreground: #0a0a0a;
-  --primary: #0a0a0a;
-  --primary-foreground: #fafaf7;
-  --secondary: #efefea;
-  --secondary-foreground: #0a0a0a;
-  --muted: #f5f5f1;
-  --muted-foreground: #62625e;
-  --accent: #e8e8e2;
-  --accent-foreground: #0a0a0a;
-  --destructive: #dc2626;
+  --popover-foreground: #111318;
+  --primary: #087f5b;
+  --primary-foreground: #ffffff;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #111318;
+  --muted: #f7f7f8;
+  --muted-foreground: #626875;
+  --accent: #f2f2f3;
+  --accent-foreground: #111318;
+  --destructive: #d92d20;
   --destructive-foreground: #ffffff;
-  --success: #15803d;
+  --success: #12805c;
   --success-foreground: #ffffff;
-  --warning: #b45309;
+  --warning: #b54708;
   --warning-foreground: #ffffff;
-  --info: #2563eb;
-  --border: #e4e4de;
+  --info: #3b5bdb;
+  --border: #e8e8ea;
   /* Edge of fields and outline buttons: has to read on white cards too. */
-  --input: #c6c6be;
-  --ring: #8e8e86;
+  --input: #d8d8dc;
+  --ring: #087f5b;
 
-  --brand: #e8ff6b;
-  --brand-foreground: #0c0c0d;
+  --brand: #087f5b;
+  --brand-foreground: #ffffff;
+  --brand-subtle: #e6f4ee;
+  --brand-subtle-foreground: #06664a;
 
-  --chart-1: #0a0a0a;
-  --chart-2: #7a9a20;
-  --chart-3: #6b6b66;
-  --chart-4: #9a9a93;
-  --chart-5: #2563eb;
+  --chart-1: #087f5b;
+  --chart-2: #7cc8a8;
+  --chart-3: #111318;
+  --chart-4: #9aa0ab;
+  --chart-5: #c7ebdc;
 
-  --sidebar: #f4f4f0;
-  --sidebar-foreground: #0a0a0a;
-  --sidebar-primary: #0a0a0a;
-  --sidebar-primary-foreground: #fafaf7;
-  --sidebar-accent: #e8e8e2;
-  --sidebar-accent-foreground: #0a0a0a;
-  --sidebar-border: #e4e4de;
-  --sidebar-ring: rgb(10 10 10 / 0.35);
+  --sidebar: #f7f7f8;
+  --sidebar-foreground: #111318;
+  --sidebar-primary: #087f5b;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e6f4ee;
+  --sidebar-accent-foreground: #06664a;
+  --sidebar-border: #ececee;
+  --sidebar-ring: rgb(8 127 91 / 0.4);
 
   /* Video and photo stage, and badges drawn on top of media. */
   --media: #000000;
   --media-foreground: #ffffff;
   --scrim: #000000;
   /* Modal backdrop (used at full strength, alpha is baked in). */
-  --overlay: rgb(10 10 10 / 0.32);
+  --overlay: rgb(17 19 24 / 0.28);
 
   /* Third-party brand marks. */
   --platform-linkedin: #0a66c2;
@@ -190,7 +195,7 @@
   --link-google-business: #1a73e8;
   --link-social: #0a6fe8;
 
-  --hatch: rgb(10 10 10 / 0.045);
+  --hatch: rgb(17 19 24 / 0.045);
 
   /* Soft status fills for badges, alerts and rows. */
   --info-foreground: #ffffff;
@@ -200,77 +205,81 @@
   --destructive-subtle: color-mix(in oklab, var(--destructive) 9%, transparent);
 
   /* The dark brand stage beside the auth forms (dark in both themes). */
-  --stage: #0a0a0a;
-  --stage-foreground: #f0f0f0;
-  --stage-muted: #a8a8a8;
-  --stage-card: #161616;
-  --stage-border: rgb(255 255 255 / 0.08);
+  --stage: #0f1218;
+  --stage-foreground: #f5f6f8;
+  --stage-muted: #a9afbb;
+  --stage-card: #1a1e26;
+  --stage-border: rgb(255 255 255 / 0.09);
 
   /* Shadows tinted with the foreground ink, not pure black. */
-  --sh-2xs: 0 1px 1px rgb(10 10 10 / 0.03);
-  --sh-xs: 0 1px 2px rgb(10 10 10 / 0.05);
-  --sh-sm: 0 1px 2px rgb(10 10 10 / 0.04), 0 2px 8px -2px rgb(10 10 10 / 0.06);
-  --sh-md: 0 1px 2px rgb(10 10 10 / 0.04), 0 8px 24px -8px rgb(10 10 10 / 0.12);
-  --sh-lg: 0 1px 3px rgb(10 10 10 / 0.05), 0 16px 40px -12px rgb(10 10 10 / 0.18);
-  --sh-xl: 0 2px 4px rgb(10 10 10 / 0.05), 0 28px 64px -20px rgb(10 10 10 / 0.26);
+  --sh-2xs: 0 1px 1px rgb(17 19 24 / 0.03);
+  --sh-xs: 0 1px 2px rgb(17 19 24 / 0.05);
+  --sh-sm: 0 1px 2px rgb(17 19 24 / 0.04), 0 2px 8px -2px rgb(17 19 24 / 0.06);
+  --sh-md: 0 1px 2px rgb(17 19 24 / 0.04), 0 8px 24px -8px rgb(17 19 24 / 0.12);
+  --sh-lg: 0 1px 3px rgb(17 19 24 / 0.05), 0 16px 40px -12px rgb(17 19 24 / 0.18);
+  --sh-xl: 0 2px 4px rgb(17 19 24 / 0.05), 0 28px 64px -20px rgb(17 19 24 / 0.26);
 }
 
+/* The same green on cool near-black. The primary is lifted so it keeps
+   contrast on dark surfaces, and takes dark text. */
 .dark {
-  --background: #0a0a0a;
-  --foreground: #f0f0f0;
-  --card: #121212;
-  --card-foreground: #f0f0f0;
-  --popover: #161616;
-  --popover-foreground: #f0f0f0;
-  --primary: #e8ff6b;
-  --primary-foreground: #0a0a0a;
-  --secondary: #1e1e1e;
-  --secondary-foreground: #f0f0f0;
-  --muted: #1c1c1c;
-  --muted-foreground: #a8a8a8;
-  --accent: #272727;
-  --accent-foreground: #f0f0f0;
-  --destructive: #f05252;
-  --destructive-foreground: #0a0a0a;
-  --success: #34c77b;
-  --success-foreground: #0a0a0a;
+  --background: #0e1014;
+  --foreground: #eef0f3;
+  --card: #15181d;
+  --card-foreground: #eef0f3;
+  --popover: #1a1d23;
+  --popover-foreground: #eef0f3;
+  --primary: #34c08f;
+  --primary-foreground: #05140f;
+  --secondary: #1f2228;
+  --secondary-foreground: #eef0f3;
+  --muted: #1b1e24;
+  --muted-foreground: #9aa1ad;
+  --accent: #252931;
+  --accent-foreground: #eef0f3;
+  --destructive: #f2564b;
+  --destructive-foreground: #0e1014;
+  --success: #34c08f;
+  --success-foreground: #05140f;
   --warning: #f5a524;
-  --warning-foreground: #0a0a0a;
-  --info: #60a5fa;
-  --border: #2a2a2a;
-  --input: #474747;
-  --ring: rgb(232 255 107 / 0.45);
+  --warning-foreground: #0e1014;
+  --info: #8098f7;
+  --border: #272b33;
+  --input: #3c414b;
+  --ring: rgb(52 192 143 / 0.5);
 
-  --brand: #e8ff6b;
-  --brand-foreground: #0c0c0d;
+  --brand: #34c08f;
+  --brand-foreground: #05140f;
+  --brand-subtle: rgb(52 192 143 / 0.14);
+  --brand-subtle-foreground: #7fdcb8;
 
-  --chart-1: #e8ff6b;
-  --chart-2: #9fb83a;
-  --chart-3: #a8a8a8;
-  --chart-4: #6e6e6e;
-  --chart-5: #60a5fa;
+  --chart-1: #34c08f;
+  --chart-2: #1f7a5b;
+  --chart-3: #c9ced6;
+  --chart-4: #6b7280;
+  --chart-5: #8098f7;
 
-  --sidebar: #0a0a0a;
-  --sidebar-foreground: #f0f0f0;
-  --sidebar-primary: #e8ff6b;
-  --sidebar-primary-foreground: #0a0a0a;
-  --sidebar-accent: #272727;
-  --sidebar-accent-foreground: #f0f0f0;
-  --sidebar-border: #2a2a2a;
-  --sidebar-ring: rgb(232 255 107 / 0.45);
+  --sidebar: #0e1014;
+  --sidebar-foreground: #eef0f3;
+  --sidebar-primary: #34c08f;
+  --sidebar-primary-foreground: #05140f;
+  --sidebar-accent: rgb(52 192 143 / 0.14);
+  --sidebar-accent-foreground: #8ee3c2;
+  --sidebar-border: #272b33;
+  --sidebar-ring: rgb(52 192 143 / 0.5);
 
   --overlay: rgb(0 0 0 / 0.6);
 
-  --hatch: rgb(255 255 255 / 0.045);
+  --hatch: rgb(255 255 255 / 0.04);
 
-  --info-foreground: #0a0a0a;
+  --info-foreground: #0e1014;
   --success-subtle: color-mix(in oklab, var(--success) 16%, transparent);
   --warning-subtle: color-mix(in oklab, var(--warning) 16%, transparent);
   --info-subtle: color-mix(in oklab, var(--info) 16%, transparent);
   --destructive-subtle: color-mix(in oklab, var(--destructive) 16%, transparent);
 
-  --stage: #070707;
-  --stage-card: #141414;
+  --stage: #090b0e;
+  --stage-card: #15181d;
   --stage-border: rgb(255 255 255 / 0.07);
 
   --sh-2xs: 0 1px 1px rgb(0 0 0 / 0.3);
@@ -314,8 +323,8 @@
   }
 
   ::selection {
-    background: color-mix(in srgb, var(--brand) 70%, transparent);
-    color: var(--brand-foreground);
+    background: color-mix(in srgb, var(--brand) 22%, transparent);
+    color: var(--foreground);
   }
 
   button:not(:disabled),

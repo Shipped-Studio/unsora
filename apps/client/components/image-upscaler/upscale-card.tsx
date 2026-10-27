@@ -5,30 +5,21 @@ import {
   ArrowsLeftRight,
   DotsThree,
   DownloadSimple,
-  ImageSquare,
   Trash,
 } from "@phosphor-icons/react";
 import {
+  DeleteResultDialog,
   FailedState,
   MEDIA_ICON_BUTTON_CLASS,
   TILE_GHOST_BUTTON_CLASS,
   TILE_CLASS,
   TILE_SKELETON_BAR_CLASS,
   TILE_SKELETON_CLASS,
+  TileDeleteButton,
   UnavailableState,
   useImageFade,
 } from "@/components/generator/result-tile";
 import { ScheduleLink } from "@/components/generator/tool-layout";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -89,6 +80,8 @@ export function UpscaleCard({ job, name, onOpen, onDelete }: UpscaleCardProps) {
   const failed = job.status === "FAILED";
   const outputUrl = job.status === "COMPLETED" ? job.outputUrl : null;
   const fade = useImageFade(outputUrl);
+  // Finished, but the file is missing or won't load.
+  const unavailable = !active && !failed && (!outputUrl || fade.failed);
   const title =
     name ??
     upscaleName(job.inputUrl) ??
@@ -113,7 +106,7 @@ export function UpscaleCard({ job, name, onOpen, onDelete }: UpscaleCardProps) {
 
   return (
     <article className={cn("group relative flex flex-col", TILE_CLASS)}>
-      {outputUrl && fade.failed ? (
+      {unavailable ? (
         <div className="aspect-square bg-card">
           <UnavailableState />
         </div>
@@ -141,31 +134,25 @@ export function UpscaleCard({ job, name, onOpen, onDelete }: UpscaleCardProps) {
         </button>
       ) : failed ? (
         <div className="aspect-square bg-card">
-          <FailedState error={job.error} kind="file" title="Upscaling failed" />
+          <FailedState error={job.error} kind="file" />
         </div>
       ) : (
         <div className="relative flex aspect-square flex-col items-center justify-center gap-2 overflow-hidden bg-card px-4 text-center">
-          {active && job.inputUrl ? (
+          {job.inputUrl ? (
             <img
               src={getCdnUrl(job.inputUrl)}
               alt=""
               className="absolute inset-0 size-full object-cover opacity-30"
             />
           ) : null}
-          {active ? (
-            <>
-              <Spinner className="relative text-muted-foreground" />
-              <span className="relative text-xs text-muted-foreground">
-                {status}
-              </span>
-            </>
-          ) : (
-            <ImageSquare className="size-6 text-muted-foreground" />
-          )}
+          <Spinner className="relative text-muted-foreground" />
+          <span className="relative text-xs text-muted-foreground">
+            {status}
+          </span>
         </div>
       )}
 
-      {outputUrl ? (
+      {outputUrl && !unavailable ? (
         <div className="absolute top-2 right-2">
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -208,7 +195,7 @@ export function UpscaleCard({ job, name, onOpen, onDelete }: UpscaleCardProps) {
           </p>
         </div>
 
-        {outputUrl ? (
+        {outputUrl && !unavailable ? (
           <div className="mt-auto flex items-center gap-1">
             <ScheduleLink url={outputUrl} mediaType="image" size="xs" variant="outline" />
             <a
@@ -223,39 +210,20 @@ export function UpscaleCard({ job, name, onOpen, onDelete }: UpscaleCardProps) {
               <DownloadSimple />
             </a>
           </div>
-        ) : failed ? (
+        ) : failed || unavailable ? (
           <div className="mt-auto flex">
-            <Button variant="outline" size="xs" onClick={() => setConfirmOpen(true)}>
-              <Trash />
-              Delete
-            </Button>
+            <TileDeleteButton onClick={() => setConfirmOpen(true)} />
           </div>
         ) : null}
       </div>
 
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent size="sm">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this image?</AlertDialogTitle>
-            <AlertDialogDescription>
-              The upscaled image will be removed from your results. This
-              can&apos;t be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => {
-                setConfirmOpen(false);
-                onDelete();
-              }}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteResultDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        noun="image"
+        description="The upscaled image will be removed from your results."
+        onConfirm={onDelete}
+      />
     </article>
   );
 }

@@ -56,7 +56,7 @@ export function TranscribePopover({
         setOpen(next);
       }}
     >
-      <PopoverTrigger render={<Button variant={variant} disabled={isStarting} />}>
+      <PopoverTrigger render={<Button variant={variant} size="sm" disabled={isStarting} />}>
         {isStarting ? <Spinner /> : <Waveform />}
         {isStarting ? "Starting…" : label}
       </PopoverTrigger>

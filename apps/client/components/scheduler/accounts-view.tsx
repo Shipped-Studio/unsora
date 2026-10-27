@@ -12,6 +12,7 @@ import {
   Warning,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/toast-error";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -95,7 +96,7 @@ function HealthNote({ account }: { account: ConnectedAccount }) {
       }
       title={account.statusReason ?? undefined}
     >
-      <Warning weight="fill" className="size-3.5" />
+      <Warning aria-hidden weight="fill" className="size-3.5 shrink-0" />
       {account.status === "reconnect" ? "Reconnect needed" : "Expires soon"}
     </span>
   );
@@ -180,8 +181,13 @@ function AccountRow({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => disconnect.mutate(account)}>
+            <AlertDialogCancel disabled={disconnect.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={disconnect.isPending}
+              onClick={() => disconnect.mutate(account, { onSuccess: () => setConfirm(false) })}
+            >
+              {disconnect.isPending ? <Spinner /> : null}
               Disconnect
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -191,10 +197,6 @@ function AccountRow({
   );
 }
 
-/**
- * Connect choice: approve access here, or copy a link for whoever owns the
- * account (a client, a teammate) to connect it from their own device.
- */
 /** Connect route for Instagram through Facebook Login (shown as its own card). */
 const INSTAGRAM_FACEBOOK = "instagram/facebook";
 
@@ -236,6 +238,10 @@ function connectOptionsFor(provider: Provider): ConnectOption[] {
   return options;
 }
 
+/**
+ * Connect choice: approve access here, or copy a link for whoever owns the
+ * account (a client, a teammate) to connect it from their own device.
+ */
 function ConnectChoiceDialog({
   option,
   onOpenChange,
@@ -263,7 +269,7 @@ function ConnectChoiceDialog({
     if (!option) return;
     share.mutate(option.key, {
       onSuccess: (url) => void copyText(url, "Invite link copied. It works for 1 hour."),
-      onError: (error) => toast.error(error.message),
+      onError: (error) => toastApiError("Couldn't create the invite link", error),
     });
   };
 
@@ -299,12 +305,17 @@ function ConnectChoiceDialog({
             variant="outline"
             className="w-full"
             disabled={!canShare || share.isPending}
-            title={canShare ? undefined : `${name} sign-in starts from the account's handle, so connect it yourself.`}
             onClick={createLink}
           >
             {share.isPending ? <Spinner /> : <LinkIcon />}
             Copy link
           </Button>
+          {provider && !canShare ? (
+            <p className="text-xs text-muted-foreground">
+              {name} sign-in starts from the account&apos;s handle, so it can&apos;t be shared as a
+              link.
+            </p>
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>

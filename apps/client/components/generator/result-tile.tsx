@@ -1,7 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { ImageSquare, Play, WarningCircle } from "@phosphor-icons/react";
+import { ImageSquare, Play, Trash, WarningCircle } from "@phosphor-icons/react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { friendlyGenerationError } from "./generation-error";
 
@@ -51,13 +62,15 @@ export function PlayBadge({ className }: { className?: string }) {
 }
 
 /**
- * Failed result: icon, "Generation failed" and a plain reason. The provider's
- * raw message stays in the tooltip for support.
+ * Failed result: icon, a short heading and a plain reason. The heading follows
+ * `kind` so every tool says the same thing: "Generation failed" for prompt
+ * tools, "Processing failed" for file tools (upscalers, subtitle remover,
+ * clipping). The provider's raw message stays in the tooltip for support.
  */
 export function FailedState({
   error,
   kind = "prompt",
-  title = "Generation failed",
+  title = kind === "file" ? "Processing failed" : "Generation failed",
   className,
   children,
 }: {
@@ -112,6 +125,67 @@ export function UnavailableState({
       </p>
       {children}
     </div>
+  );
+}
+
+/**
+ * The Delete action on a failed or unavailable result. Same label, icon and
+ * size on every tool; pair it with <DeleteResultDialog> so it always asks.
+ */
+export function TileDeleteButton({
+  onClick,
+  className,
+}: {
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <Button variant="outline" size="xs" className={className} onClick={onClick}>
+      <Trash />
+      Delete
+    </Button>
+  );
+}
+
+/** Confirm dialog for deleting a result. Every tool uses this one. */
+export function DeleteResultDialog({
+  open,
+  onOpenChange,
+  noun,
+  description = "It will be removed from this page and from your Library.",
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** "video", "image", "song": used in the heading. */
+  noun: string;
+  /** What gets removed. "This can't be undone." is added after it. */
+  description?: React.ReactNode;
+  onConfirm: () => void;
+}) {
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent size="sm">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete this {noun}?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {description} This can&apos;t be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            onClick={() => {
+              onOpenChange(false);
+              onConfirm();
+            }}
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 

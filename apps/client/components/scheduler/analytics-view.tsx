@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ArrowSquareOut, ArrowsClockwise, ChartBar } from "@phosphor-icons/react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,6 +19,8 @@ import { PageSection } from "@/components/layout/page-header";
 import { EmptyState, ErrorState } from "@/components/shared/states";
 import { EmptyArt } from "@/components/graphics/empty-art";
 import { PlatformIcon } from "@/components/scheduler/platform-icon";
+import { PostSheet } from "@/components/scheduler/post-sheet";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Spinner } from "@/components/ui/spinner";
 import { TrendChart } from "./trend-chart";
 import {
@@ -27,6 +29,7 @@ import {
   type AnalyticsSummary,
   type Metrics,
 } from "@/hooks/use-analytics";
+import { usePosts } from "@/hooks/use-posts";
 import { useSchedulerTimezone } from "@/hooks/use-schedule";
 import { formatDayTime } from "@/lib/scheduler/dates";
 import { platformName } from "@/lib/scheduler/formats";
@@ -125,6 +128,30 @@ export function AnalyticsView() {
     [data, metric],
   );
 
+  // Rows open the post in Unsora. The summary doesn't carry the post id yet,
+  // so match each account's post through the published posts list.
+  const [openPostId, setOpenPostId] = useState<string | null>(null);
+  const needsLookup = topPosts.some((p) => !(p as { postId?: string }).postId);
+  const [since] = useState(() => Date.now());
+  const published = usePosts(
+    {
+      status: ["PUBLISHED", "PARTIALLY_PUBLISHED"],
+      from: new Date(since - (days + 1) * 86_400_000).toISOString(),
+      sort: "published",
+      dir: "desc",
+      limit: 200,
+    },
+    { enabled: needsLookup },
+  );
+  const postIdFor = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const post of published.data?.posts ?? []) {
+      for (const leg of post.postAccounts) map.set(leg.id, post.id);
+    }
+    return (row: { postAccountId: string; postId?: string }) =>
+      row.postId ?? map.get(row.postAccountId) ?? null;
+  }, [published.data]);
+
   const metricLabel = METRICS.find((m) => m.key === metric)!.label;
   const chartEmpty = series.every((point) => point.value === 0);
 
@@ -188,6 +215,10 @@ export function AnalyticsView() {
           ))}
         </div>
         <Skeleton className="h-72 rounded-xl" />
+        <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+          <Skeleton className="h-64 rounded-xl" />
+          <Skeleton className="h-64 rounded-xl" />
+        </div>
       </div>
     );
   }
@@ -251,7 +282,7 @@ export function AnalyticsView() {
                   <div className="flex items-center gap-2 text-sm">
                     <PlatformIcon provider={row.platform} />
                     <span className="min-w-0 flex-1 truncate">{platformName(row.platform)}</span>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs text-muted-foreground tabular-nums">
                       {row.posts} {row.posts === 1 ? "post" : "posts"}
                     </span>
                     <span className="w-14 text-right font-medium tabular-nums">
@@ -291,18 +322,37 @@ export function AnalyticsView() {
                     </TableHead>
                   ))}
                   <TableHead className="w-10">
-                    <span className="sr-only">Link</span>
+                    <span className="sr-only">Open on platform</span>
                   </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {topPosts.map((post) => (
-                  <TableRow key={post.postAccountId} className="border-card">
+                {topPosts.map((post) => {
+                  const postId = postIdFor(post);
+                  return (
+                  <TableRow
+                    key={post.postAccountId}
+                    onClick={postId ? () => setOpenPostId(postId) : undefined}
+                    className={cn("border-card", postId && "cursor-pointer")}
+                  >
                     <TableCell className="max-w-0 w-full pl-3">
                       <div className="flex items-center gap-2.5">
                         <PlatformIcon provider={post.platform} />
                         <div className="min-w-0">
-                          <p className="truncate text-sm">{post.caption || "No caption"}</p>
+                          {postId ? (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setOpenPostId(postId);
+                              }}
+                              className="block max-w-full truncate rounded-sm text-left text-sm outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+                            >
+                              {post.caption || "No caption"}
+                            </button>
+                          ) : (
+                            <p className="truncate text-sm">{post.caption || "No caption"}</p>
+                          )}
                           <p className="truncate text-xs text-muted-foreground">
                             {post.accountUsername ?? platformName(post.platform)}
                             {post.publishedAt ? ` · ${formatDayTime(post.publishedAt, zone)}` : ""}
@@ -325,31 +375,44 @@ export function AnalyticsView() {
                     ))}
                     <TableCell>
                       {post.publishedUrl ? (
-                        <a
-                          href={post.publishedUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          aria-label="Open post"
-                          className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
-                        >
-                          <ArrowSquareOut />
-                        </a>
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <a
+                                href={post.publishedUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label={`Open on ${platformName(post.platform)}`}
+                                onClick={(event) => event.stopPropagation()}
+                                className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+                              />
+                            }
+                          >
+                            <ArrowSquareOut />
+                          </TooltipTrigger>
+                          <TooltipContent>Open on {platformName(post.platform)}</TooltipContent>
+                        </Tooltip>
                       ) : null}
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
           <p className="text-xs text-muted-foreground">
             Stats refresh every 6 hours.{" "}
-            <Link href="/scheduler/posts?status=published" className="text-foreground underline underline-offset-2"
+            <Link
+              href="/scheduler/posts?status=published"
+              className="text-foreground underline underline-offset-2"
             >
               See all published posts
             </Link>
           </p>
         </PageSection>
       </div>
+
+      <PostSheet postId={openPostId} onOpenChange={(open) => !open && setOpenPostId(null)} />
     </div>
   );
 }

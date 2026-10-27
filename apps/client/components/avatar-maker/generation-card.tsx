@@ -8,6 +8,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import {
+  DeleteResultDialog,
   FailedState,
   MEDIA_ICON_BUTTON_CLASS,
   TILE_GHOST_BUTTON_CLASS,
@@ -15,18 +16,10 @@ import {
   TILE_CLASS,
   TILE_SKELETON_BAR_CLASS,
   TILE_SKELETON_CLASS,
+  TileDeleteButton,
+  UnavailableState,
 } from "@/components/generator/result-tile";
 import { ScheduleLink } from "@/components/generator/tool-layout";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -73,6 +66,8 @@ export function AvatarGenerationCard({
     generation.status === "QUEUED" ||
     generation.status === "PROCESSING";
   const failed = generation.status === "FAILED";
+  // Finished, but the video file is missing.
+  const unavailable = !inProgress && !failed && !videoUrl;
   const title = generation.transcript || "Avatar video";
 
   const status = inProgress
@@ -118,6 +113,10 @@ export function AvatarGenerationCard({
         <div className="aspect-square bg-card">
           <FailedState error={generation.error} />
         </div>
+      ) : unavailable ? (
+        <div className="aspect-square bg-card">
+          <UnavailableState />
+        </div>
       ) : (
         <div className="flex aspect-square flex-col items-center justify-center gap-2 bg-card px-4 text-center">
           <Spinner className="text-muted-foreground" />
@@ -134,7 +133,7 @@ export function AvatarGenerationCard({
                   variant="ghost"
                   size="icon-xs"
                   className={MEDIA_ICON_BUTTON_CLASS}
-                  aria-label="More actions"
+                  aria-label={`More actions for ${title}`}
                 />
               }
             >
@@ -159,7 +158,7 @@ export function AvatarGenerationCard({
             <p className="truncate text-sm font-medium" title={title}>
               {title}
             </p>
-            <p className="truncate text-xs text-muted-foreground">{status}</p>
+            <p className="truncate text-xs text-muted-foreground tabular-nums">{status}</p>
           </div>
           {onDismiss && (inProgress || failed) ? (
             <Button
@@ -167,7 +166,7 @@ export function AvatarGenerationCard({
               size="icon-xs"
               className={cn("-mt-0.5 -mr-1", TILE_GHOST_BUTTON_CLASS)}
               onClick={() => onDismiss(generation.id)}
-              aria-label="Dismiss"
+              aria-label={`Dismiss ${title}`}
             >
               <X />
             </Button>
@@ -184,45 +183,26 @@ export function AvatarGenerationCard({
                 buttonVariants({ variant: "ghost", size: "icon-xs" }),
                 TILE_GHOST_BUTTON_CLASS,
               )}
-              aria-label="Download video"
+              aria-label={`Download ${title}`}
             >
               <DownloadSimple />
             </a>
           </div>
-        ) : failed && onDelete ? (
+        ) : (failed || unavailable) && onDelete ? (
           <div className="mt-auto flex">
-            <Button variant="outline" size="xs" onClick={() => setConfirmOpen(true)}>
-              <Trash />
-              Delete
-            </Button>
+            <TileDeleteButton onClick={() => setConfirmOpen(true)} />
           </div>
         ) : null}
       </div>
 
       {onDelete ? (
-        <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-          <AlertDialogContent size="sm">
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete this video?</AlertDialogTitle>
-              <AlertDialogDescription>
-                The avatar video will be removed from your results. This
-                can&apos;t be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                variant="destructive"
-                onClick={() => {
-                  setConfirmOpen(false);
-                  onDelete(generation.id);
-                }}
-              >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <DeleteResultDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          noun="video"
+          description="The avatar video will be removed from your results."
+          onConfirm={() => onDelete(generation.id)}
+        />
       ) : null}
     </article>
   );

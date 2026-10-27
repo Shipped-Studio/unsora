@@ -18,6 +18,7 @@ import {
   type TemplateGroup,
 } from "@/components/subtitle-editor/caption-style";
 import { CAPTION_TEMPLATES } from "@/components/subtitle-editor/caption-templates";
+import { IconButton } from "@/components/subtitle-editor/icon-button";
 
 export type { SubtitleStylePreset };
 
@@ -766,15 +767,15 @@ function PresetCard({
         </Tooltip>
       ) : null}
       {onDelete ? (
-        <Button
+        <IconButton
           variant="secondary"
           size="icon-xs"
-          aria-label={`Delete ${preset.name}`}
+          label={`Delete ${preset.name}`}
           onClick={onDelete}
           className="absolute top-1.5 right-1.5 opacity-0 shadow-sm transition-opacity group-hover/preset:opacity-100 focus-visible:opacity-100"
         >
           <Trash />
-        </Button>
+        </IconButton>
       ) : null}
     </div>
   );

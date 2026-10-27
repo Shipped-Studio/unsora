@@ -8,7 +8,7 @@ import { ErrorState } from "@/components/shared/states";
 import { usePricing } from "@/contexts/pricing-context";
 import { useAuthFetch } from "@/hooks/use-auth-fetch";
 import { useCreditPacks } from "@/hooks/use-credit-packs";
-import { useSubscriptionPlans } from "@/hooks/use-subscription-plans";
+import { findUserPlan, useSubscriptionPlans } from "@/hooks/use-subscription-plans";
 import { userUsageQueryKeys, useUserUsage } from "@/hooks/use-user-usage";
 import { ActivatePlanDialog } from "./activate-plan-dialog";
 import { BillingSkeleton } from "./billing-skeleton";
@@ -29,8 +29,8 @@ export function BillingContent() {
   const { usage, loading, error, refetch } = useUserUsage();
   const { plans } = useSubscriptionPlans();
 
-  const planKey = (usage?.user.plan ?? "free").toLowerCase();
-  const plan = plans?.find((p) => p.key === planKey) ?? null;
+  const plan = findUserPlan(plans, usage?.user.plan) ?? null;
+  const planKey = plan?.key ?? (usage?.user.plan ?? "free").toLowerCase();
   const planName = plan?.name ?? planDisplayName(planKey);
   const isPaid = usage?.user.isActive === true && planKey !== "free";
   const periodEnd = usage?.user.stripeCurrentPeriodEnd ?? null;

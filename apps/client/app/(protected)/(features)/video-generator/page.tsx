@@ -136,7 +136,7 @@ export default function VideoGeneratorPage() {
           category="video"
           noun="video"
           defaultModel="seedance-2.5"
-          placeholder="Describe the video"
+          placeholder="Slow push-in on a barista pouring latte art, soft morning light"
           promptLabel="Video prompt"
           onSubmit={submit}
         />

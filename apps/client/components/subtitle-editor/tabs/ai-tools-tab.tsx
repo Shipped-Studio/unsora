@@ -11,6 +11,7 @@ import {
   Scissors,
   Subtitles,
   TextT,
+  Trash,
   Waveform,
   WarningCircle,
 } from "@phosphor-icons/react";
@@ -22,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
+import { DeleteDialog } from "@/components/subtitle-editor/delete-dialog";
 import { cn } from "@/lib/utils";
 
 export type ToolStatus = "active" | "inactive" | "running" | "failed" | "unavailable";
@@ -39,7 +41,10 @@ export interface AiToolRow {
   /** Buttons shown while the tool is applied, e.g. Style and Edit. */
   actions?: { label: string; onClick: () => void }[];
   onActivate?: () => Promise<void> | void;
-  onRemove?: () => Promise<void> | void;
+  /** Resolves false when removing failed, so a confirm stays open. */
+  onRemove?: () => Promise<boolean | void> | boolean | void;
+  /** Asks first when removing throws away paid or generated work. */
+  confirmRemove?: { title: string; description: string };
 }
 
 export const AI_TOOL_ICONS = {
@@ -71,7 +76,7 @@ export function AiToolsTab({ groups }: { groups: { title: string; tools: AiToolR
         </section>
       ))}
       <p className="text-xs text-muted-foreground">
-        Run Remove Silence, Remove Bad Takes and Clean Audio before styling:
+        Run Remove silence, Remove bad takes and Clean audio before styling:
         they change the video&apos;s timing. Then captions and the hook title,
         then B-rolls and zooms.
       </p>
@@ -81,16 +86,22 @@ export function AiToolsTab({ groups }: { groups: { title: string; tools: AiToolR
 
 function ToolItem({ tool }: { tool: AiToolRow }) {
   const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const Icon = tool.icon;
 
-  const act = async (fn?: () => Promise<void> | void) => {
+  const act = async (fn?: () => Promise<boolean | void> | boolean | void) => {
     if (!fn) return;
     setBusy(true);
     try {
-      await fn();
+      return await fn();
     } finally {
       setBusy(false);
     }
+  };
+
+  const remove = async () => {
+    const result = await act(tool.onRemove);
+    if (result !== false) setConfirming(false);
   };
 
   return (
@@ -143,7 +154,11 @@ function ToolItem({ tool }: { tool: AiToolRow }) {
                 {busy ? <Spinner /> : <DotsThree />}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem variant="destructive" onClick={() => act(tool.onRemove)}>
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => (tool.confirmRemove ? setConfirming(true) : void act(tool.onRemove))}
+                >
+                  <Trash />
                   Remove
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -153,14 +168,28 @@ function ToolItem({ tool }: { tool: AiToolRow }) {
       ) : tool.status === "unavailable" ? (
         <span className="text-xs text-muted-foreground">Not available yet</span>
       ) : (
-        <Button size="sm" disabled={busy} onClick={() => act(tool.onActivate)}>
+        // Outline, so a stack of tools doesn't drown out Export, the screen's one primary action.
+        <Button size="sm" variant="outline" disabled={busy} onClick={() => void act(tool.onActivate)}>
           {busy ? <Spinner /> : null}
           {tool.status === "failed" ? "Try again" : "Activate"}
-          <span className="rounded bg-primary-foreground/20 px-1.5 text-xs tabular-nums">
+          <span className="rounded bg-muted px-1.5 text-xs text-muted-foreground tabular-nums">
             {tool.credits ? `✦ ${tool.credits}` : "Included"}
           </span>
         </Button>
       )}
+
+      {tool.confirmRemove ? (
+        <DeleteDialog
+          open={confirming}
+          title={tool.confirmRemove.title}
+          description={tool.confirmRemove.description}
+          isDeleting={busy}
+          confirmLabel="Remove"
+          pendingLabel="Removing…"
+          onConfirm={() => void remove()}
+          onCancel={() => setConfirming(false)}
+        />
+      ) : null}
     </li>
   );
 }
