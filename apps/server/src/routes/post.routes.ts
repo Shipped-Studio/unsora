@@ -2,17 +2,17 @@ import { Router } from "express";
 import { PostController } from "../controllers/post.controller";
 import { analyticsController } from "../controllers/analytics.controller";
 import { requireAuth } from "../middleware/auth";
-import { requirePaidPlan } from "../middleware/require-paid-plan";
+import { requireSchedulerAccess } from "../middleware/require-scheduler-access";
 
 const router = Router();
 const postController = new PostController();
 
 router.use(requireAuth);
 
-// Create post — requires an active paid plan
+// Create post — requires scheduler access (paid plan or free tier)
 router.post(
   "/",
-  requirePaidPlan,
+  requireSchedulerAccess,
   postController.createPost.bind(postController),
 );
 
@@ -35,59 +35,57 @@ router.get("/counts", postController.getPostCounts.bind(postController));
 // Get single post
 router.get("/:id", postController.getPostById.bind(postController));
 
-// Copy a post into a new draft — requires an active paid plan
+// Copy a post into a new draft — requires scheduler access (paid plan or free tier)
 router.post(
   "/:id/duplicate",
-  requirePaidPlan,
+  requireSchedulerAccess,
   postController.duplicatePost.bind(postController),
 );
 
-// Update post — requires an active paid plan
+// Update post — requires scheduler access (paid plan or free tier)
 router.put(
   "/:id",
-  requirePaidPlan,
+  requireSchedulerAccess,
   postController.updatePost.bind(postController),
 );
 
-// Bulk delete posts — requires an active paid plan
+// Bulk delete posts — never gated, so a lapsed plan can still clear its queue
 router.post(
   "/bulk-delete",
-  requirePaidPlan,
   postController.bulkDeletePosts.bind(postController),
 );
 
-// Delete post — requires an active paid plan
+// Delete post — never gated, so a lapsed plan can still clear its queue
 router.delete(
   "/:id",
-  requirePaidPlan,
   postController.deletePost.bind(postController),
 );
 
-// Publish post immediately — requires an active paid plan
+// Publish post immediately — requires scheduler access (paid plan or free tier)
 router.post(
   "/:id/publish",
-  requirePaidPlan,
+  requireSchedulerAccess,
   postController.publishPost.bind(postController),
 );
 
-// Retry a failed or partially published post — requires an active paid plan
+// Retry a failed or partially published post — requires scheduler access (paid plan or free tier)
 router.post(
   "/:id/retry",
-  requirePaidPlan,
+  requireSchedulerAccess,
   postController.retryPost.bind(postController),
 );
 
-// Create and publish post immediately (Post Now) — requires an active paid plan
+// Create and publish post immediately (Post Now) — requires scheduler access (paid plan or free tier)
 router.post(
   "/publish-now",
-  requirePaidPlan,
+  requireSchedulerAccess,
   postController.createAndPublishPost.bind(postController),
 );
 
-// Update custom caption for specific account — requires an active paid plan
+// Update custom caption for specific account — requires scheduler access (paid plan or free tier)
 router.put(
   "/:id/accounts/:accountId/caption",
-  requirePaidPlan,
+  requireSchedulerAccess,
   postController.updateAccountCaption.bind(postController),
 );
 

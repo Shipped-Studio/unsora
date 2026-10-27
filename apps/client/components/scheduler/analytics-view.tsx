@@ -29,7 +29,6 @@ import {
   type AnalyticsSummary,
   type Metrics,
 } from "@/hooks/use-analytics";
-import { usePosts } from "@/hooks/use-posts";
 import { useSchedulerTimezone } from "@/hooks/use-schedule";
 import { formatDayTime } from "@/lib/scheduler/dates";
 import { platformName } from "@/lib/scheduler/formats";
@@ -128,29 +127,8 @@ export function AnalyticsView() {
     [data, metric],
   );
 
-  // Rows open the post in Unsora. The summary doesn't carry the post id yet,
-  // so match each account's post through the published posts list.
+  // Rows open the post in Unsora; the summary carries each row's post id.
   const [openPostId, setOpenPostId] = useState<string | null>(null);
-  const needsLookup = topPosts.some((p) => !(p as { postId?: string }).postId);
-  const [since] = useState(() => Date.now());
-  const published = usePosts(
-    {
-      status: ["PUBLISHED", "PARTIALLY_PUBLISHED"],
-      from: new Date(since - (days + 1) * 86_400_000).toISOString(),
-      sort: "published",
-      dir: "desc",
-      limit: 200,
-    },
-    { enabled: needsLookup },
-  );
-  const postIdFor = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const post of published.data?.posts ?? []) {
-      for (const leg of post.postAccounts) map.set(leg.id, post.id);
-    }
-    return (row: { postAccountId: string; postId?: string }) =>
-      row.postId ?? map.get(row.postAccountId) ?? null;
-  }, [published.data]);
 
   const metricLabel = METRICS.find((m) => m.key === metric)!.label;
   const chartEmpty = series.every((point) => point.value === 0);
@@ -328,7 +306,7 @@ export function AnalyticsView() {
               </TableHeader>
               <TableBody>
                 {topPosts.map((post) => {
-                  const postId = postIdFor(post);
+                  const postId = post.postId ?? null;
                   return (
                   <TableRow
                     key={post.postAccountId}

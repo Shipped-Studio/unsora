@@ -4,6 +4,8 @@ import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { PageSection } from "@/components/layout/page-header";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/shared/states";
 import { usePricing } from "@/contexts/pricing-context";
 import { useAuthFetch } from "@/hooks/use-auth-fetch";
@@ -43,7 +45,10 @@ export function BillingContent() {
         ? "ending"
         : "active";
 
-  const canBuyCredits = state === "active" || state === "ending";
+  // Matches the server: any live subscription, trials included.
+  const canBuyCredits = state !== "free";
+  // Stripe is retrying a failed renewal. Access continues until it gives up.
+  const pastDue = isPaid && usage?.user.status === "past_due";
   const packsQuery = useCreditPacks({ enabled: canBuyCredits });
 
   const [pendingPackKey, setPendingPackKey] = useState<string | null>(null);
@@ -164,6 +169,26 @@ export function BillingContent() {
 
   return (
     <div className="space-y-8">
+      {pastDue ? (
+        <div
+          role="status"
+          className="flex flex-col gap-3 rounded-xl bg-destructive-subtle px-4 py-3 sm:flex-row sm:items-center"
+        >
+          <p className="flex-1 text-sm text-destructive">
+            <span className="font-medium">Your last payment didn&apos;t go through.</span> We&apos;ll
+            retry it automatically. Update your card to keep your plan.
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={portalPending !== null}
+            onClick={() => void handlePortal("manage")}
+          >
+            {portalPending === "manage" ? <Spinner /> : null}
+            Update card
+          </Button>
+        </div>
+      ) : null}
       <PageSection title="Current plan">
         <CurrentPlanCard
           planName={planName}
@@ -197,9 +222,7 @@ export function BillingContent() {
           />
         ) : (
           <p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">
-            {state === "trialing"
-              ? "Credit packs are available once your plan is active."
-              : "Credit packs are available on paid plans."}
+            Credit packs are available on paid plans.
           </p>
         )}
       </PageSection>

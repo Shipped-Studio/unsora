@@ -24,6 +24,7 @@ import { usePricing } from "@/contexts/pricing-context";
 import { useConnectedAccounts } from "@/hooks/use-connected-accounts";
 import { useUpdatePreferences } from "@/hooks/use-schedule";
 import { useUserUsage } from "@/hooks/use-user-usage";
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { TUTORIAL_VIDEO_URL } from "@/lib/navigation";
 import { getBrowserTimezone } from "@/lib/timezone";
 import { cn } from "@/lib/utils";
@@ -129,13 +130,6 @@ function Stepper({ current }: { current: number }) {
 
 type TitleRef = React.RefObject<HTMLHeadingElement | null>;
 
-/** Same rule as ConnectGrid: connecting accounts needs an active paid plan. */
-function useIsPaid() {
-  const { usage } = useUserUsage();
-  if (!usage) return null;
-  const plan = (usage.user?.plan ?? "free").toLowerCase();
-  return Boolean(usage.user?.isActive) && plan !== "free";
-}
 
 function ChannelsPaywall() {
   const { openPricing } = usePricing();
@@ -158,7 +152,8 @@ function ChannelsPaywall() {
 
 function ChannelsStep({ titleRef }: { titleRef: TitleRef }) {
   const { data: accounts } = useConnectedAccounts();
-  const isPaid = useIsPaid();
+  // Same rule as ConnectGrid: free users can connect up to the free allowance.
+  const access = usePlanAccess();
   return (
     <div className={STEP_BODY}>
       <StepHeading
@@ -181,7 +176,7 @@ function ChannelsStep({ titleRef }: { titleRef: TitleRef }) {
           ))}
         </ul>
       ) : null}
-      {isPaid === false ? (
+      {access?.noScheduler ? (
         <ChannelsPaywall />
       ) : (
         <ConnectGrid returnTo={`/?${ONBOARDING_PARAM}=channels`} />

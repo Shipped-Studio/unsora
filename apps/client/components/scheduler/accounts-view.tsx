@@ -63,6 +63,7 @@ import {
   useShareConnectLink,
 } from "@/hooks/use-connected-accounts";
 import { useUserUsage } from "@/hooks/use-user-usage";
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { formatRelative } from "@/lib/scheduler/dates";
 import {
   PLATFORMS,
@@ -415,20 +416,20 @@ export function ConnectGrid({
   returnTo?: string;
 }) {
   const connect = useConnectAccount();
-  const { usage } = useUserUsage();
   const { openPricing } = usePricing();
   const [blueskyOpen, setBlueskyOpen] = useState(false);
   const [target, setTarget] = useState<string | null>(null);
   const [choice, setChoice] = useState<ConnectOption | null>(null);
 
-  const plan = (usage?.user?.plan ?? "free").toLowerCase();
-  const isPaid = Boolean(usage?.user?.isActive) && plan !== "free";
-  const limit = usage?.limits?.socialAccounts ?? 0;
-  const used = usage?.counts?.socialAccounts ?? 0;
-  const atLimit = isPaid && limit > 0 && used >= limit;
+  const access = usePlanAccess();
+  const isPaid = access?.isPaid ?? false;
+  const limit = access?.limit ?? 0;
+  const used = access?.used ?? 0;
+  // Connecting is allowed until the plan's (or the free tier's) limit.
+  const blocked = Boolean(access && (access.noScheduler || access.atLimit));
 
   const start = (key: string, handle?: string) => {
-    if (!isPaid) {
+    if (blocked) {
       openPricing();
       return;
     }
@@ -456,19 +457,25 @@ export function ConnectGrid({
 
   return (
     <>
-      {!isPaid && usage ? (
+      {access && (access.noScheduler || (!isPaid && access.atLimit)) ? (
         <div className="mb-3 flex flex-col gap-3 rounded-xl bg-muted p-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
-            Connecting accounts and publishing need a paid plan.
+            {access.noScheduler
+              ? "Connecting accounts and publishing need a paid plan."
+              : `The free plan includes ${limit} account${limit === 1 ? "" : "s"}. Upgrade to connect more.`}
           </p>
           <Button size="sm" onClick={openPricing}>
             See plans
           </Button>
         </div>
-      ) : atLimit ? (
+      ) : access?.atLimit ? (
         <p className="mb-3 text-sm text-muted-foreground">
           You&apos;ve connected {used} of {limit} accounts on your plan. Disconnect one or upgrade
           to add more.
+        </p>
+      ) : access && !isPaid ? (
+        <p className="mb-3 text-sm text-muted-foreground">
+          The free plan includes {limit} account{limit === 1 ? "" : "s"} with unlimited scheduling.
         </p>
       ) : null}
       <div
@@ -507,8 +514,8 @@ export function ConnectGrid({
             <button
               key={option.key}
               type="button"
-              disabled={atLimit || (connect.isPending && target !== option.key)}
-              onClick={() => (isPaid ? setChoice(option) : openPricing())}
+              disabled={connect.isPending && target !== option.key}
+              onClick={() => (blocked ? openPricing() : setChoice(option))}
               aria-label={`Connect ${option.name}`}
               className="group flex min-w-0 items-center gap-3 rounded-xl bg-muted p-3 text-left transition-colors outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
             >

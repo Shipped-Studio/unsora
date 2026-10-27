@@ -12,6 +12,7 @@ export interface Metrics {
 
 export interface AnalyticsPost {
   postAccountId: string;
+  postId?: string;
   platform: string;
   accountUsername: string | null;
   profilePicture?: string | null;

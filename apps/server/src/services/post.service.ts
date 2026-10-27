@@ -15,6 +15,33 @@ import { xService } from "./platforms/x.service";
 import { googleBusinessService } from "./platforms/google-business.service";
 import { tokenRefreshService } from "./token-refresh.service";
 import { onPostPublishFailed } from "../emails";
+import { hasPaidPlan, socialAccountLimitForUser } from "../lib/plans";
+
+/**
+ * Accounts beyond what the owner's current plan covers, oldest connections
+ * first. Connecting already stops at the limit, so this only bites after a
+ * downgrade (or a lapsed plan falling back to the free tier): their queued
+ * posts still go out to the accounts the plan covers, not to every account.
+ */
+async function accountsOverPlanLimit(userId: string): Promise<Set<string>> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { plan: true, isActive: true },
+  });
+  if (!user) return new Set();
+  const limit = await socialAccountLimitForUser(user);
+  // A paid plan with no limit configured: don't hold paying users back.
+  if (limit === null && hasPaidPlan(user)) return new Set();
+  const accounts = await prisma.socialAccount.findMany({
+    where: { userId },
+    orderBy: { createdAt: "asc" },
+    select: { id: true },
+  });
+  return new Set(accounts.slice(limit ?? 0).map((a) => a.id));
+}
+
+export const PLAN_LIMIT_PUBLISH_ERROR =
+  "Your plan doesn't cover this account anymore. Upgrade, or disconnect accounts you don't use.";
 
 dotenv.config();
 
@@ -73,10 +100,12 @@ export class PostService {
         data: { status: "PUBLISHING" },
       });
 
+      const overLimit = await accountsOverPlanLimit(post.userId);
+
       // Publish to each remaining account
       const results = await Promise.allSettled(
         pendingAccounts.map((postAccount) =>
-          this.publishToAccount(post, postAccount)
+          this.publishToAccount(post, postAccount, overLimit)
         )
       );
 
@@ -156,9 +185,16 @@ export class PostService {
 
   private async publishToAccount(
     post: PostWithRelations,
-    postAccount: PostAccount & { account: SocialAccount }
+    postAccount: PostAccount & { account: SocialAccount },
+    overLimit: Set<string> = new Set()
   ): Promise<PublishResult> {
     try {
+      // Recorded on the leg like any other publish error, so it can be
+      // retried after an upgrade.
+      if (overLimit.has(postAccount.accountId)) {
+        throw new Error(PLAN_LIMIT_PUBLISH_ERROR);
+      }
+
       let { account } = postAccount;
       const caption = postAccount.customCaption || post.mainCaption;
 

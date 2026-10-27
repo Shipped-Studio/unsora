@@ -2,7 +2,7 @@ import express from "express";
 import { ConnectController } from "../controllers/connect.controller";
 import { requireAuth } from "../middleware/auth";
 import { checkSocialAccountLimit } from "../middleware/check-limit";
-import { requirePaidPlan } from "../middleware/require-paid-plan";
+import { requireSchedulerAccess } from "../middleware/require-scheduler-access";
 import { platformAvailability, requirePlatform } from "../lib/platforms";
 
 const router = express.Router();
@@ -13,12 +13,12 @@ router.get("/platforms", requireAuth, async (_req, res) => {
   res.json({ success: true, data: await platformAvailability() });
 });
 
-// AUTH URL ENDPOINTS — gated behind an active paid plan
+// AUTH URL ENDPOINTS — scheduler access (paid plan or free tier), then the account limit
 router.get(
   "/google",
   requireAuth,
   requirePlatform("google"),
-  requirePaidPlan,
+  requireSchedulerAccess,
   checkSocialAccountLimit,
   connectController.getGoogleAuthUrl
 );
@@ -26,7 +26,7 @@ router.get(
   "/tiktok",
   requireAuth,
   requirePlatform("tiktok"),
-  requirePaidPlan,
+  requireSchedulerAccess,
   checkSocialAccountLimit,
   connectController.getTikTokAuthUrl
 );
@@ -34,7 +34,7 @@ router.get(
   "/facebook",
   requireAuth,
   requirePlatform("facebook"),
-  requirePaidPlan,
+  requireSchedulerAccess,
   checkSocialAccountLimit,
   connectController.getFacebookAuthUrl
 );
@@ -42,7 +42,7 @@ router.get(
   "/instagram",
   requireAuth,
   requirePlatform("instagram"),
-  requirePaidPlan,
+  requireSchedulerAccess,
   checkSocialAccountLimit,
   connectController.getInstagramAuthUrl
 );
@@ -51,7 +51,7 @@ router.get(
   "/instagram/facebook",
   requireAuth,
   requirePlatform("instagram_facebook"),
-  requirePaidPlan,
+  requireSchedulerAccess,
   checkSocialAccountLimit,
   connectController.getInstagramFacebookAuthUrl
 );
@@ -59,7 +59,7 @@ router.get(
   "/bluesky",
   requireAuth,
   requirePlatform("bluesky"),
-  requirePaidPlan,
+  requireSchedulerAccess,
   checkSocialAccountLimit,
   connectController.getBlueskyAuthUrl
 );
@@ -67,7 +67,7 @@ router.get(
   "/threads",
   requireAuth,
   requirePlatform("threads"),
-  requirePaidPlan,
+  requireSchedulerAccess,
   checkSocialAccountLimit,
   connectController.getThreadsAuthUrl
 );
@@ -75,7 +75,7 @@ router.get(
   "/pinterest",
   requireAuth,
   requirePlatform("pinterest"),
-  requirePaidPlan,
+  requireSchedulerAccess,
   checkSocialAccountLimit,
   connectController.getPinterestAuthUrl
 );
@@ -83,7 +83,7 @@ router.get(
   "/linkedin",
   requireAuth,
   requirePlatform("linkedin"),
-  requirePaidPlan,
+  requireSchedulerAccess,
   checkSocialAccountLimit,
   connectController.getLinkedInAuthUrl
 );
@@ -91,7 +91,7 @@ router.get(
   "/x",
   requireAuth,
   requirePlatform("x"),
-  requirePaidPlan,
+  requireSchedulerAccess,
   checkSocialAccountLimit,
   connectController.getXAuthUrl
 );
@@ -99,7 +99,7 @@ router.get(
   "/google_business",
   requireAuth,
   requirePlatform("google_business"),
-  requirePaidPlan,
+  requireSchedulerAccess,
   checkSocialAccountLimit,
   connectController.getGoogleBusinessAuthUrl
 );

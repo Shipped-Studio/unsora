@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import prisma from "../lib/db";
+import { hasPaidPlan } from "../lib/plans";
 
 /**
  * Blocks the request unless the authenticated user has an active paid plan.
@@ -8,8 +9,8 @@ import prisma from "../lib/db";
  *   - `user.isActive === true` (subscription / trial currently active), AND
  *   - `user.plan` is set and not equal to "free" (case-insensitive).
  *
- * Used to gate the social media scheduler — connecting platforms and
- * creating / publishing posts both require an active subscription.
+ * Used to gate the public REST API. The in-app scheduler uses
+ * `requireSchedulerAccess`, which also lets free-tier users in.
  *
  * Must be mounted AFTER `requireAuth` so `req.auth.userId` is available.
  */
@@ -43,10 +44,7 @@ export const requirePaidPlan = async (
     });
   }
 
-  const planKey = user.plan?.toLowerCase() ?? "free";
-  const hasPaidPlan = user.isActive && planKey !== "free";
-
-  if (!hasPaidPlan) {
+  if (!hasPaidPlan(user)) {
     return res.status(403).json({
       success: false,
       error: "An active paid plan is required to use the scheduler.",

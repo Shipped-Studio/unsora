@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { socialAccountLimitFor } from "../lib/plans";
+import { socialAccountLimitForUser } from "../lib/plans";
 import prisma from "../lib/db";
 
 export const checkSocialAccountLimit = async (
@@ -18,6 +18,7 @@ export const checkSocialAccountLimit = async (
     select: {
       id: true,
       plan: true,
+      isActive: true,
     },
   });
 
@@ -29,13 +30,14 @@ export const checkSocialAccountLimit = async (
     where: { userId: user.id },
   });
 
-  // The limit is set per plan at /admin/pricing.
-  const limit = await socialAccountLimitFor(user.plan);
+  // The limit is set per plan at /admin/pricing; free users get FREE_SOCIAL_ACCOUNTS.
+  const limit = await socialAccountLimitForUser(user);
 
   if (limit === null) {
     return res.status(403).json({
       error:
         "An active paid plan is required to connect social accounts. Please upgrade your plan.",
+      code: "PLAN_REQUIRED",
     });
   }
 
@@ -59,6 +61,7 @@ export const checkSocialAccountLimit = async (
     return res.status(403).json({
       error:
         "Social account limit reached for your plan. Please upgrade to a higher plan.",
+      code: "PLAN_REQUIRED",
     });
   }
 

@@ -25,6 +25,7 @@ import { readableError } from "@/components/scheduler/readable-error";
 import { useApiKeys } from "@/components/api-keys/use-api-keys";
 import { useAnalyticsSummary } from "@/hooks/use-analytics";
 import { useConnectedAccounts } from "@/hooks/use-connected-accounts";
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { libraryKindLabel, useLibraryPage } from "@/hooks/use-library";
 import { usePostCounts, usePosts } from "@/hooks/use-posts";
 import { usePostingSlots, useSchedulerTimezone, type PostingSlot } from "@/hooks/use-schedule";
@@ -143,8 +144,12 @@ function openSlots(day: Day, posts: Post[], slots: PostingSlot[], timeZone: stri
 function OpenSlotLink({ slot }: { slot: { label: string; href: string } }) {
   return (
     <Link href={slot.href} className={cn(EMPTY_SLOT, "py-2.5", ROW_FOCUS)}>
-      <span className="font-medium text-foreground tabular-nums group-hover:text-inherit">{slot.label}</span>
-      <span>Open queue slot</span>
+      <span className="font-medium whitespace-nowrap text-foreground tabular-nums group-hover:text-inherit">
+        {slot.label}
+      </span>
+      <span className="min-w-0 truncate">
+        Open <span className="hidden sm:inline">queue </span>slot
+      </span>
       <AddPostHint />
     </Link>
   );
@@ -309,10 +314,12 @@ function AttentionNotice() {
   const failed = counts.data?.counts ? counts.data.counts.FAILED + counts.data.counts.PARTIALLY_PUBLISHED : 0;
   const broken = (accounts.data ?? []).filter((a) => a.status === "reconnect").length;
   const expiring = (accounts.data ?? []).filter((a) => a.status === "expiring").length;
-  if (!failed && !broken && !expiring) return null;
+  const pastDue = usePlanAccess()?.pastDue ?? false;
+  if (!failed && !broken && !expiring && !pastDue) return null;
 
-  const danger = failed > 0 || broken > 0;
+  const danger = failed > 0 || broken > 0 || pastDue;
   const parts = [
+    pastDue ? "Your last payment didn't go through" : null,
     failed ? `${failed} post${failed === 1 ? "" : "s"} didn't publish` : null,
     broken ? `${broken} account${broken === 1 ? " needs" : "s need"} reconnecting` : null,
     expiring ? `${expiring} account${expiring === 1 ? " expires" : "s expire"} soon` : null,
@@ -331,6 +338,11 @@ function AttentionNotice() {
         {parts.join(" · ")}
       </p>
       <div className="flex shrink-0 gap-2">
+        {pastDue ? (
+          <Link href="/billing" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            Update card
+          </Link>
+        ) : null}
         {failed ? (
           <Link href="/scheduler/posts?status=failed" className={buttonVariants({ variant: "outline", size: "sm" })}>
             Review posts
@@ -807,7 +819,7 @@ export function HomeView() {
   return (
     <div className="space-y-6">
       <AttentionNotice />
-      <div className="grid items-start gap-x-10 gap-y-8 lg:grid-cols-[minmax(0,1fr)_19rem]">
+      <div className="grid grid-cols-1 items-start gap-x-10 gap-y-8 lg:grid-cols-[minmax(0,1fr)_19rem]">
         <Timeline onOpenPost={setOpenPostId} />
         <aside className="order-first space-y-5 lg:sticky lg:top-24 lg:order-none">
           <GetStarted />

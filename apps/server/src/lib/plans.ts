@@ -114,6 +114,35 @@ export async function socialAccountLimitFor(planValue: string | null | undefined
   return key ? (DEFAULT_META[key]?.socialAccounts ?? null) : null;
 }
 
+/**
+ * Social accounts a user without a live paid plan can connect and post to.
+ * Set FREE_SOCIAL_ACCOUNTS=0 to make the scheduler paid-only again.
+ */
+export function freeSocialAccounts(): number {
+  const n = Number(process.env.FREE_SOCIAL_ACCOUNTS ?? 1);
+  return Number.isInteger(n) && n >= 0 ? n : 1;
+}
+
+/** A live paid subscription (or trial). Past-due counts while Stripe retries. */
+export function hasPaidPlan(user: { plan: string | null; isActive: boolean }): boolean {
+  return user.isActive && (user.plan?.trim().toLowerCase() || "free") !== "free";
+}
+
+/**
+ * Social accounts this user may have: their plan's limit while it's live,
+ * otherwise the free allowance. Null when neither allows any. Use this
+ * rather than `socialAccountLimitFor(user.plan)`: a lapsed subscription can
+ * leave the plan name behind with `isActive` false.
+ */
+export async function socialAccountLimitForUser(user: {
+  plan: string | null;
+  isActive: boolean;
+}): Promise<number | null> {
+  if (hasPaidPlan(user)) return socialAccountLimitFor(user.plan);
+  const free = freeSocialAccounts();
+  return free > 0 ? free : null;
+}
+
 const DEFAULT_TRIAL_DAYS = 3;
 
 /**

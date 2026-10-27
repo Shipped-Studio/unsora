@@ -100,15 +100,22 @@ const SORTS: Record<string, { label: string; sort: PostFilters["sort"]; dir: Pos
   updated: { label: "Recently edited", sort: "updated", dir: "desc" },
 };
 
-// Labels follow the composer's formats. The list API filters on one server
-// type, so Photos is split by image count (slideshows count as 2 or more).
-const TYPE_FILTERS: { value: string; label: string; types?: PostType }[] = [
+// Labels follow the composer's formats; the URL keeps the readable format id
+// (?type=photos). Photos and slideshows are both IMAGE or CAROUSEL posts on
+// the server, so Photos sends both types.
+const TYPE_FILTERS: { value: string; label: string; types?: PostType[] }[] = [
   { value: "all", label: "All formats" },
-  { value: "VIDEO", label: FORMATS.video.label, types: "VIDEO" },
-  { value: "IMAGE", label: `${FORMATS.photos.label}, 1 image`, types: "IMAGE" },
-  { value: "CAROUSEL", label: `${FORMATS.photos.label}, 2 or more`, types: "CAROUSEL" },
-  { value: "TEXT", label: FORMATS.text.label, types: "TEXT" },
+  { value: "video", label: FORMATS.video.label, types: ["VIDEO"] },
+  { value: "photos", label: FORMATS.photos.label, types: ["IMAGE", "CAROUSEL"] },
+  { value: "text", label: FORMATS.text.label, types: ["TEXT"] },
 ];
+
+/** The format filter from the URL; older links used server types (?type=IMAGE). */
+function typeFilterFromParam(raw: string | null) {
+  const value = raw?.toLowerCase() ?? "all";
+  const alias = value === "image" || value === "carousel" ? "photos" : value;
+  return TYPE_FILTERS.some((t) => t.value === alias) ? alias : "all";
+}
 
 const EMPTY_COPY: Record<string, { title: string; description: string }> = {
   all: {
@@ -244,7 +251,7 @@ export function PostsTable() {
 
   const tab = searchParams.get("status") ?? "all";
   const accountId = searchParams.get("account") ?? "";
-  const type = searchParams.get("type") ?? "all";
+  const type = typeFilterFromParam(searchParams.get("type"));
   const sortKey = searchParams.get("sort") ?? (tab === "scheduled" ? "upcoming" : tab === "published" ? "published" : "recent");
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
 

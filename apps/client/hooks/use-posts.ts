@@ -12,7 +12,8 @@ import type { Pagination, Post, PostStatus } from "@/lib/scheduler/types";
 
 export interface PostFilters {
   status?: PostStatus[];
-  type?: PostType;
+  /** One or more server post types; several are sent comma separated. */
+  type?: PostType | PostType[];
   accountId?: string;
   provider?: string;
   q?: string;
@@ -35,7 +36,8 @@ export const postQueryKeys = {
 function toSearch(filters: PostFilters) {
   const params = new URLSearchParams();
   if (filters.status?.length) params.set("status", filters.status.join(","));
-  if (filters.type) params.set("type", filters.type);
+  const types = [filters.type ?? []].flat();
+  if (types.length) params.set("type", types.join(","));
   if (filters.accountId) params.set("accountId", filters.accountId);
   if (filters.provider) params.set("provider", filters.provider);
   if (filters.q) params.set("q", filters.q);
