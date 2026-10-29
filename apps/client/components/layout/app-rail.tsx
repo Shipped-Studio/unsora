@@ -452,7 +452,7 @@ function SidebarBody({
           aria-label={collapsed ? "New post" : undefined}
           className={cn(
             buttonVariants({ size: collapsed ? "icon-lg" : "lg" }),
-            collapsed ? "mx-auto" : "w-full justify-start",
+            collapsed ? "mx-auto" : "w-full",
           )}
         >
           <Plus className="size-4" weight="bold" />
