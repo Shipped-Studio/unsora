@@ -128,7 +128,7 @@ export function PricingDialog({ open, onOpenChange }: PricingDialogProps) {
                 const per = intervalLabel(plan.interval);
                 const features = plan.features ?? [];
                 const label = !isPaid
-                  ? `Choose ${plan.name}`
+                  ? "Try for free"
                   : plan.priceUsd > currentPrice
                     ? `Upgrade to ${plan.name}`
                     : `Switch to ${plan.name}`;
