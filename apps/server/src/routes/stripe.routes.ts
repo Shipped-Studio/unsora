@@ -55,6 +55,14 @@ router.get(
   stripeController.getSubscriptionPlans,
 );
 
+// Whether the user's next checkout starts with a free trial, so the pricing
+// dialog only says "Try for free" when it does.
+router.get(
+  "/trial-eligibility",
+  requireAuth,
+  stripeController.getTrialEligibility,
+);
+
 // Top-up credit packs (one-time purchases). The list endpoint is auth-only
 // because it's used from the in-app billing UI; if you want to surface pack
 // pricing on a public marketing page, drop `requireAuth` from this one.
