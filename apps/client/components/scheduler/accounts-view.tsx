@@ -107,10 +107,13 @@ function AccountRow({
   account,
   onReconnect,
   connecting,
+  notOnPlan = false,
 }: {
   account: ConnectedAccount;
   onReconnect: (account: ConnectedAccount) => void;
   connecting: boolean;
+  /** Beyond the plan's account limit: posts to it don't go out. */
+  notOnPlan?: boolean;
 }) {
   const refresh = useRefreshAccount();
   const disconnect = useDisconnectAccount();
@@ -121,7 +124,14 @@ function AccountRow({
     <li className="flex items-center gap-3 px-4 py-3">
       <AccountAvatar account={account} size="md" />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{accountLabel(account)}</p>
+        <p className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-sm font-medium">{accountLabel(account)}</span>
+          {notOnPlan ? (
+            <span className="shrink-0 rounded-full bg-warning-subtle px-2 py-0.5 text-2xs font-medium text-warning">
+              Not on your plan
+            </span>
+          ) : null}
+        </p>
         <p className="truncate text-xs text-muted-foreground">
           {accountHandle(account) || platformName(account.provider)}
           {account.provider === "instagram" && account.connectedVia === "facebook"
@@ -567,6 +577,18 @@ export function AccountsView() {
   })).filter((g) => g.accounts.length);
   const attention = visible.filter((a) => a.status !== "ok").length;
   const limit = usage?.limits?.socialAccounts ?? 0;
+  const { openPricing } = usePricing();
+  // Same rule as the server at publish time: the oldest connections are
+  // covered, anything past the plan's limit doesn't get posts.
+  const notOnPlan = new Set(
+    limit > 0
+      ? [...(accounts ?? [])]
+          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+          .slice(limit)
+          .map((a) => a.id)
+      : [],
+  );
+  const overBy = notOnPlan.size;
 
   return (
     <div className="space-y-10">
@@ -580,7 +602,7 @@ export function AccountsView() {
         actions={
           limit ? (
             <div className="flex items-center gap-2.5">
-              <span className="text-xs text-muted-foreground tabular-nums">
+              <span className={cn("text-xs tabular-nums", overBy ? "font-medium text-warning" : "text-muted-foreground")}>
                 {visible.length} of {limit} on your plan
               </span>
               <Progress
@@ -610,6 +632,23 @@ export function AccountsView() {
           </p>
         ) : (
           <div className="space-y-3">
+            {overBy ? (
+              <div
+                role="status"
+                className="flex flex-col gap-3 rounded-xl bg-warning-subtle px-4 py-3 sm:flex-row sm:items-center"
+              >
+                <p className="flex-1 text-sm text-warning">
+                  <span className="font-medium">
+                    Your plan covers {limit} account{limit === 1 ? "" : "s"}.
+                  </span>{" "}
+                  Posts won&apos;t go out to {overBy === 1 ? "the account" : `the ${overBy} accounts`} marked
+                  &ldquo;Not on your plan&rdquo; until you upgrade or disconnect some.
+                </p>
+                <Button size="sm" variant="outline" onClick={openPricing}>
+                  See plans
+                </Button>
+              </div>
+            ) : null}
             {grouped.map((group) => (
               <section
                 key={group.provider}
@@ -630,6 +669,7 @@ export function AccountsView() {
                     <AccountRow
                       key={account.id}
                       account={account}
+                      notOnPlan={notOnPlan.has(account.id)}
                       connecting={connect.isPending}
                       onReconnect={(account) =>
                         account.provider === "bluesky"

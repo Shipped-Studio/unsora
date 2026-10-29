@@ -39,7 +39,7 @@ interface CurrentPlanCardProps {
 function statusLine(state: PlanState, endsOn: string | null) {
   switch (state) {
     case "free":
-      return "Choose a plan to connect your social accounts, schedule posts and get credits.";
+      return "The free plan includes one social account. Choose a plan for more accounts and monthly credits.";
     case "active":
       return endsOn ? `Renews on ${endsOn}.` : "Your subscription is active.";
     case "trialing":
