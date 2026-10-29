@@ -30,7 +30,7 @@ import {
 } from "@/components/billing/format";
 import { redirectToStripe } from "@/components/billing/redirect-to-stripe";
 import { useAuthFetch } from "@/hooks/use-auth-fetch";
-import { useSubscriptionPlans } from "@/hooks/use-subscription-plans";
+import { useSubscriptionPlans, useTrialDays } from "@/hooks/use-subscription-plans";
 import { useUserUsage } from "@/hooks/use-user-usage";
 import { cn } from "@/lib/utils";
 
@@ -48,6 +48,7 @@ export function PricingDialog({ open, onOpenChange }: PricingDialogProps) {
   const { authFetch } = useAuthFetch();
   const { usage } = useUserUsage();
   const { plans, loading, error, refetch } = useSubscriptionPlans();
+  const trialDays = useTrialDays(open);
 
   const currentKey = (usage?.user.plan ?? "free").toLowerCase();
   const isPaid = usage?.user.isActive === true && currentKey !== "free";
@@ -127,8 +128,12 @@ export function PricingDialog({ open, onOpenChange }: PricingDialogProps) {
                 const isCurrent = isPaid && plan.key === currentKey;
                 const per = intervalLabel(plan.interval);
                 const features = plan.features ?? [];
+                // "Try for free" only when checkout really starts a trial;
+                // returning subscribers pay from day one.
                 const label = !isPaid
-                  ? "Try for free"
+                  ? trialDays
+                    ? "Try for free"
+                    : `Choose ${plan.name}`
                   : plan.priceUsd > currentPrice
                     ? `Upgrade to ${plan.name}`
                     : `Switch to ${plan.name}`;

@@ -51,6 +51,28 @@ async function planCreditsFor(opts: {
   return credits;
 }
 
+/**
+ * Free-trial days a checkout would start with: the `trial` row's length, or
+ * 0 once the customer has any paid invoice (the trial is first-subscription
+ * only). Checkout and the pricing dialog's button label both read this, so
+ * the label can't promise a trial checkout won't give.
+ */
+async function trialDaysFor(stripeCustomerId: string | null): Promise<number> {
+  if (stripeCustomerId) {
+    try {
+      const invoices = await stripe.invoices.list({
+        customer: stripeCustomerId,
+        status: "paid",
+        limit: 1,
+      });
+      if (invoices.data.length > 0) return 0;
+    } catch (error) {
+      console.error("Error checking previous payments:", error);
+    }
+  }
+  return trialDays();
+}
+
 export class StripeController {
   async handleWebhook(req: Request, res: Response) {
     const sig = req.headers["stripe-signature"];
@@ -668,22 +690,6 @@ export class StripeController {
         throw new Error("User not found");
       }
 
-      // Check if user has had a previous subscription
-      let hasPreviousSubscription = false;
-
-      if (user.stripeCustomerId) {
-        try {
-          const invoices = await stripe.invoices.list({
-            customer: user.stripeCustomerId,
-            status: "paid",
-            limit: 1,
-          });
-          hasPreviousSubscription = invoices.data.length > 0;
-        } catch (error) {
-          console.error("Error checking previous payments:", error);
-        }
-      }
-
       // Defense in depth: if the user ALREADY has a live subscription, this
       // checkout is really a plan switch — without this, paying would leave
       // them with TWO subscriptions and no credit carryover. Stamp the same
@@ -691,7 +697,7 @@ export class StripeController {
       // sub and carries remaining credits over, regardless of which client
       // path led here.
       let upgradeFromSubscriptionId: string | null = null;
-      const trialLength = hasPreviousSubscription ? 0 : await trialDays();
+      const trialLength = await trialDaysFor(user.stripeCustomerId);
       if (user.stripeSubscriptionId) {
         try {
           const current = await stripe.subscriptions.retrieve(
@@ -1201,6 +1207,23 @@ export class StripeController {
    * Source of truth = `plans` table where `type = TOPUP AND isActive = true`.
    * Edit those rows (admin panel or psql) to change what's offered.
    */
+  /** Trial days the signed-in user's next checkout would get (0 = none). */
+  async getTrialEligibility(req: Request, res: Response) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { clerkId: req.auth.userId },
+        select: { stripeCustomerId: true },
+      });
+      const days = await trialDaysFor(user?.stripeCustomerId ?? null);
+      return res.json({ success: true, data: { trialDays: days } });
+    } catch (error) {
+      console.error("Error checking trial eligibility:", error);
+      return res
+        .status(500)
+        .json({ success: false, error: "Couldn't check trial eligibility" });
+    }
+  }
+
   /**
    * Returns the catalog of subscription tiers (basic / pro / power). The
    * billing page + upgrade modal render this instead of hardcoding plan
