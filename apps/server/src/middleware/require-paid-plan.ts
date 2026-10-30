@@ -8,8 +8,8 @@ import prisma from "../lib/db";
  *   - `user.isActive === true` (subscription / trial currently active), AND
  *   - `user.plan` is set and not equal to "free" (case-insensitive).
  *
- * Used to gate the social media scheduler — connecting platforms and
- * creating / publishing posts both require an active subscription.
+ * Used to gate publishing: creating, scheduling and publishing posts need an
+ * active subscription. Connecting accounts doesn't (check-limit.ts).
  *
  * Must be mounted AFTER `requireAuth` so `req.auth.userId` is available.
  */

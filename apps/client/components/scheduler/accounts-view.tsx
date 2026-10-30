@@ -398,10 +398,16 @@ function useOAuthReturn() {
 export function ConnectGrid({
   compact,
   returnTo,
+  hidePlanNote,
+  exclude = [],
 }: {
   compact?: boolean;
   /** Where to come back to after the OAuth round trip. */
   returnTo?: string;
+  /** Skip the "publishing needs a plan" note, e.g. where a plan step follows. */
+  hidePlanNote?: boolean;
+  /** Platforms to leave out here (they stay available on Accounts). */
+  exclude?: Provider[];
 }) {
   const connect = useConnectAccount();
   const { usage } = useUserUsage();
@@ -412,12 +418,14 @@ export function ConnectGrid({
 
   const plan = (usage?.user?.plan ?? "free").toLowerCase();
   const isPaid = Boolean(usage?.user?.isActive) && plan !== "free";
+  // Free accounts get Basic's account allowance so channels can be connected
+  // during onboarding, before a trial; publishing still needs a plan.
   const limit = usage?.limits?.socialAccounts ?? 0;
   const used = usage?.counts?.socialAccounts ?? 0;
-  const atLimit = isPaid && limit > 0 && used >= limit;
+  const atLimit = limit > 0 && used >= limit;
 
   const start = (key: string, handle?: string) => {
-    if (!isPaid) {
+    if (usage && (limit === 0 || atLimit)) {
       openPricing();
       return;
     }
@@ -437,7 +445,7 @@ export function ConnectGrid({
   const { isEnabled, isLoading: platformsLoading } = useEnabledPlatforms();
   // Live platforms first; the rest show as "Coming soon" so people can see
   // what's on the way.
-  const options = PLATFORM_ORDER.flatMap(connectOptionsFor);
+  const options = PLATFORM_ORDER.filter((p) => !exclude.includes(p)).flatMap(connectOptionsFor);
   const platforms = [
     ...options.filter((o) => isEnabled(o.platform)),
     ...options.filter((o) => !isEnabled(o.platform)),
@@ -445,19 +453,14 @@ export function ConnectGrid({
 
   return (
     <>
-      {!isPaid && usage ? (
-        <div className="mb-3 flex flex-col gap-3 rounded-xl bg-muted p-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-muted-foreground">
-            Connecting accounts and publishing need a paid plan.
-          </p>
-          <Button size="sm" onClick={openPricing}>
-            See plans
-          </Button>
-        </div>
-      ) : atLimit ? (
+      {atLimit ? (
         <p className="mb-3 text-sm text-muted-foreground">
           You&apos;ve connected {used} of {limit} accounts on your plan. Disconnect one or upgrade
           to add more.
+        </p>
+      ) : !isPaid && usage && !hidePlanNote ? (
+        <p className="mb-3 text-sm text-muted-foreground">
+          Connect up to {limit} accounts now. Publishing starts with a plan or free trial.
         </p>
       ) : null}
       <div
@@ -497,7 +500,7 @@ export function ConnectGrid({
               key={option.key}
               type="button"
               disabled={atLimit || (connect.isPending && target !== option.key)}
-              onClick={() => (isPaid ? setChoice(option) : openPricing())}
+              onClick={() => setChoice(option)}
               aria-label={`Connect ${option.name}`}
               className="group flex min-w-0 items-center gap-3 rounded-xl bg-muted p-3 text-left transition-colors outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
             >

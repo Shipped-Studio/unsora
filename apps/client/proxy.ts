@@ -7,6 +7,9 @@ const isPublicRoute = createRouteMatcher([
   "/sso-callback(.*)",
   // Where shared connect links land; the visitor usually has no Unsora login.
   "/connected",
+  // MCP clients (ChatGPT, Claude) land here; signed-out visitors sign in or
+  // sign up inside the page, so the connector setup keeps its frame.
+  "/oauth-consent(.*)",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { SignInForm } from "./sign-in-form";
+import { AuthForm } from "../../_components/auth-form";
 
 export const metadata: Metadata = {
   title: "Sign in",
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function SignInPage() {
   return (
     <Suspense>
-      <SignInForm />
+      <AuthForm />
     </Suspense>
   );
 }

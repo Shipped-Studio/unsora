@@ -192,7 +192,7 @@ function Section({
 function summary(plan: AdminPlan): string {
   const parts: string[] = [];
   if (plan.key === "trial") {
-    parts.push(plan.isActive ? `${plan.trialDays ?? 3} days` : "No trial");
+    parts.push(plan.isActive ? `${plan.trialDays ?? 7} days` : "No trial");
     parts.push(`${plan.credits.toLocaleString()} credits`);
     return parts.join(" · ");
   }

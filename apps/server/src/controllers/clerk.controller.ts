@@ -4,6 +4,7 @@ import { verifyWebhook } from "@clerk/express/webhooks";
 import { clerkClient } from "@clerk/express";
 import { onNewSignup } from "../emails";
 import { isBlockedSignupEmail } from "../lib/signup-policy";
+import { createUserOnSignup } from "../lib/signup";
 
 export class ClerkController {
   async webhooks(req: Request, res: Response) {
@@ -31,26 +32,25 @@ export class ClerkController {
             .send("Email addresses from rejected domains are not allowed");
         }
 
-        // Use transaction to ensure consistency
-        const user = await prisma.$transaction(async (tx) => {
-          // Upsert: the user's first API request may already have created
-          // the row (auth middleware). A plain create would fail here and
-          // Clerk would retry forever without sending the welcome email.
-          const email = evt.data.email_addresses[0].email_address;
-          const created = await tx.user.upsert({
-            where: { clerkId: id as string },
-            update: { email },
-            create: { clerkId: id as string, email },
-          });
+        // The user's first API request may already have created the row
+        // (auth middleware); whichever call creates it grants the welcome
+        // credits. Otherwise just store the real email, as that path may
+        // have used a placeholder.
+        const email = evt.data.email_addresses[0].email_address;
+        const { user: row, created } = await createUserOnSignup(id as string, email);
+        const user = created || row.email === email
+          ? row
+          : await prisma.user.update({
+              where: { id: row.id },
+              data: { email },
+              select: { id: true, email: true },
+            });
 
-          await clerkClient.users.updateUserMetadata(id as string, {
-            unsafeMetadata: {
-              plan: "free",
-              onboardingCompleted: false,
-            },
-          });
-
-          return created;
+        await clerkClient.users.updateUserMetadata(id as string, {
+          unsafeMetadata: {
+            plan: "free",
+            onboardingCompleted: false,
+          },
         });
 
         void onNewSignup({

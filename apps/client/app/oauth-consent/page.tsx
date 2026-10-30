@@ -1,9 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import Link from "next/link";
-import { UnsoraLogo } from "@/components/brand/unsora-logo";
 import { Spinner } from "@/components/ui/spinner";
-import { ConsentForm } from "./consent-form";
+import { ConnectorSetup } from "./connector-setup";
 
 export const metadata: Metadata = {
   title: "Connect an app",
@@ -15,23 +13,25 @@ export const metadata: Metadata = {
 /**
  * OAuth consent screen for MCP clients (Claude, ChatGPT, …). Clerk is the
  * authorization server; the Clerk Dashboard's Paths → "OAuth consent" setting
- * points here instead of the Account Portal page. Signed-out visitors are sent
- * to /sign-in and back by proxy.ts.
+ * points here instead of the Account Portal page. Signed-out visitors sign in
+ * or sign up on the page itself (account-step.tsx); proxy.ts lets them in.
+ *
+ * New users set up Unsora here (channels, how it works, free trial) before
+ * the consent step, because allowing hands them straight back to the client
+ * and an account with no channels or credits can't do anything there.
  */
 export default function OAuthConsentPage() {
   return (
-    <div className="flex min-h-svh flex-col bg-background px-4 py-6 sm:px-10">
-      <Link href="https://tryunsora.com" className="inline-flex w-fit">
-        <UnsoraLogo variant="full" priority className="h-7" />
-      </Link>
-
-      <main className="flex flex-1 items-center justify-center py-12">
-        <div className="w-full max-w-sm">
-          <Suspense fallback={<Spinner className="mx-auto size-6 text-muted-foreground" />}>
-            <ConsentForm />
-          </Suspense>
-        </div>
-      </main>
+    <div className="flex min-h-svh flex-col bg-background">
+      <Suspense
+        fallback={
+          <div className="flex flex-1 items-center justify-center">
+            <Spinner className="size-6 text-muted-foreground" />
+          </div>
+        }
+      >
+        <ConnectorSetup />
+      </Suspense>
     </div>
   );
 }

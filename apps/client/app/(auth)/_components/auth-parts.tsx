@@ -17,6 +17,9 @@ import {
 } from "@/components/ui/input-otp";
 import { Spinner } from "@/components/ui/spinner";
 
+export const TERMS_URL = "https://tryunsora.com/terms";
+export const PRIVACY_URL = "https://tryunsora.com/privacy";
+
 /** Auth forms use one control height: inputs, password field and buttons. */
 export const AUTH_CONTROL = "h-10";
 
@@ -100,10 +103,28 @@ export function GoogleButton({
   );
 }
 
+/** Clickwrap line under the main auth button. */
+export function LegalNotice({ action }: { action: string }) {
+  return (
+    <p className="text-center text-xs text-muted-foreground">
+      By {action}, you agree to Unsora&apos;s{" "}
+      <a href={TERMS_URL} target="_blank" rel="noopener noreferrer" className={AUTH_LINK}>
+        Terms of Service
+      </a>{" "}
+      and{" "}
+      <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" className={AUTH_LINK}>
+        Privacy Policy
+      </a>
+      .
+    </p>
+  );
+}
+
 export function PasswordInput({
   id,
   name,
   autoComplete,
+  autoFocus,
   invalid,
   value,
   onChange,
@@ -111,6 +132,7 @@ export function PasswordInput({
   id: string;
   name: string;
   autoComplete: "current-password" | "new-password";
+  autoFocus?: boolean;
   invalid?: boolean;
   value: string;
   onChange: (value: string) => void;
@@ -123,6 +145,7 @@ export function PasswordInput({
         name={name}
         type={visible ? "text" : "password"}
         autoComplete={autoComplete}
+        autoFocus={autoFocus}
         required
         aria-invalid={invalid || undefined}
         value={value}

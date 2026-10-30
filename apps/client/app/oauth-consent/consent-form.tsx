@@ -1,200 +1,378 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useClerk, useOAuthConsent, useUser } from "@clerk/nextjs";
+import {
+  ArrowSquareOut,
+  CheckCircle,
+  Coins,
+  Eye,
+  IdentificationCard,
+  Lightning,
+  PaperPlaneTilt,
+  Plugs,
+} from "@phosphor-icons/react";
 import { UnsoraLogo } from "@/components/brand/unsora-logo";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { AccountAvatar } from "@/components/scheduler/account-avatar";
+import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { useConnectedAccounts } from "@/hooks/use-connected-accounts";
+import { useUserUsage } from "@/hooks/use-user-usage";
 import { cn } from "@/lib/utils";
+import { AppMark } from "@/components/onboarding/app-mark";
+import { CHECKOUT_PARAM, type SetupContext } from "@/components/onboarding/setup";
+import { OWN_PARAMS } from "./setup-params";
+
+type Consent = NonNullable<ReturnType<typeof useOAuthConsent>["data"]>;
+type Decision = "true" | "false";
+
+/** How long the "you're all set" screen shows before Clerk sends them back. */
+const HANDOFF_MS = 1800;
 
 /**
  * What a connected MCP client can actually do with the token. Clerk's own scope
  * descriptions ("Your private metadata…") describe Clerk user fields, not
- * Unsora, so the list is written from the MCP tool surface instead.
+ * Unsora, so the list is written from the MCP tool surface instead. The first
+ * group acts on the user's behalf, so it is set apart from what it can only see.
  */
-const ACCESS = [
-  "Create, schedule and publish posts to your connected accounts",
-  "Generate images, video, music and voiceovers using your credits",
-  "See your posts, uploads, generations and credit balance",
+const ACTS = [
+  { icon: PaperPlaneTilt, text: "Post to your connected accounts" },
+  { icon: Coins, text: "Use your credits to clip and create" },
 ];
+const SEES = [{ icon: Eye, text: "Your posts, files and credit balance" }];
 
-type Decision = "true" | "false";
-
-export function ConsentForm() {
+export function ConsentForm({ ctx, consent }: { ctx: SetupContext; consent: Consent }) {
   const clerk = useClerk();
   const { user } = useUser();
   const searchParams = useSearchParams();
   const [submitting, setSubmitting] = useState<Decision | null>(null);
+  const [handingOff, setHandingOff] = useState(false);
+  const allowRef = useRef<HTMLButtonElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const confirmed = useRef(false);
 
-  const clientId = searchParams.get("client_id") ?? "";
-  const redirectUri = searchParams.get("redirect_uri") ?? "";
-  const scope = searchParams.get("scope") ?? undefined;
-  const scopes = scope?.split(" ") ?? [];
+  // Back from Stripe: the plan arrives by webhook, so poll until it shows.
+  const fromCheckout = searchParams.get(CHECKOUT_PARAM) === "success";
+  const [gaveUp, setGaveUp] = useState(false);
+  const [isPaid, setIsPaid] = useState(false);
+  const polling = fromCheckout && !isPaid && !gaveUp;
+  const { usage } = useUserUsage({ pollIntervalMs: polling ? 2000 : false });
+  const { data: accounts } = useConnectedAccounts();
+  const plan = (usage?.user.plan ?? "free").toLowerCase();
+  const paidNow = Boolean(usage?.user.isActive) && plan !== "free";
+  if (paidNow !== isPaid) setIsPaid(paidNow);
+  useEffect(() => {
+    if (!fromCheckout) return;
+    const stop = window.setTimeout(() => setGaveUp(true), 20_000);
+    return () => window.clearTimeout(stop);
+  }, [fromCheckout]);
 
-  const { data, error } = useOAuthConsent({ oauthClientId: clientId, scope, redirectUri });
-
-  if (!clientId || !redirectUri) {
-    return (
-      <ConsentProblem message="This connection link is incomplete. Start the connection again from the app you're connecting." />
-    );
-  }
-  if (error) {
-    return (
-      <ConsentProblem message="We couldn't load this connection request. It may have expired, so start it again from the app you're connecting." />
-    );
-  }
-  if (!data) return <Spinner className="mx-auto size-6 text-muted-foreground" />;
-
-  const appName = data.oauthApplicationName || "This app";
-  const returnHost = data.redirectDomain || hostname(redirectUri);
-  const email = user?.primaryEmailAddress?.emailAddress ?? user?.username;
-  const access = [
-    ...ACCESS,
+  const scopes = searchParams.get("scope")?.split(" ") ?? [];
+  const sees = [
+    ...SEES,
     ...(scopes.includes("email") || scopes.includes("profile")
-      ? ["See your name and email address"]
+      ? [{ icon: IdentificationCard, text: "Your name and email" }]
       : []),
   ];
+  const appName = ctx.appName ?? "This app";
+  const returnHost = consent.redirectDomain || hostname(searchParams.get("redirect_uri") ?? "");
+  const email = user?.primaryEmailAddress?.emailAddress ?? user?.username;
+  const planName = usage?.user.plan && isPaid ? usage.user.plan : null;
+  const trialing = usage?.user.status === "trialing";
 
   return (
-    <form
-      method="POST"
-      action={clerk.oauthApplication.buildConsentActionUrl({ clientId })}
-      className="space-y-6"
-      onSubmit={(event) => {
-        // A second click would post a consent Clerk has already used.
-        if (submitting) return event.preventDefault();
-        const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-        setSubmitting((submitter?.value as Decision) ?? "true");
-      }}
-    >
-      <div className="flex items-center justify-center gap-3">
-        <AppLogo name={appName} logoUrl={data.oauthApplicationLogoUrl} />
-        <span aria-hidden className="tracking-[0.2em] text-muted-foreground">
-          ···
-        </span>
-        <div className="flex size-14 items-center justify-center rounded-2xl bg-muted">
-          <UnsoraLogo variant="icon" className="size-7" />
-        </div>
-      </div>
-
-      <div className="space-y-2 text-center">
-        <h1 className="font-display text-2xl font-bold tracking-[-0.03em] text-foreground">
-          Connect {appName} to Unsora
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {appName} is asking to use your Unsora account
-          {email ? (
-            <>
-              {" "}
-              <span className="font-medium text-foreground">{email}</span>
-            </>
-          ) : null}
-          .
-        </p>
-      </div>
-
-      <div className="rounded-xl bg-muted">
-        <p className="px-4 pt-3.5 pb-2 text-xs font-medium text-muted-foreground">
-          {appName} will be able to
-        </p>
-        <ul className="divide-y divide-card text-sm">
-          {access.map((item) => (
-            <li key={item} className="px-4 py-3">
-              {item}
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {/* Forward the original OAuth parameters, except fields set by this form. */}
-      {Array.from(searchParams.entries())
-        .filter(([key]) => key !== "consented" && key !== "organization_id")
-        .map(([key, value], index) => (
-          <input key={`${key}:${index}`} type="hidden" name={key} value={value} />
-        ))}
-
-      <div className="grid grid-cols-2 gap-2">
-        <Button
-          type="submit"
-          name="consented"
-          value="false"
-          variant="secondary"
-          size="lg"
-          aria-busy={submitting === "false"}
-          // Not `disabled`: a disabled submitter drops its name/value from the post.
-          className={cn(submitting && "pointer-events-none", submitting === "true" && "opacity-50")}
-        >
-          {submitting === "false" ? <Spinner /> : null}
-          Deny
-        </Button>
-        <Button
-          type="submit"
-          name="consented"
-          value="true"
-          size="lg"
-          aria-busy={submitting === "true"}
-          className={cn(submitting && "pointer-events-none", submitting === "false" && "opacity-50")}
-        >
-          {submitting === "true" ? <Spinner /> : null}
-          Allow
-        </Button>
-      </div>
-
-      <p className="text-center text-xs text-muted-foreground">
-        You&apos;ll go back to {returnHost} after you choose. Only allow apps you trust. You can
-        disconnect {appName} at any time from its connector settings.
-        {email ? (
-          <>
-            {" "}
-            Not you?{" "}
-            <button
-              type="button"
-              className="rounded-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-              // proxy.ts sends the signed-out visitor to /sign-in and back here.
-              onClick={() => clerk.signOut({ redirectUrl: window.location.href })}
+    <section className="mx-auto w-full max-w-lg">
+      <form
+        ref={formRef}
+        method="POST"
+        action={clerk.oauthApplication.buildConsentActionUrl({
+          clientId: searchParams.get("client_id") ?? "",
+        })}
+        className={cn("space-y-6", handingOff && "hidden")}
+        onSubmit={(event) => {
+          // A second click would post a consent Clerk has already used.
+          if (submitting && !confirmed.current) return event.preventDefault();
+          if (confirmed.current) return;
+          const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+          const decision = (submitter?.value as Decision) ?? "true";
+          setSubmitting(decision);
+          if (decision === "false") return;
+          // Show the hand-off screen first, then post the consent for real.
+          event.preventDefault();
+          setHandingOff(true);
+          window.setTimeout(() => {
+            confirmed.current = true;
+            formRef.current?.requestSubmit(allowRef.current ?? undefined);
+          }, HANDOFF_MS);
+        }}
+      >
+        <div className="space-y-5 text-center">
+          <div className="flex items-center justify-center gap-3">
+            <AppMark name={appName} logoUrl={consent.oauthApplicationLogoUrl} />
+            <span aria-hidden className="flex items-center gap-1">
+              <span className="h-px w-5 bg-foreground/30" />
+              <span className="flex size-7 items-center justify-center rounded-full bg-brand text-brand-foreground ring-1 ring-foreground/80">
+                <Plugs className="size-3.5" weight="bold" />
+              </span>
+              <span className="h-px w-5 bg-foreground/30" />
+            </span>
+            <span className="flex size-14 items-center justify-center rounded-2xl bg-card ring-1 ring-border">
+              <UnsoraLogo variant="icon" priority className="size-8" />
+            </span>
+          </div>
+          <div>
+            <h1
+              tabIndex={-1}
+              className="font-display text-3xl leading-[1.1] font-bold tracking-[-0.035em] text-balance text-foreground outline-none"
             >
-              Switch account
-            </button>
-          </>
-        ) : null}
-      </p>
-    </form>
+              Allow {appName} to use Unsora
+            </h1>
+          </div>
+        </div>
+
+        {/* Signed-in account, with the way out right next to it. */}
+        <div className="flex items-center gap-3 rounded-2xl bg-card p-3 pr-4 ring-1 ring-border">
+          {user?.imageUrl ? (
+            <img src={user.imageUrl} alt="" className="size-9 shrink-0 rounded-full object-cover" />
+          ) : (
+            <span
+              aria-hidden
+              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted font-display text-sm font-bold uppercase"
+            >
+              {email?.charAt(0) ?? "?"}
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-muted-foreground">Signed in as</p>
+            <p className="truncate text-sm font-medium">{email ?? "your Unsora account"}</p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            // Signed out, this page shows its own account step again.
+            onClick={() => clerk.signOut({ redirectUrl: window.location.href })}
+          >
+            Switch account
+          </Button>
+        </div>
+
+        {/* What the app will be working with. */}
+        <dl className="grid grid-cols-3 divide-x overflow-hidden rounded-2xl bg-card ring-1 ring-border">
+          <SummaryCell label="Channels">
+            {accounts?.length ? (
+              <span className="flex items-center gap-2">
+                <span className="flex -space-x-1.5">
+                  {accounts.slice(0, 3).map((account) => (
+                    <AccountAvatar
+                      key={account.id}
+                      account={account}
+                      size="sm"
+                      className="ring-2 ring-card"
+                    />
+                  ))}
+                </span>
+                <span className="tabular-nums">{accounts.length}</span>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => ctx.go("channels")}
+                className="rounded-sm text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                None yet
+              </button>
+            )}
+          </SummaryCell>
+          <SummaryCell label="Plan">
+            {polling && !isPaid ? (
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <Spinner className="size-3.5" />
+                Starting
+              </span>
+            ) : planName ? (
+              <span className="truncate">
+                <span className="capitalize">{planName}</span>
+                {trialing ? <span className="text-muted-foreground"> trial</span> : null}
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => ctx.go("trial")}
+                className="rounded-sm text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                No plan
+              </button>
+            )}
+          </SummaryCell>
+          <SummaryCell label="Credits">
+            <span className="tabular-nums">{usage ? usage.credits.toLocaleString() : "—"}</span>
+          </SummaryCell>
+        </dl>
+
+        <div className="overflow-hidden rounded-2xl bg-card ring-1 ring-border">
+          <PermissionGroup
+            title="Can act for you"
+            icon={<Lightning className="size-3.5" weight="fill" />}
+            emphasis
+            items={ACTS}
+          />
+          <PermissionGroup
+            title="Can see"
+            icon={<Eye className="size-3.5" />}
+            items={sees}
+          />
+        </div>
+
+        {/* Forward the original OAuth parameters, except fields set by this form or this page. */}
+        {Array.from(searchParams.entries())
+          .filter(
+            ([key]) =>
+              key !== "consented" && key !== "organization_id" && !OWN_PARAMS.includes(key),
+          )
+          .map(([key, value], index) => (
+            <input key={`${key}:${index}`} type="hidden" name={key} value={value} />
+          ))}
+
+        <div className="space-y-3">
+          <div className="grid grid-cols-[1fr_2fr] gap-2">
+            <Button
+              type="submit"
+              name="consented"
+              value="false"
+              variant="secondary"
+              size="lg"
+              aria-busy={submitting === "false"}
+              // Not `disabled`: a disabled submitter drops its name/value from the post.
+              className={cn(
+                submitting && "pointer-events-none",
+                submitting === "true" && "opacity-50",
+              )}
+            >
+              {submitting === "false" ? <Spinner /> : null}
+              Deny
+            </Button>
+            <Button
+              ref={allowRef}
+              type="submit"
+              name="consented"
+              value="true"
+              size="lg"
+              aria-busy={submitting === "true"}
+              className={cn(
+                submitting && "pointer-events-none",
+                submitting === "false" && "opacity-50",
+              )}
+            >
+              Allow
+            </Button>
+          </div>
+          <p className="text-center text-xs text-pretty text-muted-foreground">
+            You can disconnect {appName} anytime.
+          </p>
+        </div>
+      </form>
+
+      {handingOff ? (
+        <Handoff
+          appName={appName}
+          returnHost={returnHost}
+          onGoNow={() => {
+            confirmed.current = true;
+            formRef.current?.requestSubmit(allowRef.current ?? undefined);
+          }}
+        />
+      ) : null}
+    </section>
   );
 }
 
-function AppLogo({ name, logoUrl }: { name: string; logoUrl: string }) {
-  const [broken, setBroken] = useState(false);
+function SummaryCell({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex size-14 items-center justify-center overflow-hidden rounded-2xl bg-muted">
-      {logoUrl && !broken ? (
-        // Arbitrary client-registered host, so next/image's remote allowlist can't cover it.
-        <img
-          src={logoUrl}
-          alt=""
-          className="size-8 object-contain"
-          onError={() => setBroken(true)}
-        />
-      ) : (
-        <span className="font-display text-xl font-bold text-foreground">
-          {name.charAt(0).toUpperCase()}
-        </span>
-      )}
+    <div className="min-w-0 space-y-1.5 px-4 py-3.5">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="flex min-h-6 items-center text-sm font-medium">{children}</dd>
     </div>
   );
 }
 
-function ConsentProblem({ message }: { message: string }) {
+function PermissionGroup({
+  title,
+  icon,
+  items,
+  emphasis,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  items: { icon: React.ComponentType<{ className?: string }>; text: string }[];
+  emphasis?: boolean;
+}) {
   return (
-    <div className="space-y-4 text-center">
-      <h1 className="font-display text-2xl font-bold tracking-[-0.03em] text-foreground">
-        Can&apos;t connect this app
-      </h1>
-      <p className="text-sm text-muted-foreground">{message}</p>
-      <Link href="/" className={buttonVariants({ variant: "secondary" })}>
-        Open Unsora
-      </Link>
+    <div className={cn("px-4 py-4", emphasis ? "bg-warning-subtle" : "border-t")}>
+      <p
+        className={cn(
+          "mb-3 flex items-center gap-1.5 text-xs font-medium",
+          emphasis ? "text-warning" : "text-muted-foreground",
+        )}
+      >
+        {icon}
+        {title}
+      </p>
+      <ul className="space-y-3">
+        {items.map((item) => (
+          <li key={item.text} className="flex items-start gap-3 text-sm">
+            <span
+              className={cn(
+                "flex size-8 shrink-0 items-center justify-center rounded-lg",
+                emphasis ? "bg-card ring-1 ring-warning/25" : "bg-muted",
+              )}
+            >
+              <item.icon className="size-4" />
+            </span>
+            <span className="pt-1.5 text-pretty">{item.text}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** The last screen: shown while the consent posts and Clerk redirects. */
+function Handoff({
+  appName,
+  returnHost,
+  onGoNow,
+}: {
+  appName: string;
+  returnHost: string;
+  onGoNow: () => void;
+}) {
+  return (
+    <div
+      role="status"
+      className="animate-in space-y-8 text-center duration-500 fade-in zoom-in-95"
+    >
+      <div className="relative mx-auto flex size-20 items-center justify-center">
+        <span aria-hidden className="absolute inset-0 animate-ping rounded-full bg-brand/40 [animation-iteration-count:2]" />
+        <span className="relative flex size-20 items-center justify-center rounded-full bg-brand text-brand-foreground ring-1 ring-foreground/80">
+          <CheckCircle className="size-10" weight="fill" />
+        </span>
+      </div>
+      <div className="space-y-2">
+        <h1 className="font-display text-3xl leading-[1.1] font-bold tracking-[-0.035em] text-foreground">
+          You&apos;re all set
+        </h1>
+        <p className="flex items-center justify-center gap-2 text-muted-foreground">
+          <Spinner className="size-4" />
+          Opening {returnHost}
+        </p>
+      </div>
+
+      <Button variant="outline" size="lg" onClick={onGoNow}>
+        Go to {appName} now
+        <ArrowSquareOut data-icon="inline-end" />
+      </Button>
     </div>
   );
 }

@@ -1,9 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { clerkMiddleware, getAuth, clerkClient } from "@clerk/express";
-import { Prisma } from "@prisma/client";
 import prisma from "../lib/db";
-import { grantCredits } from "../lib/credits";
-import { isBlockedSignupEmail } from "../lib/signup-policy";
+import { createUserOnSignup } from "../lib/signup";
 import {
   isApiKeyToken,
   isLegacyApiKeyToken,
@@ -32,8 +30,8 @@ const clerkOpts = {
 /**
  * Auto-creates a DB user record on their first request (get-or-create pattern).
  * Fetches real email from Clerk when available, falls back to a placeholder.
- * Grants a small initial credit bucket so new accounts can immediately test
- * generation without having to go through Stripe.
+ * The welcome credits are granted by whichever of this and the Clerk webhook
+ * creates the row first (lib/signup.ts).
  */
 async function ensureDbUser(clerkId: string): Promise<void> {
   const existing = await prisma.user.findUnique({
@@ -45,7 +43,6 @@ async function ensureDbUser(clerkId: string): Promise<void> {
 }
 
 async function createDbUser(clerkId: string): Promise<{ id: string }> {
-
   // Fetch email from Clerk; fall back to a safe placeholder if unavailable.
   let email = `${clerkId}@auto.unsora.internal`;
   try {
@@ -55,41 +52,7 @@ async function createDbUser(clerkId: string): Promise<{ id: string }> {
     // Non-fatal — placeholder email is fine for now.
   }
 
-  // A plain create (not an upsert) so only the request that actually inserts
-  // the row grants the welcome credits; parallel first requests, or the Clerk
-  // webhook getting there first, hit the unique key instead.
-  let user: { id: string };
-  try {
-    user = await prisma.user.create({
-      data: { clerkId, email },
-      select: { id: true },
-    });
-  } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
-      return prisma.user.findUniqueOrThrow({
-        where: { clerkId },
-        select: { id: true },
-      });
-    }
-    throw error;
-  }
-
-  // Grant 100 free credits on first sign-in so generation works out of the
-  // box, except for disposable-email domains.
-  if (!isBlockedSignupEmail(email)) {
-    await grantCredits({
-      userId: user.id,
-      amount: 100,
-      source: "PROMOTION",
-      reason: "welcome:auto-grant",
-      expiresAt: null,
-      metadata: { note: "Auto-granted on first API request" },
-    });
-  }
-
+  const { user } = await createUserOnSignup(clerkId, email);
   return user;
 }
 
