@@ -55,3 +55,29 @@ export function useSubscriptionPlans() {
     refetch: query.refetch,
   };
 }
+
+/**
+ * Free-trial days the user's next checkout would start with (0 = none; the
+ * trial is first-subscription only). `null` until loaded. Only fetched while
+ * `enabled`, since the server asks Stripe for the user's invoices.
+ */
+export function useTrialDays(enabled: boolean) {
+  const { authFetch } = useAuthFetch();
+  const { isSignedIn } = useUser();
+
+  const query = useQuery({
+    queryKey: [...subscriptionPlansQueryKeys.all, "trial-days"],
+    queryFn: async (): Promise<number> => {
+      const res = await authFetch("/api/stripe/trial-eligibility");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || "Couldn't check trial eligibility.");
+      }
+      return data.data.trialDays as number;
+    },
+    enabled: enabled && !!isSignedIn,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  return query.data ?? null;
+}
