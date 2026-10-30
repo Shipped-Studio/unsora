@@ -494,7 +494,7 @@ export function ConnectGrid({
               key={option.key}
               type="button"
               disabled={atLimit || (connect.isPending && target !== option.key)}
-              onClick={() => (isPaid ? setChoice(option) : openPricing())}
+              onClick={() => setChoice(option)}
               aria-label={`Connect ${option.name}`}
               className="group flex min-w-0 items-center gap-3 rounded-xl bg-muted p-3 text-left transition-colors outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
             >
