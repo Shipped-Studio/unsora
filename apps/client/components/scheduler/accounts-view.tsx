@@ -452,7 +452,7 @@ export function ConnectGrid({
           You&apos;ve connected {used} of {limit} accounts on your plan. Disconnect one or upgrade
           to add more.
         </p>
-      ) : !isPaid && usage && !compact ? (
+      ) : !isPaid && usage ? (
         <p className="mb-3 text-sm text-muted-foreground">
           Connect up to {limit} accounts now. Publishing starts with a plan or free trial.
         </p>

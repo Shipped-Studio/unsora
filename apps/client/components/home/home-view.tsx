@@ -225,7 +225,7 @@ function Setup({
   if (done === steps.length) return null;
 
   return (
-    <div data-tour="setup">
+    <div>
       <PageSection
         title="Get set up"
         actions={

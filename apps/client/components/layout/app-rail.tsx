@@ -9,7 +9,6 @@ import { useClerk, useUser } from "@clerk/nextjs";
 import { useTheme } from "next-themes";
 import {
   ArrowSquareOut,
-  Compass,
   CreditCard,
   Desktop,
   GearSix,
@@ -37,7 +36,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { UnsoraLogo } from "@/components/brand/unsora-logo";
-import { useProductTour } from "@/components/onboarding/product-tour";
 import { usePricing } from "@/contexts/pricing-context";
 import { useUserUsage } from "@/hooks/use-user-usage";
 import { DOCS_URL, NAV_SECTIONS, isNavItemActive, type NavItem } from "@/lib/navigation";
@@ -87,7 +85,6 @@ function RailLink({ item, pathname }: { item: NavItem; pathname: string }) {
   return (
     <Link
       href={item.href}
-      data-tour={item.href}
       className={railItemClass(active)}
       aria-current={active ? "page" : undefined}
     >
@@ -103,7 +100,7 @@ function CreateMenu({ pathname }: { pathname: string }) {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <button type="button" data-tour="create" className={railItemClass(active)}>
+          <button type="button" className={railItemClass(active)}>
             <Sparkle className="size-4.5" />
             <span>Create</span>
           </button>
@@ -134,8 +131,6 @@ function UserMenu({ side = "right" }: { side?: "right" | "top" }) {
   const { theme, setTheme } = useTheme();
   const { usage } = useUserUsage();
   const { openPricing } = usePricing();
-  const { startTour } = useProductTour();
-  const { setOpen: setNavOpen } = useAppNav();
   if (!user) return null;
 
   const email = user.primaryEmailAddress?.emailAddress ?? "";
@@ -215,17 +210,6 @@ function UserMenu({ side = "right" }: { side?: "right" | "top" }) {
               </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
-          <DropdownMenuItem
-            onClick={() => {
-              // On phones the menu sits in the nav drawer; close it so the
-              // tour can point at the page.
-              setNavOpen(false);
-              window.setTimeout(startTour, 300);
-            }}
-          >
-            <Compass />
-            Take the tour
-          </DropdownMenuItem>
           <DropdownMenuItem render={<a href={DOCS_URL} target="_blank" rel="noopener noreferrer" />}>
             <ArrowSquareOut />
             Documentation
@@ -254,7 +238,6 @@ export function AppRail() {
       <Link
         href="/scheduler/new"
         aria-label="New post"
-        data-tour="new-post"
         className={buttonVariants({ size: "icon-lg" })}
       >
         <Plus className="size-4.5" weight="bold" />

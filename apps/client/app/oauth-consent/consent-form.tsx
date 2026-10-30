@@ -42,8 +42,7 @@ export function ConsentForm({
   scopes,
   credits,
   accountCount,
-  noCreditsWarning,
-  onStartTrial,
+  plansUrl,
 }: {
   clientId: string;
   appName: string;
@@ -53,9 +52,11 @@ export function ConsentForm({
   scopes: string[];
   credits: number | null;
   accountCount: number | null;
-  /** Show "nothing will work yet" when the user has no credits and no plan. */
-  noCreditsWarning: boolean;
-  onStartTrial?: () => void;
+  /**
+   * No plan yet: warn that posting won't work, and open this page (the
+   * plans) in a new tab on Allow, as Clerk sends this tab back to the app.
+   */
+  plansUrl: string | null;
 }) {
   const clerk = useClerk();
   const searchParams = useSearchParams();
@@ -94,7 +95,10 @@ export function ConsentForm({
         // A second click would post a consent Clerk has already used.
         if (submitting) return event.preventDefault();
         const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-        setSubmitting((submitter?.value as Decision) ?? "true");
+        const decision = (submitter?.value as Decision) ?? "true";
+        // Still inside the click, so the browser allows the new tab.
+        if (decision === "true" && plansUrl) window.open(plansUrl, "_blank");
+        setSubmitting(decision);
       }}
     >
       <div className="flex items-center justify-center gap-3">
@@ -128,24 +132,19 @@ export function ConsentForm({
         ) : null}
       </div>
 
-      {noCreditsWarning ? (
+      {plansUrl ? (
         <div className="flex gap-3 rounded-xl border border-warning/30 bg-warning/10 p-3.5 text-sm">
           <WarningCircle className="mt-0.5 size-4 shrink-0 text-warning" />
           <div className="space-y-1">
-            <p className="font-medium text-foreground">You don&apos;t have any credits yet</p>
-            <p className="text-muted-foreground">
-              {appName} won&apos;t be able to create or post anything until you start a free
-              trial or pick a plan.
+            <p className="font-medium text-foreground">
+              {credits ? "Posting needs a plan" : "You don't have a plan or credits yet"}
             </p>
-            {onStartTrial ? (
-              <button
-                type="button"
-                onClick={onStartTrial}
-                className="rounded-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-              >
-                Start free trial
-              </button>
-            ) : null}
+            <p className="text-muted-foreground">
+              {credits
+                ? `${appName} can create with your ${credits.toLocaleString()} credits, but can't post until you start a free trial or pick a plan.`
+                : `${appName} won't be able to create or post anything until you start a free trial or pick a plan.`}{" "}
+              We&apos;ll show you the plans when you click Allow.
+            </p>
           </div>
         </div>
       ) : null}
