@@ -52,6 +52,28 @@ async function planCreditsFor(opts: {
 }
 
 /**
+ * Checkout return URL for an in-app `returnPath` (the ChatGPT connector's
+ * trial step sends one so the user lands back in that flow), with
+ * `checkout=success|cancel` added. Only paths on CLIENT_URL are accepted;
+ * anything else returns null and the caller falls back to the env URLs.
+ */
+function appReturnUrl(returnPath: unknown, status: "success" | "cancel"): string | null {
+  if (!CLIENT_URL || typeof returnPath !== "string") return null;
+  if (!returnPath.startsWith("/") || returnPath.startsWith("//") || returnPath.includes("\\")) {
+    return null;
+  }
+  try {
+    const base = new URL(CLIENT_URL);
+    const url = new URL(returnPath, base);
+    if (url.origin !== base.origin) return null;
+    url.searchParams.set("checkout", status);
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Free-trial days a checkout would start with: the `trial` row's length, or
  * 0 once the customer has any paid invoice (the trial is first-subscription
  * only). Checkout and the pricing dialog's button label both read this, so
@@ -664,7 +686,7 @@ export class StripeController {
       // the Stripe Price ID is resolved here from the `plans` table. A raw
       // price ID is never accepted from the client: any other price on the
       // same product would otherwise buy this plan's credits.
-      const { key } = req.body as { key?: string };
+      const { key, returnPath } = req.body as { key?: string; returnPath?: string };
       if (!key) {
         return res.status(400).json({ error: "Missing plan selection" });
       }
@@ -717,8 +739,8 @@ export class StripeController {
       }
 
       const sessionConfig: Stripe.Checkout.SessionCreateParams = {
-        success_url: SUCCESS_URL,
-        cancel_url: CANCEL_URL,
+        success_url: appReturnUrl(returnPath, "success") ?? SUCCESS_URL,
+        cancel_url: appReturnUrl(returnPath, "cancel") ?? CANCEL_URL,
         payment_method_types: ["card"],
         billing_address_collection: "auto",
         line_items: [{ price: priceId, quantity: 1 }],
@@ -744,7 +766,9 @@ export class StripeController {
           submit: {
             message: upgradeFromSubscriptionId
               ? "Your current plan will be cancelled and any remaining plan credits will be added to your new plan."
-              : "Your subscription will begin immediately after successful payment.",
+              : trialLength > 0
+                ? `Your ${trialLength}-day free trial starts today. You won't be charged until it ends, and you can cancel any time before then from Billing.`
+                : "Your subscription will begin immediately after successful payment.",
           },
         },
       };

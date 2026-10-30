@@ -105,16 +105,22 @@ export async function findSubscriptionPlan(value: string | null | undefined): Pr
 
 /**
  * Social accounts a user on `planValue` may connect, or null when the plan
- * doesn't allow connecting (free, unknown).
+ * doesn't allow connecting (unknown). Free users get Basic's allowance so
+ * they can connect their channels during onboarding, before starting a
+ * trial; publishing still needs a paid plan (requirePaidPlan).
  */
 export async function socialAccountLimitFor(planValue: string | null | undefined): Promise<number | null> {
+  const key = planValue?.trim().toLowerCase();
+  if (!key || key === "free") {
+    const basic = await getPlanByKey("basic");
+    return basic ? planSocialAccounts(basic) : DEFAULT_META.basic.socialAccounts;
+  }
   const plan = await findSubscriptionPlan(planValue);
   if (plan) return planSocialAccounts(plan);
-  const key = planValue?.trim().toLowerCase();
-  return key ? (DEFAULT_META[key]?.socialAccounts ?? null) : null;
+  return DEFAULT_META[key]?.socialAccounts ?? null;
 }
 
-const DEFAULT_TRIAL_DAYS = 3;
+const DEFAULT_TRIAL_DAYS = 7;
 
 /**
  * Length of the first-subscription free trial. It lives on the `trial` row

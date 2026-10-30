@@ -87,7 +87,9 @@ export function PricingDialog({ open, onOpenChange }: PricingDialogProps) {
           <DialogDescription>
             {isPaid
               ? "Your current subscription ends once the new plan is paid. Unused plan credits carry over and top-up credits stay as they are."
-              : "Plans renew automatically. You can cancel any time from Billing."}
+              : trialDays
+                ? `Every plan starts with a ${trialDays}-day free trial. Cancel any time before it ends from Billing and you won't be charged.`
+                : "Plans renew automatically. You can cancel any time from Billing."}
           </DialogDescription>
         </DialogHeader>
 
@@ -128,11 +130,11 @@ export function PricingDialog({ open, onOpenChange }: PricingDialogProps) {
                 const isCurrent = isPaid && plan.key === currentKey;
                 const per = intervalLabel(plan.interval);
                 const features = plan.features ?? [];
-                // "Try for free" only when checkout really starts a trial;
+                // Offer the trial only when checkout really starts one;
                 // returning subscribers pay from day one.
                 const label = !isPaid
                   ? trialDays
-                    ? "Try for free"
+                    ? `Start ${trialDays}-day free trial`
                     : `Choose ${plan.name}`
                   : plan.priceUsd > currentPrice
                     ? `Upgrade to ${plan.name}`

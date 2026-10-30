@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { SignUpForm } from "./sign-up-form";
+import { AuthForm } from "../../_components/auth-form";
+import { SignUpContinue } from "./sign-up-form";
 
 export const metadata: Metadata = {
   title: "Create your account",
@@ -10,10 +11,14 @@ export const metadata: Metadata = {
   alternates: { canonical: "/sign-up" },
 };
 
-export default function SignUpPage() {
+/** Same email-first form as /sign-in; /sign-up/continue finishes a Google sign-up. */
+export default async function SignUpPage({
+  params,
+}: {
+  params: Promise<{ "sign-up"?: string[] }>;
+}) {
+  const { "sign-up": segments } = await params;
   return (
-    <Suspense>
-      <SignUpForm />
-    </Suspense>
+    <Suspense>{segments?.[0] === "continue" ? <SignUpContinue /> : <AuthForm />}</Suspense>
   );
 }

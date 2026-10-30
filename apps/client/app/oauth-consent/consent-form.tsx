@@ -1,59 +1,87 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useClerk, useOAuthConsent, useUser } from "@clerk/nextjs";
+import { useClerk } from "@clerk/nextjs";
+import {
+  ArrowsLeftRight,
+  ChartBar,
+  Coins,
+  IdentificationCard,
+  PaperPlaneTilt,
+  WarningCircle,
+} from "@phosphor-icons/react";
 import { UnsoraLogo } from "@/components/brand/unsora-logo";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { ClaudeIcon, CursorIcon, OpenAIIcon } from "@/components/icons";
+import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-
-/**
- * What a connected MCP client can actually do with the token. Clerk's own scope
- * descriptions ("Your private metadata…") describe Clerk user fields, not
- * Unsora, so the list is written from the MCP tool surface instead.
- */
-const ACCESS = [
-  "Create, schedule and publish posts to your connected accounts",
-  "Generate images, video, music and voiceovers using your credits",
-  "See your posts, uploads, generations and credit balance",
-];
+import { FLOW_PARAMS } from "./flow-params";
 
 type Decision = "true" | "false";
 
-export function ConsentForm() {
+interface Permission {
+  icon: React.ComponentType<{ className?: string }>;
+  text: string;
+  /** Live context under the row: what's actually at stake right now. */
+  detail?: string;
+}
+
+/**
+ * The last screen of the connector flow: what the MCP client may do, then
+ * Allow / Deny, which post to Clerk and send the user back to the client.
+ * Clerk's own scope descriptions ("Your private metadata…") describe Clerk
+ * user fields, not Unsora, so the rows are written from the MCP tool surface.
+ */
+export function ConsentForm({
+  clientId,
+  appName,
+  logoUrl,
+  returnHost,
+  email,
+  scopes,
+  credits,
+  accountCount,
+  noCreditsWarning,
+  onStartTrial,
+}: {
+  clientId: string;
+  appName: string;
+  logoUrl: string;
+  returnHost: string;
+  email: string | null;
+  scopes: string[];
+  credits: number | null;
+  accountCount: number | null;
+  /** Show "nothing will work yet" when the user has no credits and no plan. */
+  noCreditsWarning: boolean;
+  onStartTrial?: () => void;
+}) {
   const clerk = useClerk();
-  const { user } = useUser();
   const searchParams = useSearchParams();
   const [submitting, setSubmitting] = useState<Decision | null>(null);
 
-  const clientId = searchParams.get("client_id") ?? "";
-  const redirectUri = searchParams.get("redirect_uri") ?? "";
-  const scope = searchParams.get("scope") ?? undefined;
-  const scopes = scope?.split(" ") ?? [];
-
-  const { data, error } = useOAuthConsent({ oauthClientId: clientId, scope, redirectUri });
-
-  if (!clientId || !redirectUri) {
-    return (
-      <ConsentProblem message="This connection link is incomplete. Start the connection again from the app you're connecting." />
-    );
-  }
-  if (error) {
-    return (
-      <ConsentProblem message="We couldn't load this connection request. It may have expired, so start it again from the app you're connecting." />
-    );
-  }
-  if (!data) return <Spinner className="mx-auto size-6 text-muted-foreground" />;
-
-  const appName = data.oauthApplicationName || "This app";
-  const returnHost = data.redirectDomain || hostname(redirectUri);
-  const email = user?.primaryEmailAddress?.emailAddress ?? user?.username;
-  const access = [
-    ...ACCESS,
+  const actsForYou: Permission[] = [
+    {
+      icon: PaperPlaneTilt,
+      text: "Create, schedule and publish posts to your connected accounts",
+      detail:
+        accountCount === null
+          ? undefined
+          : accountCount === 0
+            ? "No accounts connected yet"
+            : `${accountCount} account${accountCount === 1 ? "" : "s"} connected`,
+    },
+    {
+      icon: Coins,
+      text: "Generate images, video, music and voiceovers using your credits",
+      detail: credits === null ? undefined : `You have ${credits.toLocaleString()} credits`,
+    },
+  ];
+  const canSee: Permission[] = [
+    { icon: ChartBar, text: "Your posts, uploads, generations and credit balance" },
     ...(scopes.includes("email") || scopes.includes("profile")
-      ? ["See your name and email address"]
+      ? [{ icon: IdentificationCard, text: "Your name and email address" }]
       : []),
   ];
 
@@ -70,47 +98,72 @@ export function ConsentForm() {
       }}
     >
       <div className="flex items-center justify-center gap-3">
-        <AppLogo name={appName} logoUrl={data.oauthApplicationLogoUrl} />
-        <span aria-hidden className="tracking-[0.2em] text-muted-foreground">
-          ···
+        <AppLogo name={appName} logoUrl={logoUrl} />
+        <span className="flex size-8 items-center justify-center rounded-full border bg-card text-muted-foreground">
+          <ArrowsLeftRight className="size-4" />
         </span>
         <div className="flex size-14 items-center justify-center rounded-2xl bg-muted">
           <UnsoraLogo variant="icon" className="size-7" />
         </div>
       </div>
 
-      <div className="space-y-2 text-center">
+      <div className="space-y-3 text-center">
         <h1 className="font-display text-2xl font-bold tracking-[-0.03em] text-foreground">
           Connect {appName} to Unsora
         </h1>
-        <p className="text-sm text-muted-foreground">
-          {appName} is asking to use your Unsora account
-          {email ? (
-            <>
-              {" "}
-              <span className="font-medium text-foreground">{email}</span>
-            </>
-          ) : null}
-          .
-        </p>
+        {email ? (
+          <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+            <span>
+              Signed in as <span className="font-medium text-foreground">{email}</span>
+            </span>
+            <button
+              type="button"
+              className="rounded-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+              // proxy.ts sends the signed-out visitor to /sign-in and back here.
+              onClick={() => clerk.signOut({ redirectUrl: window.location.href })}
+            >
+              Switch account
+            </button>
+          </p>
+        ) : null}
       </div>
 
-      <div className="rounded-xl bg-muted">
-        <p className="px-4 pt-3.5 pb-2 text-xs font-medium text-muted-foreground">
-          {appName} will be able to
-        </p>
-        <ul className="divide-y divide-card text-sm">
-          {access.map((item) => (
-            <li key={item} className="px-4 py-3">
-              {item}
-            </li>
-          ))}
-        </ul>
+      {noCreditsWarning ? (
+        <div className="flex gap-3 rounded-xl border border-warning/30 bg-warning/10 p-3.5 text-sm">
+          <WarningCircle className="mt-0.5 size-4 shrink-0 text-warning" />
+          <div className="space-y-1">
+            <p className="font-medium text-foreground">You don&apos;t have any credits yet</p>
+            <p className="text-muted-foreground">
+              {appName} won&apos;t be able to create or post anything until you start a free
+              trial or pick a plan.
+            </p>
+            {onStartTrial ? (
+              <button
+                type="button"
+                onClick={onStartTrial}
+                className="rounded-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+              >
+                Start free trial
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="space-y-3">
+        <PermissionGroup title={`${appName} can act for you`} items={actsForYou} highlight />
+        <PermissionGroup title={`${appName} can see`} items={canSee} />
       </div>
 
-      {/* Forward the original OAuth parameters, except fields set by this form. */}
+      {/* Forward the original OAuth parameters, except fields set by this form
+          and the connector flow's own navigation state. */}
       {Array.from(searchParams.entries())
-        .filter(([key]) => key !== "consented" && key !== "organization_id")
+        .filter(
+          ([key]) =>
+            key !== "consented" &&
+            key !== "organization_id" &&
+            !(FLOW_PARAMS as readonly string[]).includes(key),
+        )
         .map(([key, value], index) => (
           <input key={`${key}:${index}`} type="hidden" name={key} value={value} />
         ))}
@@ -143,32 +196,67 @@ export function ConsentForm() {
       </div>
 
       <p className="text-center text-xs text-muted-foreground">
-        You&apos;ll go back to {returnHost} after you choose. Only allow apps you trust. You can
-        disconnect {appName} at any time from its connector settings.
-        {email ? (
-          <>
-            {" "}
-            Not you?{" "}
-            <button
-              type="button"
-              className="rounded-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-              // proxy.ts sends the signed-out visitor to /sign-in and back here.
-              onClick={() => clerk.signOut({ redirectUrl: window.location.href })}
-            >
-              Switch account
-            </button>
-          </>
-        ) : null}
+        You&apos;ll go back to {returnHost}. You can disconnect {appName} any time from its
+        settings.
       </p>
     </form>
   );
 }
 
-function AppLogo({ name, logoUrl }: { name: string; logoUrl: string }) {
-  const [broken, setBroken] = useState(false);
+function PermissionGroup({
+  title,
+  items,
+  highlight,
+}: {
+  title: string;
+  items: Permission[];
+  /** Rows that act on the user's behalf: publishing and spending credits. */
+  highlight?: boolean;
+}) {
   return (
-    <div className="flex size-14 items-center justify-center overflow-hidden rounded-2xl bg-muted">
-      {logoUrl && !broken ? (
+    <div className={cn("rounded-xl", highlight ? "border bg-card" : "bg-muted")}>
+      <p className="px-4 pt-3.5 pb-1.5 text-xs font-medium text-muted-foreground">{title}</p>
+      <ul className="text-sm">
+        {items.map((item) => (
+          <li key={item.text} className="flex gap-3 px-4 py-2.5 last:pb-3.5">
+            <span
+              className={cn(
+                "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md",
+                highlight ? "bg-warning/15 text-warning" : "bg-card text-muted-foreground",
+              )}
+            >
+              <item.icon className="size-3.5" />
+            </span>
+            <span className="min-w-0 space-y-0.5">
+              <span className="block text-foreground">{item.text}</span>
+              {item.detail ? (
+                <span className="block text-xs text-muted-foreground">{item.detail}</span>
+              ) : null}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Well-known MCP clients get their real mark even when Clerk has no logo URL. */
+function knownAppMark(name: string) {
+  const n = name.toLowerCase();
+  if (n.includes("chatgpt") || n.includes("openai")) return <OpenAIIcon className="size-8" />;
+  if (n.includes("claude")) return <ClaudeIcon className="size-8" />;
+  if (n.includes("cursor")) return <CursorIcon className="size-8" />;
+  return null;
+}
+
+export function AppLogo({ name, logoUrl }: { name: string; logoUrl: string }) {
+  const [broken, setBroken] = useState(false);
+  const known = knownAppMark(name);
+  return (
+    <div className="flex size-14 items-center justify-center overflow-hidden rounded-2xl bg-muted text-foreground">
+      {known ? (
+        known
+      ) : logoUrl && !broken ? (
         // Arbitrary client-registered host, so next/image's remote allowlist can't cover it.
         <img
           src={logoUrl}
@@ -177,32 +265,8 @@ function AppLogo({ name, logoUrl }: { name: string; logoUrl: string }) {
           onError={() => setBroken(true)}
         />
       ) : (
-        <span className="font-display text-xl font-bold text-foreground">
-          {name.charAt(0).toUpperCase()}
-        </span>
+        <span className="font-display text-xl font-bold">{name.charAt(0).toUpperCase()}</span>
       )}
     </div>
   );
-}
-
-function ConsentProblem({ message }: { message: string }) {
-  return (
-    <div className="space-y-4 text-center">
-      <h1 className="font-display text-2xl font-bold tracking-[-0.03em] text-foreground">
-        Can&apos;t connect this app
-      </h1>
-      <p className="text-sm text-muted-foreground">{message}</p>
-      <Link href="/" className={buttonVariants({ variant: "secondary" })}>
-        Open Unsora
-      </Link>
-    </div>
-  );
-}
-
-function hostname(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return "the app";
-  }
 }

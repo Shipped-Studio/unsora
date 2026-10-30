@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { UnsoraLogo } from "@/components/brand/unsora-logo";
 import { Spinner } from "@/components/ui/spinner";
-import { ConsentForm } from "./consent-form";
+import { ConnectorFlow } from "./connector-flow";
 
 export const metadata: Metadata = {
   title: "Connect an app",
@@ -13,10 +13,11 @@ export const metadata: Metadata = {
 };
 
 /**
- * OAuth consent screen for MCP clients (Claude, ChatGPT, …). Clerk is the
- * authorization server; the Clerk Dashboard's Paths → "OAuth consent" setting
- * points here instead of the Account Portal page. Signed-out visitors are sent
- * to /sign-in and back by proxy.ts.
+ * OAuth consent screen for MCP clients (Claude, ChatGPT, …), with a short
+ * onboarding in front of it for new users (see connector-flow.tsx). Clerk is
+ * the authorization server; the Clerk Dashboard's Paths → "OAuth consent"
+ * setting points here instead of the Account Portal page. Signed-out
+ * visitors are sent to /sign-in and back by proxy.ts.
  */
 export default function OAuthConsentPage() {
   return (
@@ -25,10 +26,11 @@ export default function OAuthConsentPage() {
         <UnsoraLogo variant="full" priority className="h-7" />
       </Link>
 
-      <main className="flex flex-1 items-center justify-center py-12">
-        <div className="w-full max-w-sm">
+      {/* Top-aligned so the stepper stays put as the steps change height. */}
+      <main className="flex flex-1 justify-center pt-10 pb-12 sm:pt-14">
+        <div className="w-full">
           <Suspense fallback={<Spinner className="mx-auto size-6 text-muted-foreground" />}>
-            <ConsentForm />
+            <ConnectorFlow />
           </Suspense>
         </div>
       </main>
