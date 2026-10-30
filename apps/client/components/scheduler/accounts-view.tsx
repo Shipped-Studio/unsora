@@ -398,10 +398,16 @@ function useOAuthReturn() {
 export function ConnectGrid({
   compact,
   returnTo,
+  hidePlanNote,
+  exclude = [],
 }: {
   compact?: boolean;
   /** Where to come back to after the OAuth round trip. */
   returnTo?: string;
+  /** Skip the "publishing needs a plan" note, e.g. where a plan step follows. */
+  hidePlanNote?: boolean;
+  /** Platforms to leave out here (they stay available on Accounts). */
+  exclude?: Provider[];
 }) {
   const connect = useConnectAccount();
   const { usage } = useUserUsage();
@@ -439,7 +445,7 @@ export function ConnectGrid({
   const { isEnabled, isLoading: platformsLoading } = useEnabledPlatforms();
   // Live platforms first; the rest show as "Coming soon" so people can see
   // what's on the way.
-  const options = PLATFORM_ORDER.flatMap(connectOptionsFor);
+  const options = PLATFORM_ORDER.filter((p) => !exclude.includes(p)).flatMap(connectOptionsFor);
   const platforms = [
     ...options.filter((o) => isEnabled(o.platform)),
     ...options.filter((o) => !isEnabled(o.platform)),
@@ -452,7 +458,7 @@ export function ConnectGrid({
           You&apos;ve connected {used} of {limit} accounts on your plan. Disconnect one or upgrade
           to add more.
         </p>
-      ) : !isPaid && usage ? (
+      ) : !isPaid && usage && !hidePlanNote ? (
         <p className="mb-3 text-sm text-muted-foreground">
           Connect up to {limit} accounts now. Publishing starts with a plan or free trial.
         </p>
