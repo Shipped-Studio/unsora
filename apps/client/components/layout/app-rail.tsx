@@ -12,7 +12,6 @@ import {
   CalendarBlank,
   CaretDown,
   CaretUpDown,
-  Compass,
   CreditCard,
   Desktop,
   DotsThreeOutline,
@@ -46,7 +45,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { UnsoraLogo } from "@/components/brand/unsora-logo";
-import { useProductTour } from "@/components/onboarding/product-tour";
 import { usePricing } from "@/contexts/pricing-context";
 import { useUserUsage } from "@/hooks/use-user-usage";
 import { DOCS_URL, NAV_SECTIONS, isNavItemActive, type NavItem } from "@/lib/navigation";
@@ -160,7 +158,6 @@ function NavLink({
     <WithTip label={item.label} collapsed={collapsed}>
       <Link
         href={item.href}
-        data-tour={item.href}
         onClick={onNavigate}
         target={item.external ? "_blank" : undefined}
         className={itemClass(active, collapsed)}
@@ -214,7 +211,6 @@ function CreateGroup({
             render={
               <button
                 type="button"
-                data-tour="create"
                 aria-label="Create with AI"
                 className={itemClass(onTool, true)}
               />
@@ -241,7 +237,6 @@ function CreateGroup({
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <CollapsibleTrigger
-        data-tour="create"
         className={cn(itemClass(false, false), "group/create", onTool && !open && "text-foreground")}
       >
         <Sparkle className="size-[1.125rem] shrink-0" weight={onTool ? "duotone" : "regular"} />
@@ -308,8 +303,6 @@ function UserMenu({ collapsed, side = "right" }: { collapsed: boolean; side?: "r
   const { theme, setTheme } = useTheme();
   const { usage } = useUserUsage();
   const { openPricing } = usePricing();
-  const { startTour } = useProductTour();
-  const { setOpen: setNavOpen } = useAppNav();
   if (!user) return <div className="h-11" />;
 
   const email = user.primaryEmailAddress?.emailAddress ?? "";
@@ -404,17 +397,6 @@ function UserMenu({ collapsed, side = "right" }: { collapsed: boolean; side?: "r
               </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
-          <DropdownMenuItem
-            onClick={() => {
-              // On phones the menu sits in the nav drawer; close it so the
-              // tour can point at the page.
-              setNavOpen(false);
-              window.setTimeout(startTour, 300);
-            }}
-          >
-            <Compass />
-            Take the tour
-          </DropdownMenuItem>
           <DropdownMenuItem render={<a href={DOCS_URL} target="_blank" rel="noopener noreferrer" />}>
             <ArrowSquareOut />
             Documentation
@@ -448,7 +430,6 @@ function SidebarBody({
         <Link
           href="/scheduler/new"
           onClick={onNavigate}
-          data-tour="new-post"
           aria-label={collapsed ? "New post" : undefined}
           className={cn(
             buttonVariants({ size: collapsed ? "icon-lg" : "lg" }),

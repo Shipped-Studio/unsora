@@ -376,7 +376,7 @@ function GetStarted() {
   const agentDone = (keys.data?.length ?? 0) > 0;
 
   return (
-    <section className={SIDE} data-tour="setup">
+    <section className={SIDE}>
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-sm font-semibold">Get started</h2>
         <span className="text-xs text-muted-foreground tabular-nums">

@@ -15,13 +15,14 @@ import { xService } from "./platforms/x.service";
 import { googleBusinessService } from "./platforms/google-business.service";
 import { tokenRefreshService } from "./token-refresh.service";
 import { onPostPublishFailed } from "../emails";
-import { hasPaidPlan, socialAccountLimitForUser } from "../lib/plans";
+import { hasPaidPlan, postingAccountLimitForUser } from "../lib/plans";
 
 /**
  * Accounts beyond what the owner's current plan covers, oldest connections
  * first. Connecting already stops at the limit, so this only bites after a
- * downgrade (or a lapsed plan falling back to the free tier): their queued
- * posts still go out to the accounts the plan covers, not to every account.
+ * downgrade: their queued posts still go out to the accounts the plan
+ * covers, not to every account. Without a live plan (lapsed, or free) the
+ * limit is 0, as posting needs a plan.
  */
 async function accountsOverPlanLimit(userId: string): Promise<Set<string>> {
   const user = await prisma.user.findUnique({
@@ -29,7 +30,7 @@ async function accountsOverPlanLimit(userId: string): Promise<Set<string>> {
     select: { plan: true, isActive: true },
   });
   if (!user) return new Set();
-  const limit = await socialAccountLimitForUser(user);
+  const limit = await postingAccountLimitForUser(user);
   // A paid plan with no limit configured: don't hold paying users back.
   if (limit === null && hasPaidPlan(user)) return new Set();
   const accounts = await prisma.socialAccount.findMany({

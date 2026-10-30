@@ -435,7 +435,7 @@ export function ConnectGrid({
   const isPaid = access?.isPaid ?? false;
   const limit = access?.limit ?? 0;
   const used = access?.used ?? 0;
-  // Connecting is allowed until the plan's (or the free tier's) limit.
+  // Connecting is allowed until the plan's limit (Basic's for free users).
   const blocked = Boolean(access && (access.noScheduler || access.atLimit));
 
   const start = (key: string, handle?: string) => {
@@ -485,7 +485,7 @@ export function ConnectGrid({
         </p>
       ) : access && !isPaid ? (
         <p className="mb-3 text-sm text-muted-foreground">
-          The free plan includes {limit} account{limit === 1 ? "" : "s"} with unlimited scheduling.
+          Connect up to {limit} accounts now. Publishing starts with a plan or free trial.
         </p>
       ) : null}
       <div

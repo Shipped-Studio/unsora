@@ -30,7 +30,21 @@ export function globalErrorMessage(
 }
 
 /**
- * Only follow same-site redirects. The value is resolved the way the browser
+ * Origin of this app's Clerk Frontend API (e.g. https://clerk.tryunsora.com),
+ * read from the publishable key: `pk_<env>_<base64("host$")>`.
+ */
+const CLERK_FRONTEND_ORIGIN = (() => {
+  const encoded = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.split("_")[2];
+  if (!encoded) return null;
+  try {
+    return `https://${atob(encoded).replace(/\$$/, "")}`;
+  } catch {
+    return null;
+  }
+})();
+
+/**
+ * Only follow same-site redirects, plus Clerk's own OAuth endpoints. The value is resolved the way the browser
  * would (so tricks like `/\evil.com` or `/\t/evil.com` resolve off-site and
  * are refused) and only its path, query and hash are returned.
  */
@@ -40,6 +54,12 @@ export function safeRedirect(raw: string | null | undefined, fallback = "/") {
     typeof window !== "undefined" ? window.location.origin : "https://app.invalid";
   try {
     const url = new URL(raw, origin);
+    // MCP connectors (ChatGPT, Claude) send signed-out users here with a
+    // redirect back to Clerk's /oauth/authorize, which then shows our consent
+    // screen. That's our own Clerk Frontend API, so it's safe to follow.
+    if (url.origin === CLERK_FRONTEND_ORIGIN && url.pathname.startsWith("/oauth/")) {
+      return url.toString();
+    }
     if (url.origin !== origin) return fallback;
     const path = `${url.pathname}${url.search}${url.hash}`;
     // "//host" would be read as a protocol-relative URL by the router.

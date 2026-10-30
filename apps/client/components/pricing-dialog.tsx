@@ -30,7 +30,7 @@ import {
 } from "@/components/billing/format";
 import { redirectToStripe } from "@/components/billing/redirect-to-stripe";
 import { useAuthFetch } from "@/hooks/use-auth-fetch";
-import { findUserPlan, useSubscriptionPlans } from "@/hooks/use-subscription-plans";
+import { findUserPlan, useSubscriptionPlans, useTrialDays } from "@/hooks/use-subscription-plans";
 import { useUserUsage } from "@/hooks/use-user-usage";
 import { cn } from "@/lib/utils";
 
@@ -48,6 +48,7 @@ export function PricingDialog({ open, onOpenChange }: PricingDialogProps) {
   const { authFetch } = useAuthFetch();
   const { usage } = useUserUsage();
   const { plans, loading, error, refetch } = useSubscriptionPlans();
+  const trialDays = useTrialDays(open);
 
   const currentPlan = findUserPlan(plans, usage?.user.plan);
   const currentKey = currentPlan?.key ?? (usage?.user.plan ?? "free").toLowerCase();
@@ -86,7 +87,9 @@ export function PricingDialog({ open, onOpenChange }: PricingDialogProps) {
           <DialogDescription>
             {isPaid
               ? "Your current subscription ends once the new plan is paid. Unused plan credits carry over and top-up credits stay as they are."
-              : "Plans renew automatically. You can cancel any time from Billing."}
+              : trialDays
+                ? `Every plan starts with a ${trialDays}-day free trial. Cancel any time before it ends from Billing and you won't be charged.`
+                : "Plans renew automatically. You can cancel any time from Billing."}
           </DialogDescription>
         </DialogHeader>
 
@@ -127,8 +130,12 @@ export function PricingDialog({ open, onOpenChange }: PricingDialogProps) {
                 const isCurrent = isPaid && plan.key === currentKey;
                 const per = intervalLabel(plan.interval);
                 const features = plan.features ?? [];
+                // Offer the trial only when checkout really starts one;
+                // returning subscribers pay from day one.
                 const label = !isPaid
-                  ? "Try for free"
+                  ? trialDays
+                    ? `Start ${trialDays}-day free trial`
+                    : `Choose ${plan.name}`
                   : plan.priceUsd > currentPrice
                     ? `Upgrade to ${plan.name}`
                     : `Switch to ${plan.name}`;

@@ -9,8 +9,8 @@ import { hasPaidPlan } from "../lib/plans";
  *   - `user.isActive === true` (subscription / trial currently active), AND
  *   - `user.plan` is set and not equal to "free" (case-insensitive).
  *
- * Used to gate the public REST API. The in-app scheduler uses
- * `requireSchedulerAccess`, which also lets free-tier users in.
+ * Used to gate publishing: creating, scheduling and publishing posts need an
+ * active subscription. Connecting accounts doesn't (check-limit.ts).
  *
  * Must be mounted AFTER `requireAuth` so `req.auth.userId` is available.
  */

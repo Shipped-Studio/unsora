@@ -180,7 +180,7 @@ export function CodeBlock({ label, code }: { label: string; code: string }) {
   );
 }
 
-const EXAMPLE_PROMPTS = [
+export const EXAMPLE_PROMPTS = [
   "Make a 10-second vertical video of a coffee pour and schedule it to TikTok tomorrow at 9am.",
   "Cut the three best clips from this video and post one a day to all my accounts.",
   "How did my posts do over the last 30 days?",

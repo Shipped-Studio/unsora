@@ -30,7 +30,7 @@ export const checkSocialAccountLimit = async (
     where: { userId: user.id },
   });
 
-  // The limit is set per plan at /admin/pricing; free users get FREE_SOCIAL_ACCOUNTS.
+  // The limit is set per plan at /admin/pricing; free users get Basic's.
   const limit = await socialAccountLimitForUser(user);
 
   if (limit === null) {

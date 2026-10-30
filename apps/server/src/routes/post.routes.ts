@@ -2,17 +2,17 @@ import { Router } from "express";
 import { PostController } from "../controllers/post.controller";
 import { analyticsController } from "../controllers/analytics.controller";
 import { requireAuth } from "../middleware/auth";
-import { requireSchedulerAccess } from "../middleware/require-scheduler-access";
+import { requirePaidPlan } from "../middleware/require-paid-plan";
 
 const router = Router();
 const postController = new PostController();
 
 router.use(requireAuth);
 
-// Create post — requires scheduler access (paid plan or free tier)
+// Create post — requires an active paid plan or trial
 router.post(
   "/",
-  requireSchedulerAccess,
+  requirePaidPlan,
   postController.createPost.bind(postController),
 );
 
@@ -35,17 +35,17 @@ router.get("/counts", postController.getPostCounts.bind(postController));
 // Get single post
 router.get("/:id", postController.getPostById.bind(postController));
 
-// Copy a post into a new draft — requires scheduler access (paid plan or free tier)
+// Copy a post into a new draft — requires an active paid plan or trial
 router.post(
   "/:id/duplicate",
-  requireSchedulerAccess,
+  requirePaidPlan,
   postController.duplicatePost.bind(postController),
 );
 
-// Update post — requires scheduler access (paid plan or free tier)
+// Update post — requires an active paid plan or trial
 router.put(
   "/:id",
-  requireSchedulerAccess,
+  requirePaidPlan,
   postController.updatePost.bind(postController),
 );
 
@@ -61,31 +61,31 @@ router.delete(
   postController.deletePost.bind(postController),
 );
 
-// Publish post immediately — requires scheduler access (paid plan or free tier)
+// Publish post immediately — requires an active paid plan or trial
 router.post(
   "/:id/publish",
-  requireSchedulerAccess,
+  requirePaidPlan,
   postController.publishPost.bind(postController),
 );
 
-// Retry a failed or partially published post — requires scheduler access (paid plan or free tier)
+// Retry a failed or partially published post — requires an active paid plan or trial
 router.post(
   "/:id/retry",
-  requireSchedulerAccess,
+  requirePaidPlan,
   postController.retryPost.bind(postController),
 );
 
-// Create and publish post immediately (Post Now) — requires scheduler access (paid plan or free tier)
+// Create and publish post immediately (Post Now) — requires an active paid plan or trial
 router.post(
   "/publish-now",
-  requireSchedulerAccess,
+  requirePaidPlan,
   postController.createAndPublishPost.bind(postController),
 );
 
-// Update custom caption for specific account — requires scheduler access (paid plan or free tier)
+// Update custom caption for specific account — requires an active paid plan or trial
 router.put(
   "/:id/accounts/:accountId/caption",
-  requireSchedulerAccess,
+  requirePaidPlan,
   postController.updateAccountCaption.bind(postController),
 );
 

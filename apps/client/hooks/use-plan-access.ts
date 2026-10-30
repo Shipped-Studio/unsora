@@ -2,8 +2,9 @@ import { useUserUsage } from "./use-user-usage";
 
 /**
  * What the user's plan lets them do in the scheduler, from /usage. The
- * server decides the limit: the plan's while it's live, otherwise the free
- * allowance (0 when the free tier is off). Null while usage loads.
+ * server decides the limit: the plan's while it's live, otherwise Basic's, as
+ * free users can connect accounts (posting needs a plan). Null while usage
+ * loads.
  */
 export function usePlanAccess() {
   const { usage } = useUserUsage();
@@ -18,7 +19,7 @@ export function usePlanAccess() {
     pastDue: usage.user?.status === "past_due",
     limit,
     used,
-    /** The plan allows no accounts at all (free tier switched off). */
+    /** The plan allows no accounts at all (no limit configured). */
     noScheduler: limit === 0,
     atLimit: limit > 0 && used >= limit,
   };

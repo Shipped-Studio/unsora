@@ -96,7 +96,7 @@ function initialState(plan: AdminPlan | null, type: PlanType): FormState {
     credits: plan ? String(plan.credits) : "",
     socialAccounts: plan?.socialAccounts != null ? String(plan.socialAccounts) : "",
     features: plan?.features.join("\n") ?? "",
-    trialDays: plan?.trialDays != null ? String(plan.trialDays) : "3",
+    trialDays: plan?.trialDays != null ? String(plan.trialDays) : "7",
     sortOrder: plan ? String(plan.sortOrder) : "",
     isPopular: plan?.isPopular ?? false,
     isActive: plan?.isActive ?? true,
