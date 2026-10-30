@@ -68,7 +68,8 @@ export function useSubscriptionPlans() {
 
 /**
  * Free-trial days the user's next checkout would start with (0 = none; the
- * trial is first-subscription only). `null` until loaded. Only fetched while
+ * trial is first-subscription only). `null` until loaded, and 0 if the check
+ * fails (checkout still applies the trial if one is due). Only fetched while
  * `enabled`, since the server asks Stripe for the user's invoices.
  */
 export function useTrialDays(enabled: boolean) {
@@ -89,5 +90,5 @@ export function useTrialDays(enabled: boolean) {
     staleTime: 5 * 60 * 1000,
   });
 
-  return query.data ?? null;
+  return query.data ?? (query.isError ? 0 : null);
 }
