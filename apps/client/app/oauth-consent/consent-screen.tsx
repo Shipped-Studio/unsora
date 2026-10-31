@@ -77,6 +77,9 @@ export function ConsentScreen() {
     (key === "app" ? hostname(redirectUri) : connectorApp(key)?.name) ||
     "This app";
   const appLogoUrl = consent.oauthApplicationLogoUrl;
+  // ChatGPT's and Claude's own marks, over whatever Clerk has (often nothing,
+  // which would show the app's initial).
+  const appIcon = key === "app" ? undefined : connectorApp(key)?.icon;
 
   return (
     <SetupFrame
@@ -84,13 +87,19 @@ export function ConsentScreen() {
       current={0}
       appName={appName}
       appLogoUrl={appLogoUrl}
+      appIcon={appIcon}
       homeHref="https://tryunsora.com"
     >
       <div className="w-full animate-in duration-300 fade-in slide-in-from-bottom-2">
         {needsOnboarding(user) ? (
-          <SetUpFirst appName={appName} appLogoUrl={appLogoUrl} connectKey={key} />
+          <SetUpFirst
+            appName={appName}
+            appLogoUrl={appLogoUrl}
+            appIcon={appIcon}
+            connectKey={key}
+          />
         ) : (
-          <ConsentForm appName={appName} consent={consent} />
+          <ConsentForm appName={appName} appIcon={appIcon} consent={consent} />
         )}
       </div>
     </SetupFrame>
@@ -101,16 +110,18 @@ export function ConsentScreen() {
 function SetUpFirst({
   appName,
   appLogoUrl,
+  appIcon,
   connectKey,
 }: {
   appName: string;
   appLogoUrl: string | null | undefined;
+  appIcon?: React.ComponentType<{ className?: string }>;
   connectKey: string;
 }) {
   return (
     <section className="mx-auto w-full max-w-lg space-y-8 text-center">
       <div className="flex items-center justify-center gap-3">
-        <AppMark name={appName} logoUrl={appLogoUrl} />
+        <AppMark name={appName} logoUrl={appLogoUrl} icon={appIcon} />
         <span aria-hidden className="flex items-center gap-1">
           <span className="h-px w-5 bg-foreground/30" />
           <span className="flex size-7 items-center justify-center rounded-full bg-muted text-muted-foreground ring-1 ring-border">
