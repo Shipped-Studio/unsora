@@ -30,8 +30,6 @@ const clerkOpts = {
 /**
  * Auto-creates a DB user record on their first request (get-or-create pattern).
  * Fetches real email from Clerk when available, falls back to a placeholder.
- * The welcome credits are granted by whichever of this and the Clerk webhook
- * creates the row first (lib/signup.ts).
  */
 async function ensureDbUser(clerkId: string): Promise<void> {
   const existing = await prisma.user.findUnique({
