@@ -16,6 +16,7 @@ import { SetupFrame } from "@/components/onboarding/setup-frame";
 import {
   ChannelsStep,
   ConnectStep,
+  CreditsStep,
   HowToStep,
   TrialStep,
 } from "@/components/onboarding/setup-steps";
@@ -28,16 +29,18 @@ import { getBrowserTimezone } from "@/lib/timezone";
 /**
  * First-run setup after sign-up, as its own page:
  *
- *   account → channels → how it works → free trial
+ *   account → channels → how it works → free trial → credits
  *
  * An account made while connecting ChatGPT or Claude (`?connect=`) gets the
  * same steps, then one asking it to connect again from that app:
  *
- *   account → channels → how it works → free trial → connect
+ *   account → channels → how it works → free trial → credits → connect
  *
- * The free trial is left out for anyone who already has a plan. Finishing
- * (or coming back from a started trial) goes into the app, straight to a
- * first post for anyone who can post already, or on to the connect step.
+ * The free trial is left out for anyone who already has a plan. Credits
+ * (top-ups, as plans include none) needs a plan or trial, so it's skipped
+ * without one. Coming back from Stripe (a started trial or a bought pack)
+ * moves on a step. Finishing goes into the app, straight to a first post for
+ * anyone who can post already.
  */
 export function OnboardingFlow() {
   const searchParams = useSearchParams();
@@ -51,17 +54,27 @@ export function OnboardingFlow() {
   const connectKey = searchParams.get(CONNECT_PARAM);
   const app = connectorApp(connectKey);
 
-  // Decided once, so starting the trial doesn't reshuffle the steps.
+  const fromCheckout = searchParams.get(CHECKOUT_PARAM) === "success";
+  const requested = searchParams.get(SETUP_PARAM) as StepId | null;
+  const paid = hasPaidPlan(usage);
+
+  // Decided once, so starting the trial doesn't reshuffle the steps. Back
+  // from the trial's checkout the plan may show already; the trial step
+  // stays so the flow can move on from it.
   const [steps, setSteps] = useState<StepId[] | null>(null);
   if (!steps && usage && accounts) {
-    const trial: StepId[] = hasPaidPlan(usage) ? [] : ["trial"];
-    setSteps(["channels", "howto", ...trial, ...(app ? (["connect"] as const) : [])]);
+    const backFromTrial = fromCheckout && requested === "trial";
+    const trial: StepId[] = paid && !backFromTrial ? [] : ["trial"];
+    setSteps(["channels", "howto", ...trial, "credits", ...(app ? (["connect"] as const) : [])]);
   }
 
-  const requested = searchParams.get(SETUP_PARAM) as StepId | null;
   const current = steps ? (requested && steps.includes(requested) ? requested : steps[0]) : null;
   const index = steps && current ? steps.indexOf(current) : 0;
-  const last = steps !== null && index === steps.length - 1;
+  // Buying credits needs a plan or trial; without one that step is passed over.
+  const skipped = (step: StepId) => step === "credits" && !paid;
+  const nextStep = steps?.slice(index + 1).find((step) => !skipped(step)) ?? null;
+  const prevStep = steps?.slice(0, index).reverse().find((step) => !skipped(step)) ?? null;
+  const last = steps !== null && nextStep === null;
 
   const hrefFor = (step: StepId, extra: Record<string, string> = {}) => {
     const params = new URLSearchParams(extra);
@@ -72,8 +85,7 @@ export function OnboardingFlow() {
   // As in the connector setup: instant step changes, and Back goes a step back.
   const go = (step: StepId) => window.history.pushState(null, "", hrefFor(step));
 
-  const fromCheckout = searchParams.get(CHECKOUT_PARAM) === "success";
-  const canPost = (hasPaidPlan(usage) || fromCheckout) && (accounts?.length ?? 0) > 0;
+  const canPost = (paid || fromCheckout) && (accounts?.length ?? 0) > 0;
 
   /** Into the app, keeping the browser's timezone for scheduling. */
   const enterApp = async () => {
@@ -87,13 +99,15 @@ export function OnboardingFlow() {
     void enterApp();
   };
 
-  // Back from a started trial: on to connecting the app, or that was the
-  // last step.
+  // Back from Stripe: on to the step after the one that sent them there,
+  // or that was the last one. Not skipping Credits here: the trial that
+  // was just started may not show on the account yet.
   const finished = useRef(false);
   useEffect(() => {
-    if (!fromCheckout || !usage || finished.current) return;
+    if (!fromCheckout || !usage || !steps || !current || finished.current) return;
     finished.current = true;
-    if (app) window.history.replaceState(null, "", hrefFor("connect"));
+    const after = steps[index + 1];
+    if (after) window.history.replaceState(null, "", hrefFor(after));
     else void enterApp();
   });
 
@@ -118,8 +132,8 @@ export function OnboardingFlow() {
   const ctx: SetupContext = {
     hrefFor,
     go,
-    next: last ? finish : () => go(steps[index + 1]),
-    back: index > 0 ? () => go(steps[index - 1]) : null,
+    next: nextStep ? () => go(nextStep) : finish,
+    back: prevStep ? () => go(prevStep) : null,
     last,
   };
 
@@ -138,6 +152,7 @@ export function OnboardingFlow() {
         {current === "channels" ? <ChannelsStep ctx={ctx} /> : null}
         {current === "howto" ? <HowToStep ctx={ctx} /> : null}
         {current === "trial" ? <TrialStep ctx={ctx} /> : null}
+        {current === "credits" ? <CreditsStep ctx={ctx} finishing={finishing} /> : null}
         {current === "connect" && app ? (
           <ConnectStep ctx={ctx} app={app} finishing={finishing} />
         ) : null}

@@ -64,6 +64,25 @@ const DEFAULT_META: Record<string, { features: string[]; socialAccounts: number 
       "Priority support",
     ],
   },
+  // The account-based plans that replaced Basic / Pro / Power for new
+  // sign-ups. They include no credits: those are bought as top-ups.
+  starter: {
+    socialAccounts: 5,
+    features: ["5 social accounts", "Scheduling, calendar and analytics", "REST API and MCP server"],
+  },
+  growth: {
+    socialAccounts: 15,
+    features: ["15 social accounts", "Scheduling, calendar and analytics", "REST API and MCP server"],
+  },
+  scale: {
+    socialAccounts: 50,
+    features: [
+      "50 social accounts",
+      "Scheduling, calendar and analytics",
+      "REST API and MCP server",
+      "Priority support",
+    ],
+  },
   // Hand-assigned enterprise accounts (no Plan row).
   custom: { socialAccounts: 50, features: [] },
 };
@@ -105,15 +124,16 @@ export async function findSubscriptionPlan(value: string | null | undefined): Pr
 
 /**
  * Social accounts a user on `planValue` may connect, or null when the plan
- * doesn't allow connecting (unknown). Free users get Basic's allowance so
- * they can connect their channels during onboarding, before starting a
- * trial; publishing still needs a paid plan (requirePaidPlan).
+ * doesn't allow connecting (unknown). Free users get the first plan on sale's
+ * allowance so they can connect their channels during onboarding,
+ * before starting a trial; publishing still needs a paid plan
+ * (requirePaidPlan).
  */
 export async function socialAccountLimitFor(planValue: string | null | undefined): Promise<number | null> {
   const key = planValue?.trim().toLowerCase();
   if (!key || key === "free") {
-    const basic = await getPlanByKey("basic");
-    return basic ? planSocialAccounts(basic) : DEFAULT_META.basic.socialAccounts;
+    const [entry] = await listSubscriptionPlans();
+    return entry ? planSocialAccounts(entry) : DEFAULT_META.basic.socialAccounts;
   }
   const plan = await findSubscriptionPlan(planValue);
   if (plan) return planSocialAccounts(plan);
@@ -270,8 +290,9 @@ export async function getSubscriptionPlanByStripePriceId(
  *
  * Resolution order:
  *   - If `isTrial` is true:
- *       1. The `trial` Plan row (whatever credits you've configured there).
- *       2. Fallback: 0 — better to grant nothing than to silently mint a
+ *       1. 0 when the plan itself includes no credits.
+ *       2. The `trial` Plan row (whatever credits you've configured there).
+ *       3. Fallback: 0 — better to grant nothing than to silently mint a
  *          full bucket you didn't intend.
  *   - Otherwise (paid cycle):
  *       1. Stripe Price ID match in the Plan table.
@@ -289,7 +310,16 @@ export async function resolveSubscriptionCredits(opts: {
   planName?: string | null;
   isTrial?: boolean;
 }): Promise<{ credits: number; plan: Plan | null }> {
+  // `isActive` only controls whether a plan can be bought; people already
+  // subscribed keep getting its credits after it's switched off.
+  const plan =
+    (opts.stripePriceId ? await getSubscriptionPlanByStripePriceId(opts.stripePriceId) : null) ??
+    (opts.planName ? await findSubscriptionPlan(opts.planName) : null);
+
   if (opts.isTrial) {
+    // A plan with no credits (credits come from top-ups) has none in its
+    // trial either.
+    if (plan && plan.credits <= 0) return { credits: 0, plan };
     // Switching the trial off only stops new trials (see trialDays), so
     // trials already running still get their allotment.
     const trial = await getPlanByKey("trial");
@@ -300,23 +330,5 @@ export async function resolveSubscriptionCredits(opts: {
     return { credits: 0, plan: null };
   }
 
-  // `isActive` only controls whether a plan can be bought; people already
-  // subscribed keep getting its credits after it's switched off.
-  if (opts.stripePriceId) {
-    const byPrice = await getSubscriptionPlanByStripePriceId(
-      opts.stripePriceId,
-    );
-    if (byPrice) {
-      return { credits: byPrice.credits, plan: byPrice };
-    }
-  }
-
-  if (opts.planName) {
-    const byName = await findSubscriptionPlan(opts.planName);
-    if (byName) {
-      return { credits: byName.credits, plan: byName };
-    }
-  }
-
-  return { credits: 0, plan: null };
+  return plan ? { credits: plan.credits, plan } : { credits: 0, plan: null };
 }

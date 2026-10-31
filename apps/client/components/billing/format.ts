@@ -38,6 +38,20 @@ export function planCreditsLabel(
   return `${credits.toLocaleString()} credits per ${per ?? "billing period"}`;
 }
 
+/**
+ * The line under a plan's price: its monthly credits for the older plans
+ * that include them, otherwise how many social accounts it allows (credits
+ * on those come from top-ups).
+ */
+export function planAllowanceLabel(plan: {
+  credits: number;
+  interval?: PlanInterval | null;
+  socialAccounts?: number | null;
+}): string | null {
+  if (plan.credits > 0) return planCreditsLabel(plan.credits, plan.interval);
+  return plan.socialAccounts ? `${plan.socialAccounts} social accounts` : null;
+}
+
 /** Plan keys come back lowercase ("pro"); fall back to a readable name. */
 export function planDisplayName(key: string): string {
   return key.charAt(0).toUpperCase() + key.slice(1);

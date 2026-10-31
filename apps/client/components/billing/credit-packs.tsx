@@ -34,7 +34,7 @@ function gridCols(count: number) {
 }
 
 /** The pack with the lowest price per credit, when there's a real choice. */
-function bestValueKey(packs: CreditPack[]): string | null {
+export function bestValueKey(packs: CreditPack[]): string | null {
   const priced = packs.filter((pack) => pack.credits > 0);
   if (priced.length < 2) return null;
   const best = priced.reduce((a, b) =>
@@ -63,7 +63,7 @@ export function CreditPacks({
     return (
       <EmptyState
         title="No credit packs right now"
-        description="Check back later, or change your plan for more credits each period."
+        description="Check back later."
       />
     );
   }

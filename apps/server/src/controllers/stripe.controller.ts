@@ -11,8 +11,10 @@ import {
   rolloverSubscriptionCycle,
 } from "../lib/credits";
 import {
+  findSubscriptionPlan,
   getPlanByKey,
   getTopupPlan,
+  hasPaidPlan,
   listSubscriptionPlans,
   listTopupPlans,
   planFeatures,
@@ -101,8 +103,8 @@ async function planCreditsFor(opts: {
 }
 
 /**
- * Checkout return URL for an in-app `returnPath` (the ChatGPT connector's
- * trial step sends one so the user lands back in that flow), with
+ * Checkout return URL for an in-app `returnPath` (onboarding's trial and
+ * Credits steps send one so the user lands back in that flow), with
  * `checkout=success|cancel` added. Only paths on CLIENT_URL are accepted;
  * anything else returns null and the caller falls back to the env URLs.
  */
@@ -443,7 +445,28 @@ export class StripeController {
                   ? await getSubscriptionCreditsRemaining(user.id)
                   : 0;
 
-              if (credits + carryover > 0) {
+              if (credits === 0 && carryover > 0) {
+                // Switched to a plan with no credits (credits come from
+                // top-ups). The old plan's leftover credits stay, without
+                // an end date: there's no next bucket to roll them into.
+                await expireSubscriptionGrants(user.id, `${idempotencyReason}:expire-previous`);
+                await grantCredits({
+                  userId: user.id,
+                  amount: carryover,
+                  source: "PROMOTION",
+                  reason: idempotencyReason,
+                  expiresAt: null,
+                  metadata: {
+                    stripeSubscriptionId: subscription.id,
+                    stripeInvoiceId: invoice.id,
+                    billingReason,
+                    planUpgrade: true,
+                    upgradeFromSubscriptionId,
+                    planCredits: 0,
+                    carryoverCredits: carryover,
+                  },
+                });
+              } else if (credits + carryover > 0) {
                 await rolloverSubscriptionCycle({
                   userId: user.id,
                   amount: credits + carryover,
@@ -480,6 +503,7 @@ export class StripeController {
                   invoiceId: invoice.id ?? subscription.id,
                   planName,
                   credits: credits + carryover,
+                  planCredits: credits,
                   kind: isTrial ? "trial" : isPlanUpgrade ? "upgraded" : "paid",
                   trialEndsAt: subscription.trial_end
                     ? new Date(subscription.trial_end * 1000)
@@ -1331,10 +1355,19 @@ export class StripeController {
    * checkout resolves it from `key` server-side, so it never touches the
    * browser and can't be tampered with.
    */
-  async getSubscriptionPlans(_req: Request, res: Response) {
+  async getSubscriptionPlans(req: Request, res: Response) {
     try {
       const plans = await listSubscriptionPlans();
-      const data = plans.map((p) => {
+      // A subscriber on a plan that's no longer sold (Basic / Pro / Power
+      // after the move to account-based plans) still sees it as their
+      // current plan, marked so it isn't offered to anyone else.
+      const user = await prisma.user.findUnique({
+        where: { clerkId: req.auth.userId },
+        select: { plan: true, isActive: true },
+      });
+      const current = user && hasPaidPlan(user) ? await findSubscriptionPlan(user.plan) : null;
+      const offSale = current && !plans.some((p) => p.id === current.id) ? [current] : [];
+      const data = [...plans, ...offSale].map((p) => {
         const pub = toPublicPlan(p);
         return {
           key: pub.key,
@@ -1347,6 +1380,7 @@ export class StripeController {
           interval: pub.interval,
           features: planFeatures(p),
           socialAccounts: planSocialAccounts(p),
+          available: p.isActive,
         };
       });
       return res.json({ success: true, data });
@@ -1404,7 +1438,7 @@ export class StripeController {
   async createTopupCheckoutSession(req: Request, res: Response) {
     try {
       const clerkId = req.auth.userId;
-      const { packKey } = req.body as { packKey?: string };
+      const { packKey, returnPath } = req.body as { packKey?: string; returnPath?: string };
 
       if (!packKey || typeof packKey !== "string") {
         return res
@@ -1447,13 +1481,16 @@ export class StripeController {
       // Build return URLs. Prefer the explicit CLIENT_URL env (so we land
       // back on the billing page with a status flag); otherwise fall back to
       // the generic STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL.
+      // Onboarding's Credits step sends a `returnPath` to come back to.
       const billingBase = CLIENT_URL ? `${CLIENT_URL}/billing` : SUCCESS_URL;
-      const successUrl = billingBase
-        ? `${billingBase}?topup=success&credits=${pack.credits}&pack=${pack.key}`
-        : SUCCESS_URL;
-      const cancelUrl = billingBase
-        ? `${billingBase}?topup=cancel`
-        : CANCEL_URL;
+      const successUrl =
+        appReturnUrl(returnPath, "success") ??
+        (billingBase
+          ? `${billingBase}?topup=success&credits=${pack.credits}&pack=${pack.key}`
+          : SUCCESS_URL);
+      const cancelUrl =
+        appReturnUrl(returnPath, "cancel") ??
+        (billingBase ? `${billingBase}?topup=cancel` : CANCEL_URL);
 
       const lineItem: Stripe.Checkout.SessionCreateParams.LineItem = {
         quantity: 1,

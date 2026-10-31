@@ -209,7 +209,7 @@ export function BillingContent() {
 
       <PageSection
         title="Buy credits"
-        description="One-time packs. Top-up credits never expire and are used after your plan credits."
+        description="One-time packs for clipping and creating. Top-up credits never expire and are used after any monthly plan credits."
       >
         {canBuyCredits ? (
           <CreditPacks

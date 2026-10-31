@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -9,7 +9,8 @@ import {
 import { OpenAIIcon } from "@/components/icons";
 import { ConnectGrid } from "@/components/scheduler/accounts-view";
 import { AccountAvatar, accountLabel } from "@/components/scheduler/account-avatar";
-import { formatLongDate, formatUsd, intervalLabel, planCreditsLabel } from "@/components/billing/format";
+import { bestValueKey } from "@/components/billing/credit-packs";
+import { formatLongDate, formatUsd, intervalLabel, planAllowanceLabel } from "@/components/billing/format";
 import { redirectToStripe } from "@/components/billing/redirect-to-stripe";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,15 +18,18 @@ import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/shared/states";
 import { useAuthFetch } from "@/hooks/use-auth-fetch";
 import { useConnectedAccounts } from "@/hooks/use-connected-accounts";
+import { useCreditPacks, type CreditPack } from "@/hooks/use-credit-packs";
 import {
+  plansForSale,
   useSubscriptionPlans,
   useTrialDays,
   type SubscriptionPlan,
 } from "@/hooks/use-subscription-plans";
+import { useUserUsage } from "@/hooks/use-user-usage";
 import { cn } from "@/lib/utils";
 import { HowItWorksLoop, useLoopClock, type Beat } from "./how-it-works-loop";
 import type { ConnectorApp } from "./connector-app";
-import type { SetupContext } from "./setup";
+import { hasPaidPlan, type SetupContext } from "./setup";
 
 /*
  * The onboarding's steps (see setup.ts).
@@ -262,7 +266,8 @@ const PHONE_FEATURES = 4;
 
 export function TrialStep({ ctx }: { ctx: SetupContext }) {
   const { authFetch } = useAuthFetch();
-  const { plans, loading, error, refetch } = useSubscriptionPlans();
+  const { plans: allPlans, loading, error, refetch } = useSubscriptionPlans();
+  const plans = plansForSale(allPlans);
   const trialDays = useTrialDays(true);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   // Captured once so the charge date doesn't drift between renders.
@@ -295,7 +300,7 @@ export function TrialStep({ ctx }: { ctx: SetupContext }) {
     <section className="mx-auto w-full max-w-6xl">
       <StepHeader
         title={hasTrial ? `Try Unsora free for ${trialDays} days` : "Pick a plan"}
-        lead={hasTrial ? "Every plan starts free. Cancel anytime." : "Clipping and creating use credits."}
+        lead={hasTrial ? "Every plan starts free. Cancel anytime." : "Plans are priced by how many accounts you post to."}
       />
 
       <div className="mt-10">
@@ -337,6 +342,117 @@ export function TrialStep({ ctx }: { ctx: SetupContext }) {
       <StepFooter back={ctx.back}>
         <Button size="lg" variant="ghost" onClick={ctx.next} disabled={pendingKey !== null}>
           Not now
+        </Button>
+      </StepFooter>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Right after the trial starts: the top-up packs. Plans include no credits,
+ * so this is where clipping and creating get them; skipping is fine. Only
+ * reached with a plan or trial, which buying needs.
+ */
+export function CreditsStep({ ctx, finishing }: { ctx: SetupContext; finishing?: boolean }) {
+  const { authFetch } = useAuthFetch();
+  const { usage, refetch: refetchUsage } = useUserUsage();
+  const paid = hasPaidPlan(usage);
+  const packs = useCreditPacks({ enabled: paid });
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
+
+  // Back from starting the trial, the webhook that turns the plan on can
+  // land a few seconds later; check again until it has.
+  const [gaveUp, setGaveUp] = useState(false);
+  useEffect(() => {
+    if (paid) return;
+    const poll = setInterval(() => void refetchUsage(), 2000);
+    const stop = setTimeout(() => {
+      clearInterval(poll);
+      setGaveUp(true);
+    }, 30_000);
+    return () => {
+      clearInterval(poll);
+      clearTimeout(stop);
+    };
+  }, [paid, refetchUsage]);
+
+  const buy = async (packKey: string) => {
+    setPendingKey(packKey);
+    const redirecting = await redirectToStripe(
+      authFetch("/api/stripe/create-topup-session", {
+        method: "POST",
+        // Stripe brings them back here with `checkout=success|cancel`; the
+        // setup moves on from there.
+        body: JSON.stringify({ packKey, returnPath: ctx.hrefFor("credits") }),
+      }),
+      "Couldn't start checkout",
+    );
+    if (!redirecting) setPendingKey(null);
+  };
+
+  return (
+    <section className="mx-auto w-full max-w-5xl">
+      <StepHeader
+        eyebrow="Optional"
+        title="Add credits"
+        lead="Plans don't include credits. You need them only for creating: clips, captions, images, video and voiceovers. Scheduling and posting don't use any."
+      />
+
+      <div className="mt-10">
+        {paid && packs.error ? (
+          <ErrorState title="Couldn't load credit packs" onRetry={() => void packs.refetch()} />
+        ) : paid && packs.packs ? (
+          packs.packs.length ? (
+            <ul
+              className={cn(
+                "grid items-stretch gap-3",
+                packs.packs.length >= 4 ? "sm:grid-cols-2 lg:grid-cols-4" : "md:grid-cols-3",
+              )}
+            >
+              {packs.packs.map((pack) => (
+                <PackCard
+                  key={pack.key}
+                  pack={pack}
+                  best={pack.key === bestValueKey(packs.packs ?? [])}
+                  pending={pendingKey === pack.key}
+                  disabled={pendingKey !== null}
+                  onBuy={() => void buy(pack.key)}
+                />
+              ))}
+            </ul>
+          ) : (
+            <p className={cn(CARD, "p-6 text-center text-sm text-muted-foreground")}>
+              No credit packs right now. You can buy credits later from Billing.
+            </p>
+          )
+        ) : paid ? (
+          <div className="grid gap-3 md:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-60 rounded-2xl" />
+            ))}
+          </div>
+        ) : gaveUp ? (
+          <p className={cn(CARD, "p-6 text-center text-sm text-muted-foreground")}>
+            Your trial is still starting. You can buy credits any time from Billing.
+          </p>
+        ) : (
+          <div className="flex flex-col items-center gap-3 py-12 text-sm text-muted-foreground">
+            <Spinner className="size-5" />
+            Starting your trial
+          </div>
+        )}
+      </div>
+
+      <p className="mt-6 text-center text-sm text-muted-foreground">
+        Top-up credits never expire. You can buy more any time from Billing.
+      </p>
+
+      <StepFooter back={ctx.back}>
+        <Button size="lg" variant="ghost" onClick={ctx.next} disabled={pendingKey !== null || finishing}>
+          {finishing ? <Spinner data-icon="inline-start" /> : null}
+          Skip for now
         </Button>
       </StepFooter>
     </section>
@@ -399,6 +515,62 @@ export function ConnectStep({
   );
 }
 
+/** A top-up pack, laid out like PlanCard so the two steps read as one set. */
+function PackCard({
+  pack,
+  best,
+  pending,
+  disabled,
+  onBuy,
+}: {
+  pack: CreditPack;
+  /** Lowest price per credit. */
+  best: boolean;
+  pending: boolean;
+  disabled: boolean;
+  onBuy: () => void;
+}) {
+  const perCredit = pack.credits > 0 ? pack.priceUsd / pack.credits : 0;
+  return (
+    <li
+      className={cn(
+        "flex flex-col rounded-2xl bg-card p-5 ring-1 sm:p-6",
+        best ? "ring-2 ring-foreground" : "ring-border",
+      )}
+    >
+      <p className="flex items-center gap-2 font-medium">
+        {pack.name}
+        {best ? (
+          <span className="rounded-full bg-foreground px-2 py-0.5 text-2xs font-medium text-background">
+            Best value
+          </span>
+        ) : null}
+      </p>
+      <p className="mt-4 text-4xl font-semibold tracking-tight tabular-nums">
+        {pack.credits.toLocaleString()}
+        <span className="text-sm font-normal text-muted-foreground"> credits</span>
+      </p>
+      <p className="mt-1 text-sm text-muted-foreground tabular-nums">
+        {formatUsd(pack.priceUsd)} · ${perCredit.toFixed(3)} per credit
+      </p>
+      {pack.description ? <p className="mt-4 text-sm text-muted-foreground">{pack.description}</p> : null}
+
+      {/* Pushes the button down, so buttons line up whatever the descriptions. */}
+      <div className="min-h-6 flex-1" />
+      <Button
+        size="lg"
+        variant={best ? "default" : "outline"}
+        className="w-full"
+        disabled={disabled}
+        onClick={onBuy}
+      >
+        {pending ? <Spinner data-icon="inline-start" /> : null}
+        Buy for {formatUsd(pack.priceUsd)}
+      </Button>
+    </li>
+  );
+}
+
 function PlanCard({
   plan,
   trialDays,
@@ -415,6 +587,7 @@ function PlanCard({
 }) {
   const [showAll, setShowAll] = useState(false);
   const per = intervalLabel(plan.interval);
+  const allowance = planAllowanceLabel(plan);
   // Clipping is what Unsora is known for, so it goes third: right after the
   // plan's account limit and scheduling, ahead of the rest.
   const own = plan.features ?? [];
@@ -441,9 +614,7 @@ function PlanCard({
         {formatUsd(plan.priceUsd)}
         {per ? <span className="text-sm font-normal text-muted-foreground"> / {per}</span> : null}
       </p>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {planCreditsLabel(plan.credits, plan.interval)}
-      </p>
+      {allowance ? <p className="mt-1 text-sm text-muted-foreground">{allowance}</p> : null}
 
       <Button
         size="lg"

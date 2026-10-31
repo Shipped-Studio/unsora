@@ -117,10 +117,12 @@ export function CurrentPlanCard({
           {plan ? (
             <div>
               <dt className="text-xs text-muted-foreground">Plan includes</dt>
+              {/* Older plans include monthly credits; the account-based
+                  ones don't, so they show their account limit. */}
               <dd className="mt-1 text-2xl font-medium tabular-nums">
-                {plan.credits.toLocaleString()}
+                {plan.credits > 0 ? plan.credits.toLocaleString() : (plan.socialAccounts ?? "—")}
                 <span className="ml-1.5 text-sm font-normal text-muted-foreground">
-                  credits per {per ?? "billing period"}
+                  {plan.credits > 0 ? `credits per ${per ?? "billing period"}` : "social accounts"}
                 </span>
               </dd>
             </div>

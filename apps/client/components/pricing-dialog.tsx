@@ -26,7 +26,7 @@ import { EmptyState, ErrorState } from "@/components/shared/states";
 import {
   formatUsd,
   intervalLabel,
-  planCreditsLabel,
+  planAllowanceLabel,
 } from "@/components/billing/format";
 import { redirectToStripe } from "@/components/billing/redirect-to-stripe";
 import { useAuthFetch } from "@/hooks/use-auth-fetch";
@@ -54,6 +54,9 @@ export function PricingDialog({ open, onOpenChange }: PricingDialogProps) {
   const currentKey = currentPlan?.key ?? (usage?.user.plan ?? "free").toLowerCase();
   const isPaid = usage?.user.isActive === true && currentKey !== "free";
   const currentPrice = currentPlan?.priceUsd ?? 0;
+  // Plans on sale, plus a subscriber's own plan if it's no longer sold.
+  const shown =
+    plans?.filter((p) => p.available !== false || (isPaid && p.key === currentKey)) ?? null;
 
   const handleSelect = async (planKey: string) => {
     setPendingKey(planKey);
@@ -72,7 +75,7 @@ export function PricingDialog({ open, onOpenChange }: PricingDialogProps) {
     if (!redirecting) setPendingKey(null);
   };
 
-  const count = plans?.length ?? 3;
+  const count = shown?.length ?? 3;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -86,7 +89,9 @@ export function PricingDialog({ open, onOpenChange }: PricingDialogProps) {
           <DialogTitle>{isPaid ? "Change plan" : "Choose a plan"}</DialogTitle>
           <DialogDescription>
             {isPaid
-              ? "Your current subscription ends once the new plan is paid. Unused plan credits carry over and top-up credits stay as they are."
+              ? currentPlan?.credits
+                ? "Your current subscription ends once the new plan is paid. The new plans don't add credits each month: the credits you have now stay, and you can buy more as top-ups."
+                : "Your current subscription ends once the new plan is paid. Your credits stay as they are."
               : trialDays
                 ? `Every plan starts with a ${trialDays}-day free trial. Cancel any time before it ends from Billing and you won't be charged.`
                 : "Plans renew automatically. You can cancel any time from Billing."}
@@ -119,14 +124,15 @@ export function PricingDialog({ open, onOpenChange }: PricingDialogProps) {
               description={error}
               onRetry={() => void refetch()}
             />
-          ) : !plans?.length ? (
+          ) : !shown?.length ? (
             <EmptyState
               title="No plans available"
               description="Plans are being updated. Check back in a few minutes."
             />
           ) : (
-            <div className={cn("grid grid-cols-1 gap-3", gridCols(plans.length))}>
-              {plans.map((plan) => {
+            <div className={cn("grid grid-cols-1 gap-3", gridCols(shown.length))}>
+              {shown.map((plan) => {
+                const allowance = planAllowanceLabel(plan);
                 const isCurrent = isPaid && plan.key === currentKey;
                 const per = intervalLabel(plan.interval);
                 const features = plan.features ?? [];
@@ -168,9 +174,9 @@ export function PricingDialog({ open, onOpenChange }: PricingDialogProps) {
                           </span>
                         ) : null}
                       </p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {planCreditsLabel(plan.credits, plan.interval)}
-                      </p>
+                      {allowance ? (
+                        <p className="mt-1 text-sm text-muted-foreground">{allowance}</p>
+                      ) : null}
                       {features.length ? (
                         <>
                           <Separator className="my-4" />

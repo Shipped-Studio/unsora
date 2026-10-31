@@ -16,6 +16,19 @@ export interface SubscriptionPlan {
   sortOrder: number;
   /** Bullet points for the pricing card, set at /admin/pricing. */
   features?: string[];
+  /** Social accounts the plan allows. */
+  socialAccounts?: number | null;
+  /**
+   * False for a plan that's no longer sold, sent only as the subscriber's
+   * own current plan (Basic / Pro / Power after the move to account-based
+   * plans).
+   */
+  available?: boolean;
+}
+
+/** The plans anyone can pick, without a subscriber's off-sale plan. */
+export function plansForSale(plans: SubscriptionPlan[] | null | undefined) {
+  return plans?.filter((p) => p.available !== false) ?? null;
 }
 
 /**
