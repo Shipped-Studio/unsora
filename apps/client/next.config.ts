@@ -30,6 +30,19 @@ const nextConfig: NextConfig = {
       { source: "/scheduler/posts/posted", destination: "/scheduler/posts?status=published", permanent: false },
     ];
   },
+  // PostHog through this domain (see components/analytics/posthog-provider.tsx),
+  // so browsers that block its servers (Brave, ad blockers) still send
+  // recordings. The path is deliberately not "posthog" or "analytics",
+  // which blockers also match. proxy.ts skips it.
+  async rewrites() {
+    return [
+      { source: "/uxr/static/:path*", destination: "https://us-assets.i.posthog.com/static/:path*" },
+      { source: "/uxr/array/:path*", destination: "https://us-assets.i.posthog.com/array/:path*" },
+      { source: "/uxr/:path*", destination: "https://us.i.posthog.com/:path*" },
+    ];
+  },
+  // PostHog's API paths end in a slash (/e/, /flags/); keep them as sent.
+  skipTrailingSlashRedirect: true,
 };
 
 export default nextConfig;
