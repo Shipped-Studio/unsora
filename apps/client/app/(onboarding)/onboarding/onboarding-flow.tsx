@@ -14,7 +14,6 @@ import {
 } from "@/components/onboarding/setup";
 import { SetupFrame } from "@/components/onboarding/setup-frame";
 import {
-  AgentsStep,
   ChannelsStep,
   ConnectStep,
   HowToStep,
@@ -29,12 +28,12 @@ import { getBrowserTimezone } from "@/lib/timezone";
 /**
  * First-run setup after sign-up, as its own page:
  *
- *   account → channels → how it works → AI agent → free trial
+ *   account → channels → how it works → free trial
  *
  * An account made while connecting ChatGPT or Claude (`?connect=`) gets the
  * same steps, then one asking it to connect again from that app:
  *
- *   account → channels → how it works → AI agent → free trial → connect
+ *   account → channels → how it works → free trial → connect
  *
  * The free trial is left out for anyone who already has a plan. Finishing
  * (or coming back from a started trial) goes into the app, straight to a
@@ -56,7 +55,7 @@ export function OnboardingFlow() {
   const [steps, setSteps] = useState<StepId[] | null>(null);
   if (!steps && usage && accounts) {
     const trial: StepId[] = hasPaidPlan(usage) ? [] : ["trial"];
-    setSteps(["channels", "howto", "agents", ...trial, ...(app ? (["connect"] as const) : [])]);
+    setSteps(["channels", "howto", ...trial, ...(app ? (["connect"] as const) : [])]);
   }
 
   const requested = searchParams.get(SETUP_PARAM) as StepId | null;
@@ -128,7 +127,7 @@ export function OnboardingFlow() {
     <SetupFrame steps={steps} current={index} appName={null} homeHref="/">
       {/* Reaching the last steps finishes onboarding, so connecting the app
           after it goes straight to Allow. */}
-      {current === "agents" || current === "trial" || current === "connect" ? (
+      {current === "trial" || last ? (
         <MarkOnboarded />
       ) : null}
       <div
@@ -138,7 +137,6 @@ export function OnboardingFlow() {
       >
         {current === "channels" ? <ChannelsStep ctx={ctx} /> : null}
         {current === "howto" ? <HowToStep ctx={ctx} /> : null}
-        {current === "agents" ? <AgentsStep ctx={ctx} finishing={finishing} /> : null}
         {current === "trial" ? <TrialStep ctx={ctx} /> : null}
         {current === "connect" && app ? (
           <ConnectStep ctx={ctx} app={app} finishing={finishing} />
