@@ -71,6 +71,14 @@ const AFTER_AUTH = "/onboarding";
  */
 const RESUME_KEY = "unsora:connector-redirect";
 
+function resumeUrl(): string | null {
+  try {
+    return sessionStorage.getItem(RESUME_KEY);
+  } catch {
+    return null; // Storage blocked.
+  }
+}
+
 const SECOND_FACTOR_COPY: Record<SecondFactor, { title: string; description: string }> = {
   email_code: {
     title: "Check your email",
@@ -126,13 +134,8 @@ export function AuthForm() {
     }
   }, [isConnecting, rawRedirect]);
   const resumeSignIn = (event: React.MouseEvent) => {
-    let resume: string | null = null;
-    try {
-      resume = sessionStorage.getItem(RESUME_KEY);
-    } catch {
-      // Fall through to the plain /sign-in link.
-    }
-    if (!resume) return;
+    const resume = resumeUrl();
+    if (!resume) return; // The plain /sign-in link.
     event.preventDefault();
     router.replace(`/sign-in?redirect_url=${encodeURIComponent(resume)}`);
   };
@@ -210,11 +213,15 @@ export function AuthForm() {
     // Started as a sign-up with the terms accepted (the notice below the
     // form), so a new Google user isn't stopped at /sign-up/continue and
     // keeps their redirect. An existing account is moved over to a sign-in
-    // by /sso-callback.
+    // by /sso-callback, which needs telling where each goes. An existing
+    // account signing up from a connector picks the connection back up.
+    const signUpTo = joining ? afterSignUp : redirectTo;
+    const signInTo = joining ? safeRedirect(resumeUrl(), redirectTo) : redirectTo;
+    const callback = new URLSearchParams({ sign_in: signInTo, sign_up: signUpTo });
     const { error: ssoError } = await signUp.sso({
       strategy: "oauth_google",
-      redirectUrl: joining ? afterSignUp : redirectTo,
-      redirectCallbackUrl: "/sso-callback",
+      redirectUrl: signUpTo,
+      redirectCallbackUrl: `/sso-callback?${callback.toString()}`,
       legalAccepted: true,
     });
     if (ssoError) {
