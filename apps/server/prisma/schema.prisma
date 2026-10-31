@@ -481,7 +481,10 @@ model PostMedia {
   updatedAt DateTime @default(now()) @updatedAt
 
   assetId String
-  asset   Asset  @relation("PostMediaAsset", fields: [assetId], references: [id])
+  // Also DEFERRABLE INITIALLY DEFERRED in the database (migration
+  // 20261031_post_media_asset_no_action), so deleting a user, which cascades
+  // to assets and posts, isn't stopped before post_media goes too.
+  asset   Asset  @relation("PostMediaAsset", fields: [assetId], references: [id], onDelete: NoAction)
 
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
