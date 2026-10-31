@@ -137,7 +137,7 @@ export function ConsentForm({ appName, consent }: { appName: string; consent: Co
             type="button"
             variant="ghost"
             size="sm"
-            // Signed out, proxy.ts sends them to /sign-in and back here.
+            // Signed out, the page sends them to /sign-in and back here.
             onClick={() => clerk.signOut({ redirectUrl: window.location.href })}
           >
             Switch account
