@@ -144,7 +144,7 @@ export function AuthForm() {
       onSignIn={joining ? resumeSignIn : undefined}
     />
   ) : null;
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isLoaded: authLoaded } = useAuth();
 
   // Already signed in (another tab, or the back button): carry on to where
   // they were going instead of showing a form Clerk would refuse.
@@ -363,6 +363,17 @@ export function AuthForm() {
       <span>Set up your Unsora account first, then you can connect it to {connector.name}.</span>
     </p>
   ) : null;
+
+  // On Clerk's dev instances a connector's OAuth request comes through here
+  // even when signed in (to pick up the session), so don't flash the form
+  // while Clerk loads and sends them on.
+  if (connecting && (!authLoaded || isSignedIn)) {
+    return (
+      <div className="flex justify-center py-16">
+        <Spinner className="size-6 text-muted-foreground" />
+      </div>
+    );
+  }
 
   if (step === "email-code" || step === "second-factor" || step === "verify") {
     const copy =

@@ -17,6 +17,8 @@ import { SetupFrame } from "@/components/onboarding/setup-frame";
 import { StepHeader } from "@/components/onboarding/setup-steps";
 import { buttonVariants } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { useConnectedAccounts } from "@/hooks/use-connected-accounts";
+import { useUserUsage } from "@/hooks/use-user-usage";
 import { ConsentForm } from "./consent-form";
 
 /**
@@ -52,6 +54,9 @@ export function ConsentScreen() {
     redirectUri,
   });
 
+  const key = connectorAppKey(redirectUri);
+  const known = key === "app" ? null : connectorApp(key);
+
   if (!clientId || !redirectUri) {
     return (
       <Problem message="This connection link is incomplete. Start the connection again from the app you're connecting." />
@@ -62,24 +67,29 @@ export function ConsentScreen() {
       <Problem message="We couldn't load this connection request. It may have expired, so start it again from the app you're connecting." />
     );
   }
+  // ChatGPT's and Claude's own marks, over whatever Clerk has (often nothing,
+  // which would show the app's initial).
+  const appIcon = known?.icon;
+
   if (!consent || !user) {
+    // The frame right away, so the wait reads as this page loading.
     return (
-      <div className="flex flex-1 items-center justify-center">
-        <Spinner className="size-6 text-muted-foreground" />
-      </div>
+      <SetupFrame
+        steps={[]}
+        current={0}
+        appName={known?.name ?? null}
+        appIcon={appIcon}
+        homeHref="https://tryunsora.com"
+      >
+        <Spinner className="mt-24 size-6 text-muted-foreground" />
+        {isSignedIn ? <PrefetchSummary /> : null}
+      </SetupFrame>
     );
   }
 
-  const key = connectorAppKey(redirectUri);
   // Clerk's name when the OAuth app has one, else a known app, else its host.
-  const appName =
-    consent.oauthApplicationName ||
-    (key === "app" ? hostname(redirectUri) : connectorApp(key)?.name) ||
-    "This app";
+  const appName = consent.oauthApplicationName || known?.name || hostname(redirectUri);
   const appLogoUrl = consent.oauthApplicationLogoUrl;
-  // ChatGPT's and Claude's own marks, over whatever Clerk has (often nothing,
-  // which would show the app's initial).
-  const appIcon = key === "app" ? undefined : connectorApp(key)?.icon;
 
   return (
     <SetupFrame
@@ -104,6 +114,16 @@ export function ConsentScreen() {
       </div>
     </SetupFrame>
   );
+}
+
+/**
+ * Starts ConsentForm's summary requests alongside the consent request rather
+ * than after it. Mounted once signed in, so they go out with a session.
+ */
+function PrefetchSummary() {
+  useUserUsage();
+  useConnectedAccounts();
+  return null;
 }
 
 /** A new account: set up Unsora, then connect again from the app. */
