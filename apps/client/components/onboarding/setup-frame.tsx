@@ -22,14 +22,16 @@ function progressItems(steps: StepId[], current: number): ProgressItem[] {
 }
 
 /**
- * The page around both setups: the logo, the stepper and, when an app is
- * connecting, which one. The step itself goes in `children`.
+ * The page around the onboarding and the consent screen: the logo, the
+ * stepper and, when an app is connecting, which one. The step itself goes in
+ * `children`.
  */
 export function SetupFrame({
   steps,
   current,
   appName,
   appLogoUrl,
+  appIcon,
   homeHref,
   children,
 }: {
@@ -38,6 +40,7 @@ export function SetupFrame({
   /** The app being connected, shown top right; null in the app's own onboarding. */
   appName: string | null;
   appLogoUrl?: string | null;
+  appIcon?: React.ComponentType<{ className?: string }>;
   homeHref: string;
   children: React.ReactNode;
 }) {
@@ -61,7 +64,7 @@ export function SetupFrame({
         {progress ? <Stepper items={progress} /> : null}
         {appName ? (
           <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-card py-1 pr-3 pl-1 text-xs text-muted-foreground ring-1 ring-border">
-            <AppMark name={appName} logoUrl={appLogoUrl} size="xs" />
+            <AppMark name={appName} logoUrl={appLogoUrl} icon={appIcon} size="xs" />
             <span className="hidden lg:inline">Connecting {appName}</span>
             <span className="tabular-nums lg:hidden">{badge ?? `Connecting ${appName}`}</span>
           </span>

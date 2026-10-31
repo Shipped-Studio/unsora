@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useClerk, useOAuthConsent, useUser } from "@clerk/nextjs";
 import {
@@ -21,8 +21,7 @@ import { useConnectedAccounts } from "@/hooks/use-connected-accounts";
 import { useUserUsage } from "@/hooks/use-user-usage";
 import { cn } from "@/lib/utils";
 import { AppMark } from "@/components/onboarding/app-mark";
-import { CHECKOUT_PARAM, type SetupContext } from "@/components/onboarding/setup";
-import { OWN_PARAMS } from "./setup-params";
+import { hasPaidPlan } from "@/components/onboarding/setup";
 
 type Consent = NonNullable<ReturnType<typeof useOAuthConsent>["data"]>;
 type Decision = "true" | "false";
@@ -42,7 +41,7 @@ const ACTS = [
 ];
 const SEES = [{ icon: Eye, text: "Your posts, files and credit balance" }];
 
-export function ConsentForm({ ctx, consent }: { ctx: SetupContext; consent: Consent }) {
+export function ConsentForm({ appName, consent }: { appName: string; consent: Consent }) {
   const clerk = useClerk();
   const { user } = useUser();
   const searchParams = useSearchParams();
@@ -52,21 +51,9 @@ export function ConsentForm({ ctx, consent }: { ctx: SetupContext; consent: Cons
   const formRef = useRef<HTMLFormElement>(null);
   const confirmed = useRef(false);
 
-  // Back from Stripe: the plan arrives by webhook, so poll until it shows.
-  const fromCheckout = searchParams.get(CHECKOUT_PARAM) === "success";
-  const [gaveUp, setGaveUp] = useState(false);
-  const [isPaid, setIsPaid] = useState(false);
-  const polling = fromCheckout && !isPaid && !gaveUp;
-  const { usage } = useUserUsage({ pollIntervalMs: polling ? 2000 : false });
+  const { usage } = useUserUsage();
   const { data: accounts } = useConnectedAccounts();
-  const plan = (usage?.user.plan ?? "free").toLowerCase();
-  const paidNow = Boolean(usage?.user.isActive) && plan !== "free";
-  if (paidNow !== isPaid) setIsPaid(paidNow);
-  useEffect(() => {
-    if (!fromCheckout) return;
-    const stop = window.setTimeout(() => setGaveUp(true), 20_000);
-    return () => window.clearTimeout(stop);
-  }, [fromCheckout]);
+  const isPaid = hasPaidPlan(usage);
 
   const scopes = searchParams.get("scope")?.split(" ") ?? [];
   const sees = [
@@ -75,7 +62,6 @@ export function ConsentForm({ ctx, consent }: { ctx: SetupContext; consent: Cons
       ? [{ icon: IdentificationCard, text: "Your name and email" }]
       : []),
   ];
-  const appName = ctx.appName ?? "This app";
   const returnHost = consent.redirectDomain || hostname(searchParams.get("redirect_uri") ?? "");
   const email = user?.primaryEmailAddress?.emailAddress ?? user?.username;
   const planName = usage?.user.plan && isPaid ? usage.user.plan : null;
@@ -151,7 +137,7 @@ export function ConsentForm({ ctx, consent }: { ctx: SetupContext; consent: Cons
             type="button"
             variant="ghost"
             size="sm"
-            // Signed out, this page shows its own account step again.
+            // Signed out, proxy.ts sends them to /sign-in and back here.
             onClick={() => clerk.signOut({ redirectUrl: window.location.href })}
           >
             Switch account
@@ -176,34 +162,17 @@ export function ConsentForm({ ctx, consent }: { ctx: SetupContext; consent: Cons
                 <span className="tabular-nums">{accounts.length}</span>
               </span>
             ) : (
-              <button
-                type="button"
-                onClick={() => ctx.go("channels")}
-                className="rounded-sm text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                None yet
-              </button>
+              <span className="text-muted-foreground">None yet</span>
             )}
           </SummaryCell>
           <SummaryCell label="Plan">
-            {polling && !isPaid ? (
-              <span className="flex items-center gap-1.5 text-muted-foreground">
-                <Spinner className="size-3.5" />
-                Starting
-              </span>
-            ) : planName ? (
+            {planName ? (
               <span className="truncate">
                 <span className="capitalize">{planName}</span>
                 {trialing ? <span className="text-muted-foreground"> trial</span> : null}
               </span>
             ) : (
-              <button
-                type="button"
-                onClick={() => ctx.go("trial")}
-                className="rounded-sm text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                No plan
-              </button>
+              <span className="text-muted-foreground">No plan</span>
             )}
           </SummaryCell>
           <SummaryCell label="Credits">
@@ -225,12 +194,9 @@ export function ConsentForm({ ctx, consent }: { ctx: SetupContext; consent: Cons
           />
         </div>
 
-        {/* Forward the original OAuth parameters, except fields set by this form or this page. */}
+        {/* Forward the original OAuth parameters, except fields set by this form. */}
         {Array.from(searchParams.entries())
-          .filter(
-            ([key]) =>
-              key !== "consented" && key !== "organization_id" && !OWN_PARAMS.includes(key),
-          )
+          .filter(([key]) => key !== "consented" && key !== "organization_id")
           .map(([key, value], index) => (
             <input key={`${key}:${index}`} type="hidden" name={key} value={value} />
           ))}
