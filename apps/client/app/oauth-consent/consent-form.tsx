@@ -41,7 +41,15 @@ const ACTS = [
 ];
 const SEES = [{ icon: Eye, text: "Your posts, files and credit balance" }];
 
-export function ConsentForm({ appName, consent }: { appName: string; consent: Consent }) {
+export function ConsentForm({
+  appName,
+  appIcon,
+  consent,
+}: {
+  appName: string;
+  appIcon?: React.ComponentType<{ className?: string }>;
+  consent: Consent;
+}) {
   const clerk = useClerk();
   const { user } = useUser();
   const searchParams = useSearchParams();
@@ -95,7 +103,7 @@ export function ConsentForm({ appName, consent }: { appName: string; consent: Co
       >
         <div className="space-y-5 text-center">
           <div className="flex items-center justify-center gap-3">
-            <AppMark name={appName} logoUrl={consent.oauthApplicationLogoUrl} />
+            <AppMark name={appName} logoUrl={consent.oauthApplicationLogoUrl} icon={appIcon} />
             <span aria-hidden className="flex items-center gap-1">
               <span className="h-px w-5 bg-foreground/30" />
               <span className="flex size-7 items-center justify-center rounded-full bg-brand text-brand-foreground ring-1 ring-foreground/80">
