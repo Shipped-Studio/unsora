@@ -1,14 +1,13 @@
-import type { ConnectorApp } from "./connector-app";
-
 /**
  * The app's onboarding after sign-up (app/(onboarding)/onboarding):
  *
  *   channels → how it works → connect an AI agent → free trial
  *
  * An account made while connecting ChatGPT or Claude (`?connect=`, see
- * connector-app.ts) sets up first and then goes back to connect:
+ * connector-app.ts) gets the same steps, then one asking it to connect again
+ * from that app:
  *
- *   channels → how it works → free trial → connect
+ *   channels → how it works → connect an AI agent → free trial → connect
  *
  * The free trial is left out for anyone who already has a plan. The step
  * lives in the URL so it survives the channel OAuth and Stripe round trips.
@@ -30,8 +29,6 @@ export const STEP_LABELS = {
 export type StepId = keyof typeof STEP_LABELS;
 
 export interface SetupContext {
-  /** The app this account was made to connect; null otherwise. */
-  app: ConnectorApp | null;
   /** This page's URL with the step set to `step`. */
   hrefFor: (step: StepId, extra?: Record<string, string>) => string;
   go: (step: StepId) => void;

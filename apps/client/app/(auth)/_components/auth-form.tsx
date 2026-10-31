@@ -4,7 +4,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth, useSignIn, useSignUp } from "@clerk/nextjs";
 import { ArrowLeft, Info } from "@phosphor-icons/react";
-import { CONNECT_PARAM, connectorFromRedirect } from "@/components/onboarding/connector-app";
+import {
+  CONNECT_PARAM,
+  connectorApp,
+  connectorFromRedirect,
+} from "@/components/onboarding/connector-app";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -23,6 +27,7 @@ import {
 } from "@/lib/clerk-errors";
 import {
   AuthHeader,
+  AuthSwitch,
   CodeInput,
   FormError,
   GoogleButton,
@@ -46,7 +51,8 @@ import {
  *
  * Signing in from a connector (ChatGPT, Claude) goes back to its OAuth flow.
  * A new account doesn't: it sets up first (/onboarding?connect=) and then
- * connects again from the app.
+ * connects again from the app. The Sign up side of the switch there leads to
+ * /sign-up?connect=, which drops the OAuth redirect up front.
  */
 
 type Step =
@@ -59,6 +65,11 @@ type Step =
 type SecondFactor = "email_code" | "phone_code" | "totp" | "backup_code";
 
 const AFTER_AUTH = "/onboarding";
+/**
+ * The connector's sign-in redirect, kept for the tab so the sign-up URL stays
+ * just /sign-up?connect=… and the switch can still go back to it.
+ */
+const RESUME_KEY = "unsora:connector-redirect";
 
 const SECOND_FACTOR_COPY: Record<SecondFactor, { title: string; description: string }> = {
   email_code: {
@@ -96,8 +107,43 @@ export function AuthForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = safeRedirect(searchParams.get("redirect_url"), AFTER_AUTH);
-  const connector = connectorFromRedirect(redirectTo);
+  // Signing in from a connector's OAuth flow… Read from the raw param:
+  // safeRedirect can't check the origin on the server, so it would differ
+  // between the server render and the browser.
+  const connecting = connectorFromRedirect(searchParams.get("redirect_url"));
+  // …or signing up from there, without it.
+  const joining = connecting ? null : connectorApp(searchParams.get(CONNECT_PARAM));
+  const connector = connecting ?? joining;
   const afterSignUp = connector ? `${AFTER_AUTH}?${CONNECT_PARAM}=${connector.key}` : redirectTo;
+  const rawRedirect = searchParams.get("redirect_url");
+  const isConnecting = Boolean(connecting);
+  useEffect(() => {
+    if (!isConnecting || !rawRedirect) return;
+    try {
+      sessionStorage.setItem(RESUME_KEY, rawRedirect);
+    } catch {
+      // Storage blocked: "Sign in" on sign-up then opens a plain sign-in.
+    }
+  }, [isConnecting, rawRedirect]);
+  const resumeSignIn = (event: React.MouseEvent) => {
+    let resume: string | null = null;
+    try {
+      resume = sessionStorage.getItem(RESUME_KEY);
+    } catch {
+      // Fall through to the plain /sign-in link.
+    }
+    if (!resume) return;
+    event.preventDefault();
+    router.replace(`/sign-in?redirect_url=${encodeURIComponent(resume)}`);
+  };
+  const authSwitch = connector ? (
+    <AuthSwitch
+      current={joining ? "sign-up" : "sign-in"}
+      signInHref="/sign-in"
+      signUpHref={`/sign-up?${CONNECT_PARAM}=${connector.key}`}
+      onSignIn={joining ? resumeSignIn : undefined}
+    />
+  ) : null;
   const { isSignedIn } = useAuth();
 
   // Already signed in (another tab, or the back button): carry on to where
@@ -167,7 +213,7 @@ export function AuthForm() {
     // by /sso-callback.
     const { error: ssoError } = await signUp.sso({
       strategy: "oauth_google",
-      redirectUrl: redirectTo,
+      redirectUrl: joining ? afterSignUp : redirectTo,
       redirectCallbackUrl: "/sso-callback",
       legalAccepted: true,
     });
@@ -311,6 +357,12 @@ export function AuthForm() {
     </span>
   );
   const captcha = <div id="clerk-captcha" className="empty:hidden" />;
+  const setUpFirst = connector ? (
+    <p className="flex gap-2.5 rounded-xl bg-muted px-4 py-3 text-sm text-pretty text-muted-foreground">
+      <Info className="mt-0.5 size-4 shrink-0" />
+      <span>Set up your Unsora account first, then you can connect it to {connector.name}.</span>
+    </p>
+  ) : null;
 
   if (step === "email-code" || step === "second-factor" || step === "verify") {
     const copy =
@@ -456,14 +508,7 @@ export function AuthForm() {
     return (
       <div className="space-y-6">
         <AuthHeader title="Create your account" description={emailLine} />
-        {connector ? (
-          <p className="flex gap-2.5 rounded-xl bg-muted px-4 py-3 text-sm text-pretty text-muted-foreground">
-            <Info className="mt-0.5 size-4 shrink-0" />
-            <span>
-              Set up your Unsora account first, then you can connect it to {connector.name}.
-            </span>
-          </p>
-        ) : null}
+        {setUpFirst}
         <form onSubmit={createAccount} className="space-y-5" noValidate>
           <Field data-invalid={Boolean(signUpErrors.fields.password) || undefined}>
             <FieldLabel htmlFor="password">Choose a password</FieldLabel>
@@ -498,14 +543,22 @@ export function AuthForm() {
 
   return (
     <div className="space-y-6">
-      <AuthHeader
-        title="Get started with Unsora"
-        description={
-          connector
-            ? `Sign in to connect ${connector.name}. New here? Just enter your email.`
-            : "Sign in or create a free account. Just enter your email."
-        }
-      />
+      {authSwitch}
+      {joining ? (
+        <>
+          <AuthHeader title="Create your account" />
+          {setUpFirst}
+        </>
+      ) : (
+        <AuthHeader
+          title={connecting ? "Sign in to Unsora" : "Get started with Unsora"}
+          description={
+            connecting
+              ? `Sign in to connect ${connecting.name}.`
+              : "Sign in or create a free account. Just enter your email."
+          }
+        />
+      )}
 
       <GoogleButton onClick={continueWithGoogle} pending={googlePending} disabled={busy} />
 
