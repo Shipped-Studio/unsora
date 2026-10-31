@@ -1,14 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Check, CheckCircle } from "@phosphor-icons/react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  ArrowSquareOut,
+  Check,
+  CheckCircle,
+} from "@phosphor-icons/react";
 import { ConnectAgentTabs } from "@/components/agents/connect-agent-tabs";
 import { OpenAIIcon } from "@/components/icons";
 import { ConnectGrid } from "@/components/scheduler/accounts-view";
 import { AccountAvatar, accountLabel } from "@/components/scheduler/account-avatar";
 import { formatLongDate, formatUsd, intervalLabel, planCreditsLabel } from "@/components/billing/format";
 import { redirectToStripe } from "@/components/billing/redirect-to-stripe";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/shared/states";
@@ -24,8 +30,8 @@ import { HowItWorksLoop, useLoopClock, type Beat } from "./how-it-works-loop";
 import type { SetupContext } from "./setup";
 
 /*
- * The steps of both setups (see setup.ts). `ctx.appName` is the app being
- * connected, or null in the app's own onboarding, which only changes wording.
+ * The onboarding's steps (see setup.ts). `ctx.app` is the app the account was
+ * made to connect, or null, which mostly only changes wording.
  *
  * Every step shares one shape: a title, one short line under it, the content,
  * and a footer with Back on the left and one primary action on the right.
@@ -110,8 +116,8 @@ export function ChannelsStep({ ctx }: { ctx: SetupContext }) {
     <section className="mx-auto w-full max-w-4xl">
       <StepHeader
         eyebrow="Connect channels"
-        title={`Where should ${ctx.appName ?? "Unsora"} post?`}
-        lead={`Connect the accounts ${ctx.appName ? `${ctx.appName} can publish` : "you want to publish"} to. It's free, and you can add more later from Accounts.`}
+        title={`Where should ${ctx.app?.name ?? "Unsora"} post?`}
+        lead={`Connect the accounts ${ctx.app ? `${ctx.app.name} can publish` : "you want to publish"} to. It's free, and you can add more later from Accounts.`}
       />
 
       <div className={cn(CARD, "mt-10 p-4 sm:p-6")}>
@@ -165,15 +171,14 @@ export function HowToStep({ ctx }: { ctx: SetupContext }) {
     <section className="mx-auto w-full max-w-4xl">
       <StepHeader
         title="How it works"
-        lead={`Clip videos and schedule posts, right in ${ctx.appName ?? "ChatGPT or Claude"}.`}
+        lead={`Clip videos and schedule posts, right in ${ctx.app?.name ?? "ChatGPT or Claude"}.`}
       />
 
       <div className="mt-8 grid items-center gap-5 sm:mt-10 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:gap-12">
-        {/* In the app's own onboarding, the film shows ChatGPT as the example. */}
+        {/* Without an app to connect, the film shows ChatGPT as the example. */}
         <HowItWorksLoop
-          appName={ctx.appName ?? "ChatGPT"}
-          appLogoUrl={ctx.appLogoUrl}
-          appIcon={ctx.appName ? undefined : OpenAIIcon}
+          appName={ctx.app?.name ?? "ChatGPT"}
+          appIcon={ctx.app?.icon ?? OpenAIIcon}
           t={t}
         />
 
@@ -282,8 +287,9 @@ export function TrialStep({ ctx }: { ctx: SetupContext }) {
         method: "POST",
         body: JSON.stringify({
           key: planKey,
-          // Stripe brings them back to this step (OAuth params and all), with
-          // `checkout=success|cancel` added; the setup moves on from there.
+          // Stripe brings them back to this step (the app being connected
+          // too), with `checkout=success|cancel` added; the setup moves on
+          // from there.
           returnPath: ctx.hrefFor("trial"),
         }),
       }),
@@ -374,6 +380,65 @@ export function AgentsStep({ ctx, finishing }: { ctx: SetupContext; finishing?: 
             </>
           )}
         </Button>
+      </StepFooter>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Last step for an account made while connecting an AI app. The app's OAuth
+ * request wasn't carried through sign-up, so they connect again from the app,
+ * now with channels and a plan to use.
+ */
+export function ConnectStep({ ctx, finishing }: { ctx: SetupContext; finishing?: boolean }) {
+  const name = ctx.app?.name ?? "your AI app";
+  const where = ctx.app?.url ? name : "the app";
+  const steps = [
+    { title: `Go back to ${where}`, line: "Where you started connecting Unsora." },
+    { title: "Connect Unsora again", line: "Start it again from the apps or connectors settings." },
+    { title: "Allow Unsora", line: "You're signed in now, so it's one click." },
+  ];
+
+  return (
+    <section className="mx-auto w-full max-w-xl">
+      <StepHeader
+        eyebrow="You're set up"
+        title={`Now connect ${name}`}
+        lead={`Your Unsora account is ready. Connect it from ${where} to clip and post right in the chat.`}
+      />
+
+      <ol className={cn(CARD, "mt-10 divide-y")}>
+        {steps.map((step, i) => (
+          <li key={step.title} className="flex items-center gap-4 p-4 sm:p-5">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted font-display text-sm font-bold text-muted-foreground">
+              {i + 1}
+            </span>
+            <div>
+              <p className="font-medium">{step.title}</p>
+              <p className="text-sm text-muted-foreground">{step.line}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+
+      <StepFooter back={ctx.back} divider>
+        <Button
+          size="lg"
+          variant={ctx.app?.url ? "ghost" : "default"}
+          onClick={ctx.next}
+          disabled={finishing}
+        >
+          {finishing ? <Spinner data-icon="inline-start" /> : null}
+          Go to Unsora
+        </Button>
+        {ctx.app?.url ? (
+          <a href={ctx.app.url} className={buttonVariants({ size: "lg" })}>
+            Open {name}
+            <ArrowSquareOut data-icon="inline-end" />
+          </a>
+        ) : null}
       </StepFooter>
     </section>
   );

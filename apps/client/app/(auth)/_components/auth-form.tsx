@@ -3,7 +3,8 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth, useSignIn, useSignUp } from "@clerk/nextjs";
-import { ArrowLeft } from "@phosphor-icons/react";
+import { ArrowLeft, Info } from "@phosphor-icons/react";
+import { CONNECT_PARAM, connectorFromRedirect } from "@/components/onboarding/connector-app";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -42,6 +43,10 @@ import {
  * Password is required at sign-up on this Clerk instance, so a brand-new
  * account still sets one. Without a `redirect_url` everyone goes to
  * /onboarding, which sends existing users on to the app.
+ *
+ * Signing in from a connector (ChatGPT, Claude) goes back to its OAuth flow.
+ * A new account doesn't: it sets up first (/onboarding?connect=) and then
+ * connects again from the app.
  */
 
 type Step =
@@ -91,6 +96,8 @@ export function AuthForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = safeRedirect(searchParams.get("redirect_url"), AFTER_AUTH);
+  const connector = connectorFromRedirect(redirectTo);
+  const afterSignUp = connector ? `${AFTER_AUTH}?${CONNECT_PARAM}=${connector.key}` : redirectTo;
   const { isSignedIn } = useAuth();
 
   // Already signed in (another tab, or the back button): carry on to where
@@ -115,11 +122,13 @@ export function AuthForm() {
   const busy = checking || signInStatus === "fetching" || signUpStatus === "fetching";
   const error = formError ?? globalErrorMessage(errors);
 
-  const navigate = async ({ decorateUrl }: { decorateUrl: (url: string) => string }) => {
-    const url = decorateUrl(redirectTo);
-    if (url.startsWith("http")) window.location.href = url;
-    else router.push(url);
-  };
+  const navigateTo =
+    (target: string) =>
+    async ({ decorateUrl }: { decorateUrl: (url: string) => string }) => {
+      const url = decorateUrl(target);
+      if (url.startsWith("http")) window.location.href = url;
+      else router.push(url);
+    };
 
   const startOver = async () => {
     await Promise.allSettled([signIn.reset(), signUp.reset()]);
@@ -171,7 +180,7 @@ export function AuthForm() {
   // ── Existing account ─────────────────────────────────────────────────────
 
   const finishSignIn = async () => {
-    const { error: finalizeError } = await signIn.finalize({ navigate });
+    const { error: finalizeError } = await signIn.finalize({ navigate: navigateTo(redirectTo) });
     if (finalizeError) setFormError(clerkErrorMessage(finalizeError));
   };
 
@@ -256,7 +265,7 @@ export function AuthForm() {
   // ── New account ──────────────────────────────────────────────────────────
 
   const finishSignUp = async () => {
-    const { error: finalizeError } = await signUp.finalize({ navigate });
+    const { error: finalizeError } = await signUp.finalize({ navigate: navigateTo(afterSignUp) });
     if (finalizeError) setFormError(clerkErrorMessage(finalizeError));
   };
 
@@ -447,6 +456,14 @@ export function AuthForm() {
     return (
       <div className="space-y-6">
         <AuthHeader title="Create your account" description={emailLine} />
+        {connector ? (
+          <p className="flex gap-2.5 rounded-xl bg-muted px-4 py-3 text-sm text-pretty text-muted-foreground">
+            <Info className="mt-0.5 size-4 shrink-0" />
+            <span>
+              Set up your Unsora account first, then you can connect it to {connector.name}.
+            </span>
+          </p>
+        ) : null}
         <form onSubmit={createAccount} className="space-y-5" noValidate>
           <Field data-invalid={Boolean(signUpErrors.fields.password) || undefined}>
             <FieldLabel htmlFor="password">Choose a password</FieldLabel>
@@ -483,7 +500,11 @@ export function AuthForm() {
     <div className="space-y-6">
       <AuthHeader
         title="Get started with Unsora"
-        description="Sign in or create a free account. Just enter your email."
+        description={
+          connector
+            ? `Sign in to connect ${connector.name}. New here? Just enter your email.`
+            : "Sign in or create a free account. Just enter your email."
+        }
       />
 
       <GoogleButton onClick={continueWithGoogle} pending={googlePending} disabled={busy} />

@@ -33,9 +33,8 @@ export class ClerkController {
         }
 
         // The user's first API request may already have created the row
-        // (auth middleware); whichever call creates it grants the welcome
-        // credits. Otherwise just store the real email, as that path may
-        // have used a placeholder.
+        // (auth middleware); if so, just store the real email, as that path
+        // may have used a placeholder.
         const email = evt.data.email_addresses[0].email_address;
         const { user: row, created } = await createUserOnSignup(id as string, email);
         const user = created || row.email === email

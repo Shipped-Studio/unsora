@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { currentUser } from "@clerk/nextjs/server";
+import { needsOnboarding } from "@/components/onboarding/setup";
 import { Spinner } from "@/components/ui/spinner";
 import { OnboardingFlow } from "./onboarding-flow";
 
@@ -10,14 +11,6 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
-/** Accounts older than this skip onboarding even if they never finished it. */
-const NEW_ACCOUNT_MS = 24 * 60 * 60 * 1000;
-
-async function needsOnboarding(): Promise<boolean> {
-  const user = await currentUser();
-  if (!user || user.unsafeMetadata?.onboardedAt) return false;
-  return Date.now() - user.createdAt < NEW_ACCOUNT_MS;
-}
 
 /**
  * Where sign-in and sign-up land when there's no redirect_url. New accounts
@@ -31,7 +24,10 @@ export default async function OnboardingPage({
   searchParams: Promise<{ setup?: string }>;
 }) {
   const { setup } = await searchParams;
-  if (!setup && !(await needsOnboarding())) redirect("/");
+  if (!setup) {
+    const user = await currentUser();
+    if (!user || !needsOnboarding(user)) redirect("/");
+  }
 
   return (
     <div className="flex min-h-svh flex-col bg-background">
