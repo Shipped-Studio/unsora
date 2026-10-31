@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Eye, EyeSlash, WarningCircle } from "@phosphor-icons/react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -100,6 +101,52 @@ export function GoogleButton({
       {pending ? <Spinner /> : <GoogleLogo />}
       Continue with Google
     </Button>
+  );
+}
+
+/**
+ * Sign in / Sign up switch, for the pages a connector (ChatGPT, Claude) sends
+ * people to, where the two lead different ways. Links, so each is its own URL.
+ */
+export function AuthSwitch({
+  current,
+  signInHref,
+  signUpHref,
+  onSignIn,
+}: {
+  current: "sign-in" | "sign-up";
+  signInHref: string;
+  signUpHref: string;
+  onSignIn?: (event: React.MouseEvent) => void;
+}) {
+  const items = [
+    { id: "sign-in", label: "Sign in", href: signInHref },
+    { id: "sign-up", label: "Sign up", href: signUpHref },
+  ] as const;
+  return (
+    <nav aria-label="Sign in or sign up" className="grid grid-cols-2 gap-1 rounded-xl bg-foreground/6 p-1">
+      {items.map((item) =>
+        item.id === current ? (
+          <span
+            key={item.id}
+            aria-current="page"
+            className="flex h-9 items-center justify-center rounded-lg bg-card text-sm font-medium text-foreground shadow-xs ring-1 ring-border"
+          >
+            {item.label}
+          </span>
+        ) : (
+          <Link
+            key={item.id}
+            href={item.href}
+            replace
+            onClick={item.id === "sign-in" ? onSignIn : undefined}
+            className="flex h-9 items-center justify-center rounded-lg text-sm font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            {item.label}
+          </Link>
+        ),
+      )}
+    </nav>
   );
 }
 

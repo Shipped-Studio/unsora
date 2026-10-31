@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Spinner } from "@/components/ui/spinner";
-import { ConnectorSetup } from "./connector-setup";
+import { ConsentScreen } from "./consent-screen";
 
 export const metadata: Metadata = {
   title: "Connect an app",
@@ -13,12 +13,9 @@ export const metadata: Metadata = {
 /**
  * OAuth consent screen for MCP clients (Claude, ChatGPT, …). Clerk is the
  * authorization server; the Clerk Dashboard's Paths → "OAuth consent" setting
- * points here instead of the Account Portal page. Signed-out visitors sign in
- * or sign up on the page itself (account-step.tsx); proxy.ts lets them in.
- *
- * New users set up Unsora here (channels, how it works, free trial) before
- * the consent step, because allowing hands them straight back to the client
- * and an account with no channels or credits can't do anything there.
+ * points here instead of the Account Portal page. Signed-out visitors go
+ * through /sign-in first, and new accounts set up before they can connect
+ * (both in consent-screen.tsx).
  */
 export default function OAuthConsentPage() {
   return (
@@ -30,7 +27,7 @@ export default function OAuthConsentPage() {
           </div>
         }
       >
-        <ConnectorSetup />
+        <ConsentScreen />
       </Suspense>
     </div>
   );

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
+import { CONNECT_PARAM, connectorApp } from "@/components/onboarding/connector-app";
 import { MarkOnboarded } from "@/components/onboarding/mark-onboarded";
 import {
   CHECKOUT_PARAM,
@@ -13,8 +14,8 @@ import {
 } from "@/components/onboarding/setup";
 import { SetupFrame } from "@/components/onboarding/setup-frame";
 import {
-  AgentsStep,
   ChannelsStep,
+  ConnectStep,
   HowToStep,
   TrialStep,
 } from "@/components/onboarding/setup-steps";
@@ -25,14 +26,18 @@ import { useUserUsage } from "@/hooks/use-user-usage";
 import { getBrowserTimezone } from "@/lib/timezone";
 
 /**
- * First-run setup after sign-up, as its own page. The same setup as an AI
- * app connecting through the MCP connector (app/oauth-consent), with
- * connecting an agent in place of the consent screen:
+ * First-run setup after sign-up, as its own page:
  *
- *   account → channels → how it works → AI agent → free trial
+ *   account → channels → how it works → free trial
+ *
+ * An account made while connecting ChatGPT or Claude (`?connect=`) gets the
+ * same steps, then one asking it to connect again from that app:
+ *
+ *   account → channels → how it works → free trial → connect
  *
  * The free trial is left out for anyone who already has a plan. Finishing
- * (or coming back from a started trial) goes into the app.
+ * (or coming back from a started trial) goes into the app, or on to the
+ * connect step.
  */
 export function OnboardingFlow() {
   const searchParams = useSearchParams();
@@ -43,11 +48,14 @@ export function OnboardingFlow() {
   const { data: accounts } = useConnectedAccounts();
   const savePreferences = useUpdatePreferences();
   const [finishing, setFinishing] = useState(false);
+  const connectKey = searchParams.get(CONNECT_PARAM);
+  const app = connectorApp(connectKey);
 
   // Decided once, so starting the trial doesn't reshuffle the steps.
   const [steps, setSteps] = useState<StepId[] | null>(null);
   if (!steps && usage && accounts) {
-    setSteps(["channels", "howto", "agents", ...(hasPaidPlan(usage) ? [] : (["trial"] as const))]);
+    const trial: StepId[] = hasPaidPlan(usage) ? [] : ["trial"];
+    setSteps(["channels", "howto", ...trial, ...(app ? (["connect"] as const) : [])]);
   }
 
   const requested = searchParams.get(SETUP_PARAM) as StepId | null;
@@ -57,6 +65,7 @@ export function OnboardingFlow() {
 
   const hrefFor = (step: StepId, extra: Record<string, string> = {}) => {
     const params = new URLSearchParams(extra);
+    if (connectKey) params.set(CONNECT_PARAM, connectKey);
     params.set(SETUP_PARAM, step);
     return `${pathname}?${params.toString()}`;
   };
@@ -75,13 +84,15 @@ export function OnboardingFlow() {
     void enterApp();
   };
 
-  // Back from a started trial: that was the last step.
+  // Back from a started trial: on to connecting the app, or that was the
+  // last step.
   const fromCheckout = searchParams.get(CHECKOUT_PARAM) === "success";
   const finished = useRef(false);
   useEffect(() => {
     if (!fromCheckout || !usage || finished.current) return;
     finished.current = true;
-    void enterApp();
+    if (app) window.history.replaceState(null, "", hrefFor("connect"));
+    else void enterApp();
   });
 
   // Focus the new step's heading so screen readers announce it.
@@ -103,8 +114,6 @@ export function OnboardingFlow() {
   }
 
   const ctx: SetupContext = {
-    appName: null,
-    appLogoUrl: null,
     hrefFor,
     go,
     next: last ? finish : () => go(steps[index + 1]),
@@ -114,8 +123,11 @@ export function OnboardingFlow() {
 
   return (
     <SetupFrame steps={steps} current={index} appName={null} homeHref="/">
-      {/* Reaching the agent step finishes onboarding, here and for agent connections. */}
-      {current === "agents" || current === "trial" ? <MarkOnboarded /> : null}
+      {/* Reaching the last steps finishes onboarding, so connecting the app
+          after it goes straight to Allow. */}
+      {current === "trial" || last ? (
+        <MarkOnboarded />
+      ) : null}
       <div
         key={current}
         ref={headingRef}
@@ -123,8 +135,10 @@ export function OnboardingFlow() {
       >
         {current === "channels" ? <ChannelsStep ctx={ctx} /> : null}
         {current === "howto" ? <HowToStep ctx={ctx} /> : null}
-        {current === "agents" ? <AgentsStep ctx={ctx} finishing={finishing} /> : null}
         {current === "trial" ? <TrialStep ctx={ctx} /> : null}
+        {current === "connect" && app ? (
+          <ConnectStep ctx={ctx} app={app} finishing={finishing} />
+        ) : null}
       </div>
     </SetupFrame>
   );
