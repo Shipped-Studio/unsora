@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useOAuthConsent, useUser } from "@clerk/nextjs";
 import { ArrowRight, Plugs } from "@phosphor-icons/react";
 import { UnsoraLogo } from "@/components/brand/unsora-logo";
@@ -20,8 +21,11 @@ import { ConsentForm } from "./consent-form";
 
 /**
  * What an MCP connector (ChatGPT, Claude, …) shows between its OAuth request
- * and handing back to it. Signed-out visitors are sent to /sign-in first
- * (proxy.ts) and come back here.
+ * and handing back to it. Signed-out visitors are sent to /sign-in first and
+ * come back here. That check happens here, not in proxy.ts: Clerk's dev
+ * instances hand the session over in the URL (`__clerk_db_jwt`), which the
+ * server can't read on the first request, so it would see a signed-in user
+ * as signed out.
  *
  * Existing accounts go straight to Allow. A brand-new account would land
  * back in the chat with no channels and no plan, so nothing would work: it
@@ -31,7 +35,13 @@ import { ConsentForm } from "./consent-form";
  */
 export function ConsentScreen() {
   const searchParams = useSearchParams();
-  const { user } = useUser();
+  const router = useRouter();
+  const { user, isLoaded, isSignedIn } = useUser();
+
+  useEffect(() => {
+    if (!isLoaded || isSignedIn) return;
+    router.replace(`/sign-in?redirect_url=${encodeURIComponent(window.location.href)}`);
+  }, [isLoaded, isSignedIn, router]);
 
   const clientId = searchParams.get("client_id") ?? "";
   const redirectUri = searchParams.get("redirect_uri") ?? "";

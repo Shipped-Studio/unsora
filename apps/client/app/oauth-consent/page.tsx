@@ -14,8 +14,8 @@ export const metadata: Metadata = {
  * OAuth consent screen for MCP clients (Claude, ChatGPT, …). Clerk is the
  * authorization server; the Clerk Dashboard's Paths → "OAuth consent" setting
  * points here instead of the Account Portal page. Signed-out visitors go
- * through /sign-in first (proxy.ts); new accounts set up before they can
- * connect (consent-screen.tsx).
+ * through /sign-in first, and new accounts set up before they can connect
+ * (both in consent-screen.tsx).
  */
 export default function OAuthConsentPage() {
   return (
