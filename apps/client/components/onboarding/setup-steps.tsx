@@ -4,17 +4,14 @@ import { useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
-  ArrowSquareOut,
   Check,
-  CheckCircle,
 } from "@phosphor-icons/react";
-import { ConnectAgentTabs } from "@/components/agents/connect-agent-tabs";
 import { OpenAIIcon } from "@/components/icons";
 import { ConnectGrid } from "@/components/scheduler/accounts-view";
 import { AccountAvatar, accountLabel } from "@/components/scheduler/account-avatar";
 import { formatLongDate, formatUsd, intervalLabel, planCreditsLabel } from "@/components/billing/format";
 import { redirectToStripe } from "@/components/billing/redirect-to-stripe";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/shared/states";
@@ -348,41 +345,6 @@ export function TrialStep({ ctx }: { ctx: SetupContext }) {
 
 /* ------------------------------------------------------------------------ */
 
-/** The app's own onboarding only: an agent connection already is one. */
-export function AgentsStep({ ctx, finishing }: { ctx: SetupContext; finishing?: boolean }) {
-  return (
-    <section className="mx-auto w-full max-w-4xl">
-      <StepHeader
-        eyebrow="Connect an AI agent"
-        title="Use Unsora from your AI"
-        lead="Ask ChatGPT, Claude or Cursor in plain words, and it clips, creates and schedules for you. You can also do this later from Agents."
-      />
-
-      <div className={cn(CARD, "mt-10 p-4 sm:p-6")}>
-        <ConnectAgentTabs />
-      </div>
-
-      <StepFooter back={ctx.back} divider>
-        <Button size="lg" onClick={ctx.next} disabled={finishing}>
-          {ctx.last ? (
-            <>
-              {finishing ? <Spinner data-icon="inline-start" /> : <CheckCircle data-icon="inline-start" />}
-              Get started
-            </>
-          ) : (
-            <>
-              Continue
-              <ArrowRight data-icon="inline-end" />
-            </>
-          )}
-        </Button>
-      </StepFooter>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------------ */
-
 /**
  * Last step for an account made while connecting an AI app. The app's OAuth
  * request wasn't carried through sign-up, so they connect again from the app,
@@ -428,21 +390,10 @@ export function ConnectStep({
       </ol>
 
       <StepFooter back={ctx.back} divider>
-        <Button
-          size="lg"
-          variant={app.url ? "ghost" : "default"}
-          onClick={ctx.next}
-          disabled={finishing}
-        >
+        <Button size="lg" onClick={ctx.next} disabled={finishing}>
           {finishing ? <Spinner data-icon="inline-start" /> : null}
           Go to Unsora
         </Button>
-        {app.url ? (
-          <a href={app.url} className={buttonVariants({ size: "lg" })}>
-            Open {name}
-            <ArrowSquareOut data-icon="inline-end" />
-          </a>
-        ) : null}
       </StepFooter>
     </section>
   );
