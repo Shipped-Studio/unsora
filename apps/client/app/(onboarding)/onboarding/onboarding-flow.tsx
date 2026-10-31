@@ -31,10 +31,10 @@ import { getBrowserTimezone } from "@/lib/timezone";
  *
  *   account → channels → how it works → AI agent → free trial
  *
- * An account made while connecting ChatGPT or Claude (`?connect=`) ends by
- * sending them back to connect instead of offering agents:
+ * An account made while connecting ChatGPT or Claude (`?connect=`) gets the
+ * same steps, then one asking it to connect again from that app:
  *
- *   account → channels → how it works → free trial → connect
+ *   account → channels → how it works → AI agent → free trial → connect
  *
  * The free trial is left out for anyone who already has a plan. Finishing
  * (or coming back from a started trial) goes into the app, or on to the
@@ -56,9 +56,7 @@ export function OnboardingFlow() {
   const [steps, setSteps] = useState<StepId[] | null>(null);
   if (!steps && usage && accounts) {
     const trial: StepId[] = hasPaidPlan(usage) ? [] : ["trial"];
-    setSteps(
-      app ? ["channels", "howto", ...trial, "connect"] : ["channels", "howto", "agents", ...trial],
-    );
+    setSteps(["channels", "howto", "agents", ...trial, ...(app ? (["connect"] as const) : [])]);
   }
 
   const requested = searchParams.get(SETUP_PARAM) as StepId | null;
@@ -117,7 +115,6 @@ export function OnboardingFlow() {
   }
 
   const ctx: SetupContext = {
-    app,
     hrefFor,
     go,
     next: last ? finish : () => go(steps[index + 1]),
@@ -126,13 +123,7 @@ export function OnboardingFlow() {
   };
 
   return (
-    <SetupFrame
-      steps={steps}
-      current={index}
-      appName={app?.name ?? null}
-      appIcon={app?.icon}
-      homeHref="/"
-    >
+    <SetupFrame steps={steps} current={index} appName={null} homeHref="/">
       {/* Reaching the last steps finishes onboarding, so connecting the app
           after it goes straight to Allow. */}
       {current === "agents" || current === "trial" || current === "connect" ? (
@@ -147,7 +138,9 @@ export function OnboardingFlow() {
         {current === "howto" ? <HowToStep ctx={ctx} /> : null}
         {current === "agents" ? <AgentsStep ctx={ctx} finishing={finishing} /> : null}
         {current === "trial" ? <TrialStep ctx={ctx} /> : null}
-        {current === "connect" ? <ConnectStep ctx={ctx} finishing={finishing} /> : null}
+        {current === "connect" && app ? (
+          <ConnectStep ctx={ctx} app={app} finishing={finishing} />
+        ) : null}
       </div>
     </SetupFrame>
   );

@@ -27,11 +27,11 @@ import {
 } from "@/hooks/use-subscription-plans";
 import { cn } from "@/lib/utils";
 import { HowItWorksLoop, useLoopClock, type Beat } from "./how-it-works-loop";
+import type { ConnectorApp } from "./connector-app";
 import type { SetupContext } from "./setup";
 
 /*
- * The onboarding's steps (see setup.ts). `ctx.app` is the app the account was
- * made to connect, or null, which mostly only changes wording.
+ * The onboarding's steps (see setup.ts).
  *
  * Every step shares one shape: a title, one short line under it, the content,
  * and a footer with Back on the left and one primary action on the right.
@@ -116,8 +116,8 @@ export function ChannelsStep({ ctx }: { ctx: SetupContext }) {
     <section className="mx-auto w-full max-w-4xl">
       <StepHeader
         eyebrow="Connect channels"
-        title={`Where should ${ctx.app?.name ?? "Unsora"} post?`}
-        lead={`Connect the accounts ${ctx.app ? `${ctx.app.name} can publish` : "you want to publish"} to. It's free, and you can add more later from Accounts.`}
+        title="Where should Unsora post?"
+        lead="Connect the accounts you want to publish to. It's free, and you can add more later from Accounts."
       />
 
       <div className={cn(CARD, "mt-10 p-4 sm:p-6")}>
@@ -171,16 +171,12 @@ export function HowToStep({ ctx }: { ctx: SetupContext }) {
     <section className="mx-auto w-full max-w-4xl">
       <StepHeader
         title="How it works"
-        lead={`Clip videos and schedule posts, right in ${ctx.app?.name ?? "ChatGPT or Claude"}.`}
+        lead="Clip videos and schedule posts, right in ChatGPT or Claude."
       />
 
       <div className="mt-8 grid items-center gap-5 sm:mt-10 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:gap-12">
-        {/* Without an app to connect, the film shows ChatGPT as the example. */}
-        <HowItWorksLoop
-          appName={ctx.app?.name ?? "ChatGPT"}
-          appIcon={ctx.app?.icon ?? OpenAIIcon}
-          t={t}
-        />
+        {/* The film shows ChatGPT as the example. */}
+        <HowItWorksLoop appName="ChatGPT" appIcon={OpenAIIcon} t={t} />
 
         {/* Phones: one live caption under the film instead of the full list. */}
         <div className="flex items-center gap-4 lg:hidden" aria-hidden>
@@ -392,9 +388,17 @@ export function AgentsStep({ ctx, finishing }: { ctx: SetupContext; finishing?: 
  * request wasn't carried through sign-up, so they connect again from the app,
  * now with channels and a plan to use.
  */
-export function ConnectStep({ ctx, finishing }: { ctx: SetupContext; finishing?: boolean }) {
-  const name = ctx.app?.name ?? "your AI app";
-  const where = ctx.app?.url ? name : "the app";
+export function ConnectStep({
+  ctx,
+  app,
+  finishing,
+}: {
+  ctx: SetupContext;
+  app: ConnectorApp;
+  finishing?: boolean;
+}) {
+  const name = app.name;
+  const where = app.url ? name : "the app";
   const steps = [
     { title: `Go back to ${where}`, line: "Where you started connecting Unsora." },
     { title: "Connect Unsora again", line: "Start it again from the apps or connectors settings." },
@@ -426,15 +430,15 @@ export function ConnectStep({ ctx, finishing }: { ctx: SetupContext; finishing?:
       <StepFooter back={ctx.back} divider>
         <Button
           size="lg"
-          variant={ctx.app?.url ? "ghost" : "default"}
+          variant={app.url ? "ghost" : "default"}
           onClick={ctx.next}
           disabled={finishing}
         >
           {finishing ? <Spinner data-icon="inline-start" /> : null}
           Go to Unsora
         </Button>
-        {ctx.app?.url ? (
-          <a href={ctx.app.url} className={buttonVariants({ size: "lg" })}>
+        {app.url ? (
+          <a href={app.url} className={buttonVariants({ size: "lg" })}>
             Open {name}
             <ArrowSquareOut data-icon="inline-end" />
           </a>
