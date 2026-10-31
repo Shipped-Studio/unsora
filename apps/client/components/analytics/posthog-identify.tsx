@@ -7,7 +7,7 @@ import posthog from "posthog-js";
 /**
  * Links session recordings to the signed-in person by their Clerk id (no
  * email or name), and drops it again on sign-out. PostHog itself starts in
- * instrumentation-client.ts.
+ * PostHogProvider.
  */
 export function PostHogIdentify() {
   const { user, isLoaded } = useUser();
