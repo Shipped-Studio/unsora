@@ -1,6 +1,6 @@
 /**
- * Chart colors for the admin dashboard. Everything resolves to theme tokens
- * from globals.css, so charts follow light and dark mode without JS.
+ * Chart colors for the admin dashboard. Everything resolves to color tokens
+ * from globals.css.
  *
  * Categorical hues are assigned in a fixed order: a series keeps its color
  * regardless of rank. Magnitude charts (bar lists) use the first hue only.

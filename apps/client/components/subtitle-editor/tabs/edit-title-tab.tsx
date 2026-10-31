@@ -336,7 +336,7 @@ function ThemeCard({
         {theme.name}
       </span>
       {NEW_THEMES.has(theme.id) ? (
-        <span className="absolute -top-2 right-1 rounded-md bg-sky-100 px-1.5 py-0.5 text-xs font-medium text-sky-600 dark:bg-sky-500/20 dark:text-sky-300">
+        <span className="absolute -top-2 right-1 rounded-md bg-sky-100 px-1.5 py-0.5 text-xs font-medium text-sky-600">
           New
         </span>
       ) : null}

@@ -316,7 +316,7 @@ export const ClaudeCodeIcon = ({ className, ...props }: IconProps) => {
   );
 };
 
-/** Monochrome brand mark: follows the text color so it works in both themes. */
+/** Monochrome brand mark: follows the text color. */
 export const CursorIcon = ({ className, ...props }: IconProps) => {
   return (
     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className} {...props}>
@@ -325,7 +325,7 @@ export const CursorIcon = ({ className, ...props }: IconProps) => {
   );
 };
 
-/** Monochrome brand mark: follows the text color so it works in both themes. */
+/** Monochrome brand mark: follows the text color. */
 export const OpenAIIcon = ({ className, ...props }: IconProps) => {
   return (
     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className} {...props}>

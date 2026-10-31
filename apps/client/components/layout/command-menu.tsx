@@ -3,17 +3,13 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
-import { useTheme } from "next-themes";
 import {
   CalendarBlank,
   CreditCard,
-  Desktop,
   GearSix,
-  Moon,
   NotePencil,
   Plugs,
   SignOut,
-  Sun,
   UploadSimple,
 } from "@phosphor-icons/react";
 import {
@@ -85,7 +81,6 @@ function CommandMenu({
   onOpenChange: (open: boolean) => void;
 }) {
   const router = useRouter();
-  const { setTheme } = useTheme();
   const { signOut } = useClerk();
 
   const run = useCallback(
@@ -174,18 +169,6 @@ function CommandMenu({
           <CommandItem onSelect={() => go("/billing")}>
             <CreditCard />
             Billing and credits
-          </CommandItem>
-          <CommandItem onSelect={() => run(() => setTheme("light"))}>
-            <Sun />
-            Light theme
-          </CommandItem>
-          <CommandItem onSelect={() => run(() => setTheme("dark"))}>
-            <Moon />
-            Dark theme
-          </CommandItem>
-          <CommandItem onSelect={() => run(() => setTheme("system"))}>
-            <Desktop />
-            System theme
           </CommandItem>
           <CommandItem
             onSelect={() => run(() => void signOut({ redirectUrl: "/sign-in" }))}

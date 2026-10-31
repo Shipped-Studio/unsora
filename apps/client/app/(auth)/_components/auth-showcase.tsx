@@ -13,7 +13,7 @@ const UP_NEXT = [
 ] as const;
 
 /**
- * The brand stage beside the auth forms: a dark panel (in both themes) with
+ * The brand stage beside the auth forms: a dark panel with
  * a mock of the product, a post going out to several platforms and an agent
  * scheduling for you. Purely decorative, so it is hidden from screen readers.
  */

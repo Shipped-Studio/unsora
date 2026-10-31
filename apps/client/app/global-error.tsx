@@ -27,7 +27,7 @@ export default function GlobalError({
           display: "grid",
           placeItems: "center",
           fontFamily: "system-ui, sans-serif",
-          colorScheme: "light dark",
+          colorScheme: "light",
         }}
       >
         <title>Something went wrong · Unsora</title>

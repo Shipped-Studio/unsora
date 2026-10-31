@@ -153,7 +153,7 @@ export function HowItWorksLoop({
             />
           </span>
           <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-stage-card ring-1 ring-stage-border">
-            {/* The stage is dark in both themes, so always the light mark. */}
+            {/* The stage is dark, so the light mark. */}
             <Image src={UNSORA_LOGO.logoLight} alt="" width={24} height={24} className="size-6" />
           </span>
           <span className="w-28 text-xs text-stage-muted">{status}</span>

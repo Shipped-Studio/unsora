@@ -119,7 +119,7 @@ export const CaptionRow = memo(function CaptionRow({
             type="button"
             onClick={() => onSeek(line.start)}
             aria-label={`Play line ${lineNumber} from ${formatSeconds(line.start)} seconds`}
-            className="self-start rounded-md px-[5px] py-px text-xs leading-[18px] font-medium tabular-nums text-muted-foreground outline-none transition-colors duration-200 hover:bg-black/5 focus-visible:ring-3 focus-visible:ring-ring/50 dark:hover:bg-white/10"
+            className="self-start rounded-md px-[5px] py-px text-xs leading-[18px] font-medium tabular-nums text-muted-foreground outline-none transition-colors duration-200 hover:bg-black/5 focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             {formatSeconds(line.start)} - {formatSeconds(line.end)}
           </button>
@@ -188,7 +188,7 @@ export const CaptionRow = memo(function CaptionRow({
         type="button"
         aria-label={`Add a line after line ${lineNumber}`}
         onClick={() => onInsertAfter(lineIndex)}
-        className="absolute bottom-0 left-1/2 z-10 flex size-5 -translate-x-1/2 translate-y-1/2 items-center justify-center rounded-full border bg-card text-muted-foreground opacity-0 shadow-sm outline-none transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 group-hover:opacity-100 dark:bg-background"
+        className="absolute bottom-0 left-1/2 z-10 flex size-5 -translate-x-1/2 translate-y-1/2 items-center justify-center rounded-full border bg-card text-muted-foreground opacity-0 shadow-sm outline-none transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 group-hover:opacity-100"
       >
         <Plus className="size-3" />
       </button>

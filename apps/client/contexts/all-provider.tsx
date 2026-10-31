@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { ClerkProvider } from "@clerk/nextjs";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ThemeProvider } from "next-themes";
 import Next13ProgressBar from "next13-progressbar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { IconContext } from "@phosphor-icons/react";
@@ -29,12 +28,6 @@ export default function AllProvider({
   return (
     <ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up">
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem
-          disableTransitionOnChange
-        >
           <TooltipProvider delay={300}>
             <IconContext.Provider value={{ "aria-hidden": true }}>
               <PricingProvider>{children}</PricingProvider>
@@ -52,7 +45,6 @@ export default function AllProvider({
               mobileOffset={{ top: "4.5rem" }}
             />
           </TooltipProvider>
-        </ThemeProvider>
       </QueryClientProvider>
     </ClerkProvider>
   );

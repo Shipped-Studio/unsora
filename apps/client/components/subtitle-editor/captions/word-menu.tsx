@@ -120,7 +120,7 @@ export function EditableWord({
             }}
             className={cn(
               "relative z-10 rounded-[4px] border border-transparent px-0.5 outline-none transition-colors duration-200 hover:border-info focus:border-info data-[popup-open]:border-info",
-              match && "bg-yellow-200 dark:bg-yellow-500/40",
+              match && "bg-yellow-200",
             )}
           />
         }

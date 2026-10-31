@@ -94,7 +94,7 @@ export function CaptionEditor({
         </Tabs>
       ) : null}
 
-      <div className="overflow-hidden rounded-lg border border-input bg-card shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-input/30">
+      <div className="overflow-hidden rounded-lg border border-input bg-card shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
         {active ? (
           <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
             <span className="min-w-0 text-sm text-muted-foreground">
@@ -123,7 +123,7 @@ export function CaptionEditor({
             active ? setOverride(active.id, event.target.value) : setMain(event.target.value)
           }
           className={cn(
-            "min-h-40 resize-none rounded-none border-0 bg-transparent px-3 py-3 shadow-none focus-visible:ring-0 dark:bg-transparent",
+            "min-h-40 resize-none rounded-none border-0 bg-transparent px-3 py-3 shadow-none focus-visible:ring-0",
             active && !customized && "text-muted-foreground",
           )}
         />

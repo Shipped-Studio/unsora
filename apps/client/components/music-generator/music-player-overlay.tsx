@@ -80,7 +80,7 @@ export function MusicPlayerOverlay() {
           size="icon-lg"
           onClick={() => setPlayerView("mini")}
           aria-label={`Open music player, ${isPlaying ? "playing" : "paused"}: ${title}`}
-          className="rounded-full bg-popover shadow-md dark:bg-popover"
+          className="rounded-full bg-popover shadow-md"
         >
           {isBuffering ? (
             <Spinner />

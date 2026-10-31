@@ -6,25 +6,21 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, useContext, useState, useSyncExternalStore } from "react";
 import { useClerk, useUser } from "@clerk/nextjs";
-import { useTheme } from "next-themes";
 import {
   ArrowSquareOut,
   CalendarBlank,
   CaretDown,
   CaretUpDown,
   CreditCard,
-  Desktop,
   DotsThreeOutline,
   GearSix,
   House,
   ListChecks,
-  Moon,
   Plus,
   ShieldCheck,
   SidebarSimple,
   SignOut,
   Sparkle,
-  Sun,
 } from "@phosphor-icons/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -33,12 +29,7 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -300,7 +291,6 @@ function PlanCard({ collapsed }: { collapsed: boolean }) {
 function UserMenu({ collapsed, side = "right" }: { collapsed: boolean; side?: "right" | "top" }) {
   const { user } = useUser();
   const { signOut } = useClerk();
-  const { theme, setTheme } = useTheme();
   const { usage } = useUserUsage();
   const { openPricing } = usePricing();
   if (!user) return <div className="h-11" />;
@@ -319,7 +309,7 @@ function UserMenu({ collapsed, side = "right" }: { collapsed: boolean; side?: "r
             type="button"
             aria-label="Account menu"
             className={cn(
-              "flex w-full min-w-0 items-center gap-2.5 rounded-lg p-1.5 text-left outline-none transition-colors hover:bg-foreground/[0.04] focus-visible:ring-3 focus-visible:ring-ring/50 dark:hover:bg-foreground/[0.06]",
+              "flex w-full min-w-0 items-center gap-2.5 rounded-lg p-1.5 text-left outline-none transition-colors hover:bg-foreground/[0.04] focus-visible:ring-3 focus-visible:ring-ring/50 ",
               collapsed && "justify-center",
             )}
           />
@@ -384,19 +374,6 @@ function UserMenu({ collapsed, side = "right" }: { collapsed: boolean; side?: "r
               Admin
             </DropdownMenuItem>
           ) : null}
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              {theme === "light" ? <Sun /> : theme === "dark" ? <Moon /> : <Desktop />}
-              Theme
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={(value) => setTheme(value as string)}>
-                <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="system">System</DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
           <DropdownMenuItem render={<a href={DOCS_URL} target="_blank" rel="noopener noreferrer" />}>
             <ArrowSquareOut />
             Documentation

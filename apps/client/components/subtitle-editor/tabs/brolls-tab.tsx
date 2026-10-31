@@ -478,7 +478,7 @@ export function BrollsTab({
                           onClick={() => setTransitionAt(i + 1)}
                           className={cn(
                             "relative flex size-8 items-center justify-center rounded-lg border bg-card text-muted-foreground shadow-xs outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 [&_svg]:size-4",
-                            transition && "border-primary/30 bg-primary/10 text-primary dark:bg-primary/15",
+                            transition && "border-primary/30 bg-primary/10 text-primary",
                           )}
                         />
                       }

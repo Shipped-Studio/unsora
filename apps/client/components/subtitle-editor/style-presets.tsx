@@ -742,7 +742,7 @@ function PresetCard({
         onClick={onSelect}
         className={cn(
           // Mid grey keeps both white text and dark outlines readable.
-          "flex h-20 w-full items-center justify-center overflow-hidden rounded-xl bg-neutral-400 px-3 outline-none ring-offset-2 ring-offset-background transition-shadow hover:ring-2 hover:ring-foreground/20 focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-neutral-500",
+          "flex h-20 w-full items-center justify-center overflow-hidden rounded-xl bg-neutral-400 px-3 outline-none ring-offset-2 ring-offset-background transition-shadow hover:ring-2 hover:ring-foreground/20 focus-visible:ring-3 focus-visible:ring-ring/50",
           selected && "ring-2 ring-primary hover:ring-primary",
         )}
       >

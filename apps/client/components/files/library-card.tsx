@@ -159,7 +159,7 @@ function BulkCheckbox({
       aria-label={`Select ${title}`}
       onClick={(event) => bulk.onToggle(event.shiftKey)}
       // Always visible (no hover reveal): a subtle white box in the corner.
-      className={cn("size-5 rounded-md bg-card dark:bg-card", className)}
+      className={cn("size-5 rounded-md bg-card", className)}
     />
   );
 }
