@@ -1,16 +1,15 @@
 /**
  * The app's onboarding after sign-up (app/(onboarding)/onboarding):
  *
- *   where you heard about us → channels → free trial → credits
+ *   where you heard about us → channels → free trial
  *
  * An account made while connecting ChatGPT or Claude (`?connect=`, see
  * connector-app.ts) gets the same steps, then one asking it to connect again
  * from that app:
  *
- *   where you heard about us → channels → free trial → credits → connect
+ *   where you heard about us → channels → free trial → connect
  *
- * The free trial is left out for anyone who already has a plan. Credits
- * offers top-ups (plans include none) and needs a plan or trial. The step
+ * The free trial is left out for anyone who already has a plan. The step
  * lives in the URL so it survives the channel OAuth and Stripe round trips.
  */
 
@@ -23,7 +22,6 @@ export const STEP_LABELS = {
   source: "About you",
   channels: "Channels",
   trial: "Free trial",
-  credits: "Credits",
   connect: "Connect",
 } as const;
 

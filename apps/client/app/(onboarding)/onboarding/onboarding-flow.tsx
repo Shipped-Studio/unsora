@@ -16,7 +16,6 @@ import { SetupFrame } from "@/components/onboarding/setup-frame";
 import {
   ChannelsStep,
   ConnectStep,
-  CreditsStep,
   SourceStep,
   TrialStep,
 } from "@/components/onboarding/setup-steps";
@@ -29,18 +28,16 @@ import { getBrowserTimezone } from "@/lib/timezone";
 /**
  * First-run setup after sign-up, as its own page:
  *
- *   account → where you heard about us → channels → free trial → credits
+ *   account → where you heard about us → channels → free trial
  *
  * An account made while connecting ChatGPT or Claude (`?connect=`) gets the
  * same steps, then one asking it to connect again from that app:
  *
- *   account → where you heard about us → channels → free trial → credits →
- *   connect
+ *   account → where you heard about us → channels → free trial → connect
  *
  * The free trial is left out for anyone who already has a plan; for
- * everyone else it can't be skipped, since the app needs a plan. Credits
- * offers top-ups, as plans include none. Coming back from Stripe (a started trial or a bought pack)
- * moves on a step. Finishing goes into the app, straight to a first post for
+ * everyone else it can't be skipped, since the app needs a plan. Coming back
+ * from a started trial moves on a step. Finishing goes into the app, straight to a first post for
  * anyone who can post already.
  */
 export function OnboardingFlow() {
@@ -67,7 +64,7 @@ export function OnboardingFlow() {
     const backFromTrial = fromCheckout && requested === "trial";
     const trial: StepId[] = paid && !backFromTrial ? [] : ["trial"];
     const source: StepId[] = user.unsafeMetadata?.heardFrom ? [] : ["source"];
-    setSteps([...source, "channels", ...trial, "credits", ...(app ? (["connect"] as const) : [])]);
+    setSteps([...source, "channels", ...trial, ...(app ? (["connect"] as const) : [])]);
   }
 
   const current = steps ? (requested && steps.includes(requested) ? requested : steps[0]) : null;
@@ -151,7 +148,6 @@ export function OnboardingFlow() {
       >
         {current === "channels" ? <ChannelsStep ctx={ctx} /> : null}
         {current === "trial" ? <TrialStep ctx={ctx} /> : null}
-        {current === "credits" ? <CreditsStep ctx={ctx} finishing={finishing} /> : null}
         {current === "source" ? <SourceStep ctx={ctx} finishing={finishing} /> : null}
         {current === "connect" && app ? (
           <ConnectStep ctx={ctx} app={app} finishing={finishing} />

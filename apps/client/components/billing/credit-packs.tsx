@@ -34,7 +34,7 @@ function gridCols(count: number) {
 }
 
 /** The pack with the lowest price per credit, when there's a real choice. */
-export function bestValueKey(packs: CreditPack[]): string | null {
+function bestValueKey(packs: CreditPack[]): string | null {
   const priced = packs.filter((pack) => pack.credits > 0);
   if (priced.length < 2) return null;
   const best = priced.reduce((a, b) =>

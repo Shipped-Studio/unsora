@@ -103,8 +103,8 @@ async function planCreditsFor(opts: {
 }
 
 /**
- * Checkout return URL for an in-app `returnPath` (onboarding's trial and
- * Credits steps send one so the user lands back in that flow), with
+ * Checkout return URL for an in-app `returnPath` (onboarding's trial step
+ * sends one so the user lands back in that flow), with
  * `checkout=success|cancel` added. Only paths on CLIENT_URL are accepted;
  * anything else returns null and the caller falls back to the env URLs.
  */
@@ -1438,7 +1438,7 @@ export class StripeController {
   async createTopupCheckoutSession(req: Request, res: Response) {
     try {
       const clerkId = req.auth.userId;
-      const { packKey, returnPath } = req.body as { packKey?: string; returnPath?: string };
+      const { packKey } = req.body as { packKey?: string };
 
       if (!packKey || typeof packKey !== "string") {
         return res
@@ -1464,16 +1464,13 @@ export class StripeController {
       // Build return URLs. Prefer the explicit CLIENT_URL env (so we land
       // back on the billing page with a status flag); otherwise fall back to
       // the generic STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL.
-      // Onboarding's Credits step sends a `returnPath` to come back to.
       const billingBase = CLIENT_URL ? `${CLIENT_URL}/billing` : SUCCESS_URL;
-      const successUrl =
-        appReturnUrl(returnPath, "success") ??
-        (billingBase
-          ? `${billingBase}?topup=success&credits=${pack.credits}&pack=${pack.key}`
-          : SUCCESS_URL);
-      const cancelUrl =
-        appReturnUrl(returnPath, "cancel") ??
-        (billingBase ? `${billingBase}?topup=cancel` : CANCEL_URL);
+      const successUrl = billingBase
+        ? `${billingBase}?topup=success&credits=${pack.credits}&pack=${pack.key}`
+        : SUCCESS_URL;
+      const cancelUrl = billingBase
+        ? `${billingBase}?topup=cancel`
+        : CANCEL_URL;
 
       const lineItem: Stripe.Checkout.SessionCreateParams.LineItem = {
         quantity: 1,

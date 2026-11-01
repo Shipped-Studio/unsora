@@ -22,7 +22,6 @@ import {
 } from "@/components/icons";
 import { ConnectGrid } from "@/components/scheduler/accounts-view";
 import { AccountAvatar, accountLabel } from "@/components/scheduler/account-avatar";
-import { bestValueKey } from "@/components/billing/credit-packs";
 import { formatLongDate, formatUsd, intervalLabel, planAllowanceLabel } from "@/components/billing/format";
 import { redirectToStripe } from "@/components/billing/redirect-to-stripe";
 import { Button } from "@/components/ui/button";
@@ -31,7 +30,6 @@ import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/shared/states";
 import { useAuthFetch } from "@/hooks/use-auth-fetch";
 import { useConnectedAccounts } from "@/hooks/use-connected-accounts";
-import { useCreditPacks, type CreditPack } from "@/hooks/use-credit-packs";
 import {
   plansForSale,
   useSubscriptionPlans,
@@ -341,89 +339,6 @@ export function TrialStep({ ctx }: { ctx: SetupContext }) {
 /* ------------------------------------------------------------------------ */
 
 /**
- * Right after the trial: the top-up packs. Plans include no credits, so this
- * is where clipping and creating get them; skipping is fine.
- */
-export function CreditsStep({ ctx, finishing }: { ctx: SetupContext; finishing?: boolean }) {
-  const { authFetch } = useAuthFetch();
-  const packs = useCreditPacks();
-  const [pendingKey, setPendingKey] = useState<string | null>(null);
-
-  const buy = async (packKey: string) => {
-    setPendingKey(packKey);
-    const redirecting = await redirectToStripe(
-      authFetch("/api/stripe/create-topup-session", {
-        method: "POST",
-        // Stripe brings them back here with `checkout=success|cancel`; the
-        // setup moves on from there.
-        body: JSON.stringify({ packKey, returnPath: ctx.hrefFor("credits") }),
-      }),
-      "Couldn't start checkout",
-    );
-    if (!redirecting) setPendingKey(null);
-  };
-
-  return (
-    <section className="mx-auto w-full max-w-5xl">
-      <StepHeader
-        eyebrow="Optional"
-        title="Add credits"
-        lead="Plans don't include credits. You need them only for creating: clips, captions, images, video and voiceovers. Scheduling and posting don't use any."
-      />
-
-      <div className="mt-10">
-        {packs.error ? (
-          <ErrorState title="Couldn't load credit packs" onRetry={() => void packs.refetch()} />
-        ) : packs.packs ? (
-          packs.packs.length ? (
-            <ul
-              className={cn(
-                "grid items-stretch gap-3",
-                packs.packs.length >= 4 ? "sm:grid-cols-2 lg:grid-cols-4" : "md:grid-cols-3",
-              )}
-            >
-              {packs.packs.map((pack) => (
-                <PackCard
-                  key={pack.key}
-                  pack={pack}
-                  best={pack.key === bestValueKey(packs.packs ?? [])}
-                  pending={pendingKey === pack.key}
-                  disabled={pendingKey !== null}
-                  onBuy={() => void buy(pack.key)}
-                />
-              ))}
-            </ul>
-          ) : (
-            <p className={cn(CARD, "p-6 text-center text-sm text-muted-foreground")}>
-              No credit packs right now. You can buy credits later from Billing.
-            </p>
-          )
-        ) : (
-          <div className="grid gap-3 md:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-60 rounded-2xl" />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <p className="mt-6 text-center text-sm text-muted-foreground">
-        Top-up credits never expire. You can buy more any time from Billing.
-      </p>
-
-      <StepFooter back={ctx.back}>
-        <Button size="lg" variant="ghost" onClick={ctx.next} disabled={pendingKey !== null || finishing}>
-          {finishing ? <Spinner data-icon="inline-start" /> : null}
-          Skip for now
-        </Button>
-      </StepFooter>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------------ */
-
-/**
  * Last step for an account made while connecting an AI app. The app's OAuth
  * request wasn't carried through sign-up, so they connect again from the app,
  * now with channels and a plan to use.
@@ -474,62 +389,6 @@ export function ConnectStep({
         </Button>
       </StepFooter>
     </section>
-  );
-}
-
-/** A top-up pack, laid out like PlanCard so the two steps read as one set. */
-function PackCard({
-  pack,
-  best,
-  pending,
-  disabled,
-  onBuy,
-}: {
-  pack: CreditPack;
-  /** Lowest price per credit. */
-  best: boolean;
-  pending: boolean;
-  disabled: boolean;
-  onBuy: () => void;
-}) {
-  const perCredit = pack.credits > 0 ? pack.priceUsd / pack.credits : 0;
-  return (
-    <li
-      className={cn(
-        "flex flex-col rounded-2xl bg-card p-5 ring-1 sm:p-6",
-        best ? "ring-2 ring-foreground" : "ring-border",
-      )}
-    >
-      <p className="flex items-center gap-2 font-medium">
-        {pack.name}
-        {best ? (
-          <span className="rounded-full bg-foreground px-2 py-0.5 text-2xs font-medium text-background">
-            Best value
-          </span>
-        ) : null}
-      </p>
-      <p className="mt-4 text-4xl font-semibold tracking-tight tabular-nums">
-        {pack.credits.toLocaleString()}
-        <span className="text-sm font-normal text-muted-foreground"> credits</span>
-      </p>
-      <p className="mt-1 text-sm text-muted-foreground tabular-nums">
-        {formatUsd(pack.priceUsd)} · ${perCredit.toFixed(3)} per credit
-      </p>
-      {pack.description ? <p className="mt-4 text-sm text-muted-foreground">{pack.description}</p> : null}
-
-      {/* Pushes the button down, so buttons line up whatever the descriptions. */}
-      <div className="min-h-6 flex-1" />
-      <Button
-        size="lg"
-        variant={best ? "default" : "outline"}
-        className="w-full"
-        disabled={disabled}
-        onClick={onBuy}
-      >
-        {pending ? <Spinner data-icon="inline-start" /> : null}
-        Buy for {formatUsd(pack.priceUsd)}
-      </Button>
-    </li>
   );
 }
 
