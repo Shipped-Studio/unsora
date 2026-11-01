@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
-  Coins,
   DotsThreeOutline,
   RedditLogo,
 } from "@phosphor-icons/react";
@@ -246,17 +245,6 @@ export function ChannelsStep({ ctx }: { ctx: SetupContext }) {
  */
 const INCLUDED = ["Post to TikTok, Instagram, YouTube and more", "Works in ChatGPT and Claude"];
 
-/**
- * The AI tools, listed apart from what the plan includes: plans come with no
- * credits, so these are paid for with top-ups.
- */
-const WITH_CREDITS = [
-  "Clip videos into up to 20 shorts",
-  "Captions in 35 animated styles",
-  "AI video, music and voiceovers",
-  "Thumbnails and 4K upscaling",
-];
-
 export function TrialStep({ ctx }: { ctx: SetupContext }) {
   const { authFetch } = useAuthFetch();
   const { plans: allPlans, loading, error, refetch } = useSubscriptionPlans();
@@ -326,11 +314,11 @@ export function TrialStep({ ctx }: { ctx: SetupContext }) {
         )}
       </div>
 
-      {hasTrial ? (
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          Nothing is charged until {chargeDate}.
-        </p>
-      ) : null}
+      <p className="mx-auto mt-6 max-w-xl text-center text-sm text-muted-foreground">
+        {hasTrial ? <>Nothing is charged until {chargeDate}. </> : null}
+        Credits aren&apos;t included in any plan. You only need them for AI tools like clipping, video
+        and voice, and can buy them anytime from Billing.
+      </p>
 
       {/* No way past this step without a plan: picking one is the only way on. */}
       <StepFooter back={ctx.back}>{null}</StepFooter>
@@ -408,7 +396,6 @@ function PlanCard({
   disabled: boolean;
   onStart: () => void;
 }) {
-  const [showTools, setShowTools] = useState(false);
   const per = intervalLabel(plan.interval);
   const allowance = planAllowanceLabel(plan);
   const included = [...new Set([...(plan.features ?? []), ...INCLUDED])];
@@ -433,6 +420,9 @@ function PlanCard({
         {per ? <span className="text-sm font-normal text-muted-foreground"> / {per}</span> : null}
       </p>
       {allowance ? <p className="mt-1 text-sm text-muted-foreground">{allowance}</p> : null}
+      {plan.credits > 0 ? null : (
+        <p className="mt-0.5 text-sm text-muted-foreground">No credits included</p>
+      )}
 
       <Button
         size="lg"
@@ -453,7 +443,6 @@ function PlanCard({
       ) : null}
 
       <div className="mt-6 border-t pt-6 text-sm">
-        <p className="mb-3 text-xs font-medium text-muted-foreground">Included</p>
         <ul className="space-y-2.5">
           {included.map((feature) => (
             <li key={feature} className="flex gap-2.5">
@@ -462,29 +451,6 @@ function PlanCard({
             </li>
           ))}
         </ul>
-
-        {/* Phones fold this away until asked, so three plans stay scannable. */}
-        <div className={cn("mt-5", !showTools && "max-sm:hidden")}>
-          <p className="mb-3 text-xs font-medium text-muted-foreground">AI tools · with credits</p>
-          <ul className="space-y-2.5 text-muted-foreground">
-            {WITH_CREDITS.map((tool) => (
-              <li key={tool} className="flex gap-2.5">
-                <Coins className="mt-0.5 size-4 shrink-0" />
-                <span>{tool}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        {showTools ? null : (
-          <Button
-            variant="link"
-            size="sm"
-            className="mt-2 px-0 text-muted-foreground sm:hidden"
-            onClick={() => setShowTools(true)}
-          >
-            Show AI tools
-          </Button>
-        )}
       </div>
     </li>
   );
