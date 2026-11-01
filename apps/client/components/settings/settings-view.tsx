@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { CaretRight } from "@phosphor-icons/react";
-import { AppearanceSection } from "./appearance-section";
 import { ProfileSection } from "./profile-section";
 import { SchedulingSection } from "./scheduling-section";
 import { SessionsSection } from "./sessions-section";
@@ -14,7 +13,6 @@ const SECTIONS = [
   { id: "profile", label: "Profile", render: () => <ProfileSection /> },
   { id: "sign-in", label: "Sign-in", render: () => <SignInSection /> },
   { id: "scheduling", label: "Scheduling", render: () => <SchedulingSection /> },
-  { id: "appearance", label: "Appearance", render: () => <AppearanceSection /> },
   { id: "sessions", label: "Sessions", render: () => <SessionsSection /> },
 ] as const;
 

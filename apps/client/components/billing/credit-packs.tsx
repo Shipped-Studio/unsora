@@ -63,7 +63,7 @@ export function CreditPacks({
     return (
       <EmptyState
         title="No credit packs right now"
-        description="Check back later, or change your plan for more credits each period."
+        description="Check back later."
       />
     );
   }

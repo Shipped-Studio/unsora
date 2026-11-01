@@ -3,7 +3,7 @@ import prisma from "../lib/db";
 import { getCreditBalance, listActiveGrants } from "../lib/credits";
 import { clerkClient } from "@clerk/express";
 import { userIsAdmin } from "../lib/is-admin";
-import { socialAccountLimitFor } from "../lib/plans";
+import { socialAccountLimitForUser } from "../lib/plans";
 import { isValidTimeZone } from "./schedule.controller";
 
 export class UserController {
@@ -35,7 +35,7 @@ export class UserController {
       const [credits, socialAccountCount, socialAccountLimit] = await Promise.all([
         getCreditBalance(user.id),
         prisma.socialAccount.count({ where: { userId: user.id } }),
-        socialAccountLimitFor(user.plan),
+        socialAccountLimitForUser(user),
       ]);
 
       res.json({

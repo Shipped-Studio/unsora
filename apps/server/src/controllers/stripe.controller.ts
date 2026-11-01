@@ -11,8 +11,10 @@ import {
   rolloverSubscriptionCycle,
 } from "../lib/credits";
 import {
+  findSubscriptionPlan,
   getPlanByKey,
   getTopupPlan,
+  hasPaidPlan,
   listSubscriptionPlans,
   listTopupPlans,
   planFeatures,
@@ -28,6 +30,55 @@ const SUCCESS_URL = process.env.STRIPE_SUCCESS_URL;
 const CANCEL_URL = process.env.STRIPE_CANCEL_URL;
 /** Public origin of the web app — used to build top-up return URLs. */
 const CLIENT_URL = process.env.CLIENT_URL;
+
+/**
+ * Subscription states that keep plan access. past_due is included: it's the
+ * window where Stripe is still retrying a failed renewal.
+ */
+/**
+ * The user a subscription belongs to: by Stripe customer, else by the
+ * `userId` checkout stamps on the subscription (then the customer is linked
+ * here, so an early invoice doesn't depend on `customer.created` arriving
+ * first).
+ */
+async function findUserForSubscription(subscription: Stripe.Subscription) {
+  const customerId = subscription.customer as string;
+  const byCustomer = await prisma.user.findFirst({
+    where: { stripeCustomerId: customerId },
+  });
+  if (byCustomer) return byCustomer;
+
+  const userId = subscription.metadata?.userId;
+  if (!userId) return null;
+  const byId = await prisma.user.findUnique({ where: { id: userId } });
+  if (!byId) return null;
+  if (byId.stripeCustomerId && byId.stripeCustomerId !== customerId) return null;
+  return prisma.user.update({
+    where: { id: byId.id },
+    data: { stripeCustomerId: customerId },
+  });
+}
+
+/** Plan of the user's live subscription credit bucket, from its grant reason. */
+async function currentSubscriptionPlan(userId: string): Promise<string | null> {
+  const grant = await prisma.creditGrant.findFirst({
+    where: {
+      userId,
+      source: "SUBSCRIPTION",
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+    },
+    orderBy: { createdAt: "desc" },
+    select: { reason: true },
+  });
+  const [prefix, plan] = grant?.reason?.split(":") ?? [];
+  return prefix === "subscription" && plan ? plan : null;
+}
+
+const LIVE_SUBSCRIPTION_STATUSES: Stripe.Subscription.Status[] = [
+  "active",
+  "trialing",
+  "past_due",
+];
 
 /**
  * Resolve how many credits a subscription cycle should grant.
@@ -52,8 +103,8 @@ async function planCreditsFor(opts: {
 }
 
 /**
- * Checkout return URL for an in-app `returnPath` (the ChatGPT connector's
- * trial step sends one so the user lands back in that flow), with
+ * Checkout return URL for an in-app `returnPath` (onboarding's trial step
+ * sends one so the user lands back in that flow), with
  * `checkout=success|cancel` added. Only paths on CLIENT_URL are accepted;
  * anything else returns null and the caller falls back to the env URLs.
  */
@@ -174,10 +225,15 @@ export class StripeController {
           // sync when the event is about the user's current subscription, or
           // when it's a live sub (the initial events for a brand-new
           // subscription arrive before our DB knows its id).
+          // Past-due keeps access while Stripe retries the charge; Stripe
+          // either recovers it (back to active) or cancels the subscription
+          // (`customer.subscription.deleted` tears down).
+          const live = LIVE_SUBSCRIPTION_STATUSES.includes(subscription.status);
+
           if (
             user.stripeSubscriptionId &&
             user.stripeSubscriptionId !== subscription.id &&
-            !["active", "trialing"].includes(subscription.status)
+            !live
           ) {
             break;
           }
@@ -204,11 +260,13 @@ export class StripeController {
             data: {
               stripeSubscriptionId: subscription.id,
               stripePriceId: subscription.items.data[0].price.id,
-              isActive: ["active", "trialing"].includes(subscription.status),
+              isActive: live,
               stripeCurrentPeriodEnd: currentPeriodEndUnix
                 ? new Date(currentPeriodEndUnix * 1000)
                 : null,
-              plan: planName,
+              // A dead subscription (unpaid, incomplete_expired) must not
+              // leave its plan name behind: limits read the plan name.
+              plan: live ? planName : "free",
               status: subscription.status,
               isCancelled: !!subscription.cancel_at_period_end,
             },
@@ -218,9 +276,7 @@ export class StripeController {
           // (I usually only set plan on payment_succeeded, but keeping it here is fine)
           await clerkClient.users.updateUserMetadata(user.clerkId, {
             unsafeMetadata: {
-              plan: ["active", "trialing"].includes(subscription.status)
-                ? planName
-                : "free",
+              plan: live ? planName : "free",
             },
           });
 
@@ -314,10 +370,7 @@ export class StripeController {
             subscription.items.data[0].price.product as Stripe.Product
           ).name;
 
-          const user = await prisma.user.findFirst({
-            where: { stripeCustomerId: subscription.customer as string },
-          });
-          
+          const user = await findUserForSubscription(subscription);
           if (!user) throw new Error("User not found");
 
           const periodEnd = new Date(
@@ -347,6 +400,18 @@ export class StripeController {
             billingReason === "subscription_create" &&
             !!upgradeFromSubscriptionId &&
             upgradeFromSubscriptionId !== subscription.id;
+          // A plan switched in place (Stripe portal) bills as
+          // subscription_update on the same subscription. Its leftover
+          // credits carry over too, same as the in-app switch; otherwise the
+          // rollover below would just expire them. Detected from the current
+          // plan bucket's reason ("subscription:<plan>:…"), since the user
+          // row may already show the new price.
+          const previousPlan =
+            billingReason === "subscription_update"
+              ? await currentSubscriptionPlan(user.id)
+              : null;
+          const isPlanSwitch =
+            previousPlan !== null && previousPlan !== planName.toLowerCase();
 
           if (shouldResetCredits) {
             const isTrial = subscription.status === "trialing";
@@ -375,11 +440,33 @@ export class StripeController {
               // Snapshot the old plan's leftover subscription credits BEFORE
               // the rollover expires them — on an upgrade they roll into the
               // new plan's bucket instead of being lost.
-              const carryover = isPlanUpgrade
-                ? await getSubscriptionCreditsRemaining(user.id)
-                : 0;
+              const carryover =
+                isPlanUpgrade || isPlanSwitch
+                  ? await getSubscriptionCreditsRemaining(user.id)
+                  : 0;
 
-              if (credits + carryover > 0) {
+              if (credits === 0 && carryover > 0) {
+                // Switched to a plan with no credits (credits come from
+                // top-ups). The old plan's leftover credits stay, without
+                // an end date: there's no next bucket to roll them into.
+                await expireSubscriptionGrants(user.id, `${idempotencyReason}:expire-previous`);
+                await grantCredits({
+                  userId: user.id,
+                  amount: carryover,
+                  source: "PROMOTION",
+                  reason: idempotencyReason,
+                  expiresAt: null,
+                  metadata: {
+                    stripeSubscriptionId: subscription.id,
+                    stripeInvoiceId: invoice.id,
+                    billingReason,
+                    planUpgrade: true,
+                    upgradeFromSubscriptionId,
+                    planCredits: 0,
+                    carryoverCredits: carryover,
+                  },
+                });
+              } else if (credits + carryover > 0) {
                 await rolloverSubscriptionCycle({
                   userId: user.id,
                   amount: credits + carryover,
@@ -390,7 +477,7 @@ export class StripeController {
                     stripeInvoiceId: invoice.id,
                     billingReason,
                     trial: isTrial,
-                    ...(isPlanUpgrade
+                    ...(isPlanUpgrade || isPlanSwitch
                       ? {
                           planUpgrade: true,
                           upgradeFromSubscriptionId,
@@ -416,6 +503,7 @@ export class StripeController {
                   invoiceId: invoice.id ?? subscription.id,
                   planName,
                   credits: credits + carryover,
+                  planCredits: credits,
                   kind: isTrial ? "trial" : isPlanUpgrade ? "upgraded" : "paid",
                   trialEndsAt: subscription.trial_end
                     ? new Date(subscription.trial_end * 1000)
@@ -443,8 +531,12 @@ export class StripeController {
                 upgradeFromSubscriptionId,
               );
               if (oldSub.status !== "canceled") {
+                // Prorate so the unused part of the old plan comes back as
+                // account credit (applied to the next invoice) instead of
+                // being lost; invoice_now settles it straight away.
                 await stripe.subscriptions.cancel(upgradeFromSubscriptionId, {
-                  prorate: false,
+                  prorate: true,
+                  invoice_now: true,
                 });
               }
             } catch (err) {
@@ -493,20 +585,21 @@ export class StripeController {
             throw new Error("User not found");
           }
 
-          await expireSubscriptionGrants(
-            user.id,
-            `subscription:${user.plan ?? "free"}:payment-failed:${invoice.id}`,
-          );
-
+          // Don't downgrade here. Stripe retries the charge for a while and
+          // the subscription sits in past_due, which keeps access (see
+          // LIVE_SUBSCRIPTION_STATUSES). If every retry fails Stripe cancels
+          // it and `customer.subscription.deleted` expires the plan credits
+          // and drops the user to free. Downgrading on the first failure cut
+          // customers off over a card that was about to be retried.
+          const live = LIVE_SUBSCRIPTION_STATUSES.includes(subscription.status);
           await prisma.user.update({
             where: {
               id: user.id,
             },
             data: {
-              isActive: false,
-              plan: "free",
+              isActive: live,
+              ...(live ? {} : { plan: "free" }),
               status: subscription.status,
-              isCancelled: true,
             },
           });
 
@@ -617,25 +710,25 @@ export class StripeController {
 
           if (fraudUser) {
             // Burn ALL grants — fraud means we want zero balance, including
-            // any top-ups they may have purchased on the same card.
+            // any top-ups they may have purchased on the same card. The
+            // ledger entry is what was left (granted minus spent), not the
+            // total ever granted.
+            const live = await prisma.creditGrant.aggregate({
+              where: {
+                userId: fraudUser.id,
+                OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+              },
+              _sum: { amount: true, used: true },
+            });
+            const remaining = Math.max(
+              0,
+              (live._sum.amount ?? 0) - (live._sum.used ?? 0),
+            );
             await prisma.creditTransaction.create({
               data: {
                 userId: fraudUser.id,
                 type: "EXPIRY",
-                amount: -(
-                  (
-                    await prisma.creditGrant.aggregate({
-                      where: {
-                        userId: fraudUser.id,
-                        OR: [
-                          { expiresAt: null },
-                          { expiresAt: { gt: new Date() } },
-                        ],
-                      },
-                      _sum: { amount: true, used: true },
-                    })
-                  )._sum.amount! ?? 0
-                ),
+                amount: -remaining,
                 reason: `fraud:${chargeId}`,
                 metadata: { chargeId, customerId },
               },
@@ -649,20 +742,23 @@ export class StripeController {
             });
           }
 
-          await prisma.user.update({
-            where: {
-              stripeCustomerId: customerId,
-            },
-            data: {
-              isActive: false,
-              plan: "free",
-              stripeSubscriptionId: null,
-              stripePriceId: null,
-              stripeCurrentPeriodEnd: null,
-              status: "canceled",
-              isCancelled: true,
-            },
-          });
+          // No matching user (already deleted, or a customer we never
+          // linked): nothing to downgrade. `update` would throw and make
+          // Stripe retry this event forever.
+          if (fraudUser) {
+            await prisma.user.update({
+              where: { id: fraudUser.id },
+              data: {
+                isActive: false,
+                plan: "free",
+                stripeSubscriptionId: null,
+                stripePriceId: null,
+                stripeCurrentPeriodEnd: null,
+                status: "canceled",
+                isCancelled: true,
+              },
+            });
+          }
 
           // Delete the customer from Stripe
           await stripe.customers.del(customerId);
@@ -757,15 +853,16 @@ export class StripeController {
                 upgradeFromSubscriptionId,
               },
             }
-          : trialLength > 0
-            ? {
-                trial_period_days: trialLength,
-              }
-            : undefined,
+          : {
+              // Lets the webhooks find the user even if the first invoice
+              // arrives before `customer.created` linked the customer.
+              metadata: { userId: user.id },
+              ...(trialLength > 0 ? { trial_period_days: trialLength } : {}),
+            },
         custom_text: {
           submit: {
             message: upgradeFromSubscriptionId
-              ? "Your current plan will be cancelled and any remaining plan credits will be added to your new plan."
+              ? "Your current plan will be cancelled. Its remaining credits move to your new plan, and unused time is credited to your next invoice."
               : trialLength > 0
                 ? `Your ${trialLength}-day free trial starts today. You won't be charged until it ends, and you can cancel any time before then from Billing.`
                 : "Your subscription will begin immediately after successful payment.",
@@ -892,7 +989,7 @@ export class StripeController {
         custom_text: {
           submit: {
             message:
-              "Your current plan will be cancelled and any remaining plan credits will be added to your new plan.",
+              "Your current plan will be cancelled. Its remaining credits move to your new plan, and unused time is credited to your next invoice.",
           },
         },
       });
@@ -1258,10 +1355,19 @@ export class StripeController {
    * checkout resolves it from `key` server-side, so it never touches the
    * browser and can't be tampered with.
    */
-  async getSubscriptionPlans(_req: Request, res: Response) {
+  async getSubscriptionPlans(req: Request, res: Response) {
     try {
       const plans = await listSubscriptionPlans();
-      const data = plans.map((p) => {
+      // A subscriber on a plan that's no longer sold (Basic / Pro / Power
+      // after the move to account-based plans) still sees it as their
+      // current plan, marked so it isn't offered to anyone else.
+      const user = await prisma.user.findUnique({
+        where: { clerkId: req.auth.userId },
+        select: { plan: true, isActive: true },
+      });
+      const current = user && hasPaidPlan(user) ? await findSubscriptionPlan(user.plan) : null;
+      const offSale = current && !plans.some((p) => p.id === current.id) ? [current] : [];
+      const data = [...plans, ...offSale].map((p) => {
         const pub = toPublicPlan(p);
         return {
           key: pub.key,
@@ -1274,6 +1380,7 @@ export class StripeController {
           interval: pub.interval,
           features: planFeatures(p),
           socialAccounts: planSocialAccounts(p),
+          available: p.isActive,
         };
       });
       return res.json({ success: true, data });
@@ -1352,23 +1459,6 @@ export class StripeController {
         return res
           .status(404)
           .json({ success: false, error: "User not found" });
-      }
-
-      // Top-ups are an add-on for paying customers only — they don't make
-      // sense without an active plan and we don't want them to be the
-      // backdoor that lets free users buy credits piecemeal. Mirrors the
-      // `isPaid` gate in the billing UI; this is the source of truth.
-      const hasActiveSubscription =
-        user.isActive &&
-        !!user.stripeSubscriptionId &&
-        (user.plan ?? "free").toLowerCase() !== "free";
-
-      if (!hasActiveSubscription) {
-        return res.status(403).json({
-          success: false,
-          error:
-            "Credit top-ups are only available on an active subscription. Please subscribe to a plan first.",
-        });
       }
 
       // Build return URLs. Prefer the explicit CLIENT_URL env (so we land

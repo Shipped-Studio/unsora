@@ -18,6 +18,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { CopyButton } from "@/components/api-keys/copy-button";
 import {
   ApiKeyError,
@@ -167,6 +168,7 @@ function CreateKeyBody({
           Cancel
         </DialogClose>
         <Button type="submit" disabled={createKey.isPending}>
+          {createKey.isPending ? <Spinner data-icon="inline-start" /> : null}
           {createKey.isPending ? "Creating…" : "Create API key"}
         </Button>
       </DialogFooter>

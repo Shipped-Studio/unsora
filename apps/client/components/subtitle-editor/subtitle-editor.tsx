@@ -1,150 +1,82 @@
 "use client";
 
-import { useCallback, useId, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { useState } from "react";
 import {
   DownloadSimple,
   Drop,
+  FilmStrip,
   FloppyDisk,
-  FrameCorners,
   Palette,
   PencilSimple,
+  Sparkle,
   Subtitles,
-  TextT,
 } from "@phosphor-icons/react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import type { CaptionLayout } from "@/components/subtitle-editor/caption-layout";
+import { presetLayout } from "@/components/subtitle-editor/caption-style";
+import { CaptionsEditorProvider } from "@/components/subtitle-editor/captions/captions-context";
 import { DeleteDialog } from "@/components/subtitle-editor/delete-dialog";
+import { readLanguage } from "@/components/subtitle-editor/editor/read-settings";
+import { RecutLinesDialog } from "@/components/subtitle-editor/editor/recut-lines-dialog";
+import { RenameDialog } from "@/components/subtitle-editor/editor/rename-dialog";
+import { useAiTools } from "@/components/subtitle-editor/editor/use-ai-tools";
+import { useCaptionTools } from "@/components/subtitle-editor/editor/use-caption-tools";
+import { useEditorSettings } from "@/components/subtitle-editor/editor/use-editor-settings";
+import { useExports } from "@/components/subtitle-editor/editor/use-exports";
+import { usePlayback } from "@/components/subtitle-editor/editor/use-playback";
+import { useProjectActions } from "@/components/subtitle-editor/editor/use-project-actions";
 import {
   ExportPopover,
   ExportProgressDialog,
 } from "@/components/subtitle-editor/export-video";
-import { failureMessage } from "@/components/subtitle-editor/format";
-import {
-  SUBTITLE_PRESETS,
-  type SubtitleStylePreset,
-} from "@/components/subtitle-editor/style-presets";
-import {
-  EditSubtitlesTab,
-  TRANSCRIPTION_LANGUAGES,
-} from "@/components/subtitle-editor/tabs/edit-subtitles-tab";
-import {
-  EditTitleTab,
-  TITLE_OVERLAY_DEFAULTS,
-  type TitleOverlayConfig,
-} from "@/components/subtitle-editor/tabs/edit-title-tab";
-import {
-  EditWatermarkTab,
-  WATERMARK_OVERLAY_DEFAULTS,
-  type WatermarkOverlayConfig,
-} from "@/components/subtitle-editor/tabs/edit-watermark-tab";
+import { AiToolsTab } from "@/components/subtitle-editor/tabs/ai-tools-tab";
+import { BrollsTab } from "@/components/subtitle-editor/tabs/brolls-tab";
+import { CaptionsTab } from "@/components/subtitle-editor/tabs/edit-subtitles-tab";
+import { HookTitleEditor } from "@/components/subtitle-editor/tabs/edit-title-tab";
+import { EditWatermarkTab } from "@/components/subtitle-editor/tabs/edit-watermark-tab";
 import { ExportsTab } from "@/components/subtitle-editor/tabs/exports-tab";
-import {
-  PREVIEW_STYLE_DEFAULTS,
-  PreviewStyleTab,
-  getCompositionDimensions,
-  type PreviewStyleConfig,
-} from "@/components/subtitle-editor/tabs/preview-style-tab";
-import {
-  SIZE_POSITION_DEFAULTS,
-  StyleSubtitlesTab,
-  type SizePositionValues,
-} from "@/components/subtitle-editor/tabs/style-subtitles-tab";
+import { StyleSubtitlesTab } from "@/components/subtitle-editor/tabs/style-subtitles-tab";
 import { UploadDialog } from "@/components/subtitle-editor/upload-dialog";
 import { VideoPreview } from "@/components/subtitle-editor/video-preview";
 import { useCreateProject } from "@/hooks/subtitle/use-create-project";
-import { useExportJob } from "@/hooks/subtitle/use-export-job";
-import { useSubtitleApi } from "@/hooks/subtitle/use-subtitle-api";
-import {
-  subtitleQueryKeys,
-  useDeleteSubtitleExport,
-} from "@/hooks/subtitle/use-subtitle-queries";
+import { useSubtitleApi, type CaptionScene } from "@/hooks/subtitle/use-subtitle-api";
 import type { TranscriptionStatus } from "@/hooks/subtitle/use-transcription-data";
-import type {
-  SubtitleChunk,
-  TranscriptionData,
-  VideoExportItem,
-} from "@/remotion/types";
+import { cn } from "@/lib/utils";
+import type { AiToolState, SubtitleChunk, TranscriptionData } from "@/remotion/types";
 
 export const EDITOR_PARENTS = [{ label: "Subtitles", href: "/subtitle-editor" }];
 
-const PANEL_CLASS = "max-w-3xl px-4 py-6 md:px-6";
-const PREVIEW_CLASS =
-  "border-t p-4 md:p-6 lg:sticky lg:top-18 lg:h-[calc(100svh-5.5rem)] lg:self-start lg:border-t-0 lg:border-l";
+/** Editor and preview side by side on large screens; each scrolls on its own. */
 const LAYOUT_CLASS =
-  "grid grid-cols-1 lg:min-h-[calc(100svh-5.5rem)] lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]";
-
-interface StoredSettings {
-  selectedPresetId?: string;
-  sizePosition?: Partial<SizePositionValues>;
-  titleOverlay?: Partial<TitleOverlayConfig>;
-  watermarkOverlay?: Partial<WatermarkOverlayConfig>;
-  previewStyle?: Partial<PreviewStyleConfig>;
-}
-
-function readSettings(project: TranscriptionData) {
-  const stored = (project.editorSettings ?? {}) as StoredSettings;
-  return {
-    preset:
-      SUBTITLE_PRESETS.find((p) => p.id === stored.selectedPresetId) ??
-      SUBTITLE_PRESETS[0],
-    sizePosition: { ...SIZE_POSITION_DEFAULTS, ...stored.sizePosition },
-    titleOverlay: { ...TITLE_OVERLAY_DEFAULTS, ...stored.titleOverlay },
-    watermarkOverlay: {
-      ...WATERMARK_OVERLAY_DEFAULTS,
-      ...stored.watermarkOverlay,
-    },
-    previewStyle: { ...PREVIEW_STYLE_DEFAULTS, ...stored.previewStyle },
-  };
-}
-
-/**
- * The column holds either a chosen code ("en") or the detected language's
- * full name ("english").
- */
-function readLanguage(stored: string | null | undefined): string {
-  const value = stored?.toLowerCase();
-  const match = TRANSCRIPTION_LANGUAGES.find(
-    (l) => l.code === value || l.label.toLowerCase() === value,
-  );
-  return match?.code ?? "auto";
-}
-
-function projectDisplayTitle(project: TranscriptionData): string {
-  return project.title || project.filename || "Untitled project";
-}
+  "grid grid-cols-1 lg:h-[calc(100svh-5.5rem)] lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]";
+const CARD_CLASS = "min-h-0 min-w-0 overflow-hidden";
+const PANEL_CLASS = "mx-auto w-full max-w-3xl px-4 py-5 md:px-6";
+const PREVIEW_CLASS = cn(CARD_CLASS, "border-t p-4 md:p-5 lg:border-t-0 lg:border-l");
+/** Vertical menu items; a scrolling row on small screens. */
+const NAV_ITEM_CLASS =
+  "h-9 flex-none justify-start px-3 after:hidden data-active:bg-muted! data-active:text-foreground max-md:w-auto!";
 
 interface SubtitleEditorProps {
   project: TranscriptionData;
   status: TranscriptionStatus;
   transcriptionError: string | null;
   isStarting: boolean;
-  onStartTranscription: (options: {
-    language: string;
-    maxWordsPerChunk: number;
-  }) => void;
+  onStartTranscription: (options: { language: string; layout: CaptionLayout }) => void;
   onChunksChange: (chunks: SubtitleChunk[]) => void;
-  onMaxWordsChange: (value: number) => void;
   onRefreshExports: () => Promise<void>;
+  aiTools: Record<string, AiToolState>;
+  onRunAiTool: (tool: string) => Promise<{ scenes?: CaptionScene[] } | null>;
+  onRemoveAiTool: (tool: string) => Promise<boolean>;
 }
 
 /**
- * Editor for a loaded project. Style settings are read from the project once
- * on mount; after that this component owns them until Save.
+ * Editor for a loaded project: the tabs on the left, the live preview on the
+ * right. The logic lives in the `editor/use-*` hooks; this lays out the screen.
  */
 export function SubtitleEditor({
   project,
@@ -153,166 +85,112 @@ export function SubtitleEditor({
   isStarting,
   onStartTranscription,
   onChunksChange,
-  onMaxWordsChange,
   onRefreshExports,
+  aiTools,
+  onRunAiTool,
+  onRemoveAiTool,
 }: SubtitleEditorProps) {
-  const api = useSubtitleApi();
-  const queryClient = useQueryClient();
-  const deleteExport = useDeleteSubtitleExport();
-  const { createProject, isCreating } = useCreateProject({ replace: true });
-
-  const [initial] = useState(() => readSettings(project));
-  const [title, setTitle] = useState(() => projectDisplayTitle(project));
-  const [preset, setPreset] = useState<SubtitleStylePreset>(initial.preset);
-  const [sizePosition, setSizePosition] = useState(initial.sizePosition);
-  const [titleOverlay, setTitleOverlay] = useState(initial.titleOverlay);
-  const [watermarkOverlay, setWatermarkOverlay] = useState(
-    initial.watermarkOverlay,
-  );
-  const [previewStyle, setPreviewStyle] = useState(initial.previewStyle);
-  const [language, setLanguage] = useState(() => readLanguage(project.language));
-
-  const [activeTab, setActiveTab] = useState("edit");
-  const [activeChunkIndex, setActiveChunkIndex] = useState(-1);
-  const [isSaving, setIsSaving] = useState(false);
-  const [renameOpen, setRenameOpen] = useState(false);
-  const [uploadOpen, setUploadOpen] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
-  const [exportName, setExportName] = useState("");
-  const [pendingDelete, setPendingDelete] = useState<VideoExportItem | null>(
-    null,
-  );
-  const seekRef = useRef<((seconds: number) => void) | null>(null);
-
-  const exportJob = useExportJob({ onSettled: () => void onRefreshExports() });
-
-  const videoUrl = project.videoAsset?.url ?? null;
   const chunks = project.subtitleChunks;
-  const exportCount = project.videoExports.length;
+  const videoUrl = project.videoAsset?.url ?? null;
+  const isTranscribing = status === "pending" || status === "processing";
+  const hasTranscript = Boolean(project.text?.trim());
 
-  const handleTimeUpdate = useCallback(
-    (time: number) => {
-      const index = chunks.findIndex((c) => time >= c.start && time <= c.end);
-      setActiveChunkIndex(index);
-    },
-    [chunks],
-  );
-
-  const handleSeek = useCallback((seconds: number) => {
-    seekRef.current?.(seconds);
-  }, []);
-
-  const currentSettings = () => ({
-    selectedPresetId: preset.id,
-    sizePosition,
-    titleOverlay,
-    watermarkOverlay,
-    previewStyle,
+  const api = useSubtitleApi();
+  const { createProject, isCreating } = useCreateProject({ replace: true });
+  const settings = useEditorSettings(project);
+  const playback = usePlayback(chunks);
+  const actions = useProjectActions({ project, chunks, settings, isTranscribing });
+  const exports = useExports({ project, chunks, settings, onRefreshExports });
+  const captionTools = useCaptionTools({
+    project,
+    chunks,
+    onChunksChange,
+    settings,
+    isTranscribing,
   });
 
-  const save = async () => {
-    setIsSaving(true);
-    const isTranscribing = status === "pending" || status === "processing";
-    const result = await api.updateTranscription(project.id, {
-      title,
-      editorSettings: currentSettings(),
-      // Don't overwrite the transcript the server is about to write.
-      ...(isTranscribing
-        ? {}
-        : {
-            subtitleChunks: chunks,
-            maxWordsPerChunk: project.maxWordsPerChunk,
-          }),
-    });
-    setIsSaving(false);
-    if (!result.success) {
-      toast.error(failureMessage("save your changes", result.error));
-      return;
-    }
-    toast.success("Changes saved");
-    void queryClient.invalidateQueries({
-      queryKey: subtitleQueryKeys.projects(),
-    });
+  const [language, setLanguage] = useState(() => readLanguage(project.language));
+  const [activeTab, setActiveTab] = useState("edit");
+  /** The Captions tab shows the transcript, or the hook title editor. */
+  const [captionsView, setCaptionsView] = useState<"captions" | "hook">("captions");
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+
+  const openCaptions = (view: "captions" | "hook") => {
+    setCaptionsView(view);
+    setActiveTab("edit");
   };
 
-  const rename = async (next: string) => {
-    const result = await api.updateTranscription(project.id, { title: next });
-    if (!result.success) {
-      toast.error(failureMessage("rename the project", result.error));
-      return false;
-    }
-    setTitle(next);
-    toast.success("Project renamed");
-    void queryClient.invalidateQueries({
-      queryKey: subtitleQueryKeys.projects(),
-    });
-    return true;
+  /** Transcribes in `nextLanguage`, cutting lines for the current template. */
+  const startTranscription = (nextLanguage: string) => {
+    setLanguage(nextLanguage);
+    captionTools.forgetKeepLines();
+    onStartTranscription({ language: nextLanguage, layout: presetLayout(settings.preset) });
   };
 
-  const startExport = async (fileName: string) => {
-    if (!videoUrl) return;
-    setExportName(fileName);
-    setExportOpen(true);
-    const { width, height } = getCompositionDimensions(
-      previewStyle,
-      project.width ?? 1080,
-      project.height ?? 1920,
-    );
-    const queued = await exportJob.startExport({
-      transcriptionId: project.id,
-      videoUrl,
-      subtitleChunks: chunks,
-      style: { fileName, preset, ...currentSettings() },
-      duration: project.duration ?? 0,
-      width,
-      height,
-    });
-    if (queued) void onRefreshExports();
-  };
-
-  const confirmDeleteExport = () => {
-    if (!pendingDelete) return;
-    deleteExport.mutate(pendingDelete.id, {
-      onSuccess: () => {
-        setPendingDelete(null);
-        toast.success("Export deleted");
-        void onRefreshExports();
-      },
-      onError: (error) =>
-        toast.error(failureMessage("delete the export", error)),
-    });
-  };
+  const aiToolsTab = useAiTools({
+    project,
+    chunks,
+    onChunksChange,
+    settings,
+    isTranscribing,
+    aiTools,
+    onRunAiTool,
+    onRemoveAiTool,
+    save: actions.save,
+    generateHook: actions.generateHook,
+    onStartTranscription: () => startTranscription(language),
+    onOpenTab: setActiveTab,
+    onOpenCaptions: openCaptions,
+  });
 
   return (
     <>
       <PageHeader
         parents={EDITOR_PARENTS}
-        title={title}
+        title={actions.title}
         actions={
           <>
             <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Rename project"
-              onClick={() => setRenameOpen(true)}
+              variant="outline"
+              size="sm"
+              disabled={actions.isTitling || !hasTranscript}
+              onClick={actions.writeTitle}
             >
-              <PencilSimple />
+              {actions.isTitling ? <Spinner /> : <Sparkle />}
+              AI title
             </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Rename project"
+                    onClick={() => setRenameOpen(true)}
+                  />
+                }
+              >
+                <PencilSimple />
+              </TooltipTrigger>
+              <TooltipContent>Rename project</TooltipContent>
+            </Tooltip>
             <Button
               variant="outline"
-              onClick={save}
-              disabled={isSaving}
+              size="sm"
+              onClick={() => void actions.save()}
+              disabled={actions.isSaving}
             >
-              {isSaving ? <Spinner /> : <FloppyDisk />}
+              {actions.isSaving ? <Spinner /> : <FloppyDisk />}
               <span className="sr-only sm:not-sr-only">
-                {isSaving ? "Saving…" : "Save"}
+                {actions.isSaving ? "Saving…" : "Save"}
               </span>
             </Button>
             <ExportPopover
-              defaultFileName={title}
+              defaultFileName={actions.title}
               durationSeconds={project.duration ?? 0}
-              onExport={startExport}
-              disabled={exportJob.isExporting || !videoUrl}
+              onExport={exports.start}
+              disabled={exports.job.isExporting || !videoUrl}
             />
           </>
         }
@@ -320,94 +198,139 @@ export function SubtitleEditor({
 
       <div className={LAYOUT_CLASS}>
         <Tabs
+          orientation="vertical"
           value={activeTab}
           onValueChange={(value) => setActiveTab(String(value))}
-          className="min-w-0 gap-0"
+          className={cn(CARD_CLASS, "flex-col gap-0 md:flex-row")}
         >
-          <div className="sticky top-14 z-20 border-b bg-background">
-            <div className="overflow-x-auto px-4 pt-1 pb-0.5 md:px-6">
-              <TabsList variant="line">
-                <TabsTrigger value="style">
-                  <Palette />
-                  Style
-                </TabsTrigger>
-                <TabsTrigger value="edit">
-                  <Subtitles />
-                  Edit subtitles
-                </TabsTrigger>
-                <TabsTrigger value="title">
-                  <TextT />
-                  Title
-                </TabsTrigger>
-                <TabsTrigger value="watermark">
-                  <Drop />
-                  Watermark
-                </TabsTrigger>
-                <TabsTrigger value="preview-style">
-                  <FrameCorners />
-                  Preview style
-                </TabsTrigger>
-                <TabsTrigger value="exports">
-                  <DownloadSimple />
-                  Exports
-                  {exportCount > 0 ? (
-                    <span className="text-xs tabular-nums text-muted-foreground">
-                      {exportCount}
-                    </span>
-                  ) : null}
-                </TabsTrigger>
-              </TabsList>
-            </div>
-          </div>
+          <TabsList
+            variant="line"
+            aria-label="Editor sections"
+            className="h-auto! w-full shrink-0 justify-start overflow-x-auto border-b p-2 max-md:flex-row! md:w-48 md:items-stretch md:border-r md:border-b-0 md:p-3"
+          >
+            <TabsTrigger value="style" className={NAV_ITEM_CLASS}>
+              <Palette />
+              Style
+            </TabsTrigger>
+            <TabsTrigger value="edit" className={NAV_ITEM_CLASS}>
+              <Subtitles />
+              Captions
+            </TabsTrigger>
+            <TabsTrigger value="ai" className={NAV_ITEM_CLASS}>
+              <Sparkle />
+              AI tools
+            </TabsTrigger>
+            <TabsTrigger value="brolls" className={NAV_ITEM_CLASS}>
+              <FilmStrip />
+              B-rolls
+            </TabsTrigger>
+            <TabsTrigger value="watermark" className={NAV_ITEM_CLASS}>
+              <Drop />
+              Watermark
+            </TabsTrigger>
+            <TabsTrigger value="exports" className={NAV_ITEM_CLASS}>
+              <DownloadSimple />
+              Exports
+              {project.videoExports.length > 0 ? (
+                <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                  {project.videoExports.length}
+                </span>
+              ) : null}
+            </TabsTrigger>
+          </TabsList>
 
-          <TabsContent value="style" className={PANEL_CLASS}>
-            <StyleSubtitlesTab
-              selectedPresetId={preset.id}
-              onSelectPreset={setPreset}
-              sizePosition={sizePosition}
-              onSizePositionChange={setSizePosition}
-            />
-          </TabsContent>
-          <TabsContent value="edit" className={PANEL_CLASS}>
-            <EditSubtitlesTab
-              hasVideo={Boolean(videoUrl)}
-              status={status}
-              transcriptionError={transcriptionError}
-              chunks={chunks}
-              isStarting={isStarting}
-              activeChunkIndex={activeChunkIndex}
-              language={language}
-              onLanguageChange={setLanguage}
-              maxWordsPerChunk={project.maxWordsPerChunk}
-              onMaxWordsChange={onMaxWordsChange}
-              onStartTranscription={() =>
-                onStartTranscription({
-                  language,
-                  maxWordsPerChunk: project.maxWordsPerChunk,
-                })
-              }
-              onChunksChange={onChunksChange}
-              onSeek={handleSeek}
-            />
-          </TabsContent>
-          <TabsContent value="title" className={PANEL_CLASS}>
-            <EditTitleTab config={titleOverlay} onChange={setTitleOverlay} />
-          </TabsContent>
-          <TabsContent value="watermark" className={PANEL_CLASS}>
-            <EditWatermarkTab
-              config={watermarkOverlay}
-              onChange={setWatermarkOverlay}
-            />
-          </TabsContent>
-          <TabsContent value="preview-style" className={PANEL_CLASS}>
-            <PreviewStyleTab config={previewStyle} onChange={setPreviewStyle} />
-          </TabsContent>
-          <TabsContent value="exports" className={PANEL_CLASS}>
-            <ExportsTab
-              exports={project.videoExports}
-              onDelete={setPendingDelete}
-            />
-          </TabsContent>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <TabsContent value="style" className={PANEL_CLASS}>
+              <StyleSubtitlesTab
+                preset={settings.preset}
+                onPresetChange={captionTools.changePreset}
+                placement={settings.placement}
+                onPlacementChange={settings.setPlacement}
+                previewStyle={settings.previewStyle}
+                onPreviewStyleChange={settings.setPreviewStyle}
+              />
+            </TabsContent>
+
+            <TabsContent value="edit" className={PANEL_CLASS}>
+              {captionsView === "hook" ? (
+                <HookTitleEditor
+                  config={settings.titleOverlay}
+                  onChange={settings.setTitleOverlay}
+                  onGenerate={actions.generateHook}
+                  canGenerate={hasTranscript}
+                  getCurrentTime={playback.getCurrentTime}
+                  onBack={() => setCaptionsView("captions")}
+                />
+              ) : (
+                <CaptionsEditorProvider
+                  chunks={chunks}
+                  onChunksChange={onChunksChange}
+                  onSeek={playback.seek}
+                  preset={settings.preset}
+                  placement={settings.placement}
+                >
+                  <CaptionsTab
+                    hasVideo={Boolean(videoUrl)}
+                    status={status}
+                    transcriptionError={transcriptionError}
+                    isStarting={isStarting}
+                    activeLineIndex={playback.activeLineIndex}
+                    activeWord={playback.activeWord}
+                    language={language}
+                    onStartTranscription={(options) => startTranscription(options.language)}
+                    accuracy={captionTools.accuracy}
+                    busy={captionTools.busy}
+                    onOptimize={captionTools.optimize}
+                    onRegenerateEmojis={captionTools.regenerateEmojis}
+                    onTranslate={captionTools.translate}
+                    onOpenHookTitle={() => setCaptionsView("hook")}
+                  />
+                </CaptionsEditorProvider>
+              )}
+            </TabsContent>
+
+            <TabsContent value="ai" className={PANEL_CLASS}>
+              <AiToolsTab groups={aiToolsTab.groups} />
+            </TabsContent>
+
+            <TabsContent value="brolls" className={PANEL_CLASS}>
+              <BrollsTab
+                api={api}
+                projectId={project.id}
+                videoUrl={videoUrl}
+                chunks={chunks}
+                duration={project.duration ?? 0}
+                currentTime={chunks[playback.activeLineIndex]?.start ?? -1}
+                orientation={settings.orientation}
+                scenes={settings.scenes}
+                onScenesChange={settings.setScenes}
+                timeline={settings.timeline}
+                onTimelineChange={settings.setTimeline}
+                zooms={settings.previewStyle.zooms ?? []}
+                onZoomsChange={(zooms) =>
+                  settings.setPreviewStyle({
+                    ...settings.previewStyle,
+                    zooms: zooms.length ? zooms : undefined,
+                  })
+                }
+                defaultLayout={settings.previewStyle.brollLayout}
+                onAutoZooms={aiToolsTab.activateZooms}
+                onOpenHookTitle={() => openCaptions("hook")}
+                onSeek={playback.seek}
+              />
+            </TabsContent>
+
+            <TabsContent value="watermark" className={PANEL_CLASS}>
+              <EditWatermarkTab
+                config={settings.watermarkOverlay}
+                onChange={settings.setWatermarkOverlay}
+              />
+            </TabsContent>
+
+            <TabsContent value="exports" className={PANEL_CLASS}>
+              <ExportsTab exports={project.videoExports} onDelete={exports.setPendingDelete} />
+            </TabsContent>
+          </div>
         </Tabs>
 
         <aside aria-label="Preview" className={PREVIEW_CLASS}>
@@ -416,14 +339,19 @@ export function SubtitleEditor({
               videoUrl={videoUrl}
               durationSeconds={project.duration ?? 0}
               subtitleChunks={chunks}
-              selectedPreset={preset}
-              sizePosition={sizePosition}
-              titleOverlay={titleOverlay}
-              watermarkOverlay={watermarkOverlay}
-              previewStyle={previewStyle}
+              selectedPreset={settings.preset}
+              placement={settings.placement}
+              titleOverlay={settings.titleOverlay}
+              watermarkOverlay={settings.watermarkOverlay}
+              previewStyle={settings.previewStyle}
+              timeline={settings.timeline}
+              onPlacementChange={settings.setPlacement}
+              onTitleOverlayChange={settings.setTitleOverlay}
+              onTimelineChange={settings.setTimeline}
+              onPreviewStyleChange={settings.setPreviewStyle}
               onUploadVideo={() => setUploadOpen(true)}
-              onTimeUpdate={handleTimeUpdate}
-              seekRef={seekRef}
+              onTimeUpdate={playback.onTimeUpdate}
+              seekRef={playback.seekRef}
             />
           </div>
         </aside>
@@ -432,8 +360,8 @@ export function SubtitleEditor({
       <RenameDialog
         open={renameOpen}
         onOpenChange={setRenameOpen}
-        currentTitle={title}
-        onRename={rename}
+        currentTitle={actions.title}
+        onRename={actions.rename}
       />
 
       <UploadDialog
@@ -444,104 +372,33 @@ export function SubtitleEditor({
       />
 
       <DeleteDialog
-        open={pendingDelete !== null}
+        open={exports.pendingDelete !== null}
         title="Delete this export?"
         description="The exported video is deleted for good. The project stays."
-        isDeleting={deleteExport.isPending}
-        onConfirm={confirmDeleteExport}
-        onCancel={() => setPendingDelete(null)}
+        isDeleting={exports.isDeleting}
+        onConfirm={exports.confirmDelete}
+        onCancel={() => exports.setPendingDelete(null)}
+      />
+
+      <RecutLinesDialog
+        preset={captionTools.pendingRecut.preset}
+        onRecut={captionTools.pendingRecut.recut}
+        onKeepLines={captionTools.pendingRecut.keepLines}
+        onCancel={captionTools.pendingRecut.cancel}
       />
 
       <ExportProgressDialog
-        open={exportOpen}
-        onOpenChange={setExportOpen}
-        onClosed={exportJob.reset}
-        status={exportJob.status}
-        progress={exportJob.progress}
-        error={exportJob.error}
-        creditsUsed={exportJob.creditsUsed}
-        videoUrl={exportJob.videoUrl}
-        fileName={exportName}
+        open={exports.progressOpen}
+        onOpenChange={exports.setProgressOpen}
+        onClosed={exports.job.reset}
+        status={exports.job.status}
+        progress={exports.job.progress}
+        error={exports.job.error}
+        creditsUsed={exports.job.creditsUsed}
+        videoUrl={exports.job.videoUrl}
+        fileName={exports.fileName}
       />
     </>
-  );
-}
-
-function RenameDialog({
-  open,
-  onOpenChange,
-  currentTitle,
-  onRename,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  currentTitle: string;
-  onRename: (title: string) => Promise<boolean>;
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Rename project</DialogTitle>
-        </DialogHeader>
-        {/* Mounted per opening, so the field starts from the current title. */}
-        <RenameForm
-          currentTitle={currentTitle}
-          onRename={async (next) => {
-            if (await onRename(next)) onOpenChange(false);
-          }}
-        />
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function RenameForm({
-  currentTitle,
-  onRename,
-}: {
-  currentTitle: string;
-  onRename: (title: string) => Promise<void>;
-}) {
-  const inputId = useId();
-  const [value, setValue] = useState(currentTitle);
-  const [isSaving, setIsSaving] = useState(false);
-  const trimmed = value.trim();
-
-  return (
-    <form
-      className="space-y-6"
-      onSubmit={async (event) => {
-        event.preventDefault();
-        if (!trimmed || trimmed === currentTitle) return;
-        setIsSaving(true);
-        await onRename(trimmed);
-        setIsSaving(false);
-      }}
-    >
-      <div className="space-y-2">
-        <Label htmlFor={inputId}>Name</Label>
-        <Input
-          id={inputId}
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          onFocus={(event) => event.currentTarget.select()}
-          maxLength={120}
-        />
-      </div>
-      <DialogFooter>
-        <DialogClose render={<Button type="button" variant="outline" />}>
-          Cancel
-        </DialogClose>
-        <Button
-          type="submit"
-          disabled={isSaving || !trimmed || trimmed === currentTitle}
-        >
-          {isSaving ? <Spinner /> : null}
-          {isSaving ? "Saving…" : "Save"}
-        </Button>
-      </DialogFooter>
-    </form>
   );
 }
 
@@ -549,10 +406,10 @@ function RenameForm({
 export function SubtitleEditorSkeleton() {
   return (
     <div className={LAYOUT_CLASS} aria-busy>
-      <div className="min-w-0">
-        <div className="flex gap-4 border-b px-4 py-2.5 md:px-6">
+      <div className={cn(CARD_CLASS, "flex flex-col md:flex-row")}>
+        <div className="flex shrink-0 gap-2 border-b p-2 md:w-48 md:flex-col md:border-r md:border-b-0 md:p-3">
           {Array.from({ length: 5 }, (_, i) => (
-            <Skeleton key={i} className="h-5 w-20" />
+            <Skeleton key={i} className="h-9 w-24 md:w-full" />
           ))}
         </div>
         <div className={`${PANEL_CLASS} space-y-3`}>

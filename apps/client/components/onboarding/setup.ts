@@ -1,13 +1,13 @@
 /**
  * The app's onboarding after sign-up (app/(onboarding)/onboarding):
  *
- *   channels → how it works → free trial
+ *   where you heard about us → channels → free trial
  *
  * An account made while connecting ChatGPT or Claude (`?connect=`, see
  * connector-app.ts) gets the same steps, then one asking it to connect again
  * from that app:
  *
- *   channels → how it works → free trial → connect
+ *   where you heard about us → channels → free trial → connect
  *
  * The free trial is left out for anyone who already has a plan. The step
  * lives in the URL so it survives the channel OAuth and Stripe round trips.
@@ -19,8 +19,8 @@ export const SETUP_PARAM = "setup";
 export const CHECKOUT_PARAM = "checkout";
 
 export const STEP_LABELS = {
+  source: "About you",
   channels: "Channels",
-  howto: "How it works",
   trial: "Free trial",
   connect: "Connect",
 } as const;

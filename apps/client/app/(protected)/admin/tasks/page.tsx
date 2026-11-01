@@ -182,7 +182,7 @@ export default function AdminTasksPage() {
                           {t.userEmail || "No user"} · {timeAgo(t.createdAt)}
                         </div>
                       </Td>
-                      <Td className="hidden max-w-48 truncate md:table-cell">
+                      <Td className="hidden max-w-44 truncate md:table-cell">
                         {t.userId ? (
                           <Link
                             href={`/admin/users/${t.userId}`}
@@ -198,7 +198,7 @@ export default function AdminTasksPage() {
                       <Td>
                         <StatusBadge status={t.status} />
                       </Td>
-                      <Td className="hidden max-w-44 truncate text-muted-foreground md:table-cell">
+                      <Td className="hidden max-w-36 truncate text-muted-foreground md:table-cell">
                         {t.model ? (
                           <span title={t.model} className="font-mono text-xs leading-5">
                             {t.model}
@@ -207,7 +207,7 @@ export default function AdminTasksPage() {
                           <Muted />
                         )}
                       </Td>
-                      <Td className="hidden max-w-72 truncate text-muted-foreground md:table-cell">
+                      <Td className="hidden max-w-56 truncate text-muted-foreground md:table-cell">
                         {t.label || <Muted />}
                       </Td>
                       <Td

@@ -404,11 +404,7 @@ router.post(
   requirePaidPlan,
   appPostController.retryPost.bind(appPostController),
 );
-router.delete(
-  "/posts/:id",
-  ...auth,
-  requirePaidPlan,
-  postController.deletePost,
-);
+// Deleting is never gated, so a lapsed plan can still clear its queue.
+router.delete("/posts/:id", ...auth, postController.deletePost);
 
 export default router;

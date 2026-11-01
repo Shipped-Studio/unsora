@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import prisma from "../lib/db";
+import { hasPaidPlan } from "../lib/plans";
 
 /**
  * Blocks the request unless the authenticated user has an active paid plan.
@@ -43,10 +44,7 @@ export const requirePaidPlan = async (
     });
   }
 
-  const planKey = user.plan?.toLowerCase() ?? "free";
-  const hasPaidPlan = user.isActive && planKey !== "free";
-
-  if (!hasPaidPlan) {
+  if (!hasPaidPlan(user)) {
     return res.status(403).json({
       success: false,
       error: "An active paid plan is required to use the scheduler.",

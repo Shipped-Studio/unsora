@@ -55,7 +55,7 @@ export function SetupFrame({
           phone step bar sticky. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -top-72 left-1/2 -z-10 size-160 -translate-x-1/2 rounded-full bg-brand/15 blur-3xl dark:bg-brand/8"
+        className="pointer-events-none absolute -top-72 left-1/2 -z-10 size-160 -translate-x-1/2 rounded-full bg-brand/15 blur-3xl"
       />
       <header className="flex items-center justify-between gap-4 px-4 py-4 sm:px-8 sm:py-5">
         <Link href={homeHref} className="inline-flex w-fit shrink-0 rounded-md">

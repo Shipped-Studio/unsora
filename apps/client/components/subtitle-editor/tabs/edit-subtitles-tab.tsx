@@ -1,164 +1,60 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
-import {
-  ArrowsMerge,
-  DotsThreeVertical,
-  Plus,
-  Trash,
-  Waveform,
-} from "@phosphor-icons/react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { useMemo, useState } from "react";
+import { SmileyWink, Sparkle, TextT, Waveform } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/shared/states";
-import { EditorSection } from "@/components/subtitle-editor/editor-fields";
+import { CaptionLines } from "@/components/subtitle-editor/captions/caption-lines";
+import { useCaptionsEditor } from "@/components/subtitle-editor/captions/captions-context";
+import { FindReplacePopover } from "@/components/subtitle-editor/captions/find-replace-popover";
 import {
-  failureMessage,
-  formatTimestamp,
-} from "@/components/subtitle-editor/format";
+  TranscribePopover,
+  type TranscriptionOptions,
+} from "@/components/subtitle-editor/captions/transcribe-popover";
+import { TranslateDialog } from "@/components/subtitle-editor/captions/translate-dialog";
+import {
+  findPhrase,
+  replacePhrase,
+  type WordPosition,
+} from "@/components/subtitle-editor/chunk-edits";
+import { EditorSection } from "@/components/subtitle-editor/editor-fields";
+import type { CaptionPass } from "@/components/subtitle-editor/editor/use-caption-tools";
+import { failureMessage } from "@/components/subtitle-editor/format";
 import type { TranscriptionStatus } from "@/hooks/subtitle/use-transcription-data";
-import type { SubtitleChunk } from "@/remotion/types";
 
-export const TRANSCRIPTION_LANGUAGES: { code: string; label: string }[] = [
-  { code: "auto", label: "Detect automatically" },
-  { code: "en", label: "English" },
-  { code: "es", label: "Spanish" },
-  { code: "fr", label: "French" },
-  { code: "de", label: "German" },
-  { code: "it", label: "Italian" },
-  { code: "pt", label: "Portuguese" },
-  { code: "nl", label: "Dutch" },
-  { code: "hi", label: "Hindi" },
-  { code: "ur", label: "Urdu" },
-  { code: "ar", label: "Arabic" },
-  { code: "ru", label: "Russian" },
-  { code: "uk", label: "Ukrainian" },
-  { code: "tr", label: "Turkish" },
-  { code: "pl", label: "Polish" },
-  { code: "id", label: "Indonesian" },
-  { code: "vi", label: "Vietnamese" },
-  { code: "th", label: "Thai" },
-  { code: "ja", label: "Japanese" },
-  { code: "ko", label: "Korean" },
-  { code: "zh", label: "Chinese" },
-];
-
-const LANGUAGE_ITEMS = TRANSCRIPTION_LANGUAGES.map((l) => ({
-  value: l.code,
-  label: l.label,
-}));
-
-const WORDS_PER_LINE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-const WORDS_PER_LINE_ITEMS = WORDS_PER_LINE.map((n) => ({
-  value: String(n),
-  label: String(n),
-}));
-
-function LabelledSelect({
-  label,
-  value,
-  items,
-  onChange,
-  disabled,
-  className,
-}: {
-  label: string;
-  value: string;
-  items: { value: string; label: string }[];
-  onChange: (value: string) => void;
-  disabled?: boolean;
-  className?: string;
-}) {
-  const labelId = useId();
-  return (
-    // flex gap, not space-y: Base UI renders a hidden <input> after the
-    // trigger, so space-y would add a bottom margin to the trigger and push
-    // items-end siblings (the Transcribe again button) below it.
-    <div className="flex flex-col gap-2">
-      <span id={labelId} className="block text-xs font-medium text-muted-foreground">
-        {label}
-      </span>
-      <Select
-        items={items}
-        value={value}
-        onValueChange={(next) => {
-          if (typeof next === "string") onChange(next);
-        }}
-        disabled={disabled}
-      >
-        <SelectTrigger aria-labelledby={labelId} className={className}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {items.map((item) => (
-            <SelectItem key={item.value} value={item.value}>
-              {item.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
-}
-
-interface EditSubtitlesTabProps {
+interface CaptionsTabProps {
   hasVideo: boolean;
   status: TranscriptionStatus;
   transcriptionError: string | null;
-  chunks: SubtitleChunk[];
   isStarting: boolean;
-  activeChunkIndex: number;
+  /** The line on screen in the preview, or -1. */
+  activeLineIndex: number;
+  /** The word being spoken, for the karaoke fill. */
+  activeWord: WordPosition | null;
   language: string;
-  onLanguageChange: (code: string) => void;
-  maxWordsPerChunk: number;
-  onMaxWordsChange: (value: number) => void;
-  onStartTranscription: () => void;
-  onChunksChange: (chunks: SubtitleChunk[]) => void;
-  onSeek: (seconds: number) => void;
+  onStartTranscription: (options: TranscriptionOptions) => void;
+  /** Whisper's confidence, 0 to 100, or null when unknown. */
+  accuracy: number | null;
+  /** Which AI pass is running, if any. */
+  busy: CaptionPass | null;
+  onOptimize: () => Promise<void>;
+  onRegenerateEmojis: () => Promise<void>;
+  /** Resolves true once translated. */
+  onTranslate: (language: string) => Promise<boolean>;
+  onOpenHookTitle: () => void;
 }
 
-export function EditSubtitlesTab({
-  hasVideo,
-  status,
-  transcriptionError,
-  chunks,
-  isStarting,
-  activeChunkIndex,
-  language,
-  onLanguageChange,
-  maxWordsPerChunk,
-  onMaxWordsChange,
-  onStartTranscription,
-  onChunksChange,
-  onSeek,
-}: EditSubtitlesTabProps) {
-  const [confirmRetranscribe, setConfirmRetranscribe] = useState(false);
+/**
+ * Submagic's Captions tab. Shows one of four screens: no video, transcribing,
+ * not transcribed yet, or the transcript with its tools.
+ */
+export function CaptionsTab(props: CaptionsTabProps) {
+  const { hasVideo, status, transcriptionError, isStarting, language, onStartTranscription } =
+    props;
+  const { chunks } = useCaptionsEditor();
   const isTranscribing = status === "pending" || status === "processing";
+  const notTranscribedYet = (status === "draft" || status === "failed") && chunks.length === 0;
 
   if (!hasVideo) {
     return (
@@ -170,279 +66,158 @@ export function EditSubtitlesTab({
     );
   }
 
-  if (isTranscribing) {
-    return (
-      <div
-        role="status"
-        className="flex flex-col items-center justify-center gap-3 rounded-lg bg-muted py-16 text-center"
-      >
-        <Spinner aria-hidden className="size-5 text-muted-foreground" />
-        <div className="space-y-1">
-          <p className="text-sm font-medium">Transcribing</p>
-          <p className="text-xs text-muted-foreground">
-            This usually takes about a minute.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  if (isTranscribing) return <TranscribingNotice />;
 
-  const languageSelect = (
-    <LabelledSelect
-      label="Audio language"
-      value={language}
-      items={LANGUAGE_ITEMS}
-      onChange={onLanguageChange}
-      disabled={isStarting}
-      className="w-48"
-    />
-  );
-
-  const wordsSelect = (
-    <LabelledSelect
-      label="Words per line"
-      value={String(maxWordsPerChunk)}
-      items={WORDS_PER_LINE_ITEMS}
-      onChange={(value) => onMaxWordsChange(Number(value))}
-      className="w-20"
-    />
-  );
-
-  if ((status === "draft" || status === "failed") && chunks.length === 0) {
+  if (notTranscribedYet) {
     return (
       <EditorSection
         title="Transcribe video"
-        description="Creates timed subtitle lines from the audio."
+        description="Creates timed caption lines from the audio."
+        actions={
+          <TranscribePopover
+            language={language}
+            hasLines={false}
+            isStarting={isStarting}
+            onStart={onStartTranscription}
+            variant="default"
+          />
+        }
       >
         {status === "failed" ? (
           <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {failureMessage("transcribe this video", transcriptionError)}
           </p>
-        ) : null}
-        <div className="flex flex-wrap items-end gap-4">
-          {languageSelect}
-          {wordsSelect}
-        </div>
-        <Button onClick={onStartTranscription} disabled={isStarting}>
-          {isStarting ? <Spinner /> : <Waveform />}
-          {isStarting
-            ? "Starting…"
-            : status === "failed"
-              ? "Try again"
-              : "Transcribe"}
-        </Button>
+        ) : (
+          <p className="rounded-xl bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
+            No captions yet. Transcribe the video to get started.
+          </p>
+        )}
       </EditorSection>
     );
   }
 
+  return <Transcript {...props} />;
+}
+
+function TranscribingNotice() {
   return (
-    <EditorSection
-      title="Subtitles"
-      description={`${chunks.length} ${chunks.length === 1 ? "line" : "lines"}. Click a timestamp to jump to it.`}
-      actions={
-        <Button
-          variant="outline"
-          onClick={() => {
-            const last = chunks[chunks.length - 1];
-            const start = last?.end ?? 0;
-            onChunksChange([
-              ...chunks,
-              { text: "", start, end: start + 3, words: [] },
-            ]);
-          }}
-        >
-          <Plus />
-          Add line
-        </Button>
-      }
+    <div
+      role="status"
+      className="flex flex-col items-center justify-center gap-3 rounded-lg bg-muted py-16 text-center"
     >
-      <div className="flex flex-wrap items-end gap-4 rounded-xl bg-muted p-3">
-        {languageSelect}
-        <Button
-          variant="outline"
-          disabled={isStarting}
-          onClick={() => setConfirmRetranscribe(true)}
-        >
-          {isStarting ? <Spinner /> : <Waveform />}
-          {isStarting ? "Starting…" : "Transcribe again"}
-        </Button>
-        <div className="sm:ml-auto">{wordsSelect}</div>
+      <Spinner aria-hidden className="size-5 text-muted-foreground" />
+      <div className="space-y-1">
+        <p className="text-sm font-medium">Transcribing</p>
+        <p className="text-xs text-muted-foreground">This usually takes about a minute.</p>
       </div>
-
-      <ChunkList
-        chunks={chunks}
-        activeChunkIndex={activeChunkIndex}
-        onChunksChange={onChunksChange}
-        onSeek={onSeek}
-      />
-
-      <AlertDialog
-        open={confirmRetranscribe}
-        onOpenChange={setConfirmRetranscribe}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Transcribe again?</AlertDialogTitle>
-            <AlertDialogDescription>
-              The new transcript replaces every subtitle line, including your
-              edits.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setConfirmRetranscribe(false);
-                onStartTranscription();
-              }}
-            >
-              Transcribe again
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </EditorSection>
+    </div>
   );
 }
 
-function ChunkList({
-  chunks,
-  activeChunkIndex,
-  onChunksChange,
-  onSeek,
-}: {
-  chunks: SubtitleChunk[];
-  activeChunkIndex: number;
-  onChunksChange: (chunks: SubtitleChunk[]) => void;
-  onSeek: (seconds: number) => void;
-}) {
-  const listRef = useRef<HTMLOListElement>(null);
+/** The transcript: a toolbar, the accuracy bar, and the caption lines. */
+function Transcript({
+  isStarting,
+  activeLineIndex,
+  activeWord,
+  language,
+  onStartTranscription,
+  accuracy,
+  busy,
+  onOptimize,
+  onRegenerateEmojis,
+  onTranslate,
+  onOpenHookTitle,
+}: CaptionsTabProps) {
+  const { chunks, onChunksChange, preset } = useCaptionsEditor();
+  /** The Find and replace search text. */
+  const [find, setFind] = useState("");
 
-  // Follow playback, but only while the list is on screen and the user
-  // isn't typing in it.
-  useEffect(() => {
-    const list = listRef.current;
-    if (!list || activeChunkIndex < 0) return;
-    const focused = document.activeElement;
-    if (focused instanceof HTMLInputElement && list.contains(focused)) return;
-    const rect = list.getBoundingClientRect();
-    if (rect.bottom < 0 || rect.top > window.innerHeight) return;
-    list
-      .querySelector<HTMLElement>(`[data-chunk-index="${activeChunkIndex}"]`)
-      ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [activeChunkIndex]);
+  // Memoized: a new Set on every render would re-render every caption line.
+  const matches = useMemo(
+    () => (find.trim() ? findPhrase(chunks, find) : []),
+    [chunks, find],
+  );
+  const matchKeys = useMemo(
+    () =>
+      new Set(
+        matches.flatMap(({ lineIndex, wordIndex, length }) =>
+          Array.from({ length }, (_, k) => `${lineIndex}:${wordIndex + k}`),
+        ),
+      ),
+    [matches],
+  );
 
-  const updateText = (index: number, text: string) => {
-    const next = [...chunks];
-    next[index] = { ...next[index], text };
-    onChunksChange(next);
-  };
-
-  const insertAfter = (index: number) => {
-    const current = chunks[index];
-    const following = chunks[index + 1];
-    const next = [...chunks];
-    next.splice(index + 1, 0, {
-      text: "",
-      start: current.end,
-      end: following ? following.start : current.end + 2,
-      words: [],
-    });
-    onChunksChange(next);
-  };
-
-  const mergeWithNext = (index: number) => {
-    const current = chunks[index];
-    const following = chunks[index + 1];
-    if (!following) return;
-    const next = [...chunks];
-    next.splice(index, 2, {
-      text: [current.text, following.text].filter(Boolean).join(" "),
-      start: current.start,
-      end: following.end,
-      words: [...(current.words ?? []), ...(following.words ?? [])],
-    });
-    onChunksChange(next);
-  };
-
-  const remove = (index: number) =>
-    onChunksChange(chunks.filter((_, i) => i !== index));
-
-  if (chunks.length === 0) {
-    return (
-      <p className="rounded-xl bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
-        No subtitle lines. Add one or transcribe again.
-      </p>
-    );
-  }
+  const hasEmojis = chunks.some((c) => c.emoji || c.words.some((w) => w.emoji));
+  const suggestEmojis = Boolean(preset.emojis) && !hasEmojis;
 
   return (
-    <ol ref={listRef} className="space-y-1">
-      {chunks.map((chunk, index) => {
-        const isActive = index === activeChunkIndex;
-        const lineNumber = index + 1;
-        return (
-          <li
-            key={`${index}-${chunk.start}`}
-            data-chunk-index={index}
-            data-active={isActive}
-            className="scroll-mt-32 scroll-mb-4 rounded-lg p-2 transition-colors data-[active=true]:bg-muted"
-          >
-            <button
-              type="button"
-              onClick={() => onSeek(chunk.start)}
-              aria-label={`Play line ${lineNumber} from ${formatTimestamp(chunk.start)}`}
-              className="mb-1.5 rounded-sm text-xs tabular-nums text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              {formatTimestamp(chunk.start)} – {formatTimestamp(chunk.end)}
-            </button>
-            <div className="flex items-center gap-2">
-              <Input
-                aria-label={`Line ${lineNumber}`}
-                value={chunk.text}
-                onChange={(event) => updateText(index, event.target.value)}
-                onFocus={() => onSeek(chunk.start)}
-                placeholder="Subtitle text"
-                className="bg-background"
-              />
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Actions for line ${lineNumber}`}
-                    />
-                  }
-                >
-                  <DotsThreeVertical />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem onClick={() => insertAfter(index)}>
-                    <Plus />
-                    Insert line below
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={index === chunks.length - 1}
-                    onClick={() => mergeWithNext(index)}
-                  >
-                    <ArrowsMerge />
-                    Merge with next line
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onClick={() => remove(index)}
-                  >
-                    <Trash />
-                    Delete line
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </li>
-        );
-      })}
-    </ol>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" size="sm" onClick={onOpenHookTitle}>
+          <TextT />
+          Hook title
+        </Button>
+        <TranslateDialog onTranslate={onTranslate} />
+        <Button variant="outline" size="sm" disabled={busy !== null} onClick={onRegenerateEmojis}>
+          {busy === "emojis" ? <Spinner /> : <SmileyWink />}
+          Regenerate emojis
+        </Button>
+        <FindReplacePopover
+          find={find}
+          onFindChange={setFind}
+          matchCount={matches.length}
+          onReplaceAll={(replacement) => {
+            onChunksChange(replacePhrase(chunks, find, replacement));
+            setFind("");
+          }}
+        />
+        <div className="ml-auto">
+          <TranscribePopover
+            language={language}
+            hasLines={chunks.length > 0}
+            isStarting={isStarting}
+            onStart={onStartTranscription}
+            variant="outline"
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 rounded-xl bg-muted px-3 py-2">
+        <p className="text-sm">
+          {accuracy !== null ? (
+            <>
+              Caption accuracy{" "}
+              <span className="font-medium tabular-nums">{accuracy.toFixed(1)}%</span>
+            </>
+          ) : (
+            <span className="text-muted-foreground">
+              {chunks.length} {chunks.length === 1 ? "line" : "lines"}
+            </span>
+          )}
+        </p>
+        <Button size="sm" variant="secondary" disabled={busy !== null} onClick={onOptimize}>
+          {busy === "optimize" ? <Spinner /> : <Sparkle />}
+          Optimize
+        </Button>
+      </div>
+
+      {suggestEmojis ? (
+        <div className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2">
+          <p className="text-sm text-muted-foreground">
+            This style shows emojis. Let AI pick them, or add one to a line.
+          </p>
+          <Button size="sm" disabled={busy !== null} onClick={onRegenerateEmojis}>
+            {busy === "emojis" ? <Spinner /> : <SmileyWink />}
+            Pick emojis
+          </Button>
+        </div>
+      ) : null}
+
+      <CaptionLines
+        activeLineIndex={activeLineIndex}
+        activeWord={activeWord}
+        matches={matchKeys}
+      />
+    </div>
   );
 }

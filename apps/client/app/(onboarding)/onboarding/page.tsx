@@ -30,7 +30,7 @@ export default async function OnboardingPage({
   }
 
   return (
-    <div className="flex min-h-svh flex-col bg-background">
+    <div className="onboarding-theme flex min-h-svh flex-col bg-background">
       <Suspense
         fallback={
           <div className="flex flex-1 items-center justify-center">

@@ -134,7 +134,7 @@ export default function MotionControlPage() {
           category="motion-control"
           noun="video"
           defaultModel="kling-mc-3.0-pro"
-          placeholder="Describe the motion or scene"
+          placeholder="The character dancing in a bright studio with a white backdrop"
           promptLabel="Motion control prompt"
           onSubmit={submit}
         />

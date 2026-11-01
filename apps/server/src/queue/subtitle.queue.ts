@@ -1,6 +1,12 @@
 import { task } from "@trigger.dev/sdk";
 import { Input, FilePathSource, MP4 } from "mediabunny";
-import { transcribeVideo, groupWordsIntoChunks } from "../lib/transcription";
+import { transcribeVideo } from "../lib/transcription";
+import {
+  attachPunctuation,
+  normalizeCaptionLayout,
+  splitIntoCaptions,
+} from "../lib/caption-layout";
+import { applyCaptionMarkup, findCaptionKeywords } from "../lib/caption-keywords";
 import { downloadVideo } from "../lib/audio";
 import fs from "fs";
 import path from "path";
@@ -23,6 +29,8 @@ export interface SubtitleProcessingJobData {
   style?: any;
   /** ISO-639-1 code passed to Whisper; omit for auto-detect. */
   language?: string;
+  /** The project style's caption layout; the defaults when missing. */
+  layout?: unknown;
 }
 
 export interface SubtitleProcessingResult {
@@ -53,7 +61,7 @@ export const subtitleProcessingTask = task({
     payload: SubtitleProcessingJobData,
     { ctx },
   ): Promise<SubtitleProcessingResult> => {
-    const { userId, videoUrl, transcriptionId, style, language } = payload;
+    const { userId, videoUrl, transcriptionId, style, language, layout } = payload;
 
     const tempDir = path.join(process.cwd(), "temp");
     const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
@@ -106,16 +114,25 @@ export const subtitleProcessingTask = task({
 
       const transcription = await transcribeVideo(tempVideoPath, language);
 
-      // Group word timestamps into evenly-sized chunks. Whisper's raw
-      // segments are sentence-length and wildly inconsistent on screen.
-      const existingRow = await prisma.transcription.findUnique({
-        where: { id: dbTranscriptionId },
-        select: { maxWordsPerChunk: true },
-      });
-      const maxWordsPerChunk = existingRow?.maxWordsPerChunk || 5;
-      const allWords = transcription.segments.flatMap((s) => s.words);
-      const subtitleChunks = allWords.length
-        ? groupWordsIntoChunks(allWords, maxWordsPerChunk)
+      // Captions are cut for the project's style. Keywords come first: the
+      // style may show some of them on their own. The keyword pass is a nice
+      // extra, so the transcript is saved without it if it fails.
+      let words = attachPunctuation(
+        transcription.segments.flatMap((s) => s.words),
+        transcription.text,
+      );
+      if (words.length) {
+        try {
+          words = applyCaptionMarkup(
+            words,
+            await findCaptionKeywords(words.map((w) => w.word)),
+          );
+        } catch (keywordError) {
+          console.error(`[Subtitle ${ctx.run.id}] Keyword pass failed:`, keywordError);
+        }
+      }
+      const subtitleChunks = words.length
+        ? splitIntoCaptions(words, normalizeCaptionLayout(layout))
         : transcription.segments;
 
       const savedTranscription = await updateTranscriptionData(
@@ -126,7 +143,6 @@ export const subtitleProcessingTask = task({
           duration: transcription.duration,
           segments: transcription.segments,
           subtitleChunks,
-          maxWordsPerChunk,
           width: videoDimensions.width,
           height: videoDimensions.height,
         },

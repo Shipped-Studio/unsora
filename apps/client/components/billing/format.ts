@@ -29,13 +29,9 @@ export function intervalLabel(interval: PlanInterval | null | undefined) {
   return null;
 }
 
-/** "1,100 credits per month", or "per billing period" when the interval is unknown. */
-export function planCreditsLabel(
-  credits: number,
-  interval: PlanInterval | null | undefined,
-): string {
-  const per = intervalLabel(interval);
-  return `${credits.toLocaleString()} credits per ${per ?? "billing period"}`;
+/** The line under a plan's price: how many social accounts it allows. */
+export function planAllowanceLabel(plan: { socialAccounts?: number | null }): string | null {
+  return plan.socialAccounts ? `${plan.socialAccounts} social accounts` : null;
 }
 
 /** Plan keys come back lowercase ("pro"); fall back to a readable name. */

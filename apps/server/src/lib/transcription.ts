@@ -29,6 +29,11 @@ export interface WordTimestamp {
   word: string;
   start: number; // seconds
   end: number; // seconds
+  /** Set when captions are laid out; see caption-layout.ts. */
+  punctuation?: string;
+  lineBreak?: boolean;
+  keyword?: 1 | 2 | 3;
+  emoji?: string;
 }
 
 export interface TranscriptionSegment {
@@ -36,6 +41,8 @@ export interface TranscriptionSegment {
   start: number;
   end: number;
   words: WordTimestamp[];
+  /** Whisper's confidence in the segment, 0 to 1; shown as caption accuracy. */
+  confidence?: number;
 }
 
 export interface TranscriptionResult {
@@ -154,10 +161,16 @@ export async function transcribeAudio(
     console.log(`Extracted ${allWords.length} words from Whisper response`);
 
     // Segment → include words
-    const segments: TranscriptionSegment[] = (response.segments || []).map(
-      (seg: any) => {
+    // Each word goes to the segment it starts in. Matching on both ends
+    // dropped words that straddle a segment boundary.
+    const rawSegments: any[] = response.segments || [];
+    const segments: TranscriptionSegment[] = rawSegments.map(
+      (seg: any, i: number) => {
+        const next = rawSegments[i + 1];
         const segmentWords = allWords.filter(
-          (w) => w.start >= seg.start && w.end <= seg.end
+          (w) =>
+            (i === 0 || w.start >= seg.start) &&
+            (!next || w.start < next.start)
         );
 
         return {
@@ -165,6 +178,9 @@ export async function transcribeAudio(
           start: seg.start,
           end: seg.end,
           words: segmentWords,
+          ...(typeof seg.avg_logprob === "number"
+            ? { confidence: Math.exp(seg.avg_logprob) }
+            : {}),
         };
       }
     );

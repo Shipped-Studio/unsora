@@ -167,6 +167,7 @@ function SkillEditor({ id, skill }: { id: string; skill: AdminSkill }) {
   const [draft, setDraft] = useState<Draft>(() => toDraft(skill));
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const filesInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
@@ -250,7 +251,12 @@ function SkillEditor({ id, skill }: { id: string; skill: AdminSkill }) {
       parents={SKILLS_CRUMB}
       actions={
         <>
-          <AlertDialog>
+          <AlertDialog
+            open={deleteOpen}
+            onOpenChange={(next) => {
+              if (!remove.isPending) setDeleteOpen(next);
+            }}
+          >
             <AlertDialogTrigger
               render={
                 <Button variant="ghost" size="icon-sm" aria-label="Delete skill" />
@@ -267,7 +273,7 @@ function SkillEditor({ id, skill }: { id: string; skill: AdminSkill }) {
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel disabled={remove.isPending}>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   variant="destructive"
                   disabled={remove.isPending}
@@ -275,6 +281,7 @@ function SkillEditor({ id, skill }: { id: string; skill: AdminSkill }) {
                     remove.mutate(skill.id, {
                       onSuccess: () => {
                         toast.success("Skill deleted");
+                        setDeleteOpen(false);
                         router.push("/admin/skills");
                       },
                       onError: (e) =>
@@ -285,7 +292,7 @@ function SkillEditor({ id, skill }: { id: string; skill: AdminSkill }) {
                   }
                 >
                   {remove.isPending ? <Spinner data-icon="inline-start" /> : null}
-                  Delete
+                  {remove.isPending ? "Deleting…" : "Delete skill"}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

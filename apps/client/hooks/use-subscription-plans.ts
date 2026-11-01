@@ -16,6 +16,29 @@ export interface SubscriptionPlan {
   sortOrder: number;
   /** Bullet points for the pricing card, set at /admin/pricing. */
   features?: string[];
+  /** Social accounts the plan allows. */
+  socialAccounts?: number | null;
+  /**
+   * False for a plan that's no longer sold, sent only as the subscriber's
+   * own current plan (Basic / Pro / Power after the move to account-based
+   * plans).
+   */
+  available?: boolean;
+}
+
+/** The plans anyone can pick, without a subscriber's off-sale plan. */
+export function plansForSale(plans: SubscriptionPlan[] | null | undefined) {
+  return plans?.filter((p) => p.available !== false) ?? null;
+}
+
+/**
+ * The plan a user is on. `User.plan` holds the Stripe product name, which
+ * only equals the plan key for the default plans ("pro"), so match either.
+ */
+export function findUserPlan(plans: SubscriptionPlan[] | null | undefined, userPlan: string | null | undefined) {
+  const value = (userPlan ?? "").trim().toLowerCase();
+  if (!value || !plans) return undefined;
+  return plans.find((p) => p.key.toLowerCase() === value) ?? plans.find((p) => p.name.trim().toLowerCase() === value);
 }
 
 export const subscriptionPlansQueryKeys = {

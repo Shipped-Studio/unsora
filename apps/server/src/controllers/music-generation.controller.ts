@@ -19,6 +19,7 @@ import {
 } from "../lib/music-track-utils";
 import {
   consumeCredits,
+  refundConsumption,
   getCreditBalance,
   InsufficientCreditsError,
 } from "../lib/credits";
@@ -233,24 +234,42 @@ export class MusicGenerationController {
         throw err;
       }
 
-      await addMusicGenerationJob({
-        userId: user.id,
-        generationId: generation.id,
-        creditsUsed: creditCost,
-        creditTransactionId,
-        lyrics: lyricsText,
-        prompt: promptText,
-        modelKey: modelConfig.key,
-        endpoint: modelConfig.endpoint,
-        kind: modelConfig.kind,
-        outputFormat,
-        voiceCloneMode: Boolean(resolvedVoiceClone),
-        elevenLabsVoiceId: resolvedVoiceClone?.elevenLabsVoiceId,
-        vocalText: resolvedVoiceClone ? vocalText : undefined,
-        bgmEndpoint: bgmModel.endpoint,
-        trackNumber,
-        songTitle,
-      });
+      try {
+        await addMusicGenerationJob({
+          userId: user.id,
+          generationId: generation.id,
+          creditsUsed: creditCost,
+          creditTransactionId,
+          lyrics: lyricsText,
+          prompt: promptText,
+          modelKey: modelConfig.key,
+          endpoint: modelConfig.endpoint,
+          kind: modelConfig.kind,
+          outputFormat,
+          voiceCloneMode: Boolean(resolvedVoiceClone),
+          elevenLabsVoiceId: resolvedVoiceClone?.elevenLabsVoiceId,
+          vocalText: resolvedVoiceClone ? vocalText : undefined,
+          bgmEndpoint: bgmModel.endpoint,
+          trackNumber,
+          songTitle,
+        });
+      } catch (err) {
+        // The job never started: give the credits back now rather than
+        // leaving it to the stuck-jobs sweeper hours later.
+        console.error("[music] enqueue failed:", err);
+        await refundConsumption(creditTransactionId, "music.generation.enqueue_failed", {
+          generationId: generation.id,
+        }).catch((refundErr) =>
+          console.error("[music] refund after enqueue failure:", refundErr),
+        );
+        await prisma.musicGeneration
+          .delete({ where: { id: generation.id } })
+          .catch(() => {});
+        return res.status(503).json({
+          success: false,
+          error: "Couldn't start the song. Your credits were not charged. Try again.",
+        });
+      }
 
       return res.json({
         success: true,

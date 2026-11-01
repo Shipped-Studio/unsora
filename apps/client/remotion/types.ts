@@ -1,15 +1,13 @@
-export interface WordTimestamp {
-  word: string;
-  start: number;
-  end: number;
-}
-
-export interface SubtitleChunk {
-  text: string;
-  start: number;
-  end: number;
-  words: WordTimestamp[];
-}
+export type {
+  KeywordLevel,
+  SubtitleChunk,
+  WordEffect,
+  WordTimestamp,
+} from "@/components/subtitle-editor/caption-style";
+import type {
+  SubtitleChunk,
+  WordTimestamp,
+} from "@/components/subtitle-editor/caption-style";
 
 export type EditorSettings = {
   fileName?: string;
@@ -34,11 +32,25 @@ export interface TranscriptionData {
     start: number;
     end: number;
     words: WordTimestamp[];
+    /** Whisper's confidence, 0 to 1, for transcripts made since it was kept. */
+    confidence?: number;
   }[];
   subtitleChunks: SubtitleChunk[];
   editorSettings?: Record<string, unknown>;
+  /** Server-side state, such as the AI Tools passes run on the project. */
+  metadata?: { aiTools?: Record<string, AiToolState> } | null;
   maxWordsPerChunk: number;
   videoExports: VideoExportItem[];
+}
+
+export interface AiToolState {
+  status: "running" | "done" | "failed";
+  updatedAt: string;
+  error?: string;
+  /** Why a pass changed nothing. */
+  note?: string;
+  /** Present when Remove can put the video back. */
+  snapshot?: unknown;
 }
 
 export interface VideoExportItem {

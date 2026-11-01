@@ -23,7 +23,15 @@ import {
   SidebarSimple,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/toast-error";
 import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -31,7 +39,7 @@ import { Toggle } from "@/components/ui/toggle";
 import { PageSection } from "@/components/layout/page-header";
 import { ErrorState } from "@/components/shared/states";
 import { PostSheet } from "@/components/scheduler/post-sheet";
-import { DraftCard, PostChip, PostChipBody } from "./post-chip";
+import { DraftCard, DraftRow, PostChip, PostChipBody } from "./post-chip";
 import { MonthGrid, type PlacedPost } from "./month-grid";
 import { TimeGrid } from "./time-grid";
 import { useApi } from "@/hooks/use-api";
@@ -111,7 +119,8 @@ export function CalendarView() {
   const today = todayIn(timeZone);
   const anchor = searchParams.get("date") ? parseDayId(searchParams.get("date")!) : today;
   const showPublished = searchParams.get("published") !== "0";
-  const draftsOpen = searchParams.get("drafts") !== "0";
+  // Closed by default so the calendar gets the full width; ?drafts=1 opens it.
+  const draftsOpen = searchParams.get("drafts") === "1";
 
   const setParams = useCallback(
     (patch: Record<string, string | null>) => {
@@ -147,9 +156,10 @@ export function CalendarView() {
     dir: "asc",
     limit: 200,
   });
+  // Below xl the drafts panel opens as a sheet instead of a column.
+  const [draftsSheetOpen, setDraftsSheetOpen] = useState(false);
   const draftsQuery = usePosts(
     { status: ["DRAFT"], sort: "updated", dir: "desc", limit: 50 },
-    { enabled: draftsOpen },
   );
 
   const [pending, setPending] = useState<Record<string, PendingMove>>({});
@@ -181,6 +191,7 @@ export function CalendarView() {
   }, [pending, postsQuery.data, timeZone]);
 
   const drafts = (draftsQuery.data?.posts ?? []).filter((post) => !pending[post.id]);
+  const draftCount = draftsQuery.data?.pagination.total ?? 0;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -211,7 +222,7 @@ export function CalendarView() {
                     : { scheduledFor: null },
                 });
               } catch (error) {
-                toast.error((error as Error).message);
+                toastApiError("Couldn't undo the move", error);
               } finally {
                 void queryClient.invalidateQueries({ queryKey: postQueryKeys.all });
               }
@@ -220,7 +231,7 @@ export function CalendarView() {
         },
       );
     } catch (error) {
-      toast.error((error as Error).message);
+      toastApiError("Couldn't move the post", error);
     } finally {
       setPending((prev) => {
         const next = { ...prev };
@@ -374,17 +385,27 @@ export function CalendarView() {
               variant="outline"
               size="sm"
               pressed={draftsOpen}
-              onPressedChange={(pressed) => setParams({ drafts: pressed ? null : "0" })}
+              onPressedChange={(pressed) => setParams({ drafts: pressed ? "1" : null })}
               className="hidden xl:inline-flex"
             >
               <SidebarSimple />
               Drafts
-              {draftsQuery.data?.pagination.total ? (
-                <span className="text-muted-foreground tabular-nums">
-                  {draftsQuery.data.pagination.total}
-                </span>
+              {draftCount ? (
+                <span className="text-muted-foreground tabular-nums">{draftCount}</span>
               ) : null}
             </Toggle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDraftsSheetOpen(true)}
+              className="xl:hidden"
+            >
+              <SidebarSimple />
+              Drafts
+              {draftCount ? (
+                <span className="text-muted-foreground tabular-nums">{draftCount}</span>
+              ) : null}
+            </Button>
           </div>
         </div>
 
@@ -444,24 +465,51 @@ export function CalendarView() {
                 }
               >
                 <div className="max-h-[calc(100svh-16rem)] space-y-2 overflow-y-auto pr-1">
-                  {draftsQuery.isLoading ? (
-                    Array.from({ length: 4 }).map((_, i) => (
-                      <Skeleton key={i} className="h-14 w-full rounded-xl" />
-                    ))
-                  ) : drafts.length ? (
-                    drafts.map((post) => (
+                  <DraftsList
+                    loading={draftsQuery.isLoading}
+                    drafts={drafts}
+                    renderDraft={(post) => (
                       <DraftCard key={post.id} post={post} onOpen={setOpenPostId} />
-                    ))
-                  ) : (
-                    <p className="rounded-xl bg-muted p-4 text-center text-sm text-muted-foreground">
-                      No drafts. Posts you save as drafts, or your agent creates without a
-                      time, wait here.
-                    </p>
-                  )}
+                    )}
+                  />
                 </div>
               </PageSection>
             </aside>
           ) : null}
+
+          <Sheet open={draftsSheetOpen} onOpenChange={setDraftsSheetOpen}>
+            <SheetContent className="w-full gap-0 sm:max-w-sm">
+              <SheetHeader className="border-b">
+                <SheetTitle>Drafts</SheetTitle>
+                <SheetDescription>Open a draft to give it a time.</SheetDescription>
+              </SheetHeader>
+              <div className="flex-1 space-y-2 overflow-y-auto p-4">
+                <DraftsList
+                  loading={draftsQuery.isLoading}
+                  drafts={drafts}
+                  renderDraft={(post) => (
+                    <DraftRow
+                      key={post.id}
+                      post={post}
+                      onOpen={(id) => {
+                        setDraftsSheetOpen(false);
+                        setOpenPostId(id);
+                      }}
+                    />
+                  )}
+                />
+              </div>
+              <div className="border-t p-4">
+                <Link
+                  href="/scheduler/new"
+                  className={buttonVariants({ variant: "outline", size: "sm", className: "w-full" })}
+                >
+                  <NotePencil />
+                  New post
+                </Link>
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
       </div>
 
@@ -479,6 +527,31 @@ export function CalendarView() {
       <PostSheet postId={openPostId} onOpenChange={(open) => !open && setOpenPostId(null)} />
     </DndContext>
   );
+}
+
+function DraftsList({
+  loading,
+  drafts,
+  renderDraft,
+}: {
+  loading: boolean;
+  drafts: Post[];
+  renderDraft: (post: Post) => React.ReactNode;
+}) {
+  if (loading) {
+    return Array.from({ length: 4 }).map((_, i) => (
+      <Skeleton key={i} className="h-[3.25rem] w-full rounded-xl" />
+    ));
+  }
+  if (!drafts.length) {
+    return (
+      <p className="rounded-xl bg-muted p-4 text-center text-sm text-muted-foreground">
+        No drafts. Posts you save without a time, or that your agent creates without one, wait
+        here.
+      </p>
+    );
+  }
+  return drafts.map(renderDraft);
 }
 
 function AgendaList({

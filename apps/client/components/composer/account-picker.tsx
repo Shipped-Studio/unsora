@@ -125,7 +125,10 @@ export function AccountPicker({
               <AccountAvatar account={account} size="sm" />
               <span className="min-w-0 truncate">{accountLabel(account)}</span>
               {needsReconnect ? (
-                <Warning weight="fill" className="size-3.5 shrink-0 text-warning" />
+                <>
+                  <Warning aria-hidden weight="fill" className="size-3.5 shrink-0 text-warning" />
+                  <span className="sr-only">Needs reconnecting</span>
+                </>
               ) : null}
               <span
                 className={cn(

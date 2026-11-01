@@ -304,7 +304,7 @@ export function NotificationsMenu() {
       counts: false,
       visual: <IconTile tone="warning"><WarningCircle weight="fill" /></IconTile>,
       title: `Your ${user.plan} plan ends ${ends.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`,
-      body: "Renew to keep your monthly credits.",
+      body: "Renew to keep scheduling and posting.",
       href: "/billing",
       onSelect: close,
     });

@@ -9,6 +9,7 @@ import {
 import {
   useSubtitleApi,
   type ExportListItem,
+  type SavedSubtitlePreset,
   type PaginationMeta,
   type TranscriptionListItem,
 } from "@/hooks/subtitle/use-subtitle-api";
@@ -28,6 +29,7 @@ export const subtitleQueryKeys = {
   exports: () => [...subtitleQueryKeys.all, "exports"] as const,
   exportsPage: (page: number) =>
     [...subtitleQueryKeys.exports(), page] as const,
+  presets: () => [...subtitleQueryKeys.all, "presets"] as const,
 };
 
 interface ListPage<T> {
@@ -150,6 +152,61 @@ export function useDeleteSubtitleExport() {
       return queryClient.invalidateQueries({
         queryKey: subtitleQueryKeys.exports(),
       });
+    },
+  });
+}
+
+export function useSavedSubtitlePresets() {
+  const api = useSubtitleApi();
+  return useQuery({
+    queryKey: subtitleQueryKeys.presets(),
+    queryFn: async () => {
+      const result = await api.listSubtitlePresets();
+      if (!result.success) throw new Error(result.error || "Try again.");
+      return result.data ?? [];
+    },
+  });
+}
+
+export function useCreateSubtitlePreset() {
+  const api = useSubtitleApi();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: {
+      name: string;
+      style: Record<string, unknown>;
+    }) => {
+      const result = await api.createSubtitlePreset(input.name, input.style);
+      if (!result.success || !result.data) {
+        throw new Error(result.error || "Try again.");
+      }
+      return result.data;
+    },
+    onSuccess: (preset) => {
+      queryClient.setQueryData<SavedSubtitlePreset[]>(
+        subtitleQueryKeys.presets(),
+        (old) => [preset, ...(old ?? [])],
+      );
+    },
+  });
+}
+
+export function useDeleteSubtitlePreset() {
+  const api = useSubtitleApi();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const result = await api.deleteSubtitlePreset(id);
+      if (!result.success) throw new Error(result.error || "Try again.");
+      return id;
+    },
+    onSuccess: (id) => {
+      queryClient.setQueryData<SavedSubtitlePreset[]>(
+        subtitleQueryKeys.presets(),
+        (old) => old?.filter((preset) => preset.id !== id),
+      );
     },
   });
 }

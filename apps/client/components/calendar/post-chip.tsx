@@ -181,13 +181,41 @@ export function DraftCard({
         isDragging && "opacity-40",
       )}
     >
+      <DraftCardBody post={post} />
+    </button>
+  );
+}
+
+/** The same draft without dragging, for the drafts sheet on smaller screens. */
+export function DraftRow({
+  post,
+  onOpen,
+}: {
+  post: Post;
+  onOpen: (postId: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(post.id)}
+      aria-label={`Draft: ${post.mainCaption.slice(0, 60) || "Untitled"}, ${describe(post)}`}
+      className="flex w-full items-center gap-2.5 rounded-xl bg-muted p-2 text-left outline-none hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <DraftCardBody post={post} />
+    </button>
+  );
+}
+
+function DraftCardBody({ post }: { post: Post }) {
+  return (
+    <>
       <PostThumb post={post} className="size-9" />
       <span className="min-w-0 flex-1">
-        <span className="line-clamp-2 text-sm text-foreground">
+        <span className="line-clamp-2 text-sm break-words text-foreground">
           {post.mainCaption.trim() || "No caption"}
         </span>
       </span>
       <Providers post={post} />
-    </button>
+    </>
   );
 }

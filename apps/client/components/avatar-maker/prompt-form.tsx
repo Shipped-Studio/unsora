@@ -314,7 +314,7 @@ export function AvatarPromptForm({
       : transcript.trim().length > 0 && !speechTooLong);
 
   async function handleImageUpload(file: File) {
-    if (!file.type.startsWith("image/")) {
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
       toast.error("Choose a JPEG, PNG or WebP portrait.");
       return;
     }
@@ -343,8 +343,8 @@ export function AvatarPromptForm({
   }
 
   async function handleAudioUpload(file: File) {
-    if (!file.type.startsWith("audio/") && !file.type.startsWith("video/")) {
-      toast.error("Choose an audio or video file, like MP3, WAV or MP4.");
+    if (!file.type.startsWith("audio/") && file.type !== "video/mp4") {
+      toast.error("Choose an MP3, WAV, M4A or MP4 file.");
       return;
     }
     setUploadingAudio(true);
@@ -475,7 +475,7 @@ export function AvatarPromptForm({
               value={transcript}
               onChange={setTranscript}
               onSubmit={() => void handleGenerate()}
-              placeholder="What should the avatar say?"
+              placeholder="Hi, I'm Maya. Here are three quick ways to plan a week of posts."
               label="Script"
               disabled={submitting}
             />

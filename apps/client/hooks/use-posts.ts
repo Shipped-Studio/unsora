@@ -5,13 +5,15 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/toast-error";
 import { useApi } from "./use-api";
 import type { PostType } from "@/lib/scheduler/formats";
 import type { Pagination, Post, PostStatus } from "@/lib/scheduler/types";
 
 export interface PostFilters {
   status?: PostStatus[];
-  type?: PostType;
+  /** One or more server post types; several are sent comma separated. */
+  type?: PostType | PostType[];
   accountId?: string;
   provider?: string;
   q?: string;
@@ -34,7 +36,8 @@ export const postQueryKeys = {
 function toSearch(filters: PostFilters) {
   const params = new URLSearchParams();
   if (filters.status?.length) params.set("status", filters.status.join(","));
-  if (filters.type) params.set("type", filters.type);
+  const types = [filters.type ?? []].flat();
+  if (types.length) params.set("type", types.join(","));
   if (filters.accountId) params.set("accountId", filters.accountId);
   if (filters.provider) params.set("provider", filters.provider);
   if (filters.q) params.set("q", filters.q);
@@ -171,7 +174,7 @@ export function usePublishPost() {
       toast.success("Publishing started");
       void invalidate();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toastApiError("Couldn't start publishing", error),
   });
 }
 
@@ -185,7 +188,7 @@ export function useRetryPost() {
       toast.success("Retrying the accounts that failed");
       void invalidate();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toastApiError("Couldn't retry the post", error),
   });
 }
 
@@ -199,7 +202,7 @@ export function useDuplicatePost() {
       toast.success("Copied to a new draft");
       void invalidate();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toastApiError("Couldn't duplicate the post", error),
   });
 }
 
@@ -212,7 +215,7 @@ export function useDeletePost() {
       toast.success("Post deleted");
       void invalidate();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toastApiError("Couldn't delete the post", error),
   });
 }
 
@@ -230,6 +233,6 @@ export function useBulkDeletePosts() {
       toast.success(`${count} post${count === 1 ? "" : "s"} deleted`);
       void invalidate();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toastApiError("Couldn't delete the posts", error),
   });
 }

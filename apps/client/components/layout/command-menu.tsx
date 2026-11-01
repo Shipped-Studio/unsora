@@ -3,17 +3,13 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
-import { useTheme } from "next-themes";
 import {
   CalendarBlank,
   CreditCard,
-  Desktop,
   GearSix,
-  Moon,
   NotePencil,
   Plugs,
   SignOut,
-  Sun,
   UploadSimple,
 } from "@phosphor-icons/react";
 import {
@@ -63,6 +59,20 @@ export function CommandMenuProvider({ children }: { children: React.ReactNode })
   );
 }
 
+/**
+ * Whole-word matching instead of cmdk's default fuzzy one, which scores
+ * "subt" higher on "Accounts · Social accounts you can publish to" than on
+ * "Subtitles". Label starts beat word starts beat anything else containing it.
+ */
+function rank(value: string, search: string) {
+  const query = search.trim().toLowerCase();
+  if (!query) return 1;
+  const text = value.toLowerCase();
+  if (text.startsWith(query)) return 1;
+  if (text.split(/[\s·,/-]+/).some((word) => word.startsWith(query))) return 0.7;
+  return text.includes(query) ? 0.4 : 0;
+}
+
 function CommandMenu({
   open,
   onOpenChange,
@@ -71,7 +81,6 @@ function CommandMenu({
   onOpenChange: (open: boolean) => void;
 }) {
   const router = useRouter();
-  const { setTheme } = useTheme();
   const { signOut } = useClerk();
 
   const run = useCallback(
@@ -94,6 +103,7 @@ function CommandMenu({
       onOpenChange={onOpenChange}
       title="Search"
       description="Jump to a page or run an action"
+      filter={rank}
     >
       <CommandInput placeholder="Search pages and actions" />
       <CommandList>
@@ -159,18 +169,6 @@ function CommandMenu({
           <CommandItem onSelect={() => go("/billing")}>
             <CreditCard />
             Billing and credits
-          </CommandItem>
-          <CommandItem onSelect={() => run(() => setTheme("light"))}>
-            <Sun />
-            Light theme
-          </CommandItem>
-          <CommandItem onSelect={() => run(() => setTheme("dark"))}>
-            <Moon />
-            Dark theme
-          </CommandItem>
-          <CommandItem onSelect={() => run(() => setTheme("system"))}>
-            <Desktop />
-            System theme
           </CommandItem>
           <CommandItem
             onSelect={() => run(() => void signOut({ redirectUrl: "/sign-in" }))}

@@ -29,6 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Spinner } from "@/components/ui/spinner";
 import { Input } from "@/components/ui/input";
 import { CopyButton } from "@/components/api-keys/copy-button";
 import {
@@ -169,6 +170,7 @@ function FileName({ item }: { item: LibraryItem }) {
         }}
       />
       <Button type="submit" size="sm" disabled={rename.isPending}>
+        {rename.isPending ? <Spinner data-icon="inline-start" /> : null}
         {rename.isPending ? "Saving…" : "Save"}
       </Button>
     </form>
@@ -385,7 +387,8 @@ export function LibraryItemDialog({
               onClick={handleDelete}
               disabled={deleteItem.isPending}
             >
-              {deleteItem.isPending ? "Deleting…" : "Delete"}
+              {deleteItem.isPending ? <Spinner data-icon="inline-start" /> : null}
+              {deleteItem.isPending ? "Deleting…" : "Delete file"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
