@@ -30,10 +30,8 @@ export const metadata: Metadata = {
   },
   description: DESCRIPTION,
   metadataBase: new URL("https://app.tryunsora.com"),
-  icons: {
-    icon: "/brand/logo.png",
-    apple: "/brand/logo.png",
-  },
+  // Favicon and Apple touch icon: app/icon.png and app/apple-icon.png, the
+  // filled app tile (public/brand/icon-tile-512.png).
   openGraph: {
     siteName: "Unsora",
     title: "Unsora: social media scheduler",

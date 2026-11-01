@@ -137,8 +137,10 @@
   --accent-foreground: #0a0a0a;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --success: #15803d;
-  --success-foreground: #ffffff;
+  /* Ink, like the rest of the palette: done and connected read as filled
+     black, not green. */
+  --success: #0a0a0a;
+  --success-foreground: #fafaf7;
   --warning: #b45309;
   --warning-foreground: #ffffff;
   --info: #2563eb;
