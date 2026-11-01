@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ClerkProvider } from "@clerk/nextjs";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Next13ProgressBar from "next13-progressbar";
+import { PostHogProvider } from "@/components/analytics/posthog-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { IconContext } from "@phosphor-icons/react";
 import { Toaster } from "@/components/ui/sonner";
@@ -30,7 +31,9 @@ export default function AllProvider({
       <QueryClientProvider client={queryClient}>
           <TooltipProvider delay={300}>
             <IconContext.Provider value={{ "aria-hidden": true }}>
-              <PricingProvider>{children}</PricingProvider>
+              <PostHogProvider>
+                <PricingProvider>{children}</PricingProvider>
+              </PostHogProvider>
             </IconContext.Provider>
             <Next13ProgressBar
               height="2px"

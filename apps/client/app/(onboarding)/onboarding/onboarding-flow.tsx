@@ -36,7 +36,8 @@ import { getBrowserTimezone } from "@/lib/timezone";
  *
  *   account → channels → how it works → free trial → credits → connect
  *
- * The free trial is left out for anyone who already has a plan. Credits
+ * The free trial is left out for anyone who already has a plan; for
+ * everyone else it can't be skipped, since the app needs a plan. Credits
  * (top-ups, as plans include none) needs a plan or trial, so it's skipped
  * without one. Coming back from Stripe (a started trial or a bought pack)
  * moves on a step. Finishing goes into the app, straight to a first post for
@@ -125,6 +126,8 @@ export function OnboardingFlow() {
     return (
       <div className="flex flex-1 items-center justify-center">
         <Spinner className="size-6 text-muted-foreground" />
+        {/* Back from a started trial: the plan is in place. */}
+        {fromCheckout ? <MarkOnboarded /> : null}
       </div>
     );
   }
@@ -139,11 +142,10 @@ export function OnboardingFlow() {
 
   return (
     <SetupFrame steps={steps} current={index} appName={null} homeHref="/">
-      {/* Reaching the last steps finishes onboarding, so connecting the app
-          after it goes straight to Allow. */}
-      {current === "trial" || last ? (
-        <MarkOnboarded />
-      ) : null}
+      {/* Onboarding counts as done once there's a plan and the last step is
+          reached, so connecting the app after it goes straight to Allow.
+          Without a plan it isn't done, and the next sign-in comes back here. */}
+      {last && hasPaidPlan(usage) ? <MarkOnboarded /> : null}
       <div
         key={current}
         ref={headingRef}
