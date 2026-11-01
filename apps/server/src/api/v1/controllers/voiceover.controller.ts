@@ -134,9 +134,14 @@ export class PublicVoiceoverController {
           .json({ success: false, error: "User not found" });
       }
 
-      await prisma.voiceGeneration.delete({
+      const { count } = await prisma.voiceGeneration.deleteMany({
         where: { id: generationId, userId: user.id },
       });
+      if (count === 0) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Voiceover not found" });
+      }
 
       return res.json({ success: true, message: "Voiceover deleted" });
     } catch (error) {

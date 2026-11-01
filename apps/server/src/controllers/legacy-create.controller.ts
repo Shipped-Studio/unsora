@@ -22,7 +22,7 @@ import {
 type Body = Record<string, unknown>;
 
 /** Old model names with no catalog alias → their closest current model. */
-const RETIRED_MODELS: Record<string, string> = {
+export const RETIRED_MODELS: Record<string, string> = {
   wan: "wan-3.0",
   "wan_2.6": "wan-3.0",
   "gpt-image-1.5": "gpt-image-2",
