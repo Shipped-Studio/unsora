@@ -403,12 +403,19 @@ export class VideoController {
       }
 
       // Delete the video record if it belongs to the user
-      const deletedVideo = await prisma.processedVideo.delete({
+      const { count } = await prisma.processedVideo.deleteMany({
         where: {
           id: videoId,
           userId: user.id,
         },
       });
+
+      if (count === 0) {
+        return res.status(404).json({
+          success: false,
+          error: "Video not found or access denied",
+        });
+      }
 
       return res.json({
         success: true,

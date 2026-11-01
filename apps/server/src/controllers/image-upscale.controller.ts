@@ -249,9 +249,14 @@ export class ImageUpscaleController {
           .json({ success: false, error: "User not found" });
       }
 
-      await prisma.imageGeneration.delete({
-        where: { id: jobId, userId: user.id },
+      const { count } = await prisma.imageGeneration.deleteMany({
+        where: { id: jobId, userId: user.id, type: "UPSCALE" },
       });
+      if (count === 0) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Upscale not found" });
+      }
 
       return res.json({
         success: true,
