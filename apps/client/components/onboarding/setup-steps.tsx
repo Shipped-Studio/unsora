@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  Coins,
 } from "@phosphor-icons/react";
 import { OpenAIIcon } from "@/components/icons";
 import { ConnectGrid } from "@/components/scheduler/accounts-view";
@@ -247,21 +248,21 @@ export function HowToStep({ ctx }: { ctx: SetupContext }) {
 /* ------------------------------------------------------------------------ */
 
 /**
- * What every plan gets, from Unsora's listing in ChatGPT. Shown under each
- * plan's own features (set at /admin/pricing) so the cards say what you
- * actually do with Unsora, not only how much of it you get.
+ * What every plan includes, shown after the plan's own features (set at
+ * /admin/pricing).
  */
-const INCLUDED = [
+const INCLUDED = ["Post to TikTok, Instagram, YouTube and more", "Works in ChatGPT and Claude"];
+
+/**
+ * The AI tools, listed apart from what the plan includes: plans come with no
+ * credits, so these are paid for with top-ups.
+ */
+const WITH_CREDITS = [
   "Clip videos into up to 20 shorts",
   "Captions in 35 animated styles",
-  "Post to TikTok, Instagram, YouTube",
   "AI video, music and voiceovers",
   "Thumbnails and 4K upscaling",
-  "Works in ChatGPT and Claude",
 ];
-
-/** Features shown on a phone before "show all". */
-const PHONE_FEATURES = 4;
 
 export function TrialStep({ ctx }: { ctx: SetupContext }) {
   const { authFetch } = useAuthFetch();
@@ -553,15 +554,10 @@ function PlanCard({
   disabled: boolean;
   onStart: () => void;
 }) {
-  const [showAll, setShowAll] = useState(false);
+  const [showTools, setShowTools] = useState(false);
   const per = intervalLabel(plan.interval);
   const allowance = planAllowanceLabel(plan);
-  // Clipping is what Unsora is known for, so it goes third: right after the
-  // plan's account limit and scheduling, ahead of the rest.
-  const own = plan.features ?? [];
-  const [clipping, ...rest] = INCLUDED;
-  const features = [...new Set([...own.slice(0, 2), clipping, ...own.slice(2), ...rest])];
-  const hidden = features.length - PHONE_FEATURES;
+  const included = [...new Set([...(plan.features ?? []), ...INCLUDED])];
 
   return (
     <li
@@ -602,28 +598,40 @@ function PlanCard({
         </p>
       ) : null}
 
-      <ul className="mt-6 space-y-2.5 border-t pt-6 text-sm">
-        {features.map((feature, i) => (
-          <li
-            key={feature}
-            // Phones show the first few until "show all", so three plans stay scannable.
-            className={cn("flex gap-2.5", !showAll && i >= PHONE_FEATURES && "max-sm:hidden")}
+      <div className="mt-6 border-t pt-6 text-sm">
+        <p className="mb-3 text-xs font-medium text-muted-foreground">Included</p>
+        <ul className="space-y-2.5">
+          {included.map((feature) => (
+            <li key={feature} className="flex gap-2.5">
+              <Check className="mt-0.5 size-4 shrink-0 text-success" weight="bold" />
+              <span>{feature}</span>
+            </li>
+          ))}
+        </ul>
+
+        {/* Phones fold this away until asked, so three plans stay scannable. */}
+        <div className={cn("mt-5", !showTools && "max-sm:hidden")}>
+          <p className="mb-3 text-xs font-medium text-muted-foreground">AI tools · with credits</p>
+          <ul className="space-y-2.5 text-muted-foreground">
+            {WITH_CREDITS.map((tool) => (
+              <li key={tool} className="flex gap-2.5">
+                <Coins className="mt-0.5 size-4 shrink-0" />
+                <span>{tool}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        {showTools ? null : (
+          <Button
+            variant="link"
+            size="sm"
+            className="mt-2 px-0 text-muted-foreground sm:hidden"
+            onClick={() => setShowTools(true)}
           >
-            <Check className="mt-0.5 size-4 shrink-0 text-success" weight="bold" />
-            <span>{feature}</span>
-          </li>
-        ))}
-      </ul>
-      {hidden > 0 && !showAll ? (
-        <Button
-          variant="link"
-          size="sm"
-          className="mt-2 self-start px-0 text-muted-foreground sm:hidden"
-          onClick={() => setShowAll(true)}
-        >
-          Show {hidden} more
-        </Button>
-      ) : null}
+            Show AI tools
+          </Button>
+        )}
+      </div>
     </li>
   );
 }
