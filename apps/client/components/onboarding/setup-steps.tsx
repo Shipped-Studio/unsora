@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useUser } from "@clerk/nextjs";
+import posthog from "posthog-js";
 import {
   ArrowLeft,
   ArrowRight,
@@ -13,6 +15,7 @@ import { bestValueKey } from "@/components/billing/credit-packs";
 import { formatLongDate, formatUsd, intervalLabel, planAllowanceLabel } from "@/components/billing/format";
 import { redirectToStripe } from "@/components/billing/redirect-to-stripe";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/shared/states";
@@ -107,6 +110,83 @@ export function StepFooter({
 
 /* ------------------------------------------------------------------------ */
 
+/** Answers for "How did you hear about Unsora?". "Other" asks where. */
+const SOURCES = ["ChatGPT", "Claude", "Grok", "Google", "LinkedIn", "Reddit", "Facebook", "X", "Other"];
+
+/**
+ * First question after sign-up: where they heard about Unsora. Saved on the
+ * Clerk user (`unsafeMetadata.heardFrom`) and as a PostHog person property.
+ * Optional; the flow leaves it out once answered.
+ */
+export function SourceStep({ ctx }: { ctx: SetupContext }) {
+  const { user } = useUser();
+  const [choice, setChoice] = useState<string | null>(null);
+  const [other, setOther] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    const answer = choice === "Other" ? other.trim() || "Other" : choice;
+    if (!answer || !user) return ctx.next();
+    setSaving(true);
+    await user
+      .update({ unsafeMetadata: { ...user.unsafeMetadata, heardFrom: answer } })
+      .catch(() => {});
+    if (posthog.__loaded) posthog.setPersonProperties({ heard_from: answer });
+    ctx.next();
+  };
+
+  return (
+    <section className="mx-auto w-full max-w-2xl">
+      <StepHeader
+        eyebrow="One quick question"
+        title="How did you hear about Unsora?"
+        lead="It helps us know where to show up."
+      />
+
+      <div className="mt-10 grid grid-cols-2 gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Where you heard about Unsora">
+        {SOURCES.map((source) => (
+          <button
+            key={source}
+            type="button"
+            role="radio"
+            aria-checked={choice === source}
+            onClick={() => setChoice(source)}
+            className={cn(
+              "rounded-xl bg-card px-4 py-3 text-left text-sm font-medium ring-1 transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+              choice === source ? "ring-2 ring-foreground" : "ring-border hover:bg-accent",
+            )}
+          >
+            {source}
+          </button>
+        ))}
+      </div>
+      {choice === "Other" ? (
+        <Input
+          autoFocus
+          value={other}
+          onChange={(event) => setOther(event.target.value)}
+          placeholder="Where did you hear about us?"
+          className="mt-3"
+          maxLength={120}
+        />
+      ) : null}
+
+      <StepFooter back={ctx.back}>
+        <Button size="lg" variant="ghost" onClick={ctx.next} disabled={saving}>
+          Skip
+        </Button>
+        <Button size="lg" onClick={() => void save()} disabled={!choice || saving}>
+          {saving ? <Spinner data-icon="inline-start" /> : null}
+          Continue
+          <ArrowRight data-icon="inline-end" />
+        </Button>
+      </StepFooter>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------------ */
+
 export function ChannelsStep({ ctx }: { ctx: SetupContext }) {
   const { data: accounts } = useConnectedAccounts();
   const connected = accounts ?? [];
@@ -119,7 +199,7 @@ export function ChannelsStep({ ctx }: { ctx: SetupContext }) {
         lead="Connect the accounts you want to publish to. It's free, and you can add more later from Accounts."
       />
 
-      <div className={cn(CARD, "mt-10 p-4 sm:p-6")}>
+      <div className="mt-10 rounded-2xl bg-card p-4 sm:p-6">
         {connected.length ? (
           <ul className="mb-5 flex flex-wrap items-center gap-2 border-b pb-5" aria-label="Connected">
             {connected.map((account) => (
