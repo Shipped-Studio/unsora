@@ -20,7 +20,6 @@ import {
   Plugs,
   Scissors,
   ShareNetwork,
-  TextT,
   UserFocus,
   UserSound,
   VideoCamera,
@@ -47,7 +46,12 @@ export interface NavItem {
   /** Extra path prefixes that should also highlight this item. */
   match?: string[];
   external?: boolean;
+  /** Which kind of AI tool this is, for grouping the Create panel. */
+  group?: CreateGroupName;
 }
+
+export type CreateGroupName = "Video" | "Image" | "Audio";
+export const CREATE_GROUPS: CreateGroupName[] = ["Video", "Image", "Audio"];
 
 export interface NavSection {
   label: string;
@@ -105,30 +109,36 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         label: "Video",
         href: "/video-generator",
+        group: "Video",
         icon: VideoCamera,
         description: "Generate video from a prompt or reference images",
       },
       {
         label: "Image",
         href: "/image-generator",
+        group: "Image",
         icon: ImageSquare,
         description: "Generate and edit images from a prompt",
       },
       {
         label: "Clips",
         href: "/ai-clipping",
+        group: "Video",
         icon: Scissors,
         description: "Cut short clips out of a long video",
       },
-      {
-        label: "Subtitles",
-        href: "/subtitle-editor",
-        icon: TextT,
-        description: "Transcribe, style and burn in captions",
-      },
+      // Subtitle editor hidden for now; uncomment (and import TextT) to bring it back.
+      // {
+      //   label: "Subtitles",
+      //   href: "/subtitle-editor",
+      //   group: "Video",
+      //   icon: TextT,
+      //   description: "Transcribe, style and burn in captions",
+      // },
       {
         label: "Thumbnails",
         href: "/thumbnail-generator",
+        group: "Image",
         icon: ImagesSquare,
         description: "YouTube thumbnails from a prompt or template",
       },
@@ -137,60 +147,70 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         label: "Talking avatar",
         href: "/ai-avatar-maker",
+        group: "Video",
         icon: UserSound,
         description: "A portrait that speaks your script",
       },
       {
         label: "Voice",
         href: "/voice-generator",
+        group: "Audio",
         icon: Microphone,
         description: "Text to speech with stock or cloned voices",
       },
       {
         label: "Voice changer",
         href: "/voice-changer",
+        group: "Audio",
         icon: Waveform,
         description: "Re-voice a recording with one of your cloned voices",
       },
       {
         label: "Music",
         href: "/music-generator",
+        group: "Audio",
         icon: MusicNotes,
         description: "Songs from lyrics and a style prompt",
       },
       {
         label: "Motion control",
         href: "/motion-control",
+        group: "Video",
         icon: PersonSimpleRun,
         description: "Animate a character with a reference video",
       },
       {
         label: "AI influencer",
         href: "/ai-influencer-studio",
+        group: "Image",
         icon: UserFocus,
         description: "Photos of one consistent character",
       },
       {
         label: "Movie materials",
         href: "/movie-materials-generator",
+        group: "Image",
         icon: FilmSlate,
         description: "Characters, locations and shot stills for a script",
       },
       {
         label: "Upscale video",
         href: "/video-upscaler",
+        group: "Video",
         icon: ArrowsOut,
         description: "Increase video resolution",
       },
       {
         label: "Upscale image",
         href: "/image-upscaler",
+        group: "Image",
         icon: FrameCorners,
         description: "Increase image resolution",
       },
       {
         label: "Remove subtitles",
         href: "/subtitle-remover",
+        group: "Video",
         icon: Eraser,
         description: "Erase burned-in text from a video",
       },

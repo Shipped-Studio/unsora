@@ -9,10 +9,9 @@ import { useClerk, useUser } from "@clerk/nextjs";
 import {
   ArrowSquareOut,
   CalendarBlank,
-  CaretDown,
+  CaretRight,
   CaretUpDown,
   CreditCard,
-  DotsThreeOutline,
   GearSix,
   House,
   ListChecks,
@@ -20,7 +19,7 @@ import {
   ShieldCheck,
   SidebarSimple,
   SignOut,
-  Sparkle,
+  DotsThreeOutline,
 } from "@phosphor-icons/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -32,13 +31,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { UnsoraLogo } from "@/components/brand/unsora-logo";
 import { usePricing } from "@/contexts/pricing-context";
 import { useUserUsage } from "@/hooks/use-user-usage";
-import { DOCS_URL, NAV_SECTIONS, isNavItemActive, type NavItem } from "@/lib/navigation";
+import {
+  CREATE_GROUPS,
+  DOCS_URL,
+  NAV_SECTIONS,
+  isNavItemActive,
+  type CreateGroupName,
+  type NavItem,
+} from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 /* ── Drawer and collapse state ────────────────────────────────────────── */
@@ -155,7 +161,7 @@ function NavLink({
         aria-current={active ? "page" : undefined}
         aria-label={collapsed ? item.label : undefined}
       >
-        <item.icon className="size-[1.125rem] shrink-0" weight={active ? "duotone" : "regular"} />
+        <item.icon className="size-[1.125rem] shrink-0" />
         {collapsed ? null : <span className="truncate">{item.label}</span>}
       </Link>
     </WithTip>
@@ -172,9 +178,10 @@ function GroupLabel({ children, collapsed }: { children: React.ReactNode; collap
 }
 
 /**
- * AI tools sit in one disclosure, so the scheduler stays the first thing you
- * see. It opens by itself while you're on a tool page. Collapsed, it turns
- * into a flyout menu.
+ * The AI tools. The two most used (Clips, Video) are plain sidebar links;
+ * "More tools" opens all of them, grouped by what they make (Video, Image,
+ * Audio), in a panel beside the sidebar. In the phone drawer, where a side
+ * panel won't fit, the same groups show as a list.
  */
 function CreateGroup({
   pathname,
@@ -185,76 +192,146 @@ function CreateGroup({
   collapsed: boolean;
   onNavigate?: () => void;
 }) {
-  const all = [...CREATE.items, ...(CREATE.more ?? [])];
-  const onTool = all.some((item) => isNavItemActive(item, pathname));
-  const onMoreTool = (CREATE.more ?? []).some((item) => isNavItemActive(item, pathname));
-  // Follows the page until the user opens or closes it themselves.
-  const [openChoice, setOpen] = useState<boolean | null>(null);
-  const [moreChoice, setMoreOpen] = useState<boolean | null>(null);
-  const open = openChoice ?? onTool;
-  const moreOpen = moreChoice || onMoreTool;
+  const [open, setOpen] = useState(false);
+  const onOtherTool = CREATE_TOOLS.some(
+    (item) => !PINNED_TOOLS.includes(item) && isNavItemActive(item, pathname),
+  );
 
-  if (collapsed) {
+  if (onNavigate) {
     return (
-      <DropdownMenu>
-        <WithTip label="Create with AI" collapsed>
-          <DropdownMenuTrigger
-            render={
-              <button
-                type="button"
-                aria-label="Create with AI"
-                className={itemClass(onTool, true)}
-              />
-            }
-          >
-            <Sparkle className="size-[1.125rem]" weight={onTool ? "duotone" : "regular"} />
-          </DropdownMenuTrigger>
-        </WithTip>
-        <DropdownMenuContent side="right" align="start" sideOffset={10} className="w-60">
-          <DropdownMenuGroup>
-            <DropdownMenuLabel className="text-xs text-muted-foreground">Create with AI</DropdownMenuLabel>
-            {all.map((item) => (
-              <DropdownMenuItem key={item.href} render={<Link href={item.href} />}>
-                <item.icon />
-                {item.label}
-              </DropdownMenuItem>
+      <div className="space-y-0.5">
+        {CREATE_GROUPS.map((group) => (
+          <div key={group} className="space-y-0.5">
+            <p className="px-2.5 pt-2 pb-1 text-2xs font-medium text-muted-foreground/80">{group}</p>
+            {toolsIn(group).map((item) => (
+              <NavLink key={item.href} item={item} pathname={pathname} collapsed={false} onNavigate={onNavigate} />
             ))}
-          </DropdownMenuGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          </div>
+        ))}
+      </div>
     );
   }
 
+  const trigger = (
+    <button
+      type="button"
+      aria-label={collapsed ? "More AI tools" : undefined}
+      className={cn(itemClass(onOtherTool, collapsed), open && !onOtherTool && "bg-foreground/[0.05] text-foreground")}
+    />
+  );
+
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger
-        className={cn(itemClass(false, false), "group/create", onTool && !open && "text-foreground")}
-      >
-        <Sparkle className="size-[1.125rem] shrink-0" weight={onTool ? "duotone" : "regular"} />
-        <span className="flex-1 truncate text-left">Create with AI</span>
-        <CaretDown className="size-3.5 shrink-0 transition-transform group-data-[panel-open]/create:rotate-180" />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="overflow-hidden">
-        <div className="mt-0.5 ml-[1.0625rem] space-y-0.5 border-l pl-2">
-          {CREATE.items.map((item) => (
-            <NavLink key={item.href} item={item} pathname={pathname} collapsed={false} onNavigate={onNavigate} />
-          ))}
-          <Collapsible open={moreOpen} onOpenChange={setMoreOpen}>
-            {moreOpen ? null : (
-              <CollapsibleTrigger className={itemClass(false, false)}>
-                <DotsThreeOutline className="size-[1.125rem] shrink-0" />
-                <span className="truncate">More tools</span>
-              </CollapsibleTrigger>
+    <div className="space-y-0.5">
+      {PINNED_TOOLS.map((item) => (
+        <NavLink key={item.href} item={item} pathname={pathname} collapsed={collapsed} />
+      ))}
+      <Popover open={open} onOpenChange={setOpen}>
+        <WithTip label="More AI tools" collapsed={collapsed}>
+          <PopoverTrigger render={trigger}>
+            <AiBadge />
+            {collapsed ? null : (
+              <>
+                <span className="flex-1 truncate text-left">More tools</span>
+                <CaretRight className="size-3.5 shrink-0 opacity-60" />
+              </>
             )}
-            <CollapsibleContent className="space-y-0.5">
-              {(CREATE.more ?? []).map((item) => (
-                <NavLink key={item.href} item={item} pathname={pathname} collapsed={false} onNavigate={onNavigate} />
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
+          </PopoverTrigger>
+        </WithTip>
+        <PopoverContent
+          side="right"
+          align="start"
+          sideOffset={12}
+          className="w-[min(46rem,calc(100vw-6rem))] gap-0 rounded-2xl p-0"
+        >
+          <div className="flex items-center gap-3 border-b px-5 py-4">
+            <AiBadge className="size-8 rounded-lg text-xs" />
+            <div>
+              <p className="font-display text-base font-semibold tracking-tight">Create with AI</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Make something new, then schedule it from your library.</p>
+            </div>
+          </div>
+          <div className="grid gap-x-4 gap-y-5 p-3 sm:grid-cols-2">
+            {/* Video has the most tools, so it gets a column; Image and Audio share the other. */}
+            <ToolGroup group="Video" pathname={pathname} onPick={() => setOpen(false)} />
+            <div className="space-y-5">
+              <ToolGroup group="Image" pathname={pathname} onPick={() => setOpen(false)} />
+              <ToolGroup group="Audio" pathname={pathname} onPick={() => setOpen(false)} />
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+const CREATE_TOOLS = [...CREATE.items, ...(CREATE.more ?? [])];
+/** Shown as plain sidebar links above "More tools". */
+const PINNED_TOOLS = [byHref("/ai-clipping"), byHref("/video-generator")];
+
+/** The mark for the AI tools: "AI" on the brand colour. */
+function AiBadge({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "flex size-[1.125rem] shrink-0 items-center justify-center rounded-[5px] bg-brand text-[0.5625rem] leading-none font-bold tracking-tight text-brand-foreground",
+        className,
+      )}
+    >
+      AI
+    </span>
+  );
+}
+const toolsIn = (group: CreateGroupName) => CREATE_TOOLS.filter((item) => item.group === group);
+
+function ToolGroup({
+  group,
+  pathname,
+  onPick,
+}: {
+  group: CreateGroupName;
+  pathname: string;
+  onPick: () => void;
+}) {
+  return (
+    <section>
+      <p className="px-2 pb-1.5 text-2xs font-semibold tracking-wider text-muted-foreground/80 uppercase">{group}</p>
+      <ul className="space-y-0.5">
+        {toolsIn(group).map((item) => {
+          const active = isNavItemActive(item, pathname);
+          return (
+            <li key={item.href}>
+              <Link
+                href={item.href}
+                onClick={onPick}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "group/tool flex items-center gap-3 rounded-xl p-2 outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
+                  active ? "bg-accent" : "hover:bg-accent",
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex size-9 shrink-0 items-center justify-center rounded-lg ring-1 transition-colors",
+                    active
+                      ? "bg-brand text-brand-foreground ring-transparent"
+                      : "bg-card text-foreground ring-border group-hover/tool:bg-brand group-hover/tool:text-brand-foreground group-hover/tool:ring-transparent",
+                  )}
+                >
+                  <item.icon className="size-[1.125rem]" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium">{item.label}</span>
+                  {item.description ? (
+                    <span className="block truncate text-xs text-muted-foreground">{item.description}</span>
+                  ) : null}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
@@ -532,7 +609,7 @@ export function MobileTabBar() {
           active ? "text-foreground" : "text-muted-foreground",
         )}
       >
-        <item.icon className="size-5" weight={active ? "duotone" : "regular"} />
+        <item.icon className="size-5" />
         {item.label}
       </Link>
     );
@@ -560,7 +637,7 @@ export function MobileTabBar() {
         onClick={() => setOpen(true)}
         className="flex flex-1 flex-col items-center gap-1 py-1.5 text-2xs font-medium text-muted-foreground"
       >
-        <Sparkle className="size-5" />
+        <DotsThreeOutline className="size-5" />
         More
       </button>
     </nav>
