@@ -1,52 +1,25 @@
-export interface WordTimestamp {
-  word: string;
-  start: number;
-  end: number;
-}
+import type { TitleOverlayConfig } from "./title-overlay";
 
-export interface SubtitleChunk {
-  text: string;
-  start: number;
-  end: number;
-  words: WordTimestamp[];
-}
+export type {
+  CaptionLayout,
+  KeywordLevel,
+  SubtitleChunk,
+  SubtitleStylePreset,
+  WordEffect,
+  WordTimestamp,
+  ZoomStyle,
+} from "./caption-style";
+import type { ZoomEvent } from "./caption-animations";
+import type {
+  BrollLayout,
+  CaptionPlacement,
+  Timeline,
+  SubtitleChunk,
+  SubtitleStylePreset,
+  ZoomStyle,
+} from "./caption-style";
 
-export interface SubtitleStylePreset {
-  id: string;
-  name: string;
-  fontFamily: string;
-  fontSize: number;
-  fontWeight: number;
-  fontStyle: "normal" | "italic";
-  textTransform: "none" | "uppercase";
-  color: string;
-  highlightColor?: string;
-  highlightBgColor?: string;
-  strokeColor?: string;
-  strokeWidth?: number;
-  backgroundColor?: string;
-  backgroundPadding?: number;
-  shadow?: string;
-}
-
-export interface SizePositionValues {
-  fontSize: number;
-  width: number;
-  height: number;
-  xAxis: number;
-  yAxis: number;
-}
-
-export interface TitleOverlayConfig {
-  enabled: boolean;
-  text: string;
-  fontSize: number;
-  fontWeight: number;
-  color: string;
-  xAxis: number;
-  yAxis: number;
-  width: number;
-}
+export type { TitleOverlayConfig };
 
 export type WatermarkPosition =
   | "top-left"
@@ -77,13 +50,20 @@ export interface PreviewStyleConfig {
   aspectRatio: AspectRatioId;
   videoFit: VideoFitId;
   backgroundColor: string;
+  /** Moves the video at key moments. */
+  zoom?: ZoomStyle;
+  /** Default layout for B-roll clips. */
+  brollLayout?: BrollLayout;
+  /** A zoom per scene, from AI Auto Zooms; wins over `zoom`. */
+  zooms?: ZoomEvent[];
 }
 
 export interface EditorSettings {
   fileName?: string;
   selectedPresetId?: string;
   preset?: SubtitleStylePreset;
-  sizePosition?: SizePositionValues;
+  placement?: CaptionPlacement;
+  timeline?: Timeline;
   titleOverlay?: TitleOverlayConfig;
   watermarkOverlay?: WatermarkOverlayConfig;
   previewStyle?: PreviewStyleConfig;

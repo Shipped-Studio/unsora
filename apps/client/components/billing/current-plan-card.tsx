@@ -39,7 +39,7 @@ interface CurrentPlanCardProps {
 function statusLine(state: PlanState, endsOn: string | null) {
   switch (state) {
     case "free":
-      return "Choose a plan to get credits and connect more social accounts.";
+      return "You can connect accounts on the free plan, but posting needs a plan. Choose one to start posting.";
     case "active":
       return endsOn ? `Renews on ${endsOn}.` : "Your subscription is active.";
     case "trialing":
@@ -47,7 +47,9 @@ function statusLine(state: PlanState, endsOn: string | null) {
         ? `Your trial ends on ${endsOn}. Activate now to start your plan, or cancel to return to Free.`
         : "Activate now to start your plan, or cancel to return to Free.";
     case "ending":
-      return "Your plan won't renew. You keep access and your credits until then.";
+      return endsOn
+        ? `Your plan won't renew. You keep access and your credits until ${endsOn}.`
+        : "Your plan won't renew. You keep access and your credits until the period ends.";
   }
 }
 
@@ -115,10 +117,12 @@ export function CurrentPlanCard({
           {plan ? (
             <div>
               <dt className="text-xs text-muted-foreground">Plan includes</dt>
+              {/* Older plans include monthly credits; the account-based
+                  ones don't, so they show their account limit. */}
               <dd className="mt-1 text-2xl font-medium tabular-nums">
-                {plan.credits.toLocaleString()}
+                {plan.credits > 0 ? plan.credits.toLocaleString() : (plan.socialAccounts ?? "—")}
                 <span className="ml-1.5 text-sm font-normal text-muted-foreground">
-                  credits per {per ?? "billing period"}
+                  {plan.credits > 0 ? `credits per ${per ?? "billing period"}` : "social accounts"}
                 </span>
               </dd>
             </div>

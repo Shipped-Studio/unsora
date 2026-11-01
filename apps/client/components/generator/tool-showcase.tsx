@@ -107,7 +107,7 @@ export function ToolShowcase({
         ))}
       </div>
 
-      <div className="relative mx-4 flex max-w-sm flex-col items-center gap-2 rounded-2xl bg-background/85 px-6 py-5 text-center backdrop-blur-md">
+      <div className="relative mx-4 flex max-w-sm flex-col items-center gap-2 rounded-2xl bg-card px-6 py-5 text-center shadow-sm ring-1 ring-foreground/10">
         <span className="mb-1 grid size-10 place-items-center rounded-xl bg-muted">
           <IconComponent className="size-5" />
         </span>

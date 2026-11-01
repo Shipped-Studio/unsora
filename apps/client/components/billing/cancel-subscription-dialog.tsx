@@ -44,7 +44,9 @@ export function CancelSubscriptionDialog({
   return (
     <Dialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(next) => {
+        if (!isCancelling) onOpenChange(next);
+      }}
       onOpenChangeComplete={(isOpen) => {
         if (!isOpen) {
           setStep("reason");
@@ -109,7 +111,7 @@ export function CancelSubscriptionDialog({
                 onClick={() => reason && onConfirm(reason)}
               >
                 {isCancelling ? <Spinner data-icon="inline-start" /> : null}
-                Continue to Stripe
+                {isCancelling ? "Opening Stripe…" : "Continue to Stripe"}
               </Button>
             </DialogFooter>
           </>

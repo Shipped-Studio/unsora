@@ -201,6 +201,16 @@ function parseStatuses(raw: unknown): PostStatus[] | undefined {
   return statuses.length ? statuses : undefined;
 }
 
+/** Comma-separated post types (e.g. "IMAGE,CAROUSEL"); unknown values are ignored. */
+function parseTypes(raw: unknown): PostType[] | undefined {
+  if (typeof raw !== "string" || !raw) return undefined;
+  const types = raw
+    .split(",")
+    .map((t) => t.trim().toUpperCase())
+    .filter(isPostType);
+  return types.length ? [...new Set(types)] : undefined;
+}
+
 function parseDate(raw: unknown): Date | undefined {
   if (typeof raw !== "string" || !raw) return undefined;
   const date = new Date(raw);
@@ -358,7 +368,7 @@ export class PostController {
       const page = Math.max(1, Number(req.query.page) || 1);
       const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 20));
       const statuses = parseStatuses(req.query.status);
-      const type = req.query.type;
+      const types = parseTypes(req.query.type);
       const accountId =
         typeof req.query.accountId === "string" ? req.query.accountId : undefined;
       const provider =
@@ -369,7 +379,7 @@ export class PostController {
 
       const where: Prisma.PostWhereInput = { userId };
       if (statuses) where.status = { in: statuses };
-      if (isPostType(type)) where.type = type;
+      if (types) where.type = { in: types };
       if (accountId || provider) {
         where.postAccounts = {
           some: {

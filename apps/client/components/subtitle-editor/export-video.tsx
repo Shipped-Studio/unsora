@@ -193,7 +193,7 @@ export function ExportProgressDialog({
               src={videoUrl}
               controls
               playsInline
-              className="max-h-[50svh] w-full rounded-lg bg-muted"
+              className="max-h-[min(50svh,calc(100dvh-16rem))] w-full rounded-lg bg-muted"
             />
             <DialogFooter>
               <ScheduleLink url={videoUrl} mediaType="video" size="default" />

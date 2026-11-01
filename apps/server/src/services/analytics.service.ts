@@ -980,6 +980,7 @@ export class AnalyticsService {
 
       return {
         postAccountId: pa.id,
+        postId: pa.postId,
         platform: provider,
         accountUsername: pa.account.accountUsername,
         profilePicture: pa.account.profilePicture,

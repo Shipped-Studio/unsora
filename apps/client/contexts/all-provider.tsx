@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { ClerkProvider } from "@clerk/nextjs";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ThemeProvider } from "next-themes";
 import Next13ProgressBar from "next13-progressbar";
 import { PostHogProvider } from "@/components/analytics/posthog-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -30,12 +29,6 @@ export default function AllProvider({
   return (
     <ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up">
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem
-          disableTransitionOnChange
-        >
           <TooltipProvider delay={300}>
             <IconContext.Provider value={{ "aria-hidden": true }}>
               <PostHogProvider>
@@ -48,9 +41,13 @@ export default function AllProvider({
               options={{ showSpinner: false }}
               showOnShallow
             />
-            <Toaster position="top-center" />
+            {/* Below the page header, so toasts don't cover titles or header actions. */}
+            <Toaster
+              position="top-center"
+              offset={{ top: "5.25rem" }}
+              mobileOffset={{ top: "4.5rem" }}
+            />
           </TooltipProvider>
-        </ThemeProvider>
       </QueryClientProvider>
     </ClerkProvider>
   );

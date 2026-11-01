@@ -31,38 +31,17 @@ export function UnsoraLogo({
   }
 
   const isIcon = variant === "icon";
-  const darkSrc = isIcon ? UNSORA_LOGO.logoLight : UNSORA_LOGO.withText.dark;
-  const lightSrc = isIcon ? UNSORA_LOGO.logoDark : UNSORA_LOGO.withText.light;
   const width = isIcon ? 32 : 160;
   const height = isIcon ? 32 : 40;
-  const sizeClass = isIcon ? "size-8" : "h-8 w-auto";
 
   return (
-    <>
-      <Image
-        src={darkSrc}
-        alt="Unsora"
-        width={width}
-        height={height}
-        priority={priority}
-        className={cn(
-          "hidden h-auto w-auto object-contain dark:block",
-          sizeClass,
-          className,
-        )}
-      />
-      <Image
-        src={lightSrc}
-        alt="Unsora"
-        width={width}
-        height={height}
-        priority={priority}
-        className={cn(
-          "block h-auto w-auto object-contain dark:hidden",
-          sizeClass,
-          className,
-        )}
-      />
-    </>
+    <Image
+      src={isIcon ? UNSORA_LOGO.logoDark : UNSORA_LOGO.withText.light}
+      alt="Unsora"
+      width={width}
+      height={height}
+      priority={priority}
+      className={cn("block h-auto w-auto object-contain", isIcon ? "size-8" : "h-8 w-auto", className)}
+    />
   );
 }

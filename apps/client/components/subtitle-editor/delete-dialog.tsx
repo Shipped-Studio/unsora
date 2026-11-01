@@ -12,7 +12,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Spinner } from "@/components/ui/spinner";
 
-/** Confirms a permanent delete. Stays open until the request settles. */
+/**
+ * Confirms a destructive action. Stays open until the request settles; the
+ * caller closes it on success.
+ */
 export function DeleteDialog({
   open,
   title,
@@ -20,6 +23,8 @@ export function DeleteDialog({
   isDeleting,
   onConfirm,
   onCancel,
+  confirmLabel = "Delete",
+  pendingLabel = "Deleting…",
 }: {
   open: boolean;
   title: string;
@@ -27,6 +32,9 @@ export function DeleteDialog({
   isDeleting: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  /** The action's verb, e.g. "Remove". */
+  confirmLabel?: string;
+  pendingLabel?: string;
 }) {
   return (
     <AlertDialog
@@ -48,7 +56,7 @@ export function DeleteDialog({
             onClick={onConfirm}
           >
             {isDeleting ? <Spinner /> : null}
-            {isDeleting ? "Deleting…" : "Delete"}
+            {isDeleting ? pendingLabel : confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { uploadFileToStorage } from "@/lib/storage-client";
 import { failureMessage } from "@/components/subtitle-editor/format";
 import { cn } from "@/lib/utils";
+import { IconButton } from "@/components/subtitle-editor/icon-button";
 
 const VIDEO_ACCEPT = "video/mp4,video/webm,video/quicktime";
 
@@ -91,15 +92,14 @@ export function UploadArea({
             autoPlay
             loop
           />
-          <Button
+          <IconButton
             variant="secondary"
-            size="icon-sm"
-            aria-label="Remove video"
+            label="Remove video"
             onClick={clear}
             className="absolute top-2 right-2"
           >
             <X />
-          </Button>
+          </IconButton>
         </div>
         <div className="flex items-center gap-3">
           <FileVideo className="size-4 shrink-0 text-muted-foreground" />

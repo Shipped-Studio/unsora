@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { FolderOpen, UploadSimple } from "@phosphor-icons/react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -31,9 +32,22 @@ export function MediaDrop({
   const accept = kind === "video" ? "video/*" : "image/*";
 
   const take = (list: FileList | File[] | null) => {
-    const files = Array.from(list ?? []).filter((file) =>
+    const all = Array.from(list ?? []);
+    const files = all.filter((file) =>
       file.type.startsWith(kind === "video" ? "video/" : "image/"),
     );
+    const skipped = all.length - files.length;
+    if (skipped > 0) {
+      const what = kind === "video" ? "video files" : "image files";
+      toast.error(
+        files.length
+          ? `Skipped ${skipped} ${skipped === 1 ? "file" : "files"}. Only ${what} work here.`
+          : `That file can't be used here. Add ${kind === "video" ? "a video file" : "an image file"}, like ${kind === "video" ? "MP4 or MOV" : "JPG or PNG"}.`,
+      );
+    }
+    if (!multiple && files.length > 1) {
+      toast.info(`One ${kind} per post. Using the first one.`);
+    }
     if (files.length) onFiles(multiple ? files : files.slice(0, 1));
   };
 

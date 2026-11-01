@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { CaretLeft, CaretRight, FolderOpen, Plus } from "@phosphor-icons/react";
+import { CaretLeft, CaretRight, FolderOpen, Plus, UploadSimple } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -53,7 +53,7 @@ function AddTile({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-48">
         <DropdownMenuItem onClick={onUpload}>
-          <Plus />
+          <UploadSimple />
           Upload images
         </DropdownMenuItem>
         <DropdownMenuItem onClick={onLibrary}>

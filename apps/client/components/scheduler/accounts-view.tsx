@@ -12,6 +12,7 @@ import {
   Warning,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/toast-error";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,6 +63,7 @@ import {
   useShareConnectLink,
 } from "@/hooks/use-connected-accounts";
 import { useUserUsage } from "@/hooks/use-user-usage";
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { formatRelative } from "@/lib/scheduler/dates";
 import {
   PLATFORMS,
@@ -95,7 +97,7 @@ function HealthNote({ account }: { account: ConnectedAccount }) {
       }
       title={account.statusReason ?? undefined}
     >
-      <Warning weight="fill" className="size-3.5" />
+      <Warning aria-hidden weight="fill" className="size-3.5 shrink-0" />
       {account.status === "reconnect" ? "Reconnect needed" : "Expires soon"}
     </span>
   );
@@ -105,10 +107,13 @@ function AccountRow({
   account,
   onReconnect,
   connecting,
+  notOnPlan = false,
 }: {
   account: ConnectedAccount;
   onReconnect: (account: ConnectedAccount) => void;
   connecting: boolean;
+  /** Beyond the plan's account limit: posts to it don't go out. */
+  notOnPlan?: boolean;
 }) {
   const refresh = useRefreshAccount();
   const disconnect = useDisconnectAccount();
@@ -119,7 +124,14 @@ function AccountRow({
     <li className="flex items-center gap-3 px-4 py-3">
       <AccountAvatar account={account} size="md" />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{accountLabel(account)}</p>
+        <p className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-sm font-medium">{accountLabel(account)}</span>
+          {notOnPlan ? (
+            <span className="shrink-0 rounded-full bg-warning-subtle px-2 py-0.5 text-2xs font-medium text-warning">
+              Not on your plan
+            </span>
+          ) : null}
+        </p>
         <p className="truncate text-xs text-muted-foreground">
           {accountHandle(account) || platformName(account.provider)}
           {account.provider === "instagram" && account.connectedVia === "facebook"
@@ -180,8 +192,13 @@ function AccountRow({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => disconnect.mutate(account)}>
+            <AlertDialogCancel disabled={disconnect.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={disconnect.isPending}
+              onClick={() => disconnect.mutate(account, { onSuccess: () => setConfirm(false) })}
+            >
+              {disconnect.isPending ? <Spinner /> : null}
               Disconnect
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -191,10 +208,6 @@ function AccountRow({
   );
 }
 
-/**
- * Connect choice: approve access here, or copy a link for whoever owns the
- * account (a client, a teammate) to connect it from their own device.
- */
 /** Connect route for Instagram through Facebook Login (shown as its own card). */
 const INSTAGRAM_FACEBOOK = "instagram/facebook";
 
@@ -236,6 +249,10 @@ function connectOptionsFor(provider: Provider): ConnectOption[] {
   return options;
 }
 
+/**
+ * Connect choice: approve access here, or copy a link for whoever owns the
+ * account (a client, a teammate) to connect it from their own device.
+ */
 function ConnectChoiceDialog({
   option,
   onOpenChange,
@@ -263,7 +280,7 @@ function ConnectChoiceDialog({
     if (!option) return;
     share.mutate(option.key, {
       onSuccess: (url) => void copyText(url, "Invite link copied. It works for 1 hour."),
-      onError: (error) => toast.error(error.message),
+      onError: (error) => toastApiError("Couldn't create the invite link", error),
     });
   };
 
@@ -299,12 +316,17 @@ function ConnectChoiceDialog({
             variant="outline"
             className="w-full"
             disabled={!canShare || share.isPending}
-            title={canShare ? undefined : `${name} sign-in starts from the account's handle, so connect it yourself.`}
             onClick={createLink}
           >
             {share.isPending ? <Spinner /> : <LinkIcon />}
             Copy link
           </Button>
+          {provider && !canShare ? (
+            <p className="text-xs text-muted-foreground">
+              {name} sign-in starts from the account&apos;s handle, so it can&apos;t be shared as a
+              link.
+            </p>
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>
@@ -410,22 +432,20 @@ export function ConnectGrid({
   exclude?: Provider[];
 }) {
   const connect = useConnectAccount();
-  const { usage } = useUserUsage();
   const { openPricing } = usePricing();
   const [blueskyOpen, setBlueskyOpen] = useState(false);
   const [target, setTarget] = useState<string | null>(null);
   const [choice, setChoice] = useState<ConnectOption | null>(null);
 
-  const plan = (usage?.user?.plan ?? "free").toLowerCase();
-  const isPaid = Boolean(usage?.user?.isActive) && plan !== "free";
-  // Free accounts get Basic's account allowance so channels can be connected
-  // during onboarding, before a trial; publishing still needs a plan.
-  const limit = usage?.limits?.socialAccounts ?? 0;
-  const used = usage?.counts?.socialAccounts ?? 0;
-  const atLimit = limit > 0 && used >= limit;
+  const access = usePlanAccess();
+  const isPaid = access?.isPaid ?? false;
+  const limit = access?.limit ?? 0;
+  const used = access?.used ?? 0;
+  // Connecting is allowed until the plan's limit (Basic's for free users).
+  const blocked = Boolean(access && (access.noScheduler || access.atLimit));
 
   const start = (key: string, handle?: string) => {
-    if (usage && (limit === 0 || atLimit)) {
+    if (blocked) {
       openPricing();
       return;
     }
@@ -453,12 +473,23 @@ export function ConnectGrid({
 
   return (
     <>
-      {atLimit ? (
+      {access && (access.noScheduler || (!isPaid && access.atLimit)) ? (
+        <div className="mb-3 flex flex-col gap-3 rounded-xl bg-muted p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            {access.noScheduler
+              ? "Connecting accounts and publishing need a paid plan."
+              : `The free plan includes ${limit} account${limit === 1 ? "" : "s"}. Upgrade to connect more.`}
+          </p>
+          <Button size="sm" onClick={openPricing}>
+            See plans
+          </Button>
+        </div>
+      ) : access?.atLimit ? (
         <p className="mb-3 text-sm text-muted-foreground">
           You&apos;ve connected {used} of {limit} accounts on your plan. Disconnect one or upgrade
           to add more.
         </p>
-      ) : !isPaid && usage && !hidePlanNote ? (
+      ) : access && !isPaid && !hidePlanNote ? (
         <p className="mb-3 text-sm text-muted-foreground">
           Connect up to {limit} accounts now. Publishing starts with a plan or free trial.
         </p>
@@ -499,8 +530,8 @@ export function ConnectGrid({
             <button
               key={option.key}
               type="button"
-              disabled={atLimit || (connect.isPending && target !== option.key)}
-              onClick={() => setChoice(option)}
+              disabled={connect.isPending && target !== option.key}
+              onClick={() => (blocked ? openPricing() : setChoice(option))}
               aria-label={`Connect ${option.name}`}
               className="group flex min-w-0 items-center gap-3 rounded-xl bg-muted p-3 text-left transition-colors outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -552,6 +583,18 @@ export function AccountsView() {
   })).filter((g) => g.accounts.length);
   const attention = visible.filter((a) => a.status !== "ok").length;
   const limit = usage?.limits?.socialAccounts ?? 0;
+  const { openPricing } = usePricing();
+  // Same rule as the server at publish time: the oldest connections are
+  // covered, anything past the plan's limit doesn't get posts.
+  const notOnPlan = new Set(
+    limit > 0
+      ? [...(accounts ?? [])]
+          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+          .slice(limit)
+          .map((a) => a.id)
+      : [],
+  );
+  const overBy = notOnPlan.size;
 
   return (
     <div className="space-y-10">
@@ -565,7 +608,7 @@ export function AccountsView() {
         actions={
           limit ? (
             <div className="flex items-center gap-2.5">
-              <span className="text-xs text-muted-foreground tabular-nums">
+              <span className={cn("text-xs tabular-nums", overBy ? "font-medium text-warning" : "text-muted-foreground")}>
                 {visible.length} of {limit} on your plan
               </span>
               <Progress
@@ -595,6 +638,23 @@ export function AccountsView() {
           </p>
         ) : (
           <div className="space-y-3">
+            {overBy ? (
+              <div
+                role="status"
+                className="flex flex-col gap-3 rounded-xl bg-warning-subtle px-4 py-3 sm:flex-row sm:items-center"
+              >
+                <p className="flex-1 text-sm text-warning">
+                  <span className="font-medium">
+                    Your plan covers {limit} account{limit === 1 ? "" : "s"}.
+                  </span>{" "}
+                  Posts won&apos;t go out to {overBy === 1 ? "the account" : `the ${overBy} accounts`} marked
+                  &ldquo;Not on your plan&rdquo; until you upgrade or disconnect some.
+                </p>
+                <Button size="sm" variant="outline" onClick={openPricing}>
+                  See plans
+                </Button>
+              </div>
+            ) : null}
             {grouped.map((group) => (
               <section
                 key={group.provider}
@@ -615,6 +675,7 @@ export function AccountsView() {
                     <AccountRow
                       key={account.id}
                       account={account}
+                      notOnPlan={notOnPlan.has(account.id)}
                       connecting={connect.isPending}
                       onReconnect={(account) =>
                         account.provider === "bluesky"

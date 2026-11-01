@@ -7,7 +7,7 @@ export interface BarItem {
 
 /**
  * Ranked horizontal bars for "which is biggest". One hue for every bar; the
- * label and value sit above the bar so they stay readable in both themes.
+ * label and value sit above the bar so they stay readable.
  * Past `limit` rows, the remainder folds into a single "Other" row.
  *
  * `scale="max"` (default) sizes bars against the largest row, for rankings.

@@ -48,6 +48,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
   TableBody,
@@ -90,7 +91,6 @@ import {
 } from "@/lib/scheduler/status";
 import type { Post, PostStatus } from "@/lib/scheduler/types";
 
-
 const PAGE_SIZE = 20;
 
 const SORTS: Record<string, { label: string; sort: PostFilters["sort"]; dir: PostFilters["dir"] }> = {
@@ -100,13 +100,22 @@ const SORTS: Record<string, { label: string; sort: PostFilters["sort"]; dir: Pos
   updated: { label: "Recently edited", sort: "updated", dir: "desc" },
 };
 
-const TYPE_FILTERS: { value: string; label: string; types?: PostType }[] = [
+// Labels follow the composer's formats; the URL keeps the readable format id
+// (?type=photos). Photos and slideshows are both IMAGE or CAROUSEL posts on
+// the server, so Photos sends both types.
+const TYPE_FILTERS: { value: string; label: string; types?: PostType[] }[] = [
   { value: "all", label: "All formats" },
-  { value: "VIDEO", label: "Video", types: "VIDEO" },
-  { value: "CAROUSEL", label: "Carousel", types: "CAROUSEL" },
-  { value: "IMAGE", label: "Single photo", types: "IMAGE" },
-  { value: "TEXT", label: "Text", types: "TEXT" },
+  { value: "video", label: FORMATS.video.label, types: ["VIDEO"] },
+  { value: "photos", label: FORMATS.photos.label, types: ["IMAGE", "CAROUSEL"] },
+  { value: "text", label: FORMATS.text.label, types: ["TEXT"] },
 ];
+
+/** The format filter from the URL; older links used server types (?type=IMAGE). */
+function typeFilterFromParam(raw: string | null) {
+  const value = raw?.toLowerCase() ?? "all";
+  const alias = value === "image" || value === "carousel" ? "photos" : value;
+  return TYPE_FILTERS.some((t) => t.value === alias) ? alias : "all";
+}
 
 const EMPTY_COPY: Record<string, { title: string; description: string }> = {
   all: {
@@ -215,8 +224,13 @@ function RowActions({ post, onOpen }: { post: Post; onOpen: () => void }) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => remove.mutate(post.id)}>
+            <AlertDialogCancel disabled={remove.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={remove.isPending}
+              onClick={() => remove.mutate(post.id, { onSuccess: () => setConfirmDelete(false) })}
+            >
+              {remove.isPending ? <Spinner /> : null}
               Delete post
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -237,7 +251,7 @@ export function PostsTable() {
 
   const tab = searchParams.get("status") ?? "all";
   const accountId = searchParams.get("account") ?? "";
-  const type = searchParams.get("type") ?? "all";
+  const type = typeFilterFromParam(searchParams.get("type"));
   const sortKey = searchParams.get("sort") ?? (tab === "scheduled" ? "upcoming" : tab === "published" ? "published" : "recent");
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
 
@@ -474,6 +488,12 @@ export function PostsTable() {
                         <div className="min-w-0 flex-1">
                           <Link
                             href={`/scheduler/posts/${post.id}`}
+                            // Same quick view as Home and Calendar; modified clicks still open the page.
+                            onClick={(event) => {
+                              if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+                              event.preventDefault();
+                              setOpenPostId(post.id);
+                            }}
                             className="block truncate font-medium text-foreground hover:underline"
                           >
                             {post.mainCaption.trim() || "No caption"}
@@ -482,7 +502,7 @@ export function PostsTable() {
                             {FORMATS[formatForPost(post)].label}
                             {post.source !== "WEB" ? (
                               <span className="flex items-center gap-1">
-                                · <Robot className="size-3" />
+                                · <Robot aria-hidden className="size-3" />
                                 {post.source === "MCP" ? "Agent" : "API"}
                               </span>
                             ) : null}
@@ -497,7 +517,13 @@ export function PostsTable() {
                       </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      <AccountStack accounts={post.postAccounts.map((leg) => leg.account)} />
+                      {post.postAccounts.length ? (
+                        <AccountStack accounts={post.postAccounts.map((leg) => leg.account)} />
+                      ) : (
+                        <span className="text-xs whitespace-nowrap text-muted-foreground">
+                          {post.status === "DRAFT" ? "None yet" : "No longer connected"}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
                       <PostStatusBadge status={post.status} />
@@ -555,13 +581,20 @@ export function PostsTable() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={bulkDelete.isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
+              disabled={bulkDelete.isPending}
               onClick={() =>
-                bulkDelete.mutate([...selected], { onSuccess: () => setSelected(new Set()) })
+                bulkDelete.mutate([...selected], {
+                  onSuccess: () => {
+                    setConfirmBulk(false);
+                    setSelected(new Set());
+                  },
+                })
               }
             >
+              {bulkDelete.isPending ? <Spinner /> : null}
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

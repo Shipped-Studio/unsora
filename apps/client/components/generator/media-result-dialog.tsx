@@ -2,12 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import {
-  Copy,
-  DownloadSimple,
-  Trash,
-  WarningCircle,
-} from "@phosphor-icons/react";
+import { Copy, DownloadSimple, Trash } from "@phosphor-icons/react";
 import { ScheduleLink } from "@/components/generator/tool-layout";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -21,11 +16,15 @@ import { Spinner } from "@/components/ui/spinner";
 import { getCdnUrl } from "@/lib/video-utils";
 import {
   copyText,
-  DeleteResultDialog,
   isPending,
   pendingLabel,
   type MediaResult,
 } from "./media-result-card";
+import {
+  DeleteResultDialog,
+  FailedState,
+  UnavailableState,
+} from "./result-tile";
 
 const cdnLoader = ({ src }: { src: string }) => src;
 
@@ -76,7 +75,7 @@ interface MediaResultDialogProps {
 
 /**
  * Detail view for a generated file: media on the left (top on mobile),
- * prompt and settings on the right, then Schedule, Download and Delete.
+ * prompt and settings on the right, then Delete, Download and Schedule.
  */
 export function MediaResultDialog({
   result,
@@ -104,8 +103,8 @@ export function MediaResultDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100svh-2rem)] gap-0 overflow-y-auto p-0 sm:max-w-5xl md:grid-cols-[minmax(0,1fr)_20rem] md:overflow-hidden">
-        <div className="flex min-h-64 items-center justify-center bg-muted md:max-h-[calc(100svh-2rem)]">
+      <DialogContent className="gap-0 p-0 sm:max-w-5xl md:grid-cols-[minmax(0,1fr)_20rem] md:overflow-hidden">
+        <div className="flex min-h-48 items-center justify-center bg-muted md:max-h-[calc(100dvh-2rem)]">
           {complete && result.mediaType === "video" ? (
             <video
               key={url}
@@ -115,10 +114,10 @@ export function MediaResultDialog({
               autoPlay
               loop
               playsInline
-              className="max-h-[60svh] w-full object-contain md:max-h-[calc(100svh-2rem)]"
+              className="max-h-[min(50dvh,32rem)] w-full object-contain md:max-h-[calc(100dvh-2rem)]"
             />
           ) : complete ? (
-            <div className="relative h-[50svh] w-full md:h-[min(calc(100svh-2rem),44rem)]">
+            <div className="relative h-[min(45dvh,28rem)] w-full md:h-[min(calc(100dvh-2rem),44rem)]">
               <Image
                 loader={cdnLoader}
                 src={getCdnUrl(url)}
@@ -129,28 +128,21 @@ export function MediaResultDialog({
               />
             </div>
           ) : failed ? (
-            <div className="flex max-w-sm flex-col items-center gap-2 px-6 py-12 text-center">
-              <WarningCircle className="size-6 text-destructive" />
-              <p className="text-sm font-medium">Generation failed</p>
-              <p className="text-sm text-muted-foreground">
-                {result.error || "The provider didn't return a result."}
-              </p>
+            <FailedState error={result.error} className="max-w-sm py-12" />
+          ) : isPending(result.status) ? (
+            <div
+              role="status"
+              className="flex items-center gap-2 py-12 text-sm text-muted-foreground"
+            >
+              <Spinner />
+              {pendingLabel(result.status)}
             </div>
           ) : (
-            <div className="flex items-center gap-2 py-12 text-sm text-muted-foreground">
-              {isPending(result.status) ? (
-                <>
-                  <Spinner />
-                  {pendingLabel(result.status)}
-                </>
-              ) : (
-                "The file for this result is missing."
-              )}
-            </div>
+            <UnavailableState className="max-w-sm py-12" />
           )}
         </div>
 
-        <div className="flex min-h-0 flex-col border-t md:max-h-[calc(100svh-2rem)] md:border-t-0 md:border-l">
+        <div className="flex min-h-0 flex-col border-t md:max-h-[calc(100dvh-2rem)] md:border-t-0 md:border-l">
           <div className="flex-1 space-y-5 p-5 md:overflow-y-auto">
             <DialogHeader className="pr-8">
               <DialogTitle>{title}</DialogTitle>
@@ -172,7 +164,7 @@ export function MediaResultDialog({
                     Copy
                   </Button>
                 </div>
-                <p className="max-h-60 overflow-y-auto text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                <p className="max-h-28 overflow-y-auto text-sm leading-relaxed break-words whitespace-pre-wrap text-muted-foreground md:max-h-60">
                   {result.prompt}
                 </p>
               </section>
@@ -196,14 +188,20 @@ export function MediaResultDialog({
             {footnote}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 border-t p-4">
+          <div className="sticky bottom-0 flex flex-wrap items-center gap-2 border-t bg-popover p-4 md:static">
+            {canDelete && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive"
+                onClick={() => setConfirmDelete(true)}
+              >
+                <Trash />
+                Delete
+              </Button>
+            )}
             {complete && (
-              <>
-                <ScheduleLink
-                  url={url}
-                  mediaType={result.mediaType}
-                  variant="default"
-                />
+              <div className="ml-auto flex flex-wrap gap-2">
                 <a
                   href={getCdnUrl(url, { download: true })}
                   download
@@ -212,18 +210,12 @@ export function MediaResultDialog({
                   <DownloadSimple />
                   Download
                 </a>
-              </>
-            )}
-            {canDelete && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="ml-auto text-destructive hover:text-destructive"
-                onClick={() => setConfirmDelete(true)}
-              >
-                <Trash />
-                Delete
-              </Button>
+                <ScheduleLink
+                  url={url}
+                  mediaType={result.mediaType}
+                  variant="default"
+                />
+              </div>
             )}
           </div>
         </div>

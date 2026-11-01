@@ -8,6 +8,7 @@ import {
   type AvatarCardData,
 } from "@/components/avatar-maker/generation-card";
 import { AvatarPromptForm } from "@/components/avatar-maker/prompt-form";
+import { formatCreatedAt } from "@/components/generator/media-result-dialog";
 import {
   ScheduleLink,
   ToolEmpty,
@@ -19,6 +20,7 @@ import { buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -173,11 +175,16 @@ export default function AiAvatarMakerPage() {
           if (!open) setPlaying(null);
         }}
       >
-        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
+        <DialogContent className="gap-0 p-0 sm:max-w-lg">
           <DialogHeader className="p-4 pr-12">
             <DialogTitle className="line-clamp-2 leading-snug">
               {playing?.transcript || "Avatar video"}
             </DialogTitle>
+            <DialogDescription>
+              {formatCreatedAt(playing?.createdAt)
+                ? `Created ${formatCreatedAt(playing?.createdAt)}`
+                : "Avatar video"}
+            </DialogDescription>
           </DialogHeader>
           {playingUrl ? (
             <>
@@ -186,7 +193,7 @@ export default function AiAvatarMakerPage() {
                 controls
                 autoPlay
                 playsInline
-                className="aspect-square w-full border-y bg-media object-contain"
+                className="aspect-square max-h-[max(12rem,min(60vh,calc(100dvh-14rem)))] w-full border-y bg-media object-contain"
               />
               <DialogFooter className="p-4">
                 <a

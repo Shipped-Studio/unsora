@@ -46,7 +46,7 @@ export default function AgentsPage() {
       <PageBody className="space-y-8">
         <PageSection
           title="Connect your agent"
-          description="Unsora runs as an MCP server, so any MCP client can create, schedule and publish for you. Every tool is also a REST endpoint."
+          description="Let Claude, ChatGPT or any MCP client schedule and publish posts for you, and make the media to go with them. Every tool is also a REST endpoint."
         >
           <ConnectAgentTabs />
         </PageSection>

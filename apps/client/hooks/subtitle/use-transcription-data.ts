@@ -5,11 +5,8 @@ import { toast } from "sonner";
 import { useSubtitleApi } from "@/hooks/subtitle/use-subtitle-api";
 import { isExportRunning } from "@/hooks/subtitle/use-subtitle-queries";
 import { failureMessage } from "@/components/subtitle-editor/format";
-import type {
-  SubtitleChunk,
-  TranscriptionData,
-  WordTimestamp,
-} from "@/remotion/types";
+import type { SubtitleChunk, TranscriptionData } from "@/remotion/types";
+import type { CaptionLayout } from "@/components/subtitle-editor/caption-style";
 
 export type TranscriptionStatus =
   | "draft"
@@ -27,8 +24,6 @@ type LoadState =
   | { phase: "error"; message: string };
 
 const DEFAULT_MAX_WORDS = 5;
-/** Break a line on pauses this long, so subtitles don't linger. */
-const CHUNK_GAP_SECONDS = 1.5;
 const TRANSCRIPTION_POLL_MS = 3000;
 const EXPORT_POLL_MS = 5000;
 
@@ -51,6 +46,7 @@ function normalize(raw: Project): Project {
       raw.editorSettings,
       undefined,
     ),
+    metadata: parseJsonField<Project["metadata"]>(raw.metadata, null),
     maxWordsPerChunk: raw.maxWordsPerChunk || DEFAULT_MAX_WORDS,
     videoExports: raw.videoExports ?? [],
   };
@@ -68,43 +64,6 @@ function toStatus(status: string | undefined): TranscriptionStatus {
     default:
       return "processing";
   }
-}
-
-/**
- * Group word timestamps into lines of at most `maxWords`, also breaking on
- * silences. Mirrors groupWordsIntoChunks in server/src/lib/transcription.ts.
- */
-function rechunk(
-  segments: Project["segments"],
-  maxWords: number,
-): SubtitleChunk[] {
-  const chunks: SubtitleChunk[] = [];
-  let current: WordTimestamp[] = [];
-
-  const flush = () => {
-    if (!current.length) return;
-    chunks.push({
-      text: current.map((w) => w.word).join(" "),
-      start: current[0].start,
-      end: current[current.length - 1].end,
-      words: current,
-    });
-    current = [];
-  };
-
-  for (const word of segments.flatMap((s) => s.words ?? [])) {
-    const prev = current[current.length - 1];
-    if (
-      current.length >= maxWords ||
-      (prev && word.start - prev.end >= CHUNK_GAP_SECONDS)
-    ) {
-      flush();
-    }
-    current.push(word);
-  }
-  flush();
-
-  return chunks;
 }
 
 /**
@@ -172,6 +131,82 @@ export function useTranscriptionData(transcriptionId: string) {
     };
   }, [api, transcriptionId, isTranscribing]);
 
+  const aiTools = project?.metadata?.aiTools ?? {};
+  const toolRunning = Object.values(aiTools).some((t) => t.status === "running");
+
+  // A video pass replaces the video and retimes the captions when it's done.
+  useEffect(() => {
+    if (!toolRunning) return;
+    let settled = false;
+    const timer = setInterval(async () => {
+      const result = await api.getTranscription(transcriptionId);
+      if (settled || !result.success || !result.data) return;
+      const next = normalize(result.data);
+      const tools = next.metadata?.aiTools ?? {};
+      if (Object.values(tools).some((t) => t.status === "running")) return;
+      settled = true;
+      clearInterval(timer);
+      setProject(next);
+      for (const state of Object.values(tools)) {
+        if (state.status === "failed") {
+          toast.error(failureMessage("finish the AI tool", state.error));
+        }
+      }
+    }, TRANSCRIPTION_POLL_MS);
+    return () => {
+      settled = true;
+      clearInterval(timer);
+    };
+  }, [api, transcriptionId, toolRunning]);
+
+  const reload = useCallback(async () => {
+    const result = await api.getTranscription(transcriptionId);
+    if (result.success && result.data) setProject(normalize(result.data));
+  }, [api, transcriptionId]);
+
+  /** Starts an AI Tools pass; returns the scenes for Auto Zooms. */
+  const runAiTool = useCallback(
+    async (tool: string) => {
+      const result = await api.runAiTool(transcriptionId, tool);
+      if (!result.success || !result.data) {
+        toast.error(failureMessage("run the tool", result.error));
+        return null;
+      }
+      if (result.data.status === "running") {
+        setProject(
+          (prev) =>
+            prev && {
+              ...prev,
+              metadata: {
+                ...prev.metadata,
+                aiTools: {
+                  ...prev.metadata?.aiTools,
+                  [tool]: { status: "running", updatedAt: new Date().toISOString() },
+                },
+              },
+            },
+        );
+      } else {
+        await reload();
+      }
+      return result.data;
+    },
+    [api, transcriptionId, reload],
+  );
+
+  const removeAiTool = useCallback(
+    async (tool: string) => {
+      const result = await api.removeAiTool(transcriptionId, tool);
+      if (!result.success) {
+        toast.error(failureMessage("remove the tool", result.error));
+        return false;
+      }
+      await reload();
+      return true;
+    },
+    [api, transcriptionId, reload],
+  );
+
   /** Reloads only the export list, so unsaved subtitle edits survive. */
   const refreshExports = useCallback(async () => {
     const result = await api.getTranscription(transcriptionId);
@@ -188,7 +223,7 @@ export function useTranscriptionData(transcriptionId: string) {
   }, [videoExports, refreshExports]);
 
   const startTranscription = useCallback(
-    async (options: { language?: string; maxWordsPerChunk?: number }) => {
+    async (options: { language?: string; layout?: CaptionLayout }) => {
       setIsStarting(true);
       const result = await api.startTranscription(transcriptionId, options);
       setIsStarting(false);
@@ -205,31 +240,6 @@ export function useTranscriptionData(transcriptionId: string) {
     setProject((prev) => prev && { ...prev, subtitleChunks });
   }, []);
 
-  const setMaxWords = useCallback(
-    (maxWordsPerChunk: number) => {
-      if (!project) return;
-      const hasWordTimings = project.segments.some((s) => s.words?.length);
-      // Old transcriptions have no word timings to regroup.
-      if (!hasWordTimings && project.subtitleChunks.length > 0) {
-        toast.error(
-          "Couldn't regroup these subtitles. Transcribe the video again to change words per line.",
-        );
-        return;
-      }
-      setProject(
-        (prev) =>
-          prev && {
-            ...prev,
-            maxWordsPerChunk,
-            subtitleChunks: hasWordTimings
-              ? rechunk(prev.segments, maxWordsPerChunk)
-              : prev.subtitleChunks,
-          },
-      );
-    },
-    [project],
-  );
-
   return {
     project,
     phase: load.phase,
@@ -240,7 +250,9 @@ export function useTranscriptionData(transcriptionId: string) {
     isStarting,
     startTranscription,
     setChunks,
-    setMaxWords,
     refreshExports,
+    aiTools,
+    runAiTool,
+    removeAiTool,
   };
 }

@@ -5,9 +5,11 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
   type ReactNode,
 } from "react";
 import { PricingDialog } from "@/components/pricing-dialog";
+import { OPEN_PRICING_EVENT } from "@/lib/toast-error";
 
 interface PricingContextValue {
   openPricing: () => void;
@@ -22,6 +24,11 @@ export function PricingProvider({ children }: { children: ReactNode }) {
 
   const openPricing = useCallback(() => setIsOpen(true), []);
   const closePricing = useCallback(() => setIsOpen(false), []);
+
+  useEffect(() => {
+    window.addEventListener(OPEN_PRICING_EVENT, openPricing);
+    return () => window.removeEventListener(OPEN_PRICING_EVENT, openPricing);
+  }, [openPricing]);
 
   return (
     <PricingContext.Provider value={{ openPricing, closePricing, isOpen }}>

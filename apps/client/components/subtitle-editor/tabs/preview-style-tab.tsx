@@ -1,13 +1,37 @@
 "use client";
 
 import type { Icon } from "@phosphor-icons/react";
-import { ArrowsIn, ArrowsOut, DropHalf } from "@phosphor-icons/react";
+import {
+  ArrowsIn,
+  ArrowsOut,
+  DropHalf,
+  SlidersHorizontal,
+} from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   ChoiceGroup,
   ChoiceItem,
-  ColorField,
-  EditorSection,
 } from "@/components/subtitle-editor/editor-fields";
+import type {
+  BrollLayout,
+  ZoomStyle,
+} from "@/components/subtitle-editor/caption-style";
+import type { ZoomEvent } from "@/components/subtitle-editor/caption-animations";
 
 export type AspectRatioId = "original" | "9:16" | "1:1" | "4:5" | "16:9";
 export type VideoFitId = "contain" | "cover" | "blur";
@@ -16,6 +40,12 @@ export interface PreviewStyleConfig {
   aspectRatio: AspectRatioId;
   videoFit: VideoFitId;
   backgroundColor: string;
+  /** Moves the video at key moments. */
+  zoom?: ZoomStyle;
+  /** Default layout for B-roll clips. */
+  brollLayout?: BrollLayout;
+  /** A zoom per scene, from AI Auto Zooms; wins over `zoom`. */
+  zooms?: ZoomEvent[];
 }
 
 export const PREVIEW_STYLE_DEFAULTS: PreviewStyleConfig = {
@@ -38,23 +68,11 @@ const ASPECT_RATIOS: {
   { id: "16:9", label: "16:9", hint: "YouTube", box: { w: 26, h: 15 } },
 ];
 
-const VIDEO_FITS: { id: VideoFitId; label: string; hint: string; icon: Icon }[] =
-  [
-    { id: "contain", label: "Fit", hint: "Show the whole video", icon: ArrowsIn },
-    { id: "cover", label: "Fill", hint: "Crop to the frame", icon: ArrowsOut },
-    { id: "blur", label: "Blur", hint: "Blurred backdrop", icon: DropHalf },
-  ];
-
-const BACKGROUND_COLORS = [
-  "#000000",
-  "#ffffff",
-  "#18181b",
-  "#1e3a5f",
-  "#166534",
-  "#7c2d12",
-  "#4c1d95",
-  "#831843",
-] as const;
+const VIDEO_FITS: { id: VideoFitId; label: string; icon: Icon }[] = [
+  { id: "contain", label: "Fit", icon: ArrowsIn },
+  { id: "cover", label: "Fill", icon: ArrowsOut },
+  { id: "blur", label: "Blur", icon: DropHalf },
+];
 
 /**
  * Canvas size for an aspect ratio. Fixed ratios use 1080 on the short side;
@@ -80,86 +98,95 @@ export function getCompositionDimensions(
   }
 }
 
-interface PreviewStyleTabProps {
+interface PreviewStyleControlsProps {
   config: PreviewStyleConfig;
   onChange: (config: PreviewStyleConfig) => void;
 }
 
-export function PreviewStyleTab({ config, onChange }: PreviewStyleTabProps) {
+const ASPECT_ITEMS = ASPECT_RATIOS.map((option) => ({
+  value: option.id,
+  label: option.label,
+}));
+
+/** Frame controls that sit under the preview: aspect ratio, fill, background. */
+export function PreviewStyleControls({
+  config,
+  onChange,
+}: PreviewStyleControlsProps) {
   const update = <K extends keyof PreviewStyleConfig>(
     key: K,
     value: PreviewStyleConfig[K],
   ) => onChange({ ...config, [key]: value });
 
   return (
-    <div className="space-y-8">
-      <EditorSection
-        title="Aspect ratio"
-        description="Sets the frame of the preview and the export."
+    <div className="flex items-center justify-center gap-1">
+      <Select
+        items={ASPECT_ITEMS}
+        value={config.aspectRatio}
+        onValueChange={(next) => {
+          if (typeof next === "string") update("aspectRatio", next as AspectRatioId);
+        }}
       >
-        <ChoiceGroup
-          label="Aspect ratio"
-          value={config.aspectRatio}
-          onChange={(value) => update("aspectRatio", value)}
-          className="grid grid-cols-3 sm:grid-cols-5"
-        >
+        <SelectTrigger variant="ghost" size="sm" aria-label="Aspect ratio">
+          <SelectValue />
+        </SelectTrigger>
+        {/* Wider than its trigger and above it, so the hints aren't cut off. */}
+        <SelectContent side="top" alignItemWithTrigger={false} className="w-60">
           {ASPECT_RATIOS.map((option) => (
-            <ChoiceItem
-              key={option.id}
-              value={option.id}
-              className="flex-col gap-1.5 px-2 py-3 text-center whitespace-normal"
-            >
-              <span className="flex h-6 items-center" aria-hidden>
+            <SelectItem key={option.id} value={option.id} className="pr-8">
+              <span
+                aria-hidden
+                className="flex size-5 items-center justify-center"
+              >
                 <span
-                  className="rounded-[3px] border-2 border-current"
-                  style={{ width: option.box.w, height: option.box.h }}
+                  className="rounded-[2px] border-[1.5px] border-current"
+                  style={{ width: option.box.w * 0.6, height: option.box.h * 0.6 }}
                 />
               </span>
-              <span className="text-xs font-medium">{option.label}</span>
-              <span className="text-xs font-normal text-muted-foreground">
+              {option.label}
+              <span className="ml-auto text-xs text-muted-foreground">
                 {option.hint}
               </span>
-            </ChoiceItem>
+            </SelectItem>
           ))}
-        </ChoiceGroup>
-      </EditorSection>
+        </SelectContent>
+      </Select>
 
-      <EditorSection
-        title="Fill"
-        description="How the video fills a frame of a different shape."
-      >
-        <ChoiceGroup
-          label="Video fill"
-          value={config.videoFit}
-          onChange={(value) => update("videoFit", value)}
-          className="grid grid-cols-3"
+      <Popover>
+        <PopoverTrigger
+          render={
+            <Button variant="ghost" size="icon-sm" aria-label="Video fill" />
+          }
         >
-          {VIDEO_FITS.map((option) => (
-            <ChoiceItem
-              key={option.id}
-              value={option.id}
-              className="flex-col gap-1.5 px-2 py-3 text-center whitespace-normal"
-            >
-              <option.icon />
-              <span className="text-xs font-medium">{option.label}</span>
-              <span className="text-xs font-normal text-muted-foreground">
-                {option.hint}
-              </span>
-            </ChoiceItem>
-          ))}
-        </ChoiceGroup>
-      </EditorSection>
+          <SlidersHorizontal />
+        </PopoverTrigger>
+        <PopoverContent side="top" sideOffset={8} className="w-80">
+          <PopoverHeader>
+            <PopoverTitle>Fill</PopoverTitle>
+            <PopoverDescription>
+              How the video fills a frame of a different shape.
+            </PopoverDescription>
+          </PopoverHeader>
+          <ChoiceGroup
+            label="Video fill"
+            value={config.videoFit}
+            onChange={(value) => update("videoFit", value)}
+            className="grid grid-cols-3"
+          >
+            {VIDEO_FITS.map((option) => (
+              <ChoiceItem
+                key={option.id}
+                value={option.id}
+                className="flex-col gap-1 px-2 py-2.5 text-center whitespace-normal"
+              >
+                <option.icon />
+                <span className="text-xs font-medium">{option.label}</span>
+              </ChoiceItem>
+            ))}
+          </ChoiceGroup>
 
-      {config.videoFit === "contain" ? (
-        <EditorSection title="Background">
-          <ColorField
-            label="Background color"
-            value={config.backgroundColor}
-            options={BACKGROUND_COLORS}
-            onChange={(color) => update("backgroundColor", color)}
-          />
-        </EditorSection>
-      ) : null}
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

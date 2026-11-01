@@ -47,7 +47,6 @@ export const updateTranscriptionData = async (
     duration: number;
     segments: any[];
     subtitleChunks: any[];
-    maxWordsPerChunk: number;
     width?: number;
     height?: number;
   }
@@ -60,7 +59,6 @@ export const updateTranscriptionData = async (
       duration: data.duration,
       segments: JSON.stringify(data.segments),
       subtitleChunks: JSON.stringify(data.subtitleChunks),
-      maxWordsPerChunk: data.maxWordsPerChunk,
       ...(data.width != null && { width: data.width }),
       ...(data.height != null && { height: data.height }),
     },

@@ -114,24 +114,24 @@ const EMPTY_COPY: Record<
   all: {
     title: "Your Library is empty",
     description:
-      "Uploads, imports, files you create here, and files your agents make over MCP or the API all show up here.",
+      "Upload photos and videos you want to post. Anything you or your agents make with AI is saved here too.",
   },
   video: {
     title: "No videos yet",
     description:
-      "Videos you generate, clip, upload or import show up here. Your agent can also make them over MCP or the API.",
+      "Videos you upload, import, clip or generate show up here, ready to schedule.",
     tool: "Open video tool",
   },
   image: {
     title: "No images yet",
     description:
-      "Images and thumbnails you generate, upload or import show up here. Your agent can also make them over MCP or the API.",
+      "Images and thumbnails you upload, import or generate show up here, ready to schedule.",
     tool: "Open image tool",
   },
   audio: {
     title: "No audio yet",
     description:
-      "Music, voiceovers and audio you upload or import show up here. Your agent can also make them over MCP or the API.",
+      "Music, voiceovers and other audio you upload, import or generate show up here.",
     tool: "Open music tool",
   },
 };
