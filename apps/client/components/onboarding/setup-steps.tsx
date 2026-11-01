@@ -314,11 +314,11 @@ export function TrialStep({ ctx }: { ctx: SetupContext }) {
         )}
       </div>
 
-      <p className="mx-auto mt-6 max-w-xl text-center text-sm text-muted-foreground">
-        {hasTrial ? <>Nothing is charged until {chargeDate}. </> : null}
-        Credits aren&apos;t included in any plan. You only need them for AI tools like clipping, video
-        and voice, and can buy them anytime from Billing.
-      </p>
+      {hasTrial ? (
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          Nothing is charged until {chargeDate}.
+        </p>
+      ) : null}
 
       {/* No way past this step without a plan: picking one is the only way on. */}
       <StepFooter back={ctx.back}>{null}</StepFooter>
@@ -420,9 +420,6 @@ function PlanCard({
         {per ? <span className="text-sm font-normal text-muted-foreground"> / {per}</span> : null}
       </p>
       {allowance ? <p className="mt-1 text-sm text-muted-foreground">{allowance}</p> : null}
-      {plan.credits > 0 ? null : (
-        <p className="mt-0.5 text-sm text-muted-foreground">No credits included</p>
-      )}
 
       <Button
         size="lg"

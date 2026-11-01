@@ -29,26 +29,8 @@ export function intervalLabel(interval: PlanInterval | null | undefined) {
   return null;
 }
 
-/** "1,100 credits per month", or "per billing period" when the interval is unknown. */
-export function planCreditsLabel(
-  credits: number,
-  interval: PlanInterval | null | undefined,
-): string {
-  const per = intervalLabel(interval);
-  return `${credits.toLocaleString()} credits per ${per ?? "billing period"}`;
-}
-
-/**
- * The line under a plan's price: its monthly credits for the older plans
- * that include them, otherwise how many social accounts it allows (credits
- * on those come from top-ups).
- */
-export function planAllowanceLabel(plan: {
-  credits: number;
-  interval?: PlanInterval | null;
-  socialAccounts?: number | null;
-}): string | null {
-  if (plan.credits > 0) return planCreditsLabel(plan.credits, plan.interval);
+/** The line under a plan's price: how many social accounts it allows. */
+export function planAllowanceLabel(plan: { socialAccounts?: number | null }): string | null {
   return plan.socialAccounts ? `${plan.socialAccounts} social accounts` : null;
 }
 
