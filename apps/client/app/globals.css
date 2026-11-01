@@ -108,9 +108,10 @@
 
 /*
  * Same palette as the landing site: a warm paper canvas, content on white
- * panels, neutral (untinted) greys, ink buttons and one lime brand
- * accent. `accent` is the neutral fill for hovered rows, selected nav,
- * tabs and menu items.
+ * panels, neutral (untinted) greys and ink buttons. The brand colour is
+ * ink too, except in onboarding, which turns it lime (`.onboarding-theme`).
+ * `accent` is the neutral fill for hovered rows, selected nav, tabs and
+ * menu items.
  *
  * Radius scale (base 10px): xs 5 · sm 6 · md 8 · lg 10 (controls) ·
  * xl 14 (cards, menus) · 2xl 18 (dialogs). Control heights: xs 28 · sm 32 ·
@@ -146,9 +147,9 @@
   --input: #c6c6be;
   --ring: #8e8e86;
 
-  --brand: #e8ff6b;
-  --brand-foreground: #0c0c0d;
-  --brand-subtle: #f4fbd0;
+  --brand: #0a0a0a;
+  --brand-foreground: #fafaf7;
+  --brand-subtle: #efefea;
   --brand-subtle-foreground: #0a0a0a;
 
   --chart-1: #0a0a0a;
@@ -216,6 +217,15 @@
   --sh-lg: 0 1px 3px rgb(10 10 10 / 0.05), 0 16px 40px -12px rgb(10 10 10 / 0.18);
   --sh-xl: 0 2px 4px rgb(10 10 10 / 0.05), 0 28px 64px -20px rgb(10 10 10 / 0.26);
 }
+/* Lime is onboarding's colour: sign-in, onboarding and the connect screen
+   set this class on their root. The app itself keeps the ink brand. */
+.onboarding-theme {
+  --brand: #e8ff6b;
+  --brand-foreground: #0c0c0d;
+  --brand-subtle: #f4fbd0;
+  --brand-subtle-foreground: #0a0a0a;
+}
+
 
 @layer base {
   * {
