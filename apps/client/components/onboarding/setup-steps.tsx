@@ -12,6 +12,7 @@ import {
   RedditLogo,
 } from "@phosphor-icons/react";
 import {
+  BingIcon,
   ClaudeIcon,
   FacebookIcon,
   GoogleIcon,
@@ -116,6 +117,7 @@ const SOURCES: { name: string; icon: React.ReactNode }[] = [
   { name: "Claude", icon: <ClaudeIcon className="size-5" /> },
   { name: "Grok", icon: <GrokIcon className="size-5" /> },
   { name: "Google", icon: <GoogleIcon className="size-5" /> },
+  { name: "Bing", icon: <BingIcon className="size-5" /> },
   { name: "LinkedIn", icon: <LinkedInIcon className="size-5" /> },
   { name: "Reddit", icon: <RedditLogo className="size-5 text-[#FF4500]" weight="fill" /> },
   { name: "Facebook", icon: <FacebookIcon className="size-5" /> },
@@ -145,14 +147,14 @@ export function SourceStep({ ctx, finishing }: { ctx: SetupContext; finishing?: 
   };
 
   return (
-    <section className="mx-auto w-full max-w-2xl">
+    <section className="mx-auto w-full max-w-3xl">
       <StepHeader
         eyebrow="One quick question"
         title="How did you hear about Unsora?"
         lead="It helps us know where to show up."
       />
 
-      <div className="mt-10 grid grid-cols-2 gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Where you heard about Unsora">
+      <div className="mt-10 grid grid-cols-2 gap-2 sm:grid-cols-5" role="radiogroup" aria-label="Where you heard about Unsora">
         {SOURCES.map((source) => (
           <button
             key={source.name}

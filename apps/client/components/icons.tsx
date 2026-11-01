@@ -357,3 +357,38 @@ export const GrokIcon = ({ className, ...props }: IconProps) => {
     </svg>
   );
 };
+
+/** Full-colour Bing "b". */
+export const BingIcon = ({ className, ...props }: IconProps) => {
+  return (
+    <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" className={className} {...props}>
+      <linearGradient id="bing-a" x1="13.696" x2="21.1" y1=".218" y2="49.494" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stopColor="#3cbdf5" />
+        <stop offset="1" stopColor="#1d49dd" />
+      </linearGradient>
+      <path
+        fill="url(#bing-a)"
+        d="M22,44V10.603c0-1.632-0.796-3.161-2.133-4.096l-4.72-3.304C13.821,2.275,12,3.223,12,4.841v28.825c0,1.515,0.491,2.988,1.4,4.2l2.2,2.933C17.111,42.814,19.482,44,22,44L22,44z"
+      />
+      <linearGradient id="bing-b" x1="13.55" x2="43.04" y1="42.356" y2="27.547" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stopColor="#55d3fd" />
+        <stop offset=".153" stopColor="#48b8f5" />
+        <stop offset=".488" stopColor="#2f83e5" />
+        <stop offset=".74" stopColor="#2062dc" />
+        <stop offset=".877" stopColor="#1a55d8" />
+      </linearGradient>
+      <path
+        fill="url(#bing-b)"
+        d="M39,26L23,36c-0.344,0.215-0.675,0.402-1,0.578c-6.039,3.258-8.957-0.005-9.761-1.187c0.226,0.888,0.605,1.734,1.161,2.476l2.2,2.933c1.302,1.736,3.244,2.852,5.368,3.128c0.092,0.01,2.12,0.072,2.12,0.072c1.902,0,3.764-0.542,5.369-1.563L37,37C40.903,31.899,39,26,39,26z"
+      />
+      <linearGradient id="bing-c" x1="23.701" x2="41.063" y1="13.868" y2="34.421" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stopColor="#34bffe" />
+        <stop offset="1" stopColor="#52dbd8" />
+      </linearGradient>
+      <path
+        fill="url(#bing-c)"
+        d="M37,37c0,0,4-6-3-8l-4.343-1.737C29.223,27.089,28.83,26.83,28.5,26.5l0,0c-0.33-0.33-0.589-0.723-0.763-1.157L24.52,17.3c-0.294-0.735,0.024-1.573,0.733-1.927l0,0c0.465-0.233,1.018-0.212,1.464,0.056l7.911,4.746c1.108,0.665,2.076,1.547,2.79,2.624c0.555,0.836,1.158,1.928,1.582,3.2C40,29,40,33,37,37z"
+      />
+    </svg>
+  );
+};
