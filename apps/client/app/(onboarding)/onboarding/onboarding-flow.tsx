@@ -17,7 +17,6 @@ import {
   ChannelsStep,
   ConnectStep,
   CreditsStep,
-  HowToStep,
   TrialStep,
 } from "@/components/onboarding/setup-steps";
 import { Spinner } from "@/components/ui/spinner";
@@ -29,12 +28,12 @@ import { getBrowserTimezone } from "@/lib/timezone";
 /**
  * First-run setup after sign-up, as its own page:
  *
- *   account → channels → how it works → free trial → credits
+ *   account → channels → free trial → credits
  *
  * An account made while connecting ChatGPT or Claude (`?connect=`) gets the
  * same steps, then one asking it to connect again from that app:
  *
- *   account → channels → how it works → free trial → credits → connect
+ *   account → channels → free trial → credits → connect
  *
  * The free trial is left out for anyone who already has a plan; for
  * everyone else it can't be skipped, since the app needs a plan. Credits
@@ -65,7 +64,7 @@ export function OnboardingFlow() {
   if (!steps && usage && accounts) {
     const backFromTrial = fromCheckout && requested === "trial";
     const trial: StepId[] = paid && !backFromTrial ? [] : ["trial"];
-    setSteps(["channels", "howto", ...trial, "credits", ...(app ? (["connect"] as const) : [])]);
+    setSteps(["channels", ...trial, "credits", ...(app ? (["connect"] as const) : [])]);
   }
 
   const current = steps ? (requested && steps.includes(requested) ? requested : steps[0]) : null;
@@ -148,7 +147,6 @@ export function OnboardingFlow() {
         className="w-full animate-in duration-300 fade-in slide-in-from-bottom-2"
       >
         {current === "channels" ? <ChannelsStep ctx={ctx} /> : null}
-        {current === "howto" ? <HowToStep ctx={ctx} /> : null}
         {current === "trial" ? <TrialStep ctx={ctx} /> : null}
         {current === "credits" ? <CreditsStep ctx={ctx} finishing={finishing} /> : null}
         {current === "connect" && app ? (
