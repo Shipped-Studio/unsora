@@ -21,6 +21,7 @@ import { findUserPlan, useSubscriptionPlans, useTrialDays } from "@/hooks/use-su
 import { useUserUsage } from "@/hooks/use-user-usage";
 import { cn } from "@/lib/utils";
 import { formatUsd, intervalLabel, planAllowanceLabel } from "./format";
+import { planCardFeatures } from "./plan-features";
 import { redirectToStripe } from "./redirect-to-stripe";
 
 function gridCols(count: number) {
@@ -142,7 +143,7 @@ export function PlanGrid({ choice }: { choice: PlanChoice }) {
             const allowance = planAllowanceLabel(plan);
             const isCurrent = isPaid && plan.key === currentKey;
             const per = intervalLabel(plan.interval);
-            const features = plan.features ?? [];
+            const { lead, items } = planCardFeatures(plan);
             // Offer the trial only when checkout really starts one;
             // returning subscribers pay from day one.
             const label = !isPaid
@@ -184,11 +185,17 @@ export function PlanGrid({ choice }: { choice: PlanChoice }) {
                   {allowance ? (
                     <p className="mt-1 text-sm text-muted-foreground">{allowance}</p>
                   ) : null}
-                  {features.length ? (
+                  {lead || items.length ? (
                     <>
                       <Separator className="my-4" />
                       <ul className="space-y-2">
-                        {features.map((feature) => (
+                        {lead ? (
+                          <li className="flex gap-2 font-medium">
+                            <Check className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                            <span>{lead}</span>
+                          </li>
+                        ) : null}
+                        {items.map((feature) => (
                           <li key={feature} className="flex gap-2">
                             <Check className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                             <span>{feature}</span>

@@ -23,6 +23,7 @@ import {
 import { ConnectGrid } from "@/components/scheduler/accounts-view";
 import { AccountAvatar, accountLabel } from "@/components/scheduler/account-avatar";
 import { formatLongDate, formatUsd, intervalLabel, planAllowanceLabel } from "@/components/billing/format";
+import { planCardFeatures } from "@/components/billing/plan-features";
 import { redirectToStripe } from "@/components/billing/redirect-to-stripe";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -239,12 +240,6 @@ export function ChannelsStep({ ctx }: { ctx: SetupContext }) {
 
 /* ------------------------------------------------------------------------ */
 
-/**
- * What every plan includes, shown after the plan's own features (set at
- * /admin/pricing).
- */
-const INCLUDED = ["Post to TikTok, Instagram, YouTube and more", "Works in ChatGPT and Claude"];
-
 export function TrialStep({ ctx }: { ctx: SetupContext }) {
   const { authFetch } = useAuthFetch();
   const { plans: allPlans, loading, error, refetch } = useSubscriptionPlans();
@@ -398,7 +393,7 @@ function PlanCard({
 }) {
   const per = intervalLabel(plan.interval);
   const allowance = planAllowanceLabel(plan);
-  const included = [...new Set([...(plan.features ?? []), ...INCLUDED])];
+  const { lead, items } = planCardFeatures(plan);
 
   return (
     <li
@@ -441,7 +436,13 @@ function PlanCard({
 
       <div className="mt-6 border-t pt-6 text-sm">
         <ul className="space-y-2.5">
-          {included.map((feature) => (
+          {lead ? (
+            <li className="flex gap-2.5 font-medium">
+              <Check className="mt-0.5 size-4 shrink-0 text-success" weight="bold" />
+              <span>{lead}</span>
+            </li>
+          ) : null}
+          {items.map((feature) => (
             <li key={feature} className="flex gap-2.5">
               <Check className="mt-0.5 size-4 shrink-0 text-success" weight="bold" />
               <span>{feature}</span>
