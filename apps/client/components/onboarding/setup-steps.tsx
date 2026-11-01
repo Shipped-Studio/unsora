@@ -126,7 +126,7 @@ const SOURCES: { name: string; icon: React.ReactNode }[] = [
 ];
 
 /**
- * The last question, once setup is done: where they heard about Unsora.
+ * First question after sign-up: where they heard about Unsora.
  * Saved on the Clerk user (`unsafeMetadata.heardFrom`) and as a PostHog
  * person property. Optional; the flow leaves it out once answered.
  */
@@ -149,7 +149,7 @@ export function SourceStep({ ctx, finishing }: { ctx: SetupContext; finishing?: 
   return (
     <section className="mx-auto w-full max-w-2xl">
       <StepHeader
-        eyebrow="One last question"
+        eyebrow="One quick question"
         title="How did you hear about Unsora?"
         lead="It helps us know where to show up."
       />
