@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -25,11 +25,10 @@ import {
   useTrialDays,
   type SubscriptionPlan,
 } from "@/hooks/use-subscription-plans";
-import { useUserUsage } from "@/hooks/use-user-usage";
 import { cn } from "@/lib/utils";
 import { HowItWorksLoop, useLoopClock, type Beat } from "./how-it-works-loop";
 import type { ConnectorApp } from "./connector-app";
-import { hasPaidPlan, type SetupContext } from "./setup";
+import type { SetupContext } from "./setup";
 
 /*
  * The onboarding's steps (see setup.ts).
@@ -348,32 +347,13 @@ export function TrialStep({ ctx }: { ctx: SetupContext }) {
 /* ------------------------------------------------------------------------ */
 
 /**
- * Right after the trial starts: the top-up packs. Plans include no credits,
- * so this is where clipping and creating get them; skipping is fine. Only
- * reached with a plan or trial, which buying needs.
+ * Right after the trial: the top-up packs. Plans include no credits, so this
+ * is where clipping and creating get them; skipping is fine.
  */
 export function CreditsStep({ ctx, finishing }: { ctx: SetupContext; finishing?: boolean }) {
   const { authFetch } = useAuthFetch();
-  const { usage, refetch: refetchUsage } = useUserUsage();
-  const paid = hasPaidPlan(usage);
-  const packs = useCreditPacks({ enabled: paid });
+  const packs = useCreditPacks();
   const [pendingKey, setPendingKey] = useState<string | null>(null);
-
-  // Back from starting the trial, the webhook that turns the plan on can
-  // land a few seconds later; check again until it has.
-  const [gaveUp, setGaveUp] = useState(false);
-  useEffect(() => {
-    if (paid) return;
-    const poll = setInterval(() => void refetchUsage(), 2000);
-    const stop = setTimeout(() => {
-      clearInterval(poll);
-      setGaveUp(true);
-    }, 30_000);
-    return () => {
-      clearInterval(poll);
-      clearTimeout(stop);
-    };
-  }, [paid, refetchUsage]);
 
   const buy = async (packKey: string) => {
     setPendingKey(packKey);
@@ -398,9 +378,9 @@ export function CreditsStep({ ctx, finishing }: { ctx: SetupContext; finishing?:
       />
 
       <div className="mt-10">
-        {paid && packs.error ? (
+        {packs.error ? (
           <ErrorState title="Couldn't load credit packs" onRetry={() => void packs.refetch()} />
-        ) : paid && packs.packs ? (
+        ) : packs.packs ? (
           packs.packs.length ? (
             <ul
               className={cn(
@@ -424,20 +404,11 @@ export function CreditsStep({ ctx, finishing }: { ctx: SetupContext; finishing?:
               No credit packs right now. You can buy credits later from Billing.
             </p>
           )
-        ) : paid ? (
+        ) : (
           <div className="grid gap-3 md:grid-cols-3">
             {Array.from({ length: 3 }).map((_, i) => (
               <Skeleton key={i} className="h-60 rounded-2xl" />
             ))}
-          </div>
-        ) : gaveUp ? (
-          <p className={cn(CARD, "p-6 text-center text-sm text-muted-foreground")}>
-            Your trial is still starting. You can buy credits any time from Billing.
-          </p>
-        ) : (
-          <div className="flex flex-col items-center gap-3 py-12 text-sm text-muted-foreground">
-            <Spinner className="size-5" />
-            Starting your trial
           </div>
         )}
       </div>

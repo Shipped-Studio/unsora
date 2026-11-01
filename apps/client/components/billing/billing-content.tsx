@@ -7,7 +7,6 @@ import { PageSection } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/shared/states";
-import { usePricing } from "@/contexts/pricing-context";
 import { useAuthFetch } from "@/hooks/use-auth-fetch";
 import { useCreditPacks } from "@/hooks/use-credit-packs";
 import { findUserPlan, useSubscriptionPlans } from "@/hooks/use-subscription-plans";
@@ -19,6 +18,7 @@ import { CancelTrialDialog } from "./cancel-trial-dialog";
 import { CreditHistory } from "./credit-history";
 import { CreditPacks } from "./credit-packs";
 import { CurrentPlanCard, type PlanState } from "./current-plan-card";
+import { PlanGrid, usePlanChoice } from "./plan-grid";
 import { formatLongDate, planDisplayName } from "./format";
 import { redirectToStripe } from "./redirect-to-stripe";
 import { creditTransactionsQueryKeys } from "./use-credit-transactions";
@@ -27,7 +27,7 @@ import { useTopupRedirect } from "./use-topup-redirect";
 export function BillingContent() {
   const queryClient = useQueryClient();
   const { authFetch } = useAuthFetch();
-  const { openPricing } = usePricing();
+  const choice = usePlanChoice(true);
   const { usage, loading, error, refetch } = useUserUsage();
   const { plans } = useSubscriptionPlans();
 
@@ -45,11 +45,9 @@ export function BillingContent() {
         ? "ending"
         : "active";
 
-  // Matches the server: any live subscription, trials included.
-  const canBuyCredits = state !== "free";
   // Stripe is retrying a failed renewal. Access continues until it gives up.
   const pastDue = isPaid && usage?.user.status === "past_due";
-  const packsQuery = useCreditPacks({ enabled: canBuyCredits });
+  const packsQuery = useCreditPacks();
 
   const [pendingPackKey, setPendingPackKey] = useState<string | null>(null);
   const [portalPending, setPortalPending] = useState<"manage" | "resume" | null>(
@@ -198,7 +196,9 @@ export function BillingContent() {
           credits={usage.credits}
           portalPending={portalPending}
           activating={activating}
-          onChangePlan={openPricing}
+          onChangePlan={() =>
+            document.getElementById("plans")?.scrollIntoView({ behavior: "smooth", block: "start" })
+          }
           onManageBilling={() => void handlePortal("manage")}
           onResume={() => void handlePortal("resume")}
           onCancelPlan={() => setCancelOpen(true)}
@@ -207,24 +207,28 @@ export function BillingContent() {
         />
       </PageSection>
 
+      {/* Plans sit on the page, not behind a button; "Change plan" above scrolls here. */}
+      <div id="plans" className="scroll-mt-24">
+        <PageSection
+          title={choice.isPaid ? "Change plan" : "Choose a plan"}
+          description={choice.description}
+        >
+          <PlanGrid choice={choice} />
+        </PageSection>
+      </div>
+
       <PageSection
         title="Buy credits"
         description="One-time packs for clipping and creating. Top-up credits never expire and are used after any monthly plan credits."
       >
-        {canBuyCredits ? (
-          <CreditPacks
-            packs={packsQuery.packs}
-            loading={packsQuery.loading}
-            error={packsQuery.error}
-            onRetry={() => void packsQuery.refetch()}
-            pendingPackKey={pendingPackKey}
-            onBuy={(key) => void handleBuyPack(key)}
-          />
-        ) : (
-          <p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">
-            Credit packs are available on paid plans.
-          </p>
-        )}
+        <CreditPacks
+          packs={packsQuery.packs}
+          loading={packsQuery.loading}
+          error={packsQuery.error}
+          onRetry={() => void packsQuery.refetch()}
+          pendingPackKey={pendingPackKey}
+          onBuy={(key) => void handleBuyPack(key)}
+        />
       </PageSection>
 
       <PageSection

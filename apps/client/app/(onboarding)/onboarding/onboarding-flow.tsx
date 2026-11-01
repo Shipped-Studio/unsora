@@ -38,8 +38,7 @@ import { getBrowserTimezone } from "@/lib/timezone";
  *
  * The free trial is left out for anyone who already has a plan; for
  * everyone else it can't be skipped, since the app needs a plan. Credits
- * (top-ups, as plans include none) needs a plan or trial, so it's skipped
- * without one. Coming back from Stripe (a started trial or a bought pack)
+ * offers top-ups, as plans include none. Coming back from Stripe (a started trial or a bought pack)
  * moves on a step. Finishing goes into the app, straight to a first post for
  * anyone who can post already.
  */
@@ -71,10 +70,8 @@ export function OnboardingFlow() {
 
   const current = steps ? (requested && steps.includes(requested) ? requested : steps[0]) : null;
   const index = steps && current ? steps.indexOf(current) : 0;
-  // Buying credits needs a plan or trial; without one that step is passed over.
-  const skipped = (step: StepId) => step === "credits" && !paid;
-  const nextStep = steps?.slice(index + 1).find((step) => !skipped(step)) ?? null;
-  const prevStep = steps?.slice(0, index).reverse().find((step) => !skipped(step)) ?? null;
+  const nextStep = steps?.[index + 1] ?? null;
+  const prevStep = index > 0 ? (steps?.[index - 1] ?? null) : null;
   const last = steps !== null && nextStep === null;
 
   const hrefFor = (step: StepId, extra: Record<string, string> = {}) => {
@@ -101,8 +98,7 @@ export function OnboardingFlow() {
   };
 
   // Back from Stripe: on to the step after the one that sent them there,
-  // or that was the last one. Not skipping Credits here: the trial that
-  // was just started may not show on the account yet.
+  // or that was the last one.
   const finished = useRef(false);
   useEffect(() => {
     if (!fromCheckout || !usage || !steps || !current || finished.current) return;

@@ -1461,23 +1461,6 @@ export class StripeController {
           .json({ success: false, error: "User not found" });
       }
 
-      // Top-ups are an add-on for paying customers only — they don't make
-      // sense without an active plan and we don't want them to be the
-      // backdoor that lets free users buy credits piecemeal. Mirrors the
-      // `isPaid` gate in the billing UI; this is the source of truth.
-      const hasActiveSubscription =
-        user.isActive &&
-        !!user.stripeSubscriptionId &&
-        (user.plan ?? "free").toLowerCase() !== "free";
-
-      if (!hasActiveSubscription) {
-        return res.status(403).json({
-          success: false,
-          error:
-            "Credit top-ups are only available on an active subscription. Please subscribe to a plan first.",
-        });
-      }
-
       // Build return URLs. Prefer the explicit CLIENT_URL env (so we land
       // back on the billing page with a status flag); otherwise fall back to
       // the generic STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL.

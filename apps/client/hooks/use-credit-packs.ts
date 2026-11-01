@@ -15,19 +15,13 @@ export const creditPacksQueryKeys = {
   list: () => [...creditPacksQueryKeys.all, "list"] as const,
 };
 
-interface UseCreditPacksOptions {
-  /** Skip fetching when false (free users can't buy top-ups). */
-  enabled?: boolean;
-}
-
 /**
  * One-time credit top-up packs. The server is the source of truth for
  * pricing; never inline these values on the client.
  */
-export function useCreditPacks(options: UseCreditPacksOptions = {}) {
+export function useCreditPacks() {
   const { authFetch } = useAuthFetch();
   const { isSignedIn } = useUser();
-  const { enabled = true } = options;
 
   const query = useQuery({
     queryKey: creditPacksQueryKeys.list(),
@@ -39,7 +33,7 @@ export function useCreditPacks(options: UseCreditPacksOptions = {}) {
       }
       return data.data as CreditPack[];
     },
-    enabled: !!isSignedIn && enabled,
+    enabled: !!isSignedIn,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   });
