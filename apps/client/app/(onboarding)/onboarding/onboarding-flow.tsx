@@ -29,12 +29,12 @@ import { getBrowserTimezone } from "@/lib/timezone";
 /**
  * First-run setup after sign-up, as its own page:
  *
- *   account → where you heard about us → channels → free trial → credits
+ *   account → channels → free trial → credits → where you heard about us
  *
  * An account made while connecting ChatGPT or Claude (`?connect=`) gets the
  * same steps, then one asking it to connect again from that app:
  *
- *   account → where you heard about us → channels → free trial → credits →
+ *   account → channels → free trial → credits → where you heard about us →
  *   connect
  *
  * The free trial is left out for anyone who already has a plan; for
@@ -67,7 +67,7 @@ export function OnboardingFlow() {
     const backFromTrial = fromCheckout && requested === "trial";
     const trial: StepId[] = paid && !backFromTrial ? [] : ["trial"];
     const source: StepId[] = user.unsafeMetadata?.heardFrom ? [] : ["source"];
-    setSteps([...source, "channels", ...trial, "credits", ...(app ? (["connect"] as const) : [])]);
+    setSteps(["channels", ...trial, "credits", ...source, ...(app ? (["connect"] as const) : [])]);
   }
 
   const current = steps ? (requested && steps.includes(requested) ? requested : steps[0]) : null;
@@ -149,10 +149,10 @@ export function OnboardingFlow() {
         ref={headingRef}
         className="w-full animate-in duration-300 fade-in slide-in-from-bottom-2"
       >
-        {current === "source" ? <SourceStep ctx={ctx} /> : null}
         {current === "channels" ? <ChannelsStep ctx={ctx} /> : null}
         {current === "trial" ? <TrialStep ctx={ctx} /> : null}
         {current === "credits" ? <CreditsStep ctx={ctx} finishing={finishing} /> : null}
+        {current === "source" ? <SourceStep ctx={ctx} finishing={finishing} /> : null}
         {current === "connect" && app ? (
           <ConnectStep ctx={ctx} app={app} finishing={finishing} />
         ) : null}

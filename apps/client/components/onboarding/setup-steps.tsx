@@ -8,14 +8,24 @@ import {
   ArrowRight,
   Check,
   Coins,
+  DotsThreeOutline,
+  RedditLogo,
 } from "@phosphor-icons/react";
+import {
+  ClaudeIcon,
+  FacebookIcon,
+  GoogleIcon,
+  GrokIcon,
+  LinkedInIcon,
+  OpenAIIcon,
+  XIcon,
+} from "@/components/icons";
 import { ConnectGrid } from "@/components/scheduler/accounts-view";
 import { AccountAvatar, accountLabel } from "@/components/scheduler/account-avatar";
 import { bestValueKey } from "@/components/billing/credit-packs";
 import { formatLongDate, formatUsd, intervalLabel, planAllowanceLabel } from "@/components/billing/format";
 import { redirectToStripe } from "@/components/billing/redirect-to-stripe";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/shared/states";
@@ -78,21 +88,13 @@ export function StepHeader({
  */
 export function StepFooter({
   back,
-  divider,
   children,
 }: {
   back: (() => void) | null;
-  /** A hairline above the footer from sm up. */
-  divider?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <div
-      className={cn(
-        "sticky bottom-0 z-10 -mx-4 mt-10 flex items-center gap-2 border-t bg-background/85 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md sm:static sm:mx-0 sm:justify-between sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none",
-        divider && "sm:border-t sm:pt-6",
-      )}
-    >
+    <div className="sticky bottom-0 z-10 -mx-4 mt-10 flex items-center gap-2 border-t bg-background/85 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md sm:static sm:mx-0 sm:justify-between sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
       {back ? (
         <Button variant="ghost" size="lg" onClick={back} className="text-muted-foreground max-sm:px-3">
           <ArrowLeft />
@@ -110,35 +112,44 @@ export function StepFooter({
 
 /* ------------------------------------------------------------------------ */
 
-/** Answers for "How did you hear about Unsora?". "Other" asks where. */
-const SOURCES = ["ChatGPT", "Claude", "Grok", "Google", "LinkedIn", "Reddit", "Facebook", "X", "Other"];
+/** Answers for "How did you hear about Unsora?", each with its logo. */
+const SOURCES: { name: string; icon: React.ReactNode }[] = [
+  { name: "ChatGPT", icon: <OpenAIIcon className="size-5" /> },
+  { name: "Claude", icon: <ClaudeIcon className="size-5" /> },
+  { name: "Grok", icon: <GrokIcon className="size-5" /> },
+  { name: "Google", icon: <GoogleIcon className="size-5" /> },
+  { name: "LinkedIn", icon: <LinkedInIcon className="size-5" /> },
+  { name: "Reddit", icon: <RedditLogo className="size-5 text-[#FF4500]" weight="fill" /> },
+  { name: "Facebook", icon: <FacebookIcon className="size-5" /> },
+  { name: "X", icon: <XIcon className="size-5" /> },
+  { name: "Other", icon: <DotsThreeOutline className="size-5 text-muted-foreground" weight="fill" /> },
+];
 
 /**
- * First question after sign-up: where they heard about Unsora. Saved on the
- * Clerk user (`unsafeMetadata.heardFrom`) and as a PostHog person property.
- * Optional; the flow leaves it out once answered.
+ * The last question, once setup is done: where they heard about Unsora.
+ * Saved on the Clerk user (`unsafeMetadata.heardFrom`) and as a PostHog
+ * person property. Optional; the flow leaves it out once answered.
  */
-export function SourceStep({ ctx }: { ctx: SetupContext }) {
+export function SourceStep({ ctx, finishing }: { ctx: SetupContext; finishing?: boolean }) {
   const { user } = useUser();
   const [choice, setChoice] = useState<string | null>(null);
-  const [other, setOther] = useState("");
   const [saving, setSaving] = useState(false);
+  const busy = saving || Boolean(finishing);
 
   const save = async () => {
-    const answer = choice === "Other" ? other.trim() || "Other" : choice;
-    if (!answer || !user) return ctx.next();
+    if (!choice || !user) return ctx.next();
     setSaving(true);
     await user
-      .update({ unsafeMetadata: { ...user.unsafeMetadata, heardFrom: answer } })
+      .update({ unsafeMetadata: { ...user.unsafeMetadata, heardFrom: choice } })
       .catch(() => {});
-    if (posthog.__loaded) posthog.setPersonProperties({ heard_from: answer });
+    if (posthog.__loaded) posthog.setPersonProperties({ heard_from: choice });
     ctx.next();
   };
 
   return (
     <section className="mx-auto w-full max-w-2xl">
       <StepHeader
-        eyebrow="One quick question"
+        eyebrow="One last question"
         title="How did you hear about Unsora?"
         lead="It helps us know where to show up."
       />
@@ -146,39 +157,30 @@ export function SourceStep({ ctx }: { ctx: SetupContext }) {
       <div className="mt-10 grid grid-cols-2 gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Where you heard about Unsora">
         {SOURCES.map((source) => (
           <button
-            key={source}
+            key={source.name}
             type="button"
             role="radio"
-            aria-checked={choice === source}
-            onClick={() => setChoice(source)}
+            aria-checked={choice === source.name}
+            onClick={() => setChoice(source.name)}
             className={cn(
-              "rounded-xl bg-card px-4 py-3 text-left text-sm font-medium ring-1 transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-              choice === source ? "ring-2 ring-foreground" : "ring-border hover:bg-accent",
+              "flex items-center gap-3 rounded-xl bg-card px-4 py-3 text-left text-sm font-medium ring-1 transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+              choice === source.name ? "ring-2 ring-foreground" : "ring-border hover:bg-accent",
             )}
           >
-            {source}
+            <span className="flex size-5 shrink-0 items-center justify-center">{source.icon}</span>
+            {source.name}
           </button>
         ))}
       </div>
-      {choice === "Other" ? (
-        <Input
-          autoFocus
-          value={other}
-          onChange={(event) => setOther(event.target.value)}
-          placeholder="Where did you hear about us?"
-          className="mt-3"
-          maxLength={120}
-        />
-      ) : null}
 
       <StepFooter back={ctx.back}>
-        <Button size="lg" variant="ghost" onClick={ctx.next} disabled={saving}>
+        <Button size="lg" variant="ghost" onClick={ctx.next} disabled={busy}>
           Skip
         </Button>
-        <Button size="lg" onClick={() => void save()} disabled={!choice || saving}>
-          {saving ? <Spinner data-icon="inline-start" /> : null}
-          Continue
-          <ArrowRight data-icon="inline-end" />
+        <Button size="lg" onClick={() => void save()} disabled={!choice || busy}>
+          {busy ? <Spinner data-icon="inline-start" /> : null}
+          {ctx.last ? "Finish" : "Continue"}
+          {ctx.last ? null : <ArrowRight data-icon="inline-end" />}
         </Button>
       </StepFooter>
     </section>
@@ -219,7 +221,7 @@ export function ChannelsStep({ ctx }: { ctx: SetupContext }) {
         <ConnectGrid returnTo={ctx.hrefFor("channels")} hidePlanNote exclude={["google_business"]} />
       </div>
 
-      <StepFooter back={ctx.back} divider>
+      <StepFooter back={ctx.back}>
         {connected.length ? (
           <Button size="lg" onClick={ctx.next}>
             Continue
@@ -465,7 +467,7 @@ export function ConnectStep({
         ))}
       </ol>
 
-      <StepFooter back={ctx.back} divider>
+      <StepFooter back={ctx.back}>
         <Button size="lg" onClick={ctx.next} disabled={finishing}>
           {finishing ? <Spinner data-icon="inline-start" /> : null}
           Go to Unsora
