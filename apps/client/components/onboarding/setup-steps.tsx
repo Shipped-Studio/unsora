@@ -334,11 +334,8 @@ export function TrialStep({ ctx }: { ctx: SetupContext }) {
         </p>
       ) : null}
 
-      <StepFooter back={ctx.back}>
-        <Button size="lg" variant="ghost" onClick={ctx.next} disabled={pendingKey !== null}>
-          Not now
-        </Button>
-      </StepFooter>
+      {/* No way past this step without a plan: picking one is the only way on. */}
+      <StepFooter back={ctx.back}>{null}</StepFooter>
     </section>
   );
 }
