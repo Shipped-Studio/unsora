@@ -27,13 +27,10 @@ interface CurrentPlanCardProps {
   credits: number;
   /** Which portal-bound button is waiting on the redirect. */
   portalPending: "manage" | "resume" | null;
-  activating: boolean;
   onChangePlan: () => void;
   onManageBilling: () => void;
   onResume: () => void;
   onCancelPlan: () => void;
-  onActivateTrial: () => void;
-  onCancelTrial: () => void;
 }
 
 function statusLine(state: PlanState, endsOn: string | null) {
@@ -44,8 +41,8 @@ function statusLine(state: PlanState, endsOn: string | null) {
       return endsOn ? `Renews on ${endsOn}.` : "Your subscription is active.";
     case "trialing":
       return endsOn
-        ? `Your trial ends on ${endsOn}. Activate now to start your plan, or cancel to return to Free.`
-        : "Activate now to start your plan, or cancel to return to Free.";
+        ? `Your trial ends on ${endsOn}, then your plan starts. To cancel, use Manage billing.`
+        : "Your plan starts when the trial ends. To cancel, use Manage billing.";
     case "ending":
       return endsOn
         ? `Your plan won't renew. You keep access and your credits until ${endsOn}.`
@@ -60,13 +57,10 @@ export function CurrentPlanCard({
   periodEnd,
   credits,
   portalPending,
-  activating,
   onChangePlan,
   onManageBilling,
   onResume,
   onCancelPlan,
-  onActivateTrial,
-  onCancelTrial,
 }: CurrentPlanCardProps) {
   const endsOn = formatLongDate(periodEnd);
   const per = intervalLabel(plan?.interval);
@@ -135,13 +129,6 @@ export function CurrentPlanCard({
           <Button onClick={onChangePlan}>Choose a plan</Button>
         ) : null}
 
-        {state === "trialing" ? (
-          <Button onClick={onActivateTrial} disabled={activating}>
-            {activating ? <Spinner data-icon="inline-start" /> : null}
-            Activate plan
-          </Button>
-        ) : null}
-
         {state === "ending" ? (
           <Button onClick={onResume} disabled={portalBusy}>
             {portalPending === "resume" ? (
@@ -179,17 +166,6 @@ export function CurrentPlanCard({
             onClick={onCancelPlan}
           >
             Cancel plan
-          </Button>
-        ) : null}
-
-        {state === "trialing" ? (
-          <Button
-            variant="link"
-            size="sm"
-            className="px-0 text-muted-foreground hover:text-foreground max-sm:basis-full max-sm:justify-start sm:ml-auto"
-            onClick={onCancelTrial}
-          >
-            Cancel trial
           </Button>
         ) : null}
       </CardFooter>
