@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toast-error";
 import { GridFour, ImageSquare, LinkSimple, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { GenerateButton } from "@/components/ui/generate-button";
@@ -157,7 +158,7 @@ export function ThumbPromptForm({ onGenerationsStarted }: ThumbPromptFormProps) 
             : typeof data.message === "string"
               ? data.message
               : `The server returned ${res.status}.`;
-        toast.error(`Couldn't start the thumbnail. ${reason}`);
+        toastError(`Couldn't start the thumbnail. ${reason}`);
         return;
       }
 

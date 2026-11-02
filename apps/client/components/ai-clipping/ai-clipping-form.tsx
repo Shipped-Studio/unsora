@@ -13,6 +13,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toast-error";
 import { GHOST_TRIGGER_CLASS } from "@/components/generator/param-control";
 import {
   ComposerCard,
@@ -170,7 +171,7 @@ export function AIClippingForm({
       });
       const body = await res.json().catch(() => null);
       if (!res.ok || !body?.success) {
-        toast.error(body?.error || "Couldn't start clipping. Try again.");
+        toastError(body?.error || "Couldn't start clipping. Try again.");
         return;
       }
 

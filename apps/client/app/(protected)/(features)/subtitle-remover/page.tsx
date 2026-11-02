@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Eraser } from "@phosphor-icons/react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toast-error";
 import {
   ToolEmpty,
   ToolGrid,
@@ -38,7 +39,7 @@ export default function SubtitleRemoverPage() {
       });
       const body = await res.json().catch(() => null);
       if (!res.ok || !body?.success) {
-        toast.error(
+        toastError(
           body?.error || "Couldn't start subtitle removal. Try again.",
         );
         return false;
