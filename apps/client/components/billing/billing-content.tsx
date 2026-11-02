@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { PageSection } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -61,6 +61,15 @@ export function BillingContent() {
   }, [queryClient]);
 
   useTopupRedirect(refreshBilling);
+
+  // Links to /billing#credits land before the page has loaded, so the
+  // browser can't scroll to the packs by itself.
+  const loaded = Boolean(usage);
+  useEffect(() => {
+    if (loaded && window.location.hash === "#credits") {
+      document.getElementById("credits")?.scrollIntoView({ block: "start" });
+    }
+  }, [loaded]);
 
   const openPortal = () =>
     redirectToStripe(
@@ -157,19 +166,22 @@ export function BillingContent() {
         </PageSection>
       </div>
 
-      <PageSection
-        title="Buy credits"
-        description="One-time packs for clipping and creating. Credits never expire, and you can buy them on any plan."
-      >
-        <CreditPacks
-          packs={packsQuery.packs}
-          loading={packsQuery.loading}
-          error={packsQuery.error}
-          onRetry={() => void packsQuery.refetch()}
-          pendingPackKey={pendingPackKey}
-          onBuy={(key) => void handleBuyPack(key)}
-        />
-      </PageSection>
+      {/* "Buy credits" buttons elsewhere link to /billing#credits. */}
+      <div id="credits" className="scroll-mt-24">
+        <PageSection
+          title="Buy credits"
+          description="One-time packs for clipping and creating. Credits never expire, and you can buy them on any plan."
+        >
+          <CreditPacks
+            packs={packsQuery.packs}
+            loading={packsQuery.loading}
+            error={packsQuery.error}
+            onRetry={() => void packsQuery.refetch()}
+            pendingPackKey={pendingPackKey}
+            onBuy={(key) => void handleBuyPack(key)}
+          />
+        </PageSection>
+      </div>
 
       <PageSection
         title="Credit history"

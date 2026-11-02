@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAuthFetch } from "./use-auth-fetch";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toast-error";
 
 export type MovieMaterialsStatus =
   | "idle"
@@ -144,7 +145,7 @@ export function useMovieMaterials(options?: {
                 : g,
             ),
           );
-          toast.error(errorMsg);
+          toastError(errorMsg);
           return null;
         }
 

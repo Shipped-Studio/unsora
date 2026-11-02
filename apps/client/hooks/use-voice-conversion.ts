@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAuthFetch } from "./use-auth-fetch";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toast-error";
 
 export type VoiceConversionStatus =
   | "idle"
@@ -159,7 +160,7 @@ export function useVoiceConversion(options?: {
               : c,
           ),
         );
-        toast.error(
+        toastError(
           err instanceof Error
             ? err.message
             : "Couldn't start the conversion. Try again.",
