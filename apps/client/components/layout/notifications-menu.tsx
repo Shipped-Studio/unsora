@@ -319,12 +319,15 @@ export function NotificationsMenu() {
       actionable: true,
       counts: false,
       visual: <IconTile tone="warning"><Coins weight="fill" /></IconTile>,
-      title: credits <= 0 ? "You're out of credits" : "Running low on credits",
-      body: `${credits.toLocaleString()} credits left.`,
-      href: "/billing",
+      title: credits <= 0 ? "AI tools need credits" : "Running low on credits",
+      body:
+        credits <= 0
+          ? "Buy a pack to create videos, images and clips."
+          : `${credits.toLocaleString()} credits left.`,
+      href: "/billing#credits",
       onSelect: close,
       action: (
-        <Link href="/billing" onClick={close} className={buttonVariants({ size: "xs" })}>
+        <Link href="/billing#credits" onClick={close} className={buttonVariants({ size: "xs" })}>
           Buy credits
         </Link>
       ),

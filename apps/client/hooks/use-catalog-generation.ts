@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toast-error";
 import { useAuthFetch } from "./use-auth-fetch";
 import {
   catalogQueryKeys,
@@ -150,7 +151,7 @@ export function useCatalogGeneration(
 
       const fail = (error: string) => {
         patch(tempId, { status: "FAILED", error });
-        toast.error(error);
+        toastError(error);
         return null;
       };
 

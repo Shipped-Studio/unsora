@@ -101,12 +101,23 @@ export function CurrentPlanCard({
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <dt className="text-xs text-muted-foreground">Credit balance</dt>
-            <dd className="mt-1 text-2xl font-medium tabular-nums">
-              {credits.toLocaleString()}
-              <span className="ml-1.5 text-sm font-normal text-muted-foreground">
-                credits
-              </span>
-            </dd>
+            {/* Plans include no credits, so an empty balance says what
+                credits are for rather than showing 0. */}
+            {credits > 0 ? (
+              <dd className="mt-1 text-2xl font-medium tabular-nums">
+                {credits.toLocaleString()}
+                <span className="ml-1.5 text-sm font-normal text-muted-foreground">
+                  credits
+                </span>
+              </dd>
+            ) : (
+              <dd className="mt-1">
+                <span className="block text-base font-medium">No credits yet</span>
+                <span className="block text-sm text-muted-foreground">
+                  AI tools run on the credit packs below.
+                </span>
+              </dd>
+            )}
           </div>
           {plan ? (
             <div>

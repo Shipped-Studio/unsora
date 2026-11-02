@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAuthFetch } from "./use-auth-fetch";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toast-error";
 import { deriveSongTitleFromLyrics } from "@/lib/music-track";
 
 export type MusicGenerationStatus =
@@ -160,7 +161,7 @@ export function useMusicGeneration(options?: {
                 : g,
             ),
           );
-          toast.error(errorMsg);
+          toastError(errorMsg);
           return null;
         }
 

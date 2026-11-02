@@ -30,6 +30,7 @@ import {
 } from "@/constant/voice-clone-script";
 import { getSignedUploadUrl, uploadToSignedUrl } from "@/lib/storage-client";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toast-error";
 
 interface VoiceCloneDialogProps {
   open: boolean;
@@ -118,7 +119,7 @@ export function VoiceCloneDialog({
       reset();
       onOpenChange(false);
     } catch (err) {
-      toast.error(
+      toastError(
         err instanceof Error && err.message
           ? err.message
           : "Couldn't clone the voice. Try again.",

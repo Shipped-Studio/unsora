@@ -14,6 +14,9 @@ export function friendlyGenerationError(
 ): string {
   const text = (raw ?? "").toLowerCase();
 
+  if (/insufficient credits|not enough credits/.test(text)) {
+    return "Not enough credits. Buy a credit pack to use AI tools.";
+  }
   if (/time[ds]? ?out|timeout|took too long|sweeper|stale|stuck|deadline/.test(text)) {
     return "Took too long. Your credits were refunded.";
   }

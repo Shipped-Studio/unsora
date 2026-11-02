@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ArrowsOut } from "@phosphor-icons/react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toast-error";
 import {
   ToolEmpty,
   ToolGrid,
@@ -41,7 +42,7 @@ export default function VideoUpscalerPage() {
         });
         const body = await res.json().catch(() => null);
         if (!res.ok || !body?.success) {
-          toast.error(
+          toastError(
             `Couldn't upscale ${video.originalName}. ${body?.error || "Try again."}`,
           );
           continue;
