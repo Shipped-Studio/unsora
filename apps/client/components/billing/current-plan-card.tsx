@@ -27,12 +27,10 @@ interface CurrentPlanCardProps {
   credits: number;
   /** Which portal-bound button is waiting on the redirect. */
   portalPending: "manage" | "resume" | null;
-  activating: boolean;
   onChangePlan: () => void;
   onManageBilling: () => void;
   onResume: () => void;
   onCancelPlan: () => void;
-  onActivateTrial: () => void;
   onCancelTrial: () => void;
 }
 
@@ -44,8 +42,8 @@ function statusLine(state: PlanState, endsOn: string | null) {
       return endsOn ? `Renews on ${endsOn}.` : "Your subscription is active.";
     case "trialing":
       return endsOn
-        ? `Your trial ends on ${endsOn}. Activate now to start your plan, or cancel to return to Free.`
-        : "Activate now to start your plan, or cancel to return to Free.";
+        ? `Your trial ends on ${endsOn}, then your plan starts. Cancel before then to return to Free.`
+        : "Your plan starts when the trial ends. Cancel before then to return to Free.";
     case "ending":
       return endsOn
         ? `Your plan won't renew. You keep access and your credits until ${endsOn}.`
@@ -60,12 +58,10 @@ export function CurrentPlanCard({
   periodEnd,
   credits,
   portalPending,
-  activating,
   onChangePlan,
   onManageBilling,
   onResume,
   onCancelPlan,
-  onActivateTrial,
   onCancelTrial,
 }: CurrentPlanCardProps) {
   const endsOn = formatLongDate(periodEnd);
@@ -133,13 +129,6 @@ export function CurrentPlanCard({
       <CardFooter className="flex flex-wrap gap-2 border-t">
         {state === "free" ? (
           <Button onClick={onChangePlan}>Choose a plan</Button>
-        ) : null}
-
-        {state === "trialing" ? (
-          <Button onClick={onActivateTrial} disabled={activating}>
-            {activating ? <Spinner data-icon="inline-start" /> : null}
-            Activate plan
-          </Button>
         ) : null}
 
         {state === "ending" ? (

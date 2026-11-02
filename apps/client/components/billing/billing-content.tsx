@@ -11,7 +11,6 @@ import { useAuthFetch } from "@/hooks/use-auth-fetch";
 import { useCreditPacks } from "@/hooks/use-credit-packs";
 import { findUserPlan, useSubscriptionPlans } from "@/hooks/use-subscription-plans";
 import { userUsageQueryKeys, useUserUsage } from "@/hooks/use-user-usage";
-import { ActivatePlanDialog } from "./activate-plan-dialog";
 import { BillingSkeleton } from "./billing-skeleton";
 import { CancelSubscriptionDialog } from "./cancel-subscription-dialog";
 import { CancelTrialDialog } from "./cancel-trial-dialog";
@@ -55,8 +54,6 @@ export function BillingContent() {
   );
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
-  const [activateOpen, setActivateOpen] = useState(false);
-  const [activating, setActivating] = useState(false);
   const [cancelTrialOpen, setCancelTrialOpen] = useState(false);
   const [cancellingTrial, setCancellingTrial] = useState(false);
 
@@ -100,31 +97,6 @@ export function BillingContent() {
     if (!redirecting) {
       setCancelling(false);
       setCancelOpen(false);
-    }
-  };
-
-  const handleActivate = async () => {
-    setActivating(true);
-    try {
-      const res = await authFetch("/api/stripe/get-paid-subscription", {
-        method: "POST",
-      });
-      const data = await res.json().catch(() => null);
-      if (data?.subscription) {
-        toast.success("Plan activated");
-        refreshBilling();
-        setActivateOpen(false);
-      } else {
-        toast.error("Couldn't activate your plan", {
-          description: data?.error || "Try again in a moment.",
-        });
-      }
-    } catch {
-      toast.error("Couldn't activate your plan", {
-        description: "Check your connection and try again.",
-      });
-    } finally {
-      setActivating(false);
     }
   };
 
@@ -195,14 +167,12 @@ export function BillingContent() {
           periodEnd={periodEnd}
           credits={usage.credits}
           portalPending={portalPending}
-          activating={activating}
           onChangePlan={() =>
             document.getElementById("plans")?.scrollIntoView({ behavior: "smooth", block: "start" })
           }
           onManageBilling={() => void handlePortal("manage")}
           onResume={() => void handlePortal("resume")}
           onCancelPlan={() => setCancelOpen(true)}
-          onActivateTrial={() => setActivateOpen(true)}
           onCancelTrial={() => setCancelTrialOpen(true)}
         />
       </PageSection>
@@ -252,13 +222,6 @@ export function BillingContent() {
         planName={planName}
         isCancelling={cancellingTrial}
         onConfirm={() => void handleCancelTrial()}
-      />
-      <ActivatePlanDialog
-        open={activateOpen}
-        onOpenChange={setActivateOpen}
-        planName={planName}
-        isActivating={activating}
-        onConfirm={() => void handleActivate()}
       />
     </div>
   );
