@@ -31,7 +31,6 @@ interface CurrentPlanCardProps {
   onManageBilling: () => void;
   onResume: () => void;
   onCancelPlan: () => void;
-  onCancelTrial: () => void;
 }
 
 function statusLine(state: PlanState, endsOn: string | null) {
@@ -42,8 +41,8 @@ function statusLine(state: PlanState, endsOn: string | null) {
       return endsOn ? `Renews on ${endsOn}.` : "Your subscription is active.";
     case "trialing":
       return endsOn
-        ? `Your trial ends on ${endsOn}, then your plan starts. Cancel before then to return to Free.`
-        : "Your plan starts when the trial ends. Cancel before then to return to Free.";
+        ? `Your trial ends on ${endsOn}, then your plan starts. To cancel, use Manage billing.`
+        : "Your plan starts when the trial ends. To cancel, use Manage billing.";
     case "ending":
       return endsOn
         ? `Your plan won't renew. You keep access and your credits until ${endsOn}.`
@@ -62,7 +61,6 @@ export function CurrentPlanCard({
   onManageBilling,
   onResume,
   onCancelPlan,
-  onCancelTrial,
 }: CurrentPlanCardProps) {
   const endsOn = formatLongDate(periodEnd);
   const per = intervalLabel(plan?.interval);
@@ -168,17 +166,6 @@ export function CurrentPlanCard({
             onClick={onCancelPlan}
           >
             Cancel plan
-          </Button>
-        ) : null}
-
-        {state === "trialing" ? (
-          <Button
-            variant="link"
-            size="sm"
-            className="px-0 text-muted-foreground hover:text-foreground max-sm:basis-full max-sm:justify-start sm:ml-auto"
-            onClick={onCancelTrial}
-          >
-            Cancel trial
           </Button>
         ) : null}
       </CardFooter>
