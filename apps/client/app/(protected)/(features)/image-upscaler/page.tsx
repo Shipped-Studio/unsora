@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { FrameCorners } from "@phosphor-icons/react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toast-error";
 import {
   ToolEmpty,
   ToolGrid,
@@ -52,7 +53,7 @@ export default function ImageUpscalerPage() {
         });
         const body = await res.json().catch(() => null);
         if (!res.ok || !body?.success) {
-          toast.error(
+          toastError(
             `Couldn't upscale ${item.originalName}. ${body?.error || "Try again."}`,
           );
           continue;

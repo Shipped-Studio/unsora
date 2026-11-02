@@ -45,6 +45,7 @@ import {
   type CreateGroupName,
   type NavItem,
 } from "@/lib/navigation";
+import { openCreditPacks } from "@/lib/toast-error";
 import { cn } from "@/lib/utils";
 
 /* ── Drawer and collapse state ────────────────────────────────────────── */
@@ -339,6 +340,15 @@ function formatCredits(credits: number) {
   return new Intl.NumberFormat(undefined, { notation: credits >= 10_000 ? "compact" : "standard" }).format(credits);
 }
 
+/**
+ * The balance, or with none, what the user needs next: a plan to post, or
+ * credits for the AI tools. Plans include no credits, so it never says "0".
+ */
+function balanceLine(credits: number, isFree: boolean) {
+  if (credits > 0) return `${formatCredits(credits)} credits`;
+  return isFree ? "Choose a plan to post" : "AI tools use credits";
+}
+
 /** Plan and credit balance, with the one action that matters for it. */
 function PlanCard({ collapsed }: { collapsed: boolean }) {
   const { usage } = useUserUsage();
@@ -355,10 +365,14 @@ function PlanCard({ collapsed }: { collapsed: boolean }) {
           Billing
         </Link>
       </div>
-      <p className="mt-0.5 text-sm font-semibold tabular-nums">{formatCredits(usage.credits)} credits</p>
+      <p className="mt-0.5 text-sm font-semibold tabular-nums">{balanceLine(usage.credits, isFree)}</p>
       {isFree ? (
         <Button size="xs" className="mt-2.5 w-full" onClick={openPricing}>
           Upgrade
+        </Button>
+      ) : usage.credits <= 0 ? (
+        <Button size="xs" className="mt-2.5 w-full" onClick={openCreditPacks}>
+          Buy credits
         </Button>
       ) : null}
     </div>
@@ -421,7 +435,7 @@ function UserMenu({ collapsed, side = "right" }: { collapsed: boolean; side?: "r
                 {usage ? `${usage.user.plan ?? "free"} plan` : "Credits"}
               </p>
               <p className="text-sm font-semibold tabular-nums">
-                {usage ? `${formatCredits(usage.credits)} credits` : "–"}
+                {usage ? balanceLine(usage.credits, isFree) : "–"}
               </p>
             </div>
             {isFree ? (
@@ -429,7 +443,7 @@ function UserMenu({ collapsed, side = "right" }: { collapsed: boolean; side?: "r
                 Upgrade
               </Button>
             ) : (
-              <Link href="/billing" className={buttonVariants({ variant: "outline", size: "xs" })}>
+              <Link href="/billing#credits" className={buttonVariants({ variant: "outline", size: "xs" })}>
                 Buy credits
               </Link>
             )}
