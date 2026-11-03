@@ -50,11 +50,21 @@ export interface OverviewData {
   };
   /** Range sign-ups by onboarding answer; null when Clerk couldn't be reached. */
   sources: SourceCount[] | null;
+  /** Range sign-ups by sign-in country; null when Clerk couldn't be reached. */
+  countries: CountryCount[] | null;
 }
 
 export interface SourceCount {
   /** "How did you hear about Unsora?" answer, or "Didn't answer". */
   source: string;
+  signups: number;
+  /** Of those sign-ups, how many are now on a plan or trial. */
+  startedPlan: number;
+}
+
+export interface CountryCount {
+  /** Country Clerk resolved from the user's sign-in IP, or "Unknown". */
+  country: string;
   signups: number;
   /** Of those sign-ups, how many are now on a plan or trial. */
   startedPlan: number;
@@ -76,6 +86,8 @@ export interface AdminUserRow {
   taskCount: number;
   /** "How did you hear about Unsora?" answer; null if skipped. */
   heardFrom: string | null;
+  /** Sign-in country from Clerk (IP based); null until one is saved. */
+  country: string | null;
 }
 
 export interface AdminUsersResponse {
@@ -101,6 +113,8 @@ export interface AdminUserDetail {
     updatedAt: string;
     /** "How did you hear about Unsora?" answer; null if skipped. */
     heardFrom: string | null;
+  /** Sign-in country from Clerk (IP based); null until one is saved. */
+  country: string | null;
   };
   credits: number;
   socialAccounts: {

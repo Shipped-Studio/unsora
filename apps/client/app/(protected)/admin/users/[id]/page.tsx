@@ -100,6 +100,7 @@ function UserDetail({ id, data }: { id: string; data: AdminUserDetail }) {
     >
       <p className="text-sm text-muted-foreground">
         Joined {formatDate(u.createdAt)} · Found via {u.heardFrom ?? "(didn't answer)"} ·{" "}
+        {u.country ?? "Country unknown"} ·{" "}
         {data.counts.tasks.toLocaleString()} tasks ·{" "}
         {data.counts.assets.toLocaleString()} assets
       </p>

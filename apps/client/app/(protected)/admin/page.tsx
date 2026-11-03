@@ -18,7 +18,6 @@ import { ErrorState } from "@/components/shared/states";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TableBody, TableHeader, TableRow } from "@/components/ui/table";
 import { useAdminOverview } from "@/hooks/admin/use-admin-data";
-import type { SourceCount } from "@/hooks/admin/types";
 import { compactNumber, providerLabel, titleCase } from "@/lib/admin-format";
 import { cn } from "@/lib/utils";
 
@@ -143,36 +142,59 @@ export default function AdminOverviewPage() {
             </ChartCard>
           </div>
 
-          <SourcesSection sources={data.sources} days={days} />
+          <SignupBreakdown
+            title="How users found us"
+            description={`Answers to "How did you hear about Unsora?" from sign-ups in the last ${days} days`}
+            column="Source"
+            emptyLabel="Didn't answer"
+            rows={data.sources?.map((s) => ({ ...s, label: s.source })) ?? null}
+          />
+          <SignupBreakdown
+            title="Where users are"
+            description={`Sign-ups in the last ${days} days by the country they sign in from`}
+            column="Country"
+            emptyLabel="Unknown"
+            rows={data.countries?.map((c) => ({ ...c, label: c.country })) ?? null}
+          />
         </div>
       )}
     </AdminPage>
   );
 }
 
+interface BreakdownRow {
+  label: string;
+  signups: number;
+  startedPlan: number;
+}
+
 /**
- * Where the range's sign-ups heard about Unsora, from the onboarding
- * question, and how many of each went on to start a plan or trial.
+ * The range's sign-ups split one way (onboarding answer, country), with how
+ * many of each went on to start a plan or trial. `emptyLabel` is the row for
+ * users with no value; it is shown muted.
  */
-function SourcesSection({
-  sources,
-  days,
+function SignupBreakdown({
+  title,
+  description,
+  column,
+  emptyLabel,
+  rows,
 }: {
-  sources: SourceCount[] | null;
-  days: number;
+  title: string;
+  description: string;
+  column: string;
+  emptyLabel: string;
+  rows: BreakdownRow[] | null;
 }) {
-  const total = sources?.reduce((sum, s) => sum + s.signups, 0) ?? 0;
+  const total = rows?.reduce((sum, r) => sum + r.signups, 0) ?? 0;
 
   return (
-    <PageSection
-      title="How users found us"
-      description={`Answers to "How did you hear about Unsora?" from sign-ups in the last ${days} days`}
-    >
-      {!sources ? (
+    <PageSection title={title} description={description}>
+      {!rows ? (
         <p className="rounded-xl bg-muted px-4 py-6 text-center text-sm text-muted-foreground">
-          Couldn&apos;t load the answers from Clerk. Refresh to try again.
+          Couldn&apos;t load this from Clerk. Refresh to try again.
         </p>
-      ) : sources.length === 0 ? (
+      ) : rows.length === 0 ? (
         <p className="rounded-xl bg-muted px-4 py-6 text-center text-sm text-muted-foreground">
           No sign-ups in this range.
         </p>
@@ -180,7 +202,7 @@ function SourcesSection({
         <TableShell>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <Th>Source</Th>
+              <Th>{column}</Th>
               <Th className="text-right">Sign-ups</Th>
               <Th className="hidden md:table-cell">Share</Th>
               <Th className="text-right">Started a plan</Th>
@@ -188,13 +210,14 @@ function SourcesSection({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sources.map((s) => {
+            {rows.map((s) => {
               const share = total ? (s.signups / total) * 100 : 0;
               const rate = s.signups ? Math.round((s.startedPlan / s.signups) * 100) : 0;
-              const skipped = s.source === "Didn't answer";
               return (
-                <TableRow key={s.source}>
-                  <Td className={cn(skipped && "text-muted-foreground")}>{s.source}</Td>
+                <TableRow key={s.label}>
+                  <Td className={cn(s.label === emptyLabel && "text-muted-foreground")}>
+                    {s.label}
+                  </Td>
                   <Td className="text-right tabular-nums">{s.signups.toLocaleString()}</Td>
                   <Td className="hidden w-1/3 md:table-cell">
                     <span className="flex items-center gap-2">
