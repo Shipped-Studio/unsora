@@ -48,6 +48,16 @@ export interface OverviewData {
     tasks: DayPoint[];
     credits: DayPoint[];
   };
+  /** Range sign-ups by onboarding answer; null when Clerk couldn't be reached. */
+  sources: SourceCount[] | null;
+}
+
+export interface SourceCount {
+  /** "How did you hear about Unsora?" answer, or "Didn't answer". */
+  source: string;
+  signups: number;
+  /** Of those sign-ups, how many are now on a plan or trial. */
+  startedPlan: number;
 }
 
 export interface AdminUserRow {
@@ -64,6 +74,8 @@ export interface AdminUserRow {
   credits: number;
   connectedAccounts: number;
   taskCount: number;
+  /** "How did you hear about Unsora?" answer; null if skipped. */
+  heardFrom: string | null;
 }
 
 export interface AdminUsersResponse {
@@ -87,6 +99,8 @@ export interface AdminUserDetail {
     stripeCurrentPeriodEnd: string | null;
     createdAt: string;
     updatedAt: string;
+    /** "How did you hear about Unsora?" answer; null if skipped. */
+    heardFrom: string | null;
   };
   credits: number;
   socialAccounts: {
