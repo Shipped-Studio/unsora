@@ -12,6 +12,7 @@ import routes from "./routes";
 import devEmailRoutes from "./routes/dev-emails.routes";
 import apiV1Routes from "./api/v1/routes";
 import { errorHandler } from "./middleware/errorHandler";
+import { startCountryFill } from "./lib/clerk-profile";
 import openApiDocument from "./docs/openapi";
 
 // JSON.stringify (and therefore res.json) throws on BigInt values. Prisma uses
@@ -148,6 +149,8 @@ app.use(errorHandler);
 
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
+  // Saves each user's sign-in country from Clerk before their sessions expire.
+  startCountryFill();
 });
 
 export default app;

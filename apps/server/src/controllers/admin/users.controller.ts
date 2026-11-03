@@ -2,7 +2,13 @@ import type { Request, Response } from "express";
 import { Prisma } from "@prisma/client";
 import prisma from "../../lib/db";
 import { getCreditBalance, adjustCredits } from "../../lib/credits";
-import { heardFromFor } from "../../lib/heard-from";
+import {
+  profilesFor,
+  saveCountry,
+  sessionDevices,
+  type ClerkProfile,
+  type SessionDevice,
+} from "../../lib/clerk-profile";
 import { FEED_SELECT, num, toPositiveInt } from "./_shared";
 
 const SORTABLE = new Set(["createdAt", "email", "plan", "status", "updatedAt"]);
@@ -59,7 +65,7 @@ export class AdminUsersController {
       ]);
 
       const ids = users.map((u) => u.id);
-      const [accountCounts, balances, taskCounts, heardFrom] = await Promise.all([
+      const [accountCounts, balances, taskCounts, profiles] = await Promise.all([
         ids.length
           ? prisma.socialAccount.groupBy({
               by: ["userId"],
@@ -69,7 +75,7 @@ export class AdminUsersController {
           : [],
         ids.length ? this.balancesFor(ids) : new Map<string, number>(),
         ids.length ? this.taskCountsFor(ids) : new Map<string, number>(),
-        this.heardFromOrEmpty(users.map((u) => u.clerkId)),
+        this.profilesOrEmpty(users.map((u) => u.clerkId)),
       ]);
 
       const accountMap = new Map<string, number>(
@@ -84,7 +90,8 @@ export class AdminUsersController {
             credits: balances.get(u.id) ?? 0,
             connectedAccounts: accountMap.get(u.id) ?? 0,
             taskCount: taskCounts.get(u.id) ?? 0,
-            heardFrom: heardFrom.get(u.clerkId) ?? null,
+            heardFrom: profiles.get(u.clerkId)?.heardFrom ?? null,
+            country: profiles.get(u.clerkId)?.country ?? null,
           })),
           pagination: {
             page,
@@ -138,7 +145,7 @@ export class AdminUsersController {
         assetCount,
         kindRows,
         recentTasks,
-        heardFrom,
+        clerk,
       ] = await Promise.all([
         getCreditBalance(id),
         prisma.socialAccount.findMany({
@@ -196,13 +203,14 @@ export class AdminUsersController {
            FROM feed WHERE "userId" = $1 ORDER BY "createdAt" DESC LIMIT 20`,
           id,
         ),
-        this.heardFromOrEmpty([user.clerkId]),
+        this.clerkDetails(user.clerkId),
       ]);
 
       return res.json({
         success: true,
         data: {
-          user: { ...user, heardFrom: heardFrom.get(user.clerkId) ?? null },
+          user: { ...user, heardFrom: clerk.profile.heardFrom, country: clerk.profile.country },
+          devices: clerk.devices,
           credits,
           socialAccounts,
           creditGrants,
@@ -315,17 +323,46 @@ export class AdminUsersController {
     }
   }
 
-  /** Live credit balance per user (non-expired grants), keyed by userId. */
-  /** Onboarding answers from Clerk; empty if Clerk can't be reached, so the page still loads. */
-  private async heardFromOrEmpty(clerkIds: string[]): Promise<Map<string, string>> {
+  /** Onboarding answers and countries from Clerk; empty if Clerk can't be reached, so the page still loads. */
+  private async profilesOrEmpty(clerkIds: string[]): Promise<Map<string, ClerkProfile>> {
     if (clerkIds.length === 0) return new Map();
     try {
-      return await heardFromFor(clerkIds);
+      return await profilesFor(clerkIds);
     } catch (error) {
-      console.error("[admin] heard-from lookup error:", error);
+      console.error("[admin] Clerk profile lookup error:", error);
       return new Map();
     }
   }
+
+  /**
+   * One user's Clerk profile and live sessions. If no country is stored yet,
+   * the newest session's country is saved now. Either part is null/empty if
+   * Clerk can't be reached, so the page still loads.
+   */
+  private async clerkDetails(
+    clerkId: string,
+  ): Promise<{ profile: ClerkProfile; devices: SessionDevice[] | null }> {
+    const [profiles, devices] = await Promise.all([
+      this.profilesOrEmpty([clerkId]),
+      sessionDevices(clerkId).catch((error) => {
+        console.error("[admin] Clerk sessions lookup error:", error);
+        return null;
+      }),
+    ]);
+    const profile = profiles.get(clerkId) ?? { heardFrom: null, country: null };
+    if (!profile.country) {
+      const country = devices?.find((d) => d.country)?.country;
+      if (country) {
+        saveCountry(clerkId, country).catch((error) =>
+          console.error("[admin] country save error:", error),
+        );
+        return { profile: { ...profile, country }, devices };
+      }
+    }
+    return { profile, devices };
+  }
+
+  /** Live credit balance per user (non-expired grants), keyed by userId. */
 
   private async balancesFor(ids: string[]): Promise<Map<string, number>> {
     const rows = await prisma.$queryRaw<

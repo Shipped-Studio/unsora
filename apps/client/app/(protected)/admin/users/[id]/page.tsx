@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useParams } from "next/navigation";
-import { Eye } from "@phosphor-icons/react";
+import { Desktop, DeviceMobile, Eye } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { AdminPage } from "@/components/admin/admin-page";
 import { BarList, ChartCard, kindLabel } from "@/components/admin/charts";
@@ -12,7 +12,7 @@ import {
   Td,
   Th,
 } from "@/components/admin/data-table";
-import { StatusBadge } from "@/components/admin/status-badge";
+import { StatusBadge, StatusDot } from "@/components/admin/status-badge";
 import {
   TaskOutputDialog,
   type TaskRef,
@@ -37,7 +37,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { TableBody, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { AdminUserDetail } from "@/hooks/admin/types";
+import type { AdminDevice, AdminUserDetail } from "@/hooks/admin/types";
 import {
   useAdjustCredits,
   useAdminUser,
@@ -100,6 +100,7 @@ function UserDetail({ id, data }: { id: string; data: AdminUserDetail }) {
     >
       <p className="text-sm text-muted-foreground">
         Joined {formatDate(u.createdAt)} · Found via {u.heardFrom ?? "(didn't answer)"} ·{" "}
+        {u.country ?? "Country unknown"} ·{" "}
         {data.counts.tasks.toLocaleString()} tasks ·{" "}
         {data.counts.assets.toLocaleString()} assets
       </p>
@@ -176,6 +177,8 @@ function UserDetail({ id, data }: { id: string; data: AdminUserDetail }) {
               )}
             </CardContent>
           </Card>
+
+          <DevicesCard devices={data.devices} />
 
           <Tabs defaultValue="tasks">
             <TabsList>
@@ -517,6 +520,72 @@ function CreditsCard({ id, credits }: { id: string; credits: number }) {
             </Button>
           </div>
         </FieldGroup>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** The user's Clerk sessions: device, browser, IP and location, read live from Clerk. */
+function DevicesCard({ devices }: { devices: AdminDevice[] | null }) {
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>
+          Devices{" "}
+          {devices ? (
+            <span className="text-muted-foreground tabular-nums">{devices.length}</span>
+          ) : null}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {!devices ? (
+          <p className="text-sm text-muted-foreground">
+            Couldn&apos;t load sessions from Clerk. Refresh to try again.
+          </p>
+        ) : devices.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No sessions left in Clerk. They expire after a while.
+          </p>
+        ) : (
+          <ul className="divide-y">
+            {devices.map((d) => {
+              const Icon = d.isMobile ? DeviceMobile : Desktop;
+              const place = [d.city, d.country].filter(Boolean).join(", ");
+              return (
+                <li key={d.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+                  <Icon className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <span className="truncate">{d.deviceType ?? "Unknown device"}</span>
+                      {d.status === "active" ? (
+                        <StatusDot tone="success" className="text-xs font-normal">
+                          Active
+                        </StatusDot>
+                      ) : (
+                        <StatusDot tone="muted" className="text-xs font-normal">
+                          {titleCase(d.status)}
+                        </StatusDot>
+                      )}
+                    </div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      {d.browser ?? "Unknown browser"}
+                      {" · "}
+                      <span className="font-mono">{d.ipAddress ?? "No IP"}</span>
+                      {place ? ` (${place})` : null}
+                    </div>
+                  </div>
+                  <time
+                    dateTime={new Date(d.lastActiveAt).toISOString()}
+                    title={formatDateTime(new Date(d.lastActiveAt))}
+                    className="shrink-0 text-xs text-muted-foreground tabular-nums"
+                  >
+                    {timeAgo(new Date(d.lastActiveAt))}
+                  </time>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </CardContent>
     </Card>
   );

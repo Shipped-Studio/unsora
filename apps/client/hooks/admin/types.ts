@@ -50,11 +50,21 @@ export interface OverviewData {
   };
   /** Range sign-ups by onboarding answer; null when Clerk couldn't be reached. */
   sources: SourceCount[] | null;
+  /** Range sign-ups by sign-in country; null when Clerk couldn't be reached. */
+  countries: CountryCount[] | null;
 }
 
 export interface SourceCount {
   /** "How did you hear about Unsora?" answer, or "Didn't answer". */
   source: string;
+  signups: number;
+  /** Of those sign-ups, how many are now on a plan or trial. */
+  startedPlan: number;
+}
+
+export interface CountryCount {
+  /** Country Clerk resolved from the user's sign-in IP, or "Unknown". */
+  country: string;
   signups: number;
   /** Of those sign-ups, how many are now on a plan or trial. */
   startedPlan: number;
@@ -76,11 +86,30 @@ export interface AdminUserRow {
   taskCount: number;
   /** "How did you hear about Unsora?" answer; null if skipped. */
   heardFrom: string | null;
+  /** Sign-in country from Clerk (IP based); null until one is saved. */
+  country: string | null;
 }
 
 export interface AdminUsersResponse {
   users: AdminUserRow[];
   pagination: Pagination;
+}
+
+/** One Clerk session: the device, browser and IP it was last used from. */
+export interface AdminDevice {
+  id: string;
+  /** Clerk session status: "active", "ended", "expired", "revoked", ... */
+  status: string;
+  /** Epoch milliseconds. */
+  lastActiveAt: number;
+  ipAddress: string | null;
+  city: string | null;
+  country: string | null;
+  /** e.g. "iPhone", "Macintosh". */
+  deviceType: string | null;
+  /** Browser name and version, e.g. "Safari 26.5". */
+  browser: string | null;
+  isMobile: boolean;
 }
 
 export interface AdminUserDetail {
@@ -101,7 +130,11 @@ export interface AdminUserDetail {
     updatedAt: string;
     /** "How did you hear about Unsora?" answer; null if skipped. */
     heardFrom: string | null;
+    /** Sign-in country from Clerk (IP based); null until one is saved. */
+    country: string | null;
   };
+  /** The user's Clerk sessions, newest first, read live; null if Clerk couldn't be reached. */
+  devices: AdminDevice[] | null;
   credits: number;
   socialAccounts: {
     id: string;

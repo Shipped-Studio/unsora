@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import prisma from "../../lib/db";
-import { allHeardFrom } from "../../lib/heard-from";
+import { allProfiles } from "../../lib/clerk-profile";
 import { FEED_SELECT, num, toPositiveInt } from "./_shared";
 
 interface DayCount {
@@ -8,8 +8,7 @@ interface DayCount {
   count: number;
 }
 
-interface SourceRow {
-  source: string;
+interface SignupRow {
   signups: number;
   /** Signed up in the range and now on a plan or trial. */
   startedPlan: number;
@@ -17,6 +16,8 @@ interface SourceRow {
 
 /** Sign-ups who skipped "How did you hear about Unsora?". */
 const NO_ANSWER = "Didn't answer";
+/** Sign-ups with no session country saved yet. */
+const NO_COUNTRY = "Unknown";
 
 /**
  * GET /api/admin/overview?days=30
@@ -24,7 +25,7 @@ const NO_ANSWER = "Didn't answer";
  * The landing view of the admin dashboard: headline KPIs, task-status and
  * per-feature breakdowns, connected-account providers, and daily time series
  * for new users / tasks / credit consumption, and where the range's
- * sign-ups heard about Unsora.
+ * sign-ups heard about Unsora and which countries they're in.
  */
 export class AdminOverviewController {
   async get(req: Request, res: Response) {
@@ -49,7 +50,7 @@ export class AdminOverviewController {
         newUserSeries,
         taskSeries,
         creditSeries,
-        sources,
+        signupBreakdown,
       ] = await Promise.all([
         prisma.user.count(),
         prisma.user.count({ where: { isActive: true } }),
@@ -80,9 +81,9 @@ export class AdminOverviewController {
         this.dailySeries("users", days),
         this.dailyFeedSeries(days),
         this.dailyCreditsSeries(days),
-        // Answers live in Clerk; if it's unreachable the rest still loads.
-        this.signupSources(since).catch((error) => {
-          console.error("[admin] overview sources error:", error);
+        // Answers and countries live in Clerk; if it's unreachable the rest still loads.
+        this.signupBreakdown(since).catch((error) => {
+          console.error("[admin] overview sign-up breakdown error:", error);
           return null;
         }),
       ]);
@@ -139,7 +140,8 @@ export class AdminOverviewController {
             tasks: taskSeries,
             credits: creditSeries,
           },
-          sources,
+          sources: signupBreakdown?.sources ?? null,
+          countries: signupBreakdown?.countries ?? null,
         },
       });
     } catch (error) {
@@ -150,29 +152,42 @@ export class AdminOverviewController {
     }
   }
 
-  /** Sign-ups since `since`, grouped by their onboarding answer, most first. */
-  private async signupSources(since: Date): Promise<SourceRow[]> {
-    const [answers, users] = await Promise.all([
-      allHeardFrom(),
+  /**
+   * Sign-ups since `since`, grouped by onboarding answer and by country,
+   * most first, with the "no data" row last.
+   */
+  private async signupBreakdown(since: Date) {
+    const [profiles, users] = await Promise.all([
+      allProfiles(),
       prisma.user.findMany({
         where: { createdAt: { gte: since } },
         select: { clerkId: true, plan: true, isActive: true },
       }),
     ]);
-    const rows = new Map<string, SourceRow>();
-    for (const user of users) {
-      const source = answers.get(user.clerkId) ?? NO_ANSWER;
-      const row = rows.get(source) ?? { source, signups: 0, startedPlan: 0 };
+    const sources = new Map<string, SignupRow>();
+    const countries = new Map<string, SignupRow>();
+    const add = (rows: Map<string, SignupRow>, key: string, startedPlan: boolean) => {
+      const row = rows.get(key) ?? { signups: 0, startedPlan: 0 };
       row.signups += 1;
-      if (user.isActive && user.plan && user.plan !== "free") row.startedPlan += 1;
-      rows.set(source, row);
+      if (startedPlan) row.startedPlan += 1;
+      rows.set(key, row);
+    };
+    for (const user of users) {
+      const profile = profiles.get(user.clerkId);
+      const startedPlan = Boolean(user.isActive && user.plan && user.plan !== "free");
+      add(sources, profile?.heardFrom ?? NO_ANSWER, startedPlan);
+      add(countries, profile?.country ?? NO_COUNTRY, startedPlan);
     }
-    // Answers first by size; "Didn't answer" last.
-    return [...rows.values()].sort(
-      (a, b) =>
-        Number(a.source === NO_ANSWER) - Number(b.source === NO_ANSWER) ||
-        b.signups - a.signups,
-    );
+    const sorted = (rows: Map<string, SignupRow>, empty: string) =>
+      [...rows.entries()]
+        .sort(
+          ([a, x], [b, y]) =>
+            Number(a === empty) - Number(b === empty) || y.signups - x.signups,
+        );
+    return {
+      sources: sorted(sources, NO_ANSWER).map(([source, row]) => ({ source, ...row })),
+      countries: sorted(countries, NO_COUNTRY).map(([country, row]) => ({ country, ...row })),
+    };
   }
 
   /** Daily row counts for a table with a `createdAt` column, gaps filled with 0. */
