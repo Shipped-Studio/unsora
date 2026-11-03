@@ -76,29 +76,56 @@ export async function profilesFor(clerkIds: string[]): Promise<Map<string, Clerk
   return profiles;
 }
 
-/** Country of the user's most recent session that has one, or null if none is left. */
-async function sessionCountry(clerkId: string): Promise<string | null> {
-  const { data } = await clerkClient.sessions.getSessionList({ userId: clerkId, limit: 20 });
-  for (const session of data) {
-    const country = text(session.latestActivity?.country);
-    if (country) return country;
-  }
-  return null;
+/** One Clerk session: the device, browser and IP it was last used from. */
+export interface SessionDevice {
+  id: string;
+  status: string;
+  /** Epoch milliseconds. */
+  lastActiveAt: number;
+  ipAddress: string | null;
+  city: string | null;
+  country: string | null;
+  deviceType: string | null;
+  browser: string | null;
+  isMobile: boolean;
 }
 
-async function saveCountry(clerkId: string, country: string) {
+/**
+ * The user's sessions Clerk still has, newest first. Read live and never
+ * stored: an IP address is personal data, and this way it disappears when
+ * Clerk drops the session.
+ */
+export async function sessionDevices(clerkId: string): Promise<SessionDevice[]> {
+  const { data } = await clerkClient.sessions.getSessionList({ userId: clerkId, limit: 20 });
+  return data.map((session) => {
+    const activity = session.latestActivity;
+    const browser = [text(activity?.browserName), text(activity?.browserVersion)]
+      .filter(Boolean)
+      .join(" ");
+    return {
+      id: session.id,
+      status: session.status,
+      lastActiveAt: session.lastActiveAt,
+      ipAddress: text(activity?.ipAddress),
+      city: text(activity?.city),
+      country: text(activity?.country),
+      deviceType: text(activity?.deviceType),
+      browser: browser || null,
+      isMobile: Boolean(activity?.isMobile),
+    };
+  });
+}
+
+/** Country of the user's most recent session that has one, or null if none is left. */
+async function sessionCountry(clerkId: string): Promise<string | null> {
+  return (await sessionDevices(clerkId)).find((d) => d.country)?.country ?? null;
+}
+
+export async function saveCountry(clerkId: string, country: string) {
   // Clerk merges metadata, so other private keys are kept.
   await clerkClient.users.updateUserMetadata(clerkId, { privateMetadata: { country } });
   const profile = cache?.profiles.get(clerkId);
   if (profile) profile.country = country;
-}
-
-/** Looks up and saves one user's country if it isn't stored yet. Used by the user detail page. */
-export async function ensureCountry(clerkId: string, profile?: ClerkProfile): Promise<string | null> {
-  if (profile?.country) return profile.country;
-  const country = await sessionCountry(clerkId);
-  if (country) await saveCountry(clerkId, country);
-  return country;
 }
 
 /** Users with no session left are checked again after this long. */

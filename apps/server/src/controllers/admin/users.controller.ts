@@ -2,7 +2,13 @@ import type { Request, Response } from "express";
 import { Prisma } from "@prisma/client";
 import prisma from "../../lib/db";
 import { getCreditBalance, adjustCredits } from "../../lib/credits";
-import { ensureCountry, profilesFor, type ClerkProfile } from "../../lib/clerk-profile";
+import {
+  profilesFor,
+  saveCountry,
+  sessionDevices,
+  type ClerkProfile,
+  type SessionDevice,
+} from "../../lib/clerk-profile";
 import { FEED_SELECT, num, toPositiveInt } from "./_shared";
 
 const SORTABLE = new Set(["createdAt", "email", "plan", "status", "updatedAt"]);
@@ -139,7 +145,7 @@ export class AdminUsersController {
         assetCount,
         kindRows,
         recentTasks,
-        profile,
+        clerk,
       ] = await Promise.all([
         getCreditBalance(id),
         prisma.socialAccount.findMany({
@@ -197,13 +203,14 @@ export class AdminUsersController {
            FROM feed WHERE "userId" = $1 ORDER BY "createdAt" DESC LIMIT 20`,
           id,
         ),
-        this.profileWithCountry(user.clerkId),
+        this.clerkDetails(user.clerkId),
       ]);
 
       return res.json({
         success: true,
         data: {
-          user: { ...user, heardFrom: profile.heardFrom, country: profile.country },
+          user: { ...user, heardFrom: clerk.profile.heardFrom, country: clerk.profile.country },
+          devices: clerk.devices,
           credits,
           socialAccounts,
           creditGrants,
@@ -327,18 +334,32 @@ export class AdminUsersController {
     }
   }
 
-  /** One user's profile, looking up and saving their session country if it isn't stored yet. */
-  private async profileWithCountry(clerkId: string): Promise<ClerkProfile> {
-    const profile = (await this.profilesOrEmpty([clerkId])).get(clerkId) ?? {
-      heardFrom: null,
-      country: null,
-    };
-    try {
-      return { ...profile, country: await ensureCountry(clerkId, profile) };
-    } catch (error) {
-      console.error("[admin] country lookup error:", error);
-      return profile;
+  /**
+   * One user's Clerk profile and live sessions. If no country is stored yet,
+   * the newest session's country is saved now. Either part is null/empty if
+   * Clerk can't be reached, so the page still loads.
+   */
+  private async clerkDetails(
+    clerkId: string,
+  ): Promise<{ profile: ClerkProfile; devices: SessionDevice[] | null }> {
+    const [profiles, devices] = await Promise.all([
+      this.profilesOrEmpty([clerkId]),
+      sessionDevices(clerkId).catch((error) => {
+        console.error("[admin] Clerk sessions lookup error:", error);
+        return null;
+      }),
+    ]);
+    const profile = profiles.get(clerkId) ?? { heardFrom: null, country: null };
+    if (!profile.country) {
+      const country = devices?.find((d) => d.country)?.country;
+      if (country) {
+        saveCountry(clerkId, country).catch((error) =>
+          console.error("[admin] country save error:", error),
+        );
+        return { profile: { ...profile, country }, devices };
+      }
     }
+    return { profile, devices };
   }
 
   /** Live credit balance per user (non-expired grants), keyed by userId. */
