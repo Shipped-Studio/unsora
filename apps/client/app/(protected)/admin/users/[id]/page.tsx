@@ -99,7 +99,8 @@ function UserDetail({ id, data }: { id: string; data: AdminUserDetail }) {
       parents={USERS_CRUMB}
     >
       <p className="text-sm text-muted-foreground">
-        Joined {formatDate(u.createdAt)} · {data.counts.tasks.toLocaleString()} tasks ·{" "}
+        Joined {formatDate(u.createdAt)} · Found via {u.heardFrom ?? "(didn't answer)"} ·{" "}
+        {data.counts.tasks.toLocaleString()} tasks ·{" "}
         {data.counts.assets.toLocaleString()} assets
       </p>
 

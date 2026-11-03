@@ -34,9 +34,9 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { formatDate, titleCase } from "@/lib/admin-format";
 import { cn } from "@/lib/utils";
 
-const COLS = 7;
+const COLS = 8;
 /** Columns folded into the User cell's second line below `md`. */
-const MOBILE_HIDDEN = [1, 3, 4, 5, 6];
+const MOBILE_HIDDEN = [1, 2, 4, 5, 6, 7];
 
 export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
@@ -120,6 +120,7 @@ export default function AdminUsersPage() {
               <TableRow className="hover:bg-transparent">
                 <Th>User</Th>
                 <Th className="hidden md:table-cell">Plan</Th>
+                <Th className="hidden md:table-cell">Found via</Th>
                 <Th>Status</Th>
                 <Th className="hidden text-right md:table-cell">Credits</Th>
                 <Th className="hidden text-right md:table-cell">Tasks</Th>
@@ -155,10 +156,19 @@ export default function AdminUsersPage() {
                         {titleCase(u.plan || "free")} ·{" "}
                         {u.credits.toLocaleString()} credits · Joined{" "}
                         {formatDate(u.createdAt)}
+                        {u.heardFrom ? ` · via ${u.heardFrom}` : null}
                       </div>
                     </Td>
                     <Td className="hidden md:table-cell">
                       {titleCase(u.plan || "free")}
+                    </Td>
+                    <Td
+                      className={cn(
+                        "hidden md:table-cell",
+                        !u.heardFrom && "text-muted-foreground",
+                      )}
+                    >
+                      {u.heardFrom ?? "—"}
                     </Td>
                     <Td>
                       {u.isActive ? (

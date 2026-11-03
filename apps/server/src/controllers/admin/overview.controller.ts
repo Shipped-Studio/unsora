@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import prisma from "../../lib/db";
+import { allHeardFrom } from "../../lib/heard-from";
 import { FEED_SELECT, num, toPositiveInt } from "./_shared";
 
 interface DayCount {
@@ -7,12 +8,23 @@ interface DayCount {
   count: number;
 }
 
+interface SourceRow {
+  source: string;
+  signups: number;
+  /** Signed up in the range and now on a plan or trial. */
+  startedPlan: number;
+}
+
+/** Sign-ups who skipped "How did you hear about Unsora?". */
+const NO_ANSWER = "Didn't answer";
+
 /**
  * GET /api/admin/overview?days=30
  *
  * The landing view of the admin dashboard: headline KPIs, task-status and
  * per-feature breakdowns, connected-account providers, and daily time series
- * for new users / tasks / credit consumption.
+ * for new users / tasks / credit consumption, and where the range's
+ * sign-ups heard about Unsora.
  */
 export class AdminOverviewController {
   async get(req: Request, res: Response) {
@@ -37,6 +49,7 @@ export class AdminOverviewController {
         newUserSeries,
         taskSeries,
         creditSeries,
+        sources,
       ] = await Promise.all([
         prisma.user.count(),
         prisma.user.count({ where: { isActive: true } }),
@@ -67,6 +80,11 @@ export class AdminOverviewController {
         this.dailySeries("users", days),
         this.dailyFeedSeries(days),
         this.dailyCreditsSeries(days),
+        // Answers live in Clerk; if it's unreachable the rest still loads.
+        this.signupSources(since).catch((error) => {
+          console.error("[admin] overview sources error:", error);
+          return null;
+        }),
       ]);
 
       const tasks24hRow = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
@@ -121,6 +139,7 @@ export class AdminOverviewController {
             tasks: taskSeries,
             credits: creditSeries,
           },
+          sources,
         },
       });
     } catch (error) {
@@ -129,6 +148,31 @@ export class AdminOverviewController {
         .status(500)
         .json({ success: false, error: "Failed to load overview" });
     }
+  }
+
+  /** Sign-ups since `since`, grouped by their onboarding answer, most first. */
+  private async signupSources(since: Date): Promise<SourceRow[]> {
+    const [answers, users] = await Promise.all([
+      allHeardFrom(),
+      prisma.user.findMany({
+        where: { createdAt: { gte: since } },
+        select: { clerkId: true, plan: true, isActive: true },
+      }),
+    ]);
+    const rows = new Map<string, SourceRow>();
+    for (const user of users) {
+      const source = answers.get(user.clerkId) ?? NO_ANSWER;
+      const row = rows.get(source) ?? { source, signups: 0, startedPlan: 0 };
+      row.signups += 1;
+      if (user.isActive && user.plan && user.plan !== "free") row.startedPlan += 1;
+      rows.set(source, row);
+    }
+    // Answers first by size; "Didn't answer" last.
+    return [...rows.values()].sort(
+      (a, b) =>
+        Number(a.source === NO_ANSWER) - Number(b.source === NO_ANSWER) ||
+        b.signups - a.signups,
+    );
   }
 
   /** Daily row counts for a table with a `createdAt` column, gaps filled with 0. */

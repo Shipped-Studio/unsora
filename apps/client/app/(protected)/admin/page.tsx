@@ -12,10 +12,15 @@ import {
   kindLabel,
   statusColor,
 } from "@/components/admin/charts";
+import { TableShell, Td, Th } from "@/components/admin/data-table";
+import { PageSection } from "@/components/layout/page-header";
 import { ErrorState } from "@/components/shared/states";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TableBody, TableHeader, TableRow } from "@/components/ui/table";
 import { useAdminOverview } from "@/hooks/admin/use-admin-data";
+import type { SourceCount } from "@/hooks/admin/types";
 import { compactNumber, providerLabel, titleCase } from "@/lib/admin-format";
+import { cn } from "@/lib/utils";
 
 export default function AdminOverviewPage() {
   const [days, setDays] = useState(30);
@@ -137,9 +142,89 @@ export default function AdminOverviewPage() {
               />
             </ChartCard>
           </div>
+
+          <SourcesSection sources={data.sources} days={days} />
         </div>
       )}
     </AdminPage>
+  );
+}
+
+/**
+ * Where the range's sign-ups heard about Unsora, from the onboarding
+ * question, and how many of each went on to start a plan or trial.
+ */
+function SourcesSection({
+  sources,
+  days,
+}: {
+  sources: SourceCount[] | null;
+  days: number;
+}) {
+  const total = sources?.reduce((sum, s) => sum + s.signups, 0) ?? 0;
+
+  return (
+    <PageSection
+      title="How users found us"
+      description={`Answers to "How did you hear about Unsora?" from sign-ups in the last ${days} days`}
+    >
+      {!sources ? (
+        <p className="rounded-xl bg-muted px-4 py-6 text-center text-sm text-muted-foreground">
+          Couldn&apos;t load the answers from Clerk. Refresh to try again.
+        </p>
+      ) : sources.length === 0 ? (
+        <p className="rounded-xl bg-muted px-4 py-6 text-center text-sm text-muted-foreground">
+          No sign-ups in this range.
+        </p>
+      ) : (
+        <TableShell>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <Th>Source</Th>
+              <Th className="text-right">Sign-ups</Th>
+              <Th className="hidden md:table-cell">Share</Th>
+              <Th className="text-right">Started a plan</Th>
+              <Th className="text-right">Rate</Th>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sources.map((s) => {
+              const share = total ? (s.signups / total) * 100 : 0;
+              const rate = s.signups ? Math.round((s.startedPlan / s.signups) * 100) : 0;
+              const skipped = s.source === "Didn't answer";
+              return (
+                <TableRow key={s.source}>
+                  <Td className={cn(skipped && "text-muted-foreground")}>{s.source}</Td>
+                  <Td className="text-right tabular-nums">{s.signups.toLocaleString()}</Td>
+                  <Td className="hidden w-1/3 md:table-cell">
+                    <span className="flex items-center gap-2">
+                      <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-input">
+                        <span
+                          className="block h-full rounded-full bg-chart-1"
+                          style={{ width: `${Math.max(share, s.signups ? 2 : 0)}%` }}
+                        />
+                      </span>
+                      <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">
+                        {Math.round(share)}%
+                      </span>
+                    </span>
+                  </Td>
+                  <Td
+                    className={cn(
+                      "text-right tabular-nums",
+                      s.startedPlan === 0 && "text-muted-foreground",
+                    )}
+                  >
+                    {s.startedPlan.toLocaleString()}
+                  </Td>
+                  <Td className="text-right tabular-nums">{rate}%</Td>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </TableShell>
+      )}
+    </PageSection>
   );
 }
 
