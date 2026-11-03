@@ -83,12 +83,12 @@ export function SetupFrame({
 
 function Stepper({ items }: { items: ProgressItem[] }) {
   return (
-    <ol aria-label="Setup progress" className="hidden items-center gap-3 lg:flex">
+    <ol aria-label="Setup progress" className="hidden items-center gap-2 lg:flex xl:gap-3">
       {items.map((item, i) => (
         <li
           key={item.id}
           aria-current={item.state === "current" ? "step" : undefined}
-          className="flex items-center gap-3"
+          className="flex items-center gap-2 xl:gap-3"
         >
           <span
             aria-hidden

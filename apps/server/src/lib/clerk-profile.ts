@@ -156,17 +156,16 @@ export async function fillCountries(): Promise<{ looked: number; saved: number }
         if (checkedAt && Date.now() - checkedAt < RECHECK_MS) continue;
 
         looked += 1;
-        try {
-          const country = await sessionCountry(user.id);
-          if (country) {
-            await saveCountry(user.id, country);
-            checkedWithoutCountry.delete(user.id);
-            saved += 1;
-          } else {
-            checkedWithoutCountry.set(user.id, Date.now());
-          }
-        } catch (error) {
-          console.error(`[clerk-profile] country lookup failed for ${user.id}:`, error);
+        // A failure here is almost always Clerk rate-limiting or being down.
+        // It throws out of the run, so we stop calling Clerk (the auth
+        // middleware shares the same limit) and pick up again next hour.
+        const country = await sessionCountry(user.id);
+        if (country) {
+          await saveCountry(user.id, country);
+          checkedWithoutCountry.delete(user.id);
+          saved += 1;
+        } else {
+          checkedWithoutCountry.set(user.id, Date.now());
         }
         await new Promise((resolve) => setTimeout(resolve, LOOKUP_GAP_MS));
       }
@@ -187,7 +186,10 @@ export function startCountryFill() {
       .then(({ looked, saved }) => {
         if (looked) console.log(`[clerk-profile] countries: looked up ${looked}, saved ${saved}`);
       })
-      .catch((error) => console.error("[clerk-profile] country fill failed:", error));
+      // Countries saved before the failure are kept; the rest wait for the next run.
+      .catch((error) =>
+        console.error("[clerk-profile] country fill stopped, retrying next hour:", error),
+      );
   setTimeout(run, 30 * 1000).unref();
   setInterval(run, FILL_EVERY_MS).unref();
 }
