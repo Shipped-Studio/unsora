@@ -39,6 +39,7 @@ import {
 } from "@/hooks/use-subscription-plans";
 import { cn } from "@/lib/utils";
 import type { ConnectorApp } from "./connector-app";
+import { HowItWorksLoop, useLoopClock, type Beat } from "./how-it-works-loop";
 import type { SetupContext } from "./setup";
 
 /*
@@ -233,6 +234,97 @@ export function ChannelsStep({ ctx }: { ctx: SetupContext }) {
             <ArrowRight data-icon="inline-end" />
           </Button>
         )}
+      </StepFooter>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------------ */
+
+export function HowToStep({ ctx, app }: { ctx: SetupContext; app: ConnectorApp | null }) {
+  const { t, beat } = useLoopClock();
+  const points: { beat: Beat; title: string; line: string }[] = [
+    { beat: "schedule", title: "Schedule posts", line: "Ask to post a video, now or later." },
+    { beat: "clip", title: "Clip long videos", line: "Paste a link, get captioned shorts." },
+    { beat: "post", title: "Post everywhere", line: "TikTok, Instagram, YouTube and more." },
+  ];
+
+  return (
+    <section className="mx-auto w-full max-w-4xl">
+      <StepHeader
+        title="How it works"
+        lead={`Schedule posts and clip videos, right in ${app ? app.name : "ChatGPT or Claude"}.`}
+      />
+
+      <div className="mt-8 grid items-center gap-5 sm:mt-10 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:gap-12">
+        {/* The app being connected, else ChatGPT as the example. */}
+        <HowItWorksLoop
+          appName={app?.name ?? "ChatGPT"}
+          appIcon={app?.icon ?? OpenAIIcon}
+          t={t}
+        />
+
+        {/* Phones: one live caption under the film instead of the full list. */}
+        <div className="flex items-center gap-4 lg:hidden" aria-hidden>
+          <span className="flex gap-1.5">
+            {points.map((point) => (
+              <span
+                key={point.beat}
+                className={cn(
+                  "h-1.5 rounded-full transition-all duration-300",
+                  point.beat === beat ? "w-5 bg-foreground" : "w-1.5 bg-input",
+                )}
+              />
+            ))}
+          </span>
+          {points
+            .filter((point) => point.beat === beat)
+            .map((point) => (
+              <p key={point.beat} className="animate-in duration-300 fade-in">
+                <span className="font-medium">{point.title}.</span>{" "}
+                <span className="text-muted-foreground">{point.line}</span>
+              </p>
+            ))}
+        </div>
+
+        {/* Screen readers always get the list; sighted phone users get the caption. */}
+        <ol className="sr-only space-y-2 lg:not-sr-only">
+          {points.map((point, i) => {
+            const active = point.beat === beat;
+            return (
+              <li
+                key={point.beat}
+                aria-current={active ? "step" : undefined}
+                className={cn(
+                  "flex items-center gap-4 rounded-2xl p-4 transition-colors duration-300",
+                  active ? "bg-card ring-1 ring-border" : "",
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex size-9 shrink-0 items-center justify-center rounded-full font-display text-sm font-bold transition-colors duration-300",
+                    active ? "bg-brand text-brand-foreground" : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {i + 1}
+                </span>
+                <div>
+                  <p className={cn("font-medium transition-colors", !active && "text-muted-foreground")}>
+                    {point.title}
+                  </p>
+                  <p className="text-sm text-muted-foreground">{point.line}</p>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+
+      <StepFooter back={ctx.back}>
+        <Button size="lg" onClick={ctx.next}>
+          Continue
+          <ArrowRight data-icon="inline-end" />
+        </Button>
       </StepFooter>
     </section>
   );
