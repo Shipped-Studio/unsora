@@ -238,14 +238,23 @@ export class StripeController {
             break;
           }
 
-          // NOTE: We intentionally do NOT auto-cancel a trialing subscription
-          // here just because `cancel_at_period_end = true` was toggled.
-          // - Letting the trial run to completion is what users expect.
-          // - Calling `stripe.subscriptions.cancel` from inside a webhook
-          //   re-fires `customer.subscription.deleted`, doubling the work.
-          // - "Cancel my trial NOW" is an explicit product action and is
-          //   handled by the `cancelTrial` controller endpoint.
+          // Cancelling a trial in the Stripe portal ends it now, not when the
+          // trial would have run out. The portal only sets
+          // `cancel_at_period_end`, so end it here; the
+          // `customer.subscription.deleted` event that follows does the
+          // teardown. Paid plans keep their access until the period ends.
           //
+          // Checks the live subscription (`fullSub`) because Stripe can
+          // redeliver this event after the cancel, when cancelling again
+          // would throw. Skips the sync below either way: writing this
+          // event's trialing state would give a cancelled user access back.
+          if (subscription.status === "trialing" && subscription.cancel_at_period_end) {
+            if (fullSub.status === "trialing" && fullSub.cancel_at_period_end) {
+              await stripe.subscriptions.cancel(fullSub.id);
+            }
+            break;
+          }
+
           // Normal updates (portal changes, proration changes, cancel toggle,
           // plan switches, etc.) just sync DB state.
           // IMPORTANT: do NOT mint or burn credits here. Subscription credit
