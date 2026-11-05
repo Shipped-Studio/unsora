@@ -2,15 +2,16 @@ const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: "Unsora API",
-    version: "1.3.0",
+    version: "1.4.0",
     description:
-      "Public API for Unsora integrations. Use Bearer token from Clerk in Authorization header.",
+      "Public API for Unsora integrations. Authenticate with an Unsora API key (`uns_…`, created under Developers → API keys in the app) as a Bearer token in the Authorization header. Limit: 60 requests per minute per key; over it, 429 with code RATE_LIMIT_EXCEEDED.",
   },
-  servers: [{ url: "/api/v1", description: "Versioned API" }],
+  servers: [
+    { url: "https://mvp.tryunsora.com/api/v1", description: "Production" },
+    { url: "/api/v1", description: "This server" },
+  ],
   tags: [
     { name: "User" },
-    { name: "Connect" },
-    { name: "Stripe" },
     {
       name: "Models",
       description:
@@ -23,6 +24,13 @@ const openApiDocument = {
     { name: "Clipping" },
     { name: "Music" },
     { name: "Voiceover" },
+    { name: "Upscaler" },
+    { name: "Subtitle removal" },
+    { name: "Motion control" },
+    { name: "Avatar" },
+    { name: "Movie materials" },
+    { name: "Voice clones" },
+    { name: "Voice changer" },
     { name: "Uploads" },
     { name: "Scheduler" },
   ],
@@ -31,7 +39,7 @@ const openApiDocument = {
       bearerAuth: {
         type: "http",
         scheme: "bearer",
-        bearerFormat: "JWT",
+        description: "An Unsora API key (`uns_…`). A Clerk session token also works.",
       },
     },
     schemas: {
@@ -77,105 +85,10 @@ const openApiDocument = {
           message: { type: "string" },
         },
       },
-      AuthUrlResponse: {
-        type: "object",
-        properties: {
-          authUrl: { type: "string", format: "uri" },
-        },
-        required: ["authUrl"],
-      },
-      UserProfileData: {
-        type: "object",
-        properties: {
-          id: { type: "string" },
-          clerkId: { type: "string" },
-          email: { type: "string", format: "email" },
-          plan: { type: "string" },
-          isActive: { type: "boolean" },
-          status: { type: "string" },
-          createdAt: { type: "string", format: "date-time" },
-          credits: { type: "number" },
-        },
-        required: [
-          "id",
-          "clerkId",
-          "email",
-          "plan",
-          "isActive",
-          "status",
-          "credits",
-        ],
-      },
-      UserUsageResponse: {
-        type: "object",
-        properties: {
-          success: { type: "boolean" },
-          data: {
-            type: "object",
-            properties: {
-              user: {
-                type: "object",
-                properties: {
-                  id: { type: "string" },
-                  clerkId: { type: "string" },
-                  email: { type: "string", format: "email" },
-                  plan: { type: "string" },
-                  isActive: { type: "boolean" },
-                  status: { type: "string" },
-                  isCancelled: { type: "boolean" },
-                  stripeCurrentPeriodEnd: {
-                    anyOf: [
-                      { type: "string", format: "date-time" },
-                      { type: "null" },
-                    ],
-                  },
-                },
-                required: [
-                  "id",
-                  "clerkId",
-                  "email",
-                  "plan",
-                  "isActive",
-                  "status",
-                  "isCancelled",
-                  "stripeCurrentPeriodEnd",
-                ],
-              },
-              credits: { type: "number" },
-            },
-            required: ["user", "credits"],
-          },
-        },
-        required: ["success", "data"],
-      },
       CreditsResponse: {
         type: "object",
         properties: { credits: { type: "number" } },
         required: ["credits"],
-      },
-      CreditGrant: {
-        type: "object",
-        properties: {
-          id: { type: "string" },
-          source: { type: "string" },
-          amount: { type: "number" },
-          used: { type: "number" },
-          remaining: { type: "number" },
-          expiresAt: {
-            anyOf: [{ type: "string", format: "date-time" }, { type: "null" }],
-          },
-          createdAt: { type: "string", format: "date-time" },
-          reason: { type: "string" },
-        },
-        required: [
-          "id",
-          "source",
-          "amount",
-          "used",
-          "remaining",
-          "createdAt",
-          "reason",
-        ],
       },
       SocialAccount: {
         type: "object",
@@ -212,105 +125,6 @@ const openApiDocument = {
           },
         },
         required: ["success", "data"],
-      },
-      RefreshAccountResponse: {
-        type: "object",
-        properties: {
-          success: { type: "boolean" },
-          message: { type: "string" },
-          data: { $ref: "#/components/schemas/SocialAccount" },
-        },
-        required: ["success", "message", "data"],
-      },
-      SubscriptionResponse: {
-        type: "object",
-        properties: {
-          stripeSubscriptionId: {
-            anyOf: [{ type: "string" }, { type: "null" }],
-          },
-          stripeCustomerId: { anyOf: [{ type: "string" }, { type: "null" }] },
-          stripePriceId: { anyOf: [{ type: "string" }, { type: "null" }] },
-          stripeCurrentPeriodEnd: {
-            anyOf: [{ type: "string", format: "date-time" }, { type: "null" }],
-          },
-          isActive: { type: "boolean" },
-          plan: { type: "string" },
-          status: { type: "string" },
-          isCancelled: { type: "boolean" },
-        },
-        required: [
-          "stripeSubscriptionId",
-          "stripeCustomerId",
-          "stripePriceId",
-          "stripeCurrentPeriodEnd",
-          "isActive",
-          "plan",
-          "status",
-          "isCancelled",
-        ],
-      },
-      CheckoutSessionRequest: {
-        type: "object",
-        properties: {
-          priceId: { type: "string" },
-        },
-        required: ["priceId"],
-      },
-      CheckoutSessionResponse: {
-        type: "object",
-        properties: {
-          url: { type: "string", format: "uri" },
-          success: { type: "boolean" },
-        },
-      },
-      TopupSessionRequest: {
-        type: "object",
-        properties: {
-          packKey: { type: "string" },
-        },
-        required: ["packKey"],
-      },
-      CreditPack: {
-        type: "object",
-        properties: {
-          key: { type: "string" },
-          name: { type: "string" },
-          credits: { type: "number" },
-          priceUsd: { type: "number" },
-          description: { type: "string" },
-          popular: { type: "boolean" },
-        },
-        required: ["key", "name", "credits", "priceUsd", "popular"],
-      },
-      CreditPacksResponse: {
-        type: "object",
-        properties: {
-          success: { type: "boolean" },
-          data: {
-            type: "array",
-            items: { $ref: "#/components/schemas/CreditPack" },
-          },
-        },
-        required: ["success", "data"],
-      },
-      TrialUpgradeResponse: {
-        type: "object",
-        properties: {
-          success: { type: "boolean" },
-          message: { type: "string" },
-          subscription: {
-            type: "object",
-            properties: {
-              id: { type: "string" },
-              status: { type: "string" },
-              plan: { type: "string" },
-              priceId: { type: "string" },
-              credits: { type: "number" },
-            },
-            required: ["id", "status", "plan", "priceId", "credits"],
-          },
-        },
-        required: ["success", "message", "subscription"],
       },
       TikTokCreatorInfoResponse: {
         type: "object",
@@ -371,6 +185,10 @@ const openApiDocument = {
             },
           },
           default: { type: "string" },
+          offLabel: {
+            type: "string",
+            description: "Toggle fields only: what the app shows when the toggle is off (e.g. \"No audio\"), when set.",
+          },
           media: {
             type: "object",
             description: "Media fields only: file kind and how many URLs it takes (1 = a single URL string).",
@@ -388,6 +206,7 @@ const openApiDocument = {
           key: { type: "string", example: "seedance-2.5" },
           label: { type: "string", example: "Seedance 2.5" },
           provider: { type: "string", example: "ByteDance" },
+          icon: { type: "string", example: "/models/bytedance.svg", description: "Path of the provider logo on app.tryunsora.com." },
           category: { type: "string", enum: ["video", "image", "motion-control"] },
           description: { type: "string" },
           isNew: { type: "boolean" },
@@ -433,7 +252,8 @@ const openApiDocument = {
         properties: {
           model: {
             type: "string",
-            description: "Model key from GET /catalog (older names such as `veo` or `kling-pro` also work).",
+            description:
+              "Model key from GET /catalog. Older names listed in the model's `legacyDbModels` (e.g. `veo`, `kling-pro`, `seedance_2.0`) also work. Retired names such as `wan`, `wan_2.6`, `gpt-image-1.5` and `seedream-v5-lite` are rejected here; only POST /videos/create and POST /image-generations/create translate them.",
             example: "seedance-2.5",
           },
           category: {
@@ -536,24 +356,55 @@ const openApiDocument = {
       },
       VideoCreateRequest: {
         type: "object",
-        required: ["prompt"],
+        description:
+          "Fields a model doesn't take are ignored, and anything left out uses the model's own default (see GET /catalog for each model's inputs). snake_case spellings are accepted too: `aspect_ratio`, `negative_prompt`, `generate_audio`, `start_frame`, `last_image`/`end_image`, `reference_images`, `reference_videos`, `reference_audios`.",
         properties: {
-          prompt: { type: "string" },
+          prompt: {
+            type: "string",
+            description:
+              "Required by text-to-video endpoints. Image-to-video and reference endpoints that run from attached media can go without it.",
+          },
           model: {
             type: "string",
             default: "seedance-2.0",
+            enum: [
+              "seedance-2.5",
+              "seedance-2.5-turbo",
+              "seedance-2.0",
+              "seedance-2.0-fast",
+              "seedance-2.0-mini",
+              "veo-3.1",
+              "veo-3.1-fast",
+              "veo-3.1-lite",
+              "gemini-omni-1.1-flash",
+              "kling-o3-pro",
+              "kling-3.0-pro",
+              "kling-3.0-std",
+              "wan-3.0",
+              "grok-imagine-video-1.5",
+              "sora-2",
+              "sora-2-pro",
+            ],
             description:
-              "Any video model key from GET /catalog (e.g. `seedance-2.5`, `veo-3.1-fast`, `kling-o3-pro`). Older names still work: `kling-standard`, `kling-pro`, `veo`, `veo-fast`, `veo-lite`, `sora-2`, `sora-2-pro`, `seedance-2.0(-fast|-mini)`, `gemini-omni-flash`; `wan` maps to Wan 3.0.",
+              "Video model key from GET /catalog. Older names also work: `seedance_2.0`, `veo`, `veo-fast`, `veo-lite`, `kling-pro`, `kling-standard`, `gemini-omni-flash`, `sora_2`, `sora_2_pro`; `wan` and `wan_2.6` run as `wan-3.0`.",
           },
-          duration: { type: "integer", default: 5 },
+          mode: {
+            type: "string",
+            description:
+              "Generation mode, for models that have more than one. `omni_reference` (or `omni`), `first_last_frames` (or `FIRST_AND_LAST_FRAMES_2_VIDEO`) and `REFERENCE_2_VIDEO` (or `reference`). Ignored when the model has no such mode; omitted, the mode is picked from the attached media. `functionMode` is an alias.",
+          },
+          duration: {
+            type: "integer",
+            description: "Length in seconds. Valid values depend on the model.",
+          },
           aspectRatio: {
             type: "string",
-            default: "16:9",
-            description: "Aspect ratio. Valid values depend on the model.",
+            description:
+              "Aspect ratio. Valid values depend on the model; `auto` uses the model's default. Aliases: `aspect`, `ratio`.",
           },
           negativePrompt: {
             type: "string",
-            description: "Not supported by Sora models or Seedance.",
+            description: "What to avoid, for models that take one.",
           },
           resolution: {
             type: "string",
@@ -565,37 +416,46 @@ const openApiDocument = {
             description:
               "Generate audio, for models that offer it. Omitted: the model's default.",
           },
+          generateAudio: {
+            type: "boolean",
+            description: "Alias of `sound`, on every model.",
+          },
           image: {
             type: "string",
             format: "uri",
-            description:
-              "Start image for image-to-video. For Seedance this triggers first/last-frame mode.",
+            description: "Start frame for image-to-video. Alias: `startFrame`.",
           },
           lastImage: {
             type: "string",
             format: "uri",
             description:
-              "End/last image, for models that support start/end frames.",
+              "End frame, for models that support start/end frames. Aliases: `endImage`, `endFrame`.",
+          },
+          filePaths: {
+            type: "array",
+            items: { type: "string", format: "uri" },
+            description: "Start and end frame as a list: the first item is the start frame, the second the end frame.",
+          },
+          imageUrls: {
+            type: "array",
+            items: { type: "string", format: "uri" },
+            description:
+              "Image list. In reference mode these are the reference images; otherwise the first two are the start and end frames.",
           },
           referenceImages: {
             type: "array",
             items: { type: "string", format: "uri" },
-            description:
-              "Reference image URLs (Veo 3.1 reference mode; Seedance omni reference, up to 9; Gemini Omni Flash reference-to-video, up to 4).",
+            description: "Reference image URLs. The maximum count depends on the model.",
           },
           referenceVideos: {
             type: "array",
             items: { type: "string", format: "uri" },
-            description: "Seedance omni reference only — up to 3 video URLs.",
+            description: "Reference video URLs, for models that take them.",
           },
           referenceAudios: {
             type: "array",
             items: { type: "string", format: "uri" },
-            description: "Seedance omni reference only — up to 3 audio URLs.",
-          },
-          generateAudio: {
-            type: "boolean",
-            description: "Alias of `sound`.",
+            description: "Reference audio URLs, for models that take them.",
           },
         },
       },
@@ -607,7 +467,10 @@ const openApiDocument = {
             type: "object",
             properties: {
               id: { type: "string" },
-              status: { type: "string" },
+              status: { type: "string", example: "QUEUED" },
+              model: { type: "string" },
+              mode: { type: "string" },
+              modelId: { type: "string", description: "Provider endpoint the request routed to." },
             },
             required: ["id", "status"],
           },
@@ -647,8 +510,12 @@ const openApiDocument = {
             type: "object",
             properties: {
               id: { type: "string" },
-              model: { type: "string" },
-              status: { type: "string" },
+              model: {
+                anyOf: [{ type: "string" }, { type: "null" }],
+                description:
+                  "The model the job ran on, as stored. Video upscales report `upscale-standard`, `upscale-ultra-1080p` or `upscale-ultra-4k`; subtitle/watermark removal reports `watermark-removal`.",
+              },
+              status: { type: "string", enum: ["QUEUED", "PROCESSING", "COMPLETED", "FAILED"] },
               outputUrl: {
                 anyOf: [{ type: "string", format: "uri" }, { type: "null" }],
               },
@@ -731,27 +598,43 @@ const openApiDocument = {
           createdAt: { type: "string", format: "date-time" },
           updatedAt: { type: "string", format: "date-time" },
           outputAsset: { type: "object", additionalProperties: true },
+          trackNumber: {
+            type: "integer",
+            description: "Your track number: generations are numbered in creation order, the oldest is 1.",
+          },
+          songTitle: {
+            type: "string",
+            description: "Song title: the stored title, or one derived from the lyrics or prompt.",
+          },
         },
         required: ["id", "status", "createdAt"],
       },
       CreateMusicGenerationRequest: {
         type: "object",
+        description: "Send `lyrics` for every model except `mureka-7.5`, which makes background music from `prompt` (or lyrics). Credits per run: `auto`, `mureka-9` and `mureka-8` 3; `mureka-7.6` and `mureka-7.5` 4; `mureka-o2` 6.",
         properties: {
           lyrics: {
             type: "string",
-            description:
-              "Song lyrics (required for song models, up to 3000 chars)",
+            maxLength: 3000,
+            description: "Song lyrics, up to 3,000 characters. Required by every model except `mureka-7.5`.",
           },
           prompt: {
             type: "string",
-            description:
-              "Style prompt — genre, mood, vocal style (up to 1024 chars)",
+            maxLength: 1024,
+            description: "Style: genre, mood, vocal style (up to 1,024 characters).",
           },
           model: {
             type: "string",
             default: "auto",
-            description:
-              "Model key: auto, mureka-9, mureka-8, mureka-o2, mureka-7.6, mureka-7.5",
+            enum: [
+              "auto",
+              "mureka-9",
+              "mureka-8",
+              "mureka-o2",
+              "mureka-7.6",
+              "mureka-7.5",
+            ],
+            description: "`auto` runs Mureka V9. `mureka-7.5` makes background music without vocals.",
           },
           output_format: {
             type: "string",
@@ -877,54 +760,60 @@ const openApiDocument = {
       },
       CreateVoiceoverRequest: {
         type: "object",
+        description: "Credits: Eleven v3 voices 6 per started 1,000 characters; MiniMax preset voices 1 per started 1,000 characters; your cloned voices 3 per started 500 characters (minimum 3).",
         properties: {
           text: {
             type: "string",
             maxLength: 10000,
-            description:
-              "Script to convert to speech (max 10,000 chars). Supports <#x#> tags between words to pause for x seconds (0.01–99.99).",
+            description: "Script to convert to speech (max 10,000 chars). Supports <#x#> tags between words to pause for x seconds (0.01–99.99).",
           },
           voice_id: {
             type: "string",
+            description: "A voice from GET /voiceovers/voices (20 Eleven v3 voices such as `Aria` or `Roger`), a MiniMax preset (`Friendly_Person`, `Wise_Woman`, `Deep_Voice_Man`, `Calm_Woman`, `Casual_Guy`, `Lively_Girl`, `Inspirational_girl`, `Determined_Man`, `Lovely_Girl`, `Elegant_Man`, `English_CaptivatingStoryteller`, `English_ConfidentWoman`), or the id of one of your cloned voices from GET /voice-clones. The voice decides which model runs.",
+          },
+          emotion: {
+            type: "string",
             enum: [
-              "Aria",
-              "Roger",
-              "Sarah",
-              "Laura",
-              "Charlie",
-              "George",
-              "Callum",
-              "River",
-              "Liam",
-              "Charlotte",
-              "Alice",
-              "Matilda",
-              "Will",
-              "Jessica",
-              "Eric",
-              "Chris",
-              "Brian",
-              "Daniel",
-              "Lily",
-              "Bill",
+              "happy",
+              "sad",
+              "angry",
+              "fearful",
+              "disgusted",
+              "surprised",
+              "neutral",
             ],
-            description:
-              "Eleven v3 voice id — see GET /voiceovers/voices for descriptions and preview clips",
+            default: "neutral",
+            description: "Delivery, for MiniMax preset voices. Ignored by Eleven v3 voices.",
+          },
+          speed: {
+            type: "number",
+            minimum: 0.5,
+            maximum: 2,
+            default: 1,
+            description: "Speaking speed.",
+          },
+          output_format: {
+            type: "string",
+            enum: ["mp3", "wav", "flac"],
+            default: "mp3",
+            description: "Audio format. Eleven v3 voices always return mp3.",
           },
           stability: {
             type: "number",
             minimum: 0,
             maximum: 1,
-            default: 0.5,
-            description:
-              "Higher = more consistent delivery, lower = more expressive",
+            description: "Eleven v3 voices only (ignored otherwise). Higher = more consistent delivery, lower = more expressive. Omitted: the provider's default.",
           },
           similarity: {
             type: "number",
             minimum: 0,
             maximum: 1,
-            default: 1,
-            description: "How closely the output sticks to the base voice",
+            description: "Eleven v3 voices only (ignored otherwise). How closely the output sticks to the base voice. Omitted: the provider's default.",
+          },
+          model: {
+            type: "string",
+            enum: ["eleven-v3", "minimax-speech-2.6-hd", "elevenlabs-multilingual-v2"],
+            description: "Validated but not needed: the model follows from `voice_id`.",
           },
         },
         required: ["text", "voice_id"],
@@ -999,7 +888,7 @@ const openApiDocument = {
             type: "object",
             properties: {
               id: { type: "string" },
-              status: { type: "string" },
+              status: { type: "string", enum: ["QUEUED", "PROCESSING", "COMPLETED", "FAILED"] },
               outputUrl: {
                 anyOf: [{ type: "string", format: "uri" }, { type: "null" }],
               },
@@ -1041,13 +930,34 @@ const openApiDocument = {
       ThumbnailListResponse: {
         type: "object",
         properties: {
-          success: { type: "boolean" },
+          success: {
+            type: "boolean",
+          },
           data: {
             type: "array",
-            items: { $ref: "#/components/schemas/ThumbnailRecord" },
+            items: {
+              $ref: "#/components/schemas/ThumbnailRecord",
+            },
+          },
+          pagination: {
+            type: "object",
+            properties: {
+              total: {
+                type: "integer",
+              },
+              page: {
+                type: "integer",
+              },
+              limit: {
+                type: "integer",
+              },
+              totalPages: {
+                type: "integer",
+              },
+            },
           },
         },
-        required: ["success", "data"],
+        required: ["success", "data", "pagination"],
       },
       ThumbnailGetResponse: {
         type: "object",
@@ -1099,7 +1009,7 @@ const openApiDocument = {
           id: {
             type: "string",
             description:
-              "Connected account id from GET /accounts. Alias: accountId. Each account may appear once per post.",
+              "Connected account id from GET /accounts. Alias: accountId. Each account may appear once per post; a repeated id returns 400.",
           },
           customCaption: {
             type: "string",
@@ -1108,7 +1018,7 @@ const openApiDocument = {
           title: {
             type: "string",
             description:
-              "Video title, used by YouTube. Defaults to the first 100 characters of the caption.",
+              "Video title, used by YouTube only. Defaults to the first 100 characters of the caption. For a Pinterest pin title use settings.pinterest.title.",
           },
         },
         required: ["id"],
@@ -1391,7 +1301,7 @@ const openApiDocument = {
             type: "string",
             enum: ["VIDEO", "IMAGE", "CAROUSEL", "TEXT"],
             description:
-              "Overrides the post type inferred from media. Inferred type: no media is TEXT; a video object is VIDEO; a slideshow object is CAROUSEL; an array is CAROUSEL when it has more than one item, VIDEO when its single item is a VIDEO, otherwise IMAGE.",
+              "Overrides the post type inferred from media. Inferred type: no media is TEXT; a video object is VIDEO; a slideshow object is CAROUSEL; an array is VIDEO when any item is a VIDEO, otherwise CAROUSEL when it has more than one IMAGE and IMAGE when it has one. THUMBNAIL items are covers and don't count.",
           },
           scheduled_at: {
             anyOf: [
@@ -1502,6 +1412,10 @@ const openApiDocument = {
           source: {
             type: "string",
             enum: ["UPLOAD", "GENERATION", "PROCESSING", "EXPORT", "SYSTEM"],
+          },
+          folderId: {
+            anyOf: [{ type: "string" }, { type: "null" }],
+            description: "Library folder the file is in, if any.",
           },
           fileSize: {
             anyOf: [{ type: "string" }, { type: "null" }],
@@ -1836,6 +1750,10 @@ const openApiDocument = {
                   type: "object",
                   properties: {
                     postAccountId: { type: "string" },
+                    postId: {
+                      type: "string",
+                      description: "The post, for GET /posts/{id}.",
+                    },
                     platform: {
                       type: "string",
                       description: "Account provider. YouTube is google.",
@@ -1915,105 +1833,379 @@ const openApiDocument = {
         },
         required: ["success", "data"],
       },
+      PostRuleErrorResponse: {
+        type: "object",
+        description: "A post that can't be published as sent.",
+        properties: {
+          success: {
+            type: "boolean",
+          },
+          error: {
+            type: "string",
+            description: "What to fix, in plain words.",
+          },
+          code: {
+            type: "string",
+            description:
+              "Why the post was rejected, e.g. MEDIA_REQUIRED, MEDIA_NOT_ALLOWED, MIXED_MEDIA, CAPTION_REQUIRED, UNSUPPORTED_FORMAT, PLATFORM_RULES, PLATFORM_UNAVAILABLE, ACCOUNT_REQUIRED, POST_PUBLISHED, NOT_RETRYABLE, INVALID_DATE or SCHEDULE_IN_PAST.",
+          },
+          issues: {
+            type: "array",
+            description: "PLATFORM_RULES only: one entry per problem.",
+            items: {
+              type: "object",
+              properties: {
+                provider: {
+                  type: "string",
+                  description: "Platform the problem is on, e.g. instagram.",
+                },
+                level: {
+                  type: "string",
+                  enum: ["error"],
+                },
+                code: {
+                  type: "string",
+                },
+                message: {
+                  type: "string",
+                },
+              },
+            },
+          },
+        },
+        required: ["success", "error", "code"],
+      },
+      UpscaleJobCreateResponse: {
+        type: "object",
+        properties: {
+          success: {
+            type: "boolean",
+          },
+          job: {
+            type: "object",
+            properties: {
+              id: {
+                type: "string",
+              },
+              status: {
+                type: "string",
+                example: "QUEUED",
+              },
+              model: {
+                type: "string",
+                description: "Video upscales only.",
+              },
+            },
+            required: ["id", "status"],
+          },
+          creditsDeducted: {
+            type: "integer",
+          },
+          creditsRemaining: {
+            type: "integer",
+          },
+        },
+        required: ["success", "job"],
+      },
+      GenerationCreateResponse: {
+        type: "object",
+        properties: {
+          success: {
+            type: "boolean",
+          },
+          generation: {
+            type: "object",
+            properties: {
+              id: {
+                type: "string",
+              },
+              status: {
+                type: "string",
+                example: "QUEUED",
+              },
+            },
+            required: ["id", "status"],
+          },
+          creditsDeducted: {
+            type: "integer",
+          },
+          creditsRemaining: {
+            type: "integer",
+          },
+        },
+        required: ["success", "generation"],
+      },
+      VoiceConversionCreateResponse: {
+        type: "object",
+        properties: {
+          success: {
+            type: "boolean",
+          },
+          conversion: {
+            type: "object",
+            properties: {
+              id: {
+                type: "string",
+              },
+              status: {
+                type: "string",
+                example: "QUEUED",
+              },
+            },
+            required: ["id", "status"],
+          },
+          creditsDeducted: {
+            type: "integer",
+          },
+          creditsRemaining: {
+            type: "integer",
+          },
+        },
+        required: ["success", "conversion"],
+      },
+      ImageUpscaleListResponse: {
+        type: "object",
+        properties: {
+          success: {
+            type: "boolean",
+          },
+          jobs: {
+            type: "array",
+            description: "Image upscale jobs, newest first, each with `inputAsset` and `outputAsset`.",
+            items: {
+              type: "object",
+              additionalProperties: true,
+            },
+          },
+          pagination: {
+            $ref: "#/components/schemas/PaginationMeta",
+          },
+        },
+        required: ["success", "jobs", "pagination"],
+      },
+      VideoUpscaleListResponse: {
+        type: "object",
+        properties: {
+          success: {
+            type: "boolean",
+          },
+          jobs: {
+            type: "array",
+            description: "Video upscale jobs, newest first: `originalAsset`, `processedAsset`, `upscaleModel`, `status`, `creditsUsed`.",
+            items: {
+              type: "object",
+              additionalProperties: true,
+            },
+          },
+          pagination: {
+            $ref: "#/components/schemas/PaginationMeta",
+          },
+        },
+        required: ["success", "jobs", "pagination"],
+      },
+      WatermarkRemovalListResponse: {
+        type: "object",
+        properties: {
+          success: {
+            type: "boolean",
+          },
+          videos: {
+            type: "array",
+            description: "Subtitle/watermark removal jobs, newest first: `originalAsset`, `processedAsset`, `durationSeconds`, `status`, `creditsUsed`.",
+            items: {
+              type: "object",
+              additionalProperties: true,
+            },
+          },
+          pagination: {
+            $ref: "#/components/schemas/PaginationMeta",
+          },
+        },
+        required: ["success", "videos", "pagination"],
+      },
+      MotionControlListResponse: {
+        type: "object",
+        properties: {
+          success: {
+            type: "boolean",
+          },
+          generations: {
+            type: "array",
+            description: "Motion-control generations, newest first, with `imageAsset`, `inputAssets` and `outputAsset`.",
+            items: {
+              type: "object",
+              additionalProperties: true,
+            },
+          },
+          pagination: {
+            $ref: "#/components/schemas/PaginationMeta",
+          },
+        },
+        required: ["success", "generations", "pagination"],
+      },
+      AvatarListResponse: {
+        type: "object",
+        properties: {
+          success: {
+            type: "boolean",
+          },
+          generations: {
+            type: "array",
+            description: "Talking-avatar generations, newest first.",
+            items: {
+              type: "object",
+              additionalProperties: true,
+            },
+          },
+          pagination: {
+            $ref: "#/components/schemas/PaginationMeta",
+          },
+        },
+        required: ["success", "generations", "pagination"],
+      },
+      MovieMaterialsListResponse: {
+        type: "object",
+        properties: {
+          success: {
+            type: "boolean",
+          },
+          generations: {
+            type: "array",
+            description: "Movie-material images, newest first: `mode`, `params`, `ratio`, `resolution`, `outputAsset`.",
+            items: {
+              type: "object",
+              additionalProperties: true,
+            },
+          },
+          pagination: {
+            $ref: "#/components/schemas/PaginationMeta",
+          },
+        },
+        required: ["success", "generations", "pagination"],
+      },
+      VoiceConversionListResponse: {
+        type: "object",
+        properties: {
+          success: {
+            type: "boolean",
+          },
+          conversions: {
+            type: "array",
+            description: "Voice-changer jobs, newest first.",
+            items: {
+              type: "object",
+              additionalProperties: true,
+            },
+          },
+          pagination: {
+            $ref: "#/components/schemas/PaginationMeta",
+          },
+        },
+        required: ["success", "conversions", "pagination"],
+      },
+      VoiceClone: {
+        type: "object",
+        properties: {
+          id: {
+            type: "string",
+            description: "Pass as `voice_id` to POST /voiceovers/create, POST /voice-conversions/create or POST /avatar-generations/create.",
+          },
+          name: {
+            type: "string",
+          },
+          description: {
+            anyOf: [
+              {
+                type: "string",
+              },
+              {
+                type: "null",
+              },
+            ],
+          },
+          sampleAsset: {
+            type: "object",
+            additionalProperties: true,
+            description: "The audio sample the clone was made from.",
+          },
+          createdAt: {
+            type: "string",
+            format: "date-time",
+          },
+        },
+      },
+      VoiceCloneListResponse: {
+        type: "object",
+        properties: {
+          success: {
+            type: "boolean",
+          },
+          presets: {
+            type: "array",
+            description: "The 12 MiniMax preset voices.",
+            items: {
+              type: "object",
+              properties: {
+                id: {
+                  type: "string",
+                },
+                label: {
+                  type: "string",
+                },
+              },
+            },
+          },
+          elevenV3Voices: {
+            type: "array",
+            description: "The Eleven v3 voices (also listed by GET /voiceovers/voices).",
+            items: {
+              type: "object",
+              additionalProperties: true,
+            },
+          },
+          clones: {
+            type: "array",
+            items: {
+              $ref: "#/components/schemas/VoiceClone",
+            },
+          },
+          elevenLabsConfigured: {
+            type: "boolean",
+            description: "False when cloning is unavailable on this server.",
+          },
+          maxClones: {
+            type: "integer",
+            example: 10,
+          },
+          cloneCreditCost: {
+            type: "integer",
+            example: 15,
+          },
+        },
+        required: ["success", "presets", "clones"],
+      },
+      VoiceCloneCreateResponse: {
+        type: "object",
+        properties: {
+          success: {
+            type: "boolean",
+          },
+          clone: {
+            $ref: "#/components/schemas/VoiceClone",
+          },
+          creditsDeducted: {
+            type: "integer",
+            example: 15,
+          },
+          creditsRemaining: {
+            type: "integer",
+          },
+        },
+        required: ["success", "clone"],
+      },
     },
   },
   paths: {
-    "/user/sync": {
-      post: {
-        tags: ["User"],
-        summary: "Ensure authenticated user exists in DB",
-        security: [{ bearerAuth: [] }],
-        responses: {
-          "200": {
-            description: "User synced",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    success: { type: "boolean" },
-                    data: {
-                      type: "object",
-                      properties: {
-                        id: { type: "string" },
-                        email: { type: "string", format: "email" },
-                      },
-                      required: ["id", "email"],
-                    },
-                  },
-                  required: ["success", "data"],
-                },
-              },
-            },
-          },
-          "401": {
-            description: "Unauthorized",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/user/profile": {
-      get: {
-        tags: ["User"],
-        summary: "Get authenticated user profile",
-        security: [{ bearerAuth: [] }],
-        responses: {
-          "200": {
-            description: "User profile",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    success: { type: "boolean" },
-                    data: { $ref: "#/components/schemas/UserProfileData" },
-                  },
-                  required: ["success", "data"],
-                },
-              },
-            },
-          },
-          "401": {
-            description: "Unauthorized",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/user/usage": {
-      get: {
-        tags: ["User"],
-        summary: "Get plan and credits usage details",
-        security: [{ bearerAuth: [] }],
-        responses: {
-          "200": {
-            description: "Usage details",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/UserUsageResponse" },
-              },
-            },
-          },
-          "401": {
-            description: "Unauthorized",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
     "/user/credits": {
       get: {
         tags: ["User"],
@@ -2078,620 +2270,6 @@ const openApiDocument = {
           },
           "404": {
             description: "User not found",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/user/credit-grants": {
-      get: {
-        tags: ["User"],
-        summary: "List active credit grants in FIFO order",
-        security: [{ bearerAuth: [] }],
-        responses: {
-          "200": {
-            description: "Active grants",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    success: { type: "boolean" },
-                    data: {
-                      type: "array",
-                      items: { $ref: "#/components/schemas/CreditGrant" },
-                    },
-                  },
-                  required: ["success", "data"],
-                },
-              },
-            },
-          },
-          "401": {
-            description: "Unauthorized",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/connect/google": {
-      get: {
-        tags: ["Connect"],
-        summary: "Get Google OAuth URL",
-        security: [{ bearerAuth: [] }],
-        responses: {
-          "200": {
-            description: "OAuth URL",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/AuthUrlResponse" },
-              },
-            },
-          },
-          "403": {
-            description: "Paid plan required",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/connect/tiktok": {
-      get: {
-        tags: ["Connect"],
-        summary: "Get TikTok OAuth URL",
-        security: [{ bearerAuth: [] }],
-        responses: {
-          "200": {
-            description: "OAuth URL",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/AuthUrlResponse" },
-              },
-            },
-          },
-          "403": {
-            description: "Paid plan required",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/connect/facebook": {
-      get: {
-        tags: ["Connect"],
-        summary: "Get Facebook OAuth URL",
-        security: [{ bearerAuth: [] }],
-        responses: {
-          "200": {
-            description: "OAuth URL",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/AuthUrlResponse" },
-              },
-            },
-          },
-          "403": {
-            description: "Paid plan required",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/connect/instagram": {
-      get: {
-        tags: ["Connect"],
-        summary: "Get Instagram OAuth URL",
-        security: [{ bearerAuth: [] }],
-        responses: {
-          "200": {
-            description: "OAuth URL",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/AuthUrlResponse" },
-              },
-            },
-          },
-          "403": {
-            description: "Paid plan required",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/connect/google/callback": {
-      get: {
-        tags: ["Connect"],
-        summary: "Google OAuth callback",
-        parameters: [
-          {
-            name: "code",
-            in: "query",
-            required: true,
-            schema: { type: "string" },
-          },
-          {
-            name: "state",
-            in: "query",
-            required: true,
-            schema: { type: "string" },
-          },
-        ],
-        responses: {
-          "302": { description: "Redirect to scheduler UI with status" },
-        },
-      },
-    },
-    "/connect/tt/callback": {
-      get: {
-        tags: ["Connect"],
-        summary: "TikTok OAuth callback",
-        parameters: [
-          {
-            name: "code",
-            in: "query",
-            required: false,
-            schema: { type: "string" },
-          },
-          {
-            name: "state",
-            in: "query",
-            required: false,
-            schema: { type: "string" },
-          },
-          {
-            name: "error",
-            in: "query",
-            required: false,
-            schema: { type: "string" },
-          },
-          {
-            name: "error_description",
-            in: "query",
-            required: false,
-            schema: { type: "string" },
-          },
-        ],
-        responses: {
-          "302": { description: "Redirect to scheduler UI with status" },
-        },
-      },
-    },
-    "/connect/facebook/callback": {
-      get: {
-        tags: ["Connect"],
-        summary: "Facebook OAuth callback",
-        parameters: [
-          {
-            name: "code",
-            in: "query",
-            required: true,
-            schema: { type: "string" },
-          },
-          {
-            name: "state",
-            in: "query",
-            required: true,
-            schema: { type: "string" },
-          },
-        ],
-        responses: {
-          "302": { description: "Redirect to scheduler UI with status" },
-        },
-      },
-    },
-    "/connect/instagram/callback": {
-      get: {
-        tags: ["Connect"],
-        summary: "Instagram OAuth callback",
-        parameters: [
-          {
-            name: "code",
-            in: "query",
-            required: true,
-            schema: { type: "string" },
-          },
-          {
-            name: "state",
-            in: "query",
-            required: true,
-            schema: { type: "string" },
-          },
-        ],
-        responses: {
-          "302": { description: "Redirect to scheduler UI with status" },
-        },
-      },
-    },
-    "/connect/accounts": {
-      get: {
-        tags: ["Connect"],
-        summary: "List connected social accounts",
-        security: [{ bearerAuth: [] }],
-        responses: {
-          "200": {
-            description: "Connected accounts list",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/ConnectedAccountsResponse",
-                },
-              },
-            },
-          },
-          "401": {
-            description: "Unauthorized",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/connect/accounts/{accountId}/refresh": {
-      post: {
-        tags: ["Connect"],
-        summary: "Refresh one connected account token",
-        security: [{ bearerAuth: [] }],
-        parameters: [
-          {
-            name: "accountId",
-            in: "path",
-            required: true,
-            schema: { type: "string" },
-          },
-        ],
-        responses: {
-          "200": {
-            description: "Refreshed",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/RefreshAccountResponse" },
-              },
-            },
-          },
-          "400": {
-            description: "Missing token or unsupported provider",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/connect/accounts/{accountId}": {
-      delete: {
-        tags: ["Connect"],
-        summary: "Disconnect one social account",
-        security: [{ bearerAuth: [] }],
-        parameters: [
-          {
-            name: "accountId",
-            in: "path",
-            required: true,
-            schema: { type: "string" },
-          },
-        ],
-        responses: {
-          "200": {
-            description: "Disconnected",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/SuccessMessage" },
-              },
-            },
-          },
-          "404": {
-            description: "Account not found",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/connect/tiktok/{accountId}/creator-info": {
-      get: {
-        tags: ["Connect"],
-        summary: "Get TikTok creator info for connected account",
-        security: [{ bearerAuth: [] }],
-        parameters: [
-          {
-            name: "accountId",
-            in: "path",
-            required: true,
-            schema: { type: "string" },
-          },
-        ],
-        responses: {
-          "200": {
-            description: "Creator info",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/TikTokCreatorInfoResponse",
-                },
-              },
-            },
-          },
-          "404": {
-            description: "TikTok account not found",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/stripe/create-checkout-session": {
-      post: {
-        tags: ["Stripe"],
-        summary: "Create subscription checkout session",
-        security: [{ bearerAuth: [] }],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: { $ref: "#/components/schemas/CheckoutSessionRequest" },
-            },
-          },
-        },
-        responses: {
-          "200": {
-            description: "Checkout URL",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/CheckoutSessionResponse",
-                },
-              },
-            },
-          },
-          "500": {
-            description: "Creation failed",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/stripe/cancel-trial": {
-      post: {
-        tags: ["Stripe"],
-        summary: "Cancel active trial immediately",
-        security: [{ bearerAuth: [] }],
-        responses: {
-          "200": {
-            description: "Trial cancelled",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/SuccessMessage" },
-              },
-            },
-          },
-          "400": {
-            description: "No trial found",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/stripe/get-paid-subscription": {
-      post: {
-        tags: ["Stripe"],
-        summary: "Upgrade trial to paid now",
-        security: [{ bearerAuth: [] }],
-        responses: {
-          "200": {
-            description: "Upgrade successful",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/TrialUpgradeResponse" },
-              },
-            },
-          },
-          "400": {
-            description: "Invalid subscription state",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/stripe/user-subscription": {
-      get: {
-        tags: ["Stripe"],
-        summary: "Get authenticated user subscription snapshot",
-        security: [{ bearerAuth: [] }],
-        responses: {
-          "200": {
-            description: "Subscription object",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/SubscriptionResponse" },
-              },
-            },
-          },
-          "401": {
-            description: "Unauthorized",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/stripe/get-billing-portal-url": {
-      get: {
-        tags: ["Stripe"],
-        summary: "Get Stripe billing portal URL",
-        security: [{ bearerAuth: [] }],
-        responses: {
-          "200": {
-            description: "Billing portal URL",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    url: { type: "string", format: "uri" },
-                  },
-                  required: ["url"],
-                },
-              },
-            },
-          },
-          "400": {
-            description: "No stripe customer on user",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/stripe/credit-packs": {
-      get: {
-        tags: ["Stripe"],
-        summary: "List purchasable top-up packs",
-        security: [{ bearerAuth: [] }],
-        responses: {
-          "200": {
-            description: "Pack catalog",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/CreditPacksResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/stripe/create-topup-session": {
-      post: {
-        tags: ["Stripe"],
-        summary: "Create checkout session for one-time top-up pack",
-        security: [{ bearerAuth: [] }],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: { $ref: "#/components/schemas/TopupSessionRequest" },
-            },
-          },
-        },
-        responses: {
-          "200": {
-            description: "Top-up checkout URL",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    success: { type: "boolean" },
-                    url: { type: "string", format: "uri" },
-                  },
-                  required: ["success", "url"],
-                },
-              },
-            },
-          },
-          "403": {
-            description: "Subscription required for topups",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/stripe/webhook": {
-      post: {
-        tags: ["Stripe"],
-        summary: "Stripe webhook receiver",
-        parameters: [
-          {
-            name: "stripe-signature",
-            in: "header",
-            required: true,
-            schema: { type: "string" },
-          },
-        ],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                additionalProperties: true,
-              },
-            },
-          },
-        },
-        responses: {
-          "200": {
-            description: "Webhook accepted",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    received: { type: "boolean" },
-                  },
-                  required: ["received"],
-                },
-              },
-            },
-          },
-          "400": {
-            description: "Invalid signature",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ErrorResponse" },
@@ -2784,23 +2362,31 @@ const openApiDocument = {
       post: {
         tags: ["Models"],
         summary: "Start a video, image or motion-control generation",
-        description:
-          "Validates the inputs against the model, prices the run live, charges the credits and queues it. Poll GET /video/status/{id} (video and motion control) or GET /image/status/{id} (image). Supports the Idempotency-Key header.",
-        security: [{ bearerAuth: [] }],
+        description: "Validates the inputs against the model, prices the run live, charges the credits and queues it. Poll GET /video/status/{id} (video and motion control) or GET /image/status/{id} (image). Media URLs hosted outside Unsora are imported into your library first (at most 12 per request).",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
         parameters: [
           {
             name: "Idempotency-Key",
             in: "header",
             required: false,
-            schema: { type: "string", maxLength: 128 },
-            description: "Retrying with the same key replays the first response instead of charging again.",
+            schema: {
+              type: "string",
+              maxLength: 128,
+            },
+            description: "API key requests only. Retrying with the same key within 24 hours replays the first response (with the `Idempotent-Replayed: true` header) instead of charging again. The body isn't compared; reusing the key on a different endpoint returns 409 IDEMPOTENCY_CONFLICT. Keys over 128 characters are ignored.",
           },
         ],
         requestBody: {
           required: true,
           content: {
             "application/json": {
-              schema: { $ref: "#/components/schemas/CatalogGenerateRequest" },
+              schema: {
+                $ref: "#/components/schemas/CatalogGenerateRequest",
+              },
             },
           },
         },
@@ -2809,15 +2395,19 @@ const openApiDocument = {
             description: "Generation queued",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/CatalogGenerateResponse" },
+                schema: {
+                  $ref: "#/components/schemas/CatalogGenerateResponse",
+                },
               },
             },
           },
           "400": {
-            description: "Invalid model, mode or inputs, or a media file couldn't be read",
+            description: "Invalid model, mode or inputs; a media file couldn't be read or imported; or more than 12 media URLs hosted outside Unsora (upload them first)",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
               },
             },
           },
@@ -2825,15 +2415,49 @@ const openApiDocument = {
             description: "Insufficient credits",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
               },
             },
           },
           "409": {
-            description: "The live price is above `expectedCredits`; nothing was charged (code PRICE_CHANGED, `credits` holds the new price)",
+            description: "Idempotency-Key already used on a different endpoint (code IDEMPOTENCY_CONFLICT); or the live price is above `expectedCredits`, nothing charged (code PRICE_CHANGED, `credits` holds the new price)",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "502": {
+            description: "The pricing service couldn't be reached; try again",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "503": {
+            description: "Generation is temporarily unavailable (code PROVIDER_UNAVAILABLE), or the job couldn't be started; nothing was charged",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
               },
             },
           },
@@ -2844,14 +2468,31 @@ const openApiDocument = {
       post: {
         tags: ["Video"],
         summary: "Create a video generation (simple shape)",
-        description:
-          "Kept for existing integrations. Takes the fields below, translates them onto the chosen model, and runs through POST /catalog/generate with the same live pricing. New integrations should use /catalog/generate, which exposes every model input.",
-        security: [{ bearerAuth: [] }],
+        description: "Kept for existing integrations. Takes the fields below, translates them onto the chosen model, and runs through POST /catalog/generate with the same live pricing. New integrations should use /catalog/generate, which exposes every model input. Poll GET /video/status/{id}. Media URLs hosted outside Unsora are imported into your library first (at most 12 per request).",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        parameters: [
+          {
+            name: "Idempotency-Key",
+            in: "header",
+            required: false,
+            schema: {
+              type: "string",
+              maxLength: 128,
+            },
+            description: "API key requests only. Retrying with the same key within 24 hours replays the first response (with the `Idempotent-Replayed: true` header) instead of charging again. The body isn't compared; reusing the key on a different endpoint returns 409 IDEMPOTENCY_CONFLICT. Keys over 128 characters are ignored.",
+          },
+        ],
         requestBody: {
           required: true,
           content: {
             "application/json": {
-              schema: { $ref: "#/components/schemas/VideoCreateRequest" },
+              schema: {
+                $ref: "#/components/schemas/VideoCreateRequest",
+              },
             },
           },
         },
@@ -2860,7 +2501,19 @@ const openApiDocument = {
             description: "Generation queued",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/VideoCreateResponse" },
+                schema: {
+                  $ref: "#/components/schemas/VideoCreateResponse",
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid model, mode or inputs; a media file couldn't be read or imported; or more than 12 media URLs hosted outside Unsora (upload them first)",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
               },
             },
           },
@@ -2868,7 +2521,49 @@ const openApiDocument = {
             description: "Insufficient credits",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "409": {
+            description: "Idempotency-Key already used on a different endpoint (code IDEMPOTENCY_CONFLICT)",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "502": {
+            description: "The pricing service couldn't be reached; try again",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "503": {
+            description: "Generation is temporarily unavailable (code PROVIDER_UNAVAILABLE), or the job couldn't be started; nothing was charged",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
               },
             },
           },
@@ -2895,7 +2590,7 @@ const openApiDocument = {
             name: "model",
             in: "query",
             description:
-              "Filter by video model key (e.g. seedance-2.0, veo, kling-pro).",
+              "Filter by video model key from GET /catalog (e.g. `seedance-2.5`, `veo-3.1`). An older name such as `veo` or `kling-pro` matches that model's rows under every name. Use `wan-3.0` for Wan: `wan` and `wan_2.6` only match jobs stored under those old names.",
             schema: { type: "string" },
           },
         ],
@@ -2908,6 +2603,14 @@ const openApiDocument = {
               },
             },
           },
+          "400": {
+            description: "Unknown `model` value; the error lists the valid ones",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
         },
       },
     },
@@ -2915,6 +2618,8 @@ const openApiDocument = {
       delete: {
         tags: ["Video"],
         summary: "Delete a video generation",
+        description:
+          "Deletes the generation record. The video file stays in your library.",
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -2947,14 +2652,21 @@ const openApiDocument = {
     "/video/status/{id}": {
       get: {
         tags: ["Video"],
-        summary: "Get video generation status",
-        security: [{ bearerAuth: [] }],
+        summary: "Poll a video job",
+        description: "One status endpoint for every job that produces a video: video generations (any model), motion control, talking avatars, video upscales and subtitle/watermark removal. Poll every 5 to 10 seconds until `status` is COMPLETED or FAILED.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
         parameters: [
           {
             name: "id",
             in: "path",
             required: true,
-            schema: { type: "string" },
+            schema: {
+              type: "string",
+            },
           },
         ],
         responses: {
@@ -2962,15 +2674,19 @@ const openApiDocument = {
             description: "Status",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/VideoStatusResponse" },
+                schema: {
+                  $ref: "#/components/schemas/VideoStatusResponse",
+                },
               },
             },
           },
           "404": {
-            description: "Not found",
+            description: "Job not found, or not yours",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
               },
             },
           },
@@ -2980,14 +2696,21 @@ const openApiDocument = {
     "/image/status/{id}": {
       get: {
         tags: ["Image"],
-        summary: "Poll image / influencer / thumbnail generation status",
-        security: [{ bearerAuth: [] }],
+        summary: "Poll an image job",
+        description: "One status endpoint for every job that produces an image: image generations, AI influencer images, thumbnails, image upscales and movie materials. The response has no job-type field; you know the type from the endpoint that created the job.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
         parameters: [
           {
             name: "id",
             in: "path",
             required: true,
-            schema: { type: "string" },
+            schema: {
+              type: "string",
+            },
           },
         ],
         responses: {
@@ -2995,15 +2718,19 @@ const openApiDocument = {
             description: "Status",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/ImageStatusResponse" },
+                schema: {
+                  $ref: "#/components/schemas/ImageStatusResponse",
+                },
               },
             },
           },
           "404": {
-            description: "Not found",
+            description: "Job not found, or not yours",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
               },
             },
           },
@@ -3014,16 +2741,22 @@ const openApiDocument = {
       post: {
         tags: ["Image"],
         summary: "Create an image generation (simple shape)",
-        description:
-          "Kept for existing integrations. Takes the fields below, translates them onto the chosen model, and runs through POST /catalog/generate with the same live pricing. New integrations should use /catalog/generate, which exposes every model input.",
-        security: [{ bearerAuth: [] }],
+        description: "Kept for existing integrations. Takes the fields below, translates them onto the chosen model, and runs through POST /catalog/generate with the same live pricing. Fields a model doesn't take are ignored. New integrations should use /catalog/generate, which exposes every model input. Poll GET /image/status/{id}.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
         parameters: [
           {
             name: "Idempotency-Key",
             in: "header",
-            description:
-              "Max 128 chars. Replays the same response for 24h on API key requests.",
-            schema: { type: "string", maxLength: 128 },
+            required: false,
+            schema: {
+              type: "string",
+              maxLength: 128,
+            },
+            description: "API key requests only. Retrying with the same key within 24 hours replays the first response (with the `Idempotent-Replayed: true` header) instead of charging again. The body isn't compared; reusing the key on a different endpoint returns 409 IDEMPOTENCY_CONFLICT. Keys over 128 characters are ignored.",
           },
         ],
         requestBody: {
@@ -3034,32 +2767,42 @@ const openApiDocument = {
                 type: "object",
                 required: ["prompt"],
                 properties: {
-                  prompt: { type: "string" },
+                  prompt: {
+                    type: "string",
+                  },
                   model: {
                     type: "string",
                     default: "nano-banana-2",
-                    description:
-                      "Any image model key from GET /catalog (e.g. `nano-banana-2`, `nano-banana-pro`, `gpt-image-2`, `seedream-5.0-pro`). `gpt-image-1.5` maps to GPT Image 2 and `seedream-v5-lite` to Seedream 5.0 Pro.",
+                    enum: [
+                      "gpt-image-2.5-flare",
+                      "gpt-image-2.5-sunburst",
+                      "gpt-image-2",
+                      "nano-banana-pro",
+                      "nano-banana-2",
+                      "nano-banana-2-lite",
+                      "seedream-5.0-pro",
+                    ],
+                    description: "Image model key from GET /catalog. Older names also work: `gpt_image_2`; `gpt-image-1.5` runs as `gpt-image-2` and `seedream-v5-lite` as `seedream-5.0-pro`.",
                   },
                   aspectRatio: {
                     type: "string",
-                    description:
-                      "Aspect ratio. Valid values depend on the model; `auto` uses the model's default.",
+                    description: "Aspect ratio. Valid values depend on the model; `auto` uses the model's default. Aliases: `aspect`, `aspect_ratio`, `ratio`.",
                   },
                   resolution: {
                     type: "string",
-                    description:
-                      "Output size such as `1k`, `2k` or `4k`, for models that offer it. Other values fall back to the model's default.",
+                    description: "Output size written as a number plus `k` (`1k`, `2k`, `4k`), for models that offer it. Other values (such as `1024x1024`, `basic`, `high`) are ignored and the model's default applies.",
                   },
                   quality: {
                     type: "string",
-                    description: "Quality tier, for models that offer it.",
+                    description: "Quality tier, for models that offer it (see GET /catalog).",
                   },
                   referenceImages: {
                     type: "array",
-                    items: { type: "string", format: "uri" },
-                    description:
-                      "Public HTTPS reference image URLs. The maximum count depends on the model.",
+                    items: {
+                      type: "string",
+                      format: "uri",
+                    },
+                    description: "Reference image URLs. The maximum count depends on the model. Aliases: `referenceImageUrls`, `referenceImageUrl`, `images`.",
                   },
                 },
               },
@@ -3071,7 +2814,19 @@ const openApiDocument = {
             description: "Generation queued",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/CatalogGenerateResponse" },
+                schema: {
+                  $ref: "#/components/schemas/CatalogGenerateResponse",
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid model or inputs; a reference image couldn't be imported; or more than 12 media URLs hosted outside Unsora",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
               },
             },
           },
@@ -3079,7 +2834,49 @@ const openApiDocument = {
             description: "Insufficient credits",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "409": {
+            description: "Idempotency-Key already used on a different endpoint (code IDEMPOTENCY_CONFLICT)",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "502": {
+            description: "The pricing service couldn't be reached; try again",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "503": {
+            description: "Generation is temporarily unavailable (code PROVIDER_UNAVAILABLE), or the job couldn't be started; nothing was charged",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
               },
             },
           },
@@ -3154,6 +2951,8 @@ const openApiDocument = {
       delete: {
         tags: ["Image"],
         summary: "Delete an image generation",
+        description:
+          "Deletes the generation record. The image file stays in your library.",
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -3208,16 +3007,32 @@ const openApiDocument = {
     "/voiceovers/create": {
       post: {
         tags: ["Voiceover"],
-        summary: "Create a script-to-voiceover job (ElevenLabs Eleven v3)",
-        description:
-          "Converts a script (max 10,000 chars) into natural speech using ElevenLabs Eleven v3. " +
-          "Costs 6 credits per started 1,000 characters. Output is always mp3. Poll /voiceovers/status/{id} for the result.",
-        security: [{ bearerAuth: [] }],
+        summary: "Create a script-to-voiceover job",
+        description: "Converts a script (max 10,000 chars) into speech with an Eleven v3 voice, a MiniMax preset voice or one of your cloned voices. Cost depends on the voice: 6 credits per started 1,000 characters for Eleven v3, 1 per started 1,000 for MiniMax presets, 3 per started 500 (minimum 3) for cloned voices. Poll GET /voiceovers/status/{id} for the result.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        parameters: [
+          {
+            name: "Idempotency-Key",
+            in: "header",
+            required: false,
+            schema: {
+              type: "string",
+              maxLength: 128,
+            },
+            description: "API key requests only. Retrying with the same key within 24 hours replays the first response (with the `Idempotent-Replayed: true` header) instead of charging again. The body isn't compared; reusing the key on a different endpoint returns 409 IDEMPOTENCY_CONFLICT. Keys over 128 characters are ignored.",
+          },
+        ],
         requestBody: {
           required: true,
           content: {
             "application/json": {
-              schema: { $ref: "#/components/schemas/CreateVoiceoverRequest" },
+              schema: {
+                $ref: "#/components/schemas/CreateVoiceoverRequest",
+              },
             },
           },
         },
@@ -3232,11 +3047,43 @@ const openApiDocument = {
               },
             },
           },
+          "400": {
+            description: "Missing text or voice_id, unknown voice_id, or an invalid emotion, speed, stability, similarity or output_format",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
           "402": {
             description: "Insufficient credits",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "409": {
+            description: "Idempotency-Key already used on a different endpoint (code IDEMPOTENCY_CONFLICT)",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "503": {
+            description: "Voiceover generation is not configured",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
               },
             },
           },
@@ -3246,7 +3093,9 @@ const openApiDocument = {
     "/voiceovers/status/{id}": {
       get: {
         tags: ["Voiceover"],
-        summary: "Poll voiceover status",
+        summary: "Poll a voiceover or voice-changer job",
+        description:
+          "Voiceovers (POST /voiceovers/create) and voice-changer jobs (POST /voice-conversions/create) both poll here; `voiceId` is the voice used.",
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -3378,6 +3227,18 @@ const openApiDocument = {
         tags: ["Music"],
         summary: "Create a Mureka AI music generation job",
         security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "Idempotency-Key",
+            in: "header",
+            required: false,
+            schema: {
+              type: "string",
+              maxLength: 128,
+            },
+            description: "API key requests only. Retrying with the same key within 24 hours replays the first response (with the `Idempotent-Replayed: true` header) instead of charging again. The body isn't compared; reusing the key on a different endpoint returns 409 IDEMPOTENCY_CONFLICT. Keys over 128 characters are ignored.",
+          },
+        ],
         requestBody: {
           required: true,
           content: {
@@ -3396,6 +3257,14 @@ const openApiDocument = {
                 schema: {
                   $ref: "#/components/schemas/CreateMusicGenerationResponse",
                 },
+              },
+            },
+          },
+          "400": {
+            description: "Missing lyrics (song models), missing both prompt and lyrics, text too long, or an unknown model or output_format",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
               },
             },
           },
@@ -3512,8 +3381,20 @@ const openApiDocument = {
         tags: ["Influencer"],
         summary: "Create AI influencer image jobs",
         description:
-          "Each image in `count` is a separate generation and credit charge. Poll each id with GET /image/status/{id}.",
+          "Each image in `count` is a separate generation and costs 4 credits. Poll each id with GET /image/status/{id}.",
         security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "Idempotency-Key",
+            in: "header",
+            required: false,
+            schema: {
+              type: "string",
+              maxLength: 128,
+            },
+            description: "API key requests only. Retrying with the same key within 24 hours replays the first response (with the `Idempotent-Replayed: true` header) instead of charging again. The body isn't compared; reusing the key on a different endpoint returns 409 IDEMPOTENCY_CONFLICT. Keys over 128 characters are ignored.",
+          },
+        ],
         requestBody: {
           required: true,
           content: {
@@ -3537,6 +3418,7 @@ const openApiDocument = {
                     minimum: 1,
                     maximum: 10,
                     default: 1,
+                    description: "Values outside 1–10 are clamped, not rejected.",
                   },
                   cameraAngle: {
                     type: "string",
@@ -3632,6 +3514,7 @@ const openApiDocument = {
       delete: {
         tags: ["Influencer"],
         summary: "Delete an influencer generation",
+        description: "Deletes one AI influencer image generation.",
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -3668,6 +3551,18 @@ const openApiDocument = {
         description:
           "Generates 16:9 thumbnails. Send at least one of `prompt`, `context`, or reference images. Each variation is a separate generation and credit charge (12 credits each).",
         security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "Idempotency-Key",
+            in: "header",
+            required: false,
+            schema: {
+              type: "string",
+              maxLength: 128,
+            },
+            description: "API key requests only. Retrying with the same key within 24 hours replays the first response (with the `Idempotent-Replayed: true` header) instead of charging again. The body isn't compared; reusing the key on a different endpoint returns 409 IDEMPOTENCY_CONFLICT. Keys over 128 characters are ignored.",
+          },
+        ],
         requestBody: {
           required: true,
           content: {
@@ -3683,7 +3578,7 @@ const openApiDocument = {
                     type: "array",
                     maxItems: 1,
                     description:
-                      "One source for the thumbnail: a YouTube video (`youtube`, reads its title and transcript) or a PDF (`document`, public URL).",
+                      "One source for the thumbnail: a YouTube video (`youtube`, reads its title and transcript) or a PDF (`document`, public URL). Send exactly one item: with more than one, or an item that doesn't parse, the context is ignored without an error.",
                     items: {
                       type: "object",
                       required: ["type", "content"],
@@ -3692,7 +3587,7 @@ const openApiDocument = {
                         content: {
                           type: "string",
                           format: "uri",
-                          description: "The YouTube or document URL.",
+                          description: "The YouTube or document URL. `label` is accepted in its place.",
                         },
                       },
                     },
@@ -3725,13 +3620,14 @@ const openApiDocument = {
                       "determined",
                     ],
                     default: "auto",
-                    description: "Facial expression for the person in the thumbnail.",
+                    description: "Facial expression for the person in the thumbnail. Any other value falls back to `auto`.",
                   },
                   variations: {
                     type: "integer",
                     minimum: 1,
                     maximum: 20,
                     default: 1,
+                    description: "Values outside 1–20 are clamped, not rejected.",
                   },
                 },
               },
@@ -3771,14 +3667,51 @@ const openApiDocument = {
     "/thumbnails": {
       get: {
         tags: ["Thumbnail"],
-        summary: "List thumbnail generations",
-        security: [{ bearerAuth: [] }],
+        summary: "List thumbnail generations (paginated)",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        parameters: [
+          {
+            name: "page",
+            in: "query",
+            schema: {
+              type: "integer",
+              default: 1,
+              minimum: 1,
+            },
+          },
+          {
+            name: "limit",
+            in: "query",
+            schema: {
+              type: "integer",
+              default: 12,
+              minimum: 1,
+              maximum: 100,
+            },
+          },
+        ],
         responses: {
           "200": {
             description: "List",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/ThumbnailListResponse" },
+                schema: {
+                  $ref: "#/components/schemas/ThumbnailListResponse",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
               },
             },
           },
@@ -3854,8 +3787,20 @@ const openApiDocument = {
         tags: ["Clipping"],
         summary: "Create an AI clipping job",
         description:
-          "Finds the best moments in a long video and cuts them into short clips. Credits depend on the source video's length. Poll GET /clippings/status/{clippingId} until the job finishes.",
+          "Finds the best moments in a long video and cuts them into short clips. Costs 4 credits per started minute of source video (minimum 1 minute). Poll GET /clippings/status/{clippingId} until the job finishes.",
         security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "Idempotency-Key",
+            in: "header",
+            required: false,
+            schema: {
+              type: "string",
+              maxLength: 128,
+            },
+            description: "API key requests only. Retrying with the same key within 24 hours replays the first response (with the `Idempotent-Replayed: true` header) instead of charging again. The body isn't compared; reusing the key on a different endpoint returns 409 IDEMPOTENCY_CONFLICT. Keys over 128 characters are ignored.",
+          },
+        ],
         requestBody: {
           required: true,
           content: {
@@ -3873,13 +3818,13 @@ const openApiDocument = {
                     type: "string",
                     enum: ["auto", "lt30", "30-60", "60-90", "90-3min", "gt3min"],
                     default: "auto",
-                    description:
-                      "Clip length: `auto` (up to 90s), under 30s, 30–60s, 60–90s, 90s–3min, or 3–5min.",
+                    description: "Clip length: `auto` (up to 90s), under 30s, 30–60s, 60–90s, 90s–3min, or 3–5min. The raw values `DURATION_0_30`, `DURATION_0_90`, `DURATION_30_60`, `DURATION_60_90`, `DURATION_90_180` and `DURATION_180_300` also work. Ignored when `query` is set.",
                   },
                   ratio: {
                     type: "string",
                     enum: ["9:16", "1:1", "4:5", "16:9", "original"],
                     default: "original",
+                    description: "Clip aspect ratio. `RATIO_9_16`, `RATIO_1_1`, `RATIO_4_5` and `RATIO_16_9` also work.",
                   },
                   limit: {
                     type: "integer",
@@ -3890,22 +3835,62 @@ const openApiDocument = {
                   query: {
                     type: "string",
                     maxLength: 500,
-                    description:
-                      "Describe the moments to find, e.g. `funny reactions`.",
+                    description: "Describe the moments to find, e.g. `funny reactions`. When set, clip length follows the moments and `targetDuration` is ignored.",
                   },
-                  enableCaption: { type: "boolean", default: false },
+                  enableCaption: {
+                    type: "boolean",
+                    default: false,
+                    description: "Burn captions into the clips. Must be the JSON boolean `true`; the string `\"true\"` counts as off.",
+                  },
                   captionStyle: {
                     type: "string",
-                    description:
-                      "Caption preset when `enableCaption` is true, e.g. `classic-yellow`, `bold-white`, `glow-pink`, `gaming-cyan`.",
+                    enum: [
+                      "classic-yellow",
+                      "white-card",
+                      "black-box",
+                      "bold-white",
+                      "white-underline",
+                      "playful-green",
+                      "sketch-blue",
+                      "bubble-blue",
+                      "bubble-green",
+                      "glow-yellow",
+                      "duo-green",
+                      "duo-purple",
+                      "elegant-purple",
+                      "neon-cyan",
+                      "glow-pink",
+                      "bold-yellow",
+                      "soft-orange",
+                      "glow-green",
+                      "glow-orange",
+                      "retro-outline",
+                      "mint-bubble",
+                      "comic-duo",
+                      "static-outline",
+                      "static-comic",
+                      "static-minimal",
+                      "static-green",
+                      "static-yellow",
+                      "static-orange",
+                      "gaming-magenta",
+                      "gaming-green",
+                      "gaming-yellow",
+                      "gaming-white",
+                      "gaming-purple-box",
+                      "gaming-cyan",
+                      "gaming-orange-box",
+                    ],
+                    default: "classic-yellow",
+                    description: "Caption preset, used only when `enableCaption` is true. Raw style ids (`temp-0` to `temp-17`, `temp-static-1` to `temp-static-6`, `game-streamer-1` to `game-streamer-7`, `smart-bg-focus`, `box-highlight`, `word-focus`, `underline-focus`) also work.",
                   },
                   sourceLang: {
                     type: "string",
-                    description: "Language spoken in the video.",
+                    description: "Language spoken in the video, e.g. `en`. Passed to the clipping provider as is.",
                   },
                   targetLang: {
                     type: "string",
-                    description: "Language for the captions.",
+                    description: "Language for the captions, to translate them. Passed to the clipping provider as is.",
                   },
                 },
               },
@@ -3964,13 +3949,30 @@ const openApiDocument = {
       get: {
         tags: ["Clipping"],
         summary: "List clipping jobs",
-        security: [{ bearerAuth: [] }],
+        description: "Every clipping job you own, newest first, each with its clips. Not paginated.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
         responses: {
           "200": {
             description: "List",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/ClippingListResponse" },
+                schema: {
+                  $ref: "#/components/schemas/ClippingListResponse",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
               },
             },
           },
@@ -4005,6 +4007,50 @@ const openApiDocument = {
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/clippings/refresh/{clippingId}": {
+      get: {
+        tags: ["Clipping"],
+        summary: "Poll clipping job status (alias)",
+        description: "Same as GET /clippings/status/{clippingId}.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        parameters: [
+          {
+            name: "clippingId",
+            in: "path",
+            required: true,
+            schema: {
+              type: "string",
+            },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Job with clips",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ClippingGetResponse",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "Not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
               },
             },
           },
@@ -4114,6 +4160,1609 @@ const openApiDocument = {
         },
       },
     },
+    "/image-upscaler/create": {
+      post: {
+        tags: ["Upscaler"],
+        summary: "Upscale an image",
+        description: "Upscales one image. Credits: 2 for 2k, 3 for 4k, 5 for 8k. Poll GET /image/status/{id} with `job.id`.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  imageUrl: {
+                    type: "string",
+                    format: "uri",
+                    description: "Public URL of the image, for example from POST /uploads.",
+                  },
+                  resolution: {
+                    type: "string",
+                    enum: ["2k", "4k", "8k"],
+                    default: "2k",
+                  },
+                },
+                required: ["imageUrl"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Job queued",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/UpscaleJobCreateResponse",
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Missing imageUrl or invalid resolution",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "402": {
+            description: "Insufficient credits",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/image-upscaler/all": {
+      get: {
+        tags: ["Upscaler"],
+        summary: "List image upscales (paginated)",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        parameters: [
+          {
+            name: "page",
+            in: "query",
+            schema: {
+              type: "integer",
+              default: 1,
+              minimum: 1,
+            },
+          },
+          {
+            name: "limit",
+            in: "query",
+            schema: {
+              type: "integer",
+              default: 12,
+              minimum: 1,
+              maximum: 100,
+            },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Paginated list",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ImageUpscaleListResponse",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/image-upscaler/{jobId}": {
+      delete: {
+        tags: ["Upscaler"],
+        summary: "Delete an image upscale",
+        description: "Deletes the job record.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        parameters: [
+          {
+            name: "jobId",
+            in: "path",
+            required: true,
+            schema: {
+              type: "string",
+            },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Deleted",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/SuccessMessage",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "Not found, or not yours",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/video-upscaler/create": {
+      post: {
+        tags: ["Upscaler"],
+        summary: "Upscale a video",
+        description: "Upscales a video up to 25 seconds long. Credits depend on the model and the video's measured length: `standard` 10; `ultra-1080p` 6 up to 5s, 11 up to 10s, 16 longer; `ultra-4k` 22 up to 5s, 43 up to 10s, 64 longer. Poll GET /video/status/{id} with `job.id`.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  videoUrl: {
+                    type: "string",
+                    format: "uri",
+                    description: "Public http(s) URL of the video file (MP4, WebM or MOV).",
+                  },
+                  model: {
+                    type: "string",
+                    enum: ["standard", "ultra-1080p", "ultra-4k"],
+                    default: "standard",
+                  },
+                },
+                required: ["videoUrl"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Job queued",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/UpscaleJobCreateResponse",
+                },
+              },
+            },
+          },
+          "400": {
+            description: "videoUrl isn't an http(s) URL, the video's length can't be read, it's longer than 25 seconds, or the model is unknown",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "402": {
+            description: "Insufficient credits",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/video-upscaler/all": {
+      get: {
+        tags: ["Upscaler"],
+        summary: "List video upscales (paginated)",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        parameters: [
+          {
+            name: "page",
+            in: "query",
+            schema: {
+              type: "integer",
+              default: 1,
+              minimum: 1,
+            },
+          },
+          {
+            name: "limit",
+            in: "query",
+            schema: {
+              type: "integer",
+              default: 12,
+              minimum: 1,
+              maximum: 100,
+            },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Paginated list",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/VideoUpscaleListResponse",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/video-upscaler/{jobId}": {
+      delete: {
+        tags: ["Upscaler"],
+        summary: "Delete a video upscale",
+        description: "Deletes the job record.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        parameters: [
+          {
+            name: "jobId",
+            in: "path",
+            required: true,
+            schema: {
+              type: "string",
+            },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Deleted",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/SuccessMessage",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "Not found, or not yours",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/watermark-removal/create": {
+      post: {
+        tags: ["Subtitle removal"],
+        summary: "Remove burned-in subtitles or a watermark from a video",
+        description: "Erases burned-in text from a video up to 2 minutes long. Costs 1 credit per second, rounded up to the next 10 seconds (a 23-second video costs 30). Poll GET /video/status/{id} with an id from `videoIds`.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["videoUrl"],
+                properties: {
+                  videoUrl: {
+                    type: "string",
+                    format: "uri",
+                    description: "Direct http(s) URL of the video file (e.g. .mp4). Upload it with POST /uploads first if needed.",
+                  },
+                  name: {
+                    type: "string",
+                    description: "Display name. Defaults to the file name from the URL.",
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Job queued",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: {
+                      type: "boolean",
+                    },
+                    videoIds: {
+                      type: "array",
+                      items: {
+                        type: "string",
+                      },
+                      description: "Job ids to poll with GET /video/status/{id} (one per video).",
+                    },
+                    jobIds: {
+                      type: "array",
+                      items: {
+                        type: "string",
+                      },
+                      description: "Internal queue ids.",
+                    },
+                    message: {
+                      type: "string",
+                    },
+                    estimatedTime: {
+                      type: "string",
+                    },
+                    videosCount: {
+                      type: "integer",
+                    },
+                    operations: {
+                      type: "array",
+                      items: {
+                        type: "string",
+                      },
+                    },
+                    creditsDeducted: {
+                      type: "integer",
+                    },
+                    creditsRemaining: {
+                      type: "integer",
+                    },
+                  },
+                  required: ["success", "videoIds"],
+                },
+              },
+            },
+          },
+          "400": {
+            description: "videoUrl isn't an http(s) URL, the video's length can't be read, or it's longer than 2 minutes",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "402": {
+            description: "Insufficient credits",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/watermark-removal/all": {
+      get: {
+        tags: ["Subtitle removal"],
+        summary: "List subtitle/watermark removals (paginated)",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        parameters: [
+          {
+            name: "page",
+            in: "query",
+            schema: {
+              type: "integer",
+              default: 1,
+              minimum: 1,
+            },
+          },
+          {
+            name: "limit",
+            in: "query",
+            schema: {
+              type: "integer",
+              default: 12,
+              minimum: 1,
+              maximum: 100,
+            },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Paginated list",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/WatermarkRemovalListResponse",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/watermark-removal/{videoId}": {
+      delete: {
+        tags: ["Subtitle removal"],
+        summary: "Delete a subtitle/watermark removal",
+        description: "Deletes the job record.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        parameters: [
+          {
+            name: "videoId",
+            in: "path",
+            required: true,
+            schema: {
+              type: "string",
+            },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Deleted",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/SuccessMessage",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "Not found, or not yours",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/motion-control/create": {
+      post: {
+        tags: ["Motion control"],
+        summary: "Animate a character with a reference video",
+        description: "Makes the character in an image perform the motion from a reference video. Runs through POST /catalog/generate with live pricing; price a run first with POST /catalog/quote, and see each model's inputs with GET /catalog?category=motion-control. Poll GET /video/status/{id}.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        parameters: [
+          {
+            name: "Idempotency-Key",
+            in: "header",
+            required: false,
+            schema: {
+              type: "string",
+              maxLength: 128,
+            },
+            description: "API key requests only. Retrying with the same key within 24 hours replays the first response (with the `Idempotent-Replayed: true` header) instead of charging again. The body isn't compared; reusing the key on a different endpoint returns 409 IDEMPOTENCY_CONFLICT. Keys over 128 characters are ignored.",
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  model: {
+                    type: "string",
+                    enum: [
+                      "kling-mc-3.0-pro",
+                      "kling-mc-3.0-std",
+                      "kling-mc-2.6-pro",
+                      "wan-2.2-animate",
+                      "dreamactor-v2",
+                    ],
+                    default: "kling-mc-3.0-pro",
+                  },
+                  character_image_url: {
+                    type: "string",
+                    format: "uri",
+                    description: "Image of the character. Aliases: `characterImageUrl`, `image`.",
+                  },
+                  motion_video_url: {
+                    type: "string",
+                    format: "uri",
+                    description: "Video whose motion the character copies. Aliases: `motionVideoUrl`, `video`.",
+                  },
+                  prompt: {
+                    type: "string",
+                    description: "Optional guidance, for models that take one.",
+                  },
+                  keep_sound: {
+                    type: "boolean",
+                    description: "Keep the reference video's audio, for models that offer it. Aliases: `keepSound`, `keep_original_sound`.",
+                  },
+                  character_orientation: {
+                    type: "string",
+                    description: "Which way the character faces, for models that offer it; values per model in GET /catalog. Alias: `characterOrientation`.",
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Generation queued",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/CatalogGenerateResponse",
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid model or inputs, or a media file couldn't be imported",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "402": {
+            description: "Insufficient credits",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "409": {
+            description: "Idempotency-Key already used on a different endpoint (code IDEMPOTENCY_CONFLICT)",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "502": {
+            description: "The pricing service couldn't be reached; try again",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "503": {
+            description: "Generation is temporarily unavailable (code PROVIDER_UNAVAILABLE)",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/motion-control/all": {
+      get: {
+        tags: ["Motion control"],
+        summary: "List motion-control generations (paginated)",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        parameters: [
+          {
+            name: "page",
+            in: "query",
+            schema: {
+              type: "integer",
+              default: 1,
+              minimum: 1,
+            },
+          },
+          {
+            name: "limit",
+            in: "query",
+            schema: {
+              type: "integer",
+              default: 12,
+              minimum: 1,
+              maximum: 100,
+            },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Paginated list",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/MotionControlListResponse",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/motion-control/{generationId}": {
+      delete: {
+        tags: ["Motion control"],
+        summary: "Delete a motion-control generation",
+        description: "Deletes the generation record.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        parameters: [
+          {
+            name: "generationId",
+            in: "path",
+            required: true,
+            schema: {
+              type: "string",
+            },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Deleted",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/SuccessMessage",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "Not found, or not yours",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/avatar-generations/create": {
+      post: {
+        tags: ["Avatar"],
+        summary: "Make a talking avatar video",
+        description: "Animates a portrait so it speaks a script (read in `voice_id`) or an audio file. Speech can be up to 20 seconds. Costs 10 credits. Poll GET /video/status/{id} with `generation.id`.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  image_url: {
+                    type: "string",
+                    format: "uri",
+                    description: "Portrait image. Send this or `image_asset_id`.",
+                  },
+                  image_asset_id: {
+                    type: "string",
+                    description: "An IMAGE asset of yours (e.g. from POST /uploads) instead of `image_url`.",
+                  },
+                  transcript: {
+                    type: "string",
+                    maxLength: 2000,
+                    description: "What the avatar says, read in `voice_id`. Send this or `audio_url`; it must fit in 20 seconds of speech.",
+                  },
+                  audio_url: {
+                    type: "string",
+                    format: "uri",
+                    description: "Speech audio (MP3, WAV or M4A) up to 20 seconds, instead of `transcript`.",
+                  },
+                  voice_id: {
+                    type: "string",
+                    default: "Friendly_Person",
+                    description: "Voice for `transcript`: a MiniMax preset, an Eleven v3 voice, or one of your cloned voices (see GET /voice-clones).",
+                  },
+                  emotion: {
+                    type: "string",
+                    enum: [
+                      "happy",
+                      "sad",
+                      "angry",
+                      "fearful",
+                      "disgusted",
+                      "surprised",
+                      "neutral",
+                    ],
+                    default: "neutral",
+                  },
+                  prompt: {
+                    type: "string",
+                    description: "Optional direction for the performance.",
+                  },
+                  resolution: {
+                    type: "string",
+                    enum: ["480p", "720p"],
+                    default: "720p",
+                  },
+                  model: {
+                    type: "string",
+                    enum: ["skyreels-v3"],
+                    default: "skyreels-v3",
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Job queued",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/GenerationCreateResponse",
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Missing portrait, missing both transcript and audio, speech longer than 20 seconds, or an invalid voice, emotion, resolution or model",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "402": {
+            description: "Insufficient credits",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "503": {
+            description: "Avatar generation (or the chosen voice's provider) is not configured",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/avatar-generations/all": {
+      get: {
+        tags: ["Avatar"],
+        summary: "List talking-avatar videos (paginated)",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        parameters: [
+          {
+            name: "page",
+            in: "query",
+            schema: {
+              type: "integer",
+              default: 1,
+              minimum: 1,
+            },
+          },
+          {
+            name: "limit",
+            in: "query",
+            schema: {
+              type: "integer",
+              default: 12,
+              minimum: 1,
+              maximum: 100,
+            },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Paginated list",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/AvatarListResponse",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/avatar-generations/{generationId}": {
+      delete: {
+        tags: ["Avatar"],
+        summary: "Delete a talking-avatar video",
+        description: "Deletes the generation record.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        parameters: [
+          {
+            name: "generationId",
+            in: "path",
+            required: true,
+            schema: {
+              type: "string",
+            },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Deleted",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/SuccessMessage",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "Not found, or not yours",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/movie-materials/create": {
+      post: {
+        tags: ["Movie materials"],
+        summary: "Make a pre-production image for a film",
+        description: "Generates one reference image for a script: a character's face, full body or turnaround sheet, a location, a first frame, a style collage, or a storyboard. Costs 3 credits at 1k, 4 at 2k, 6 at 4k. Poll GET /image/status/{id} with `generation.id`.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  prompt: {
+                    type: "string",
+                    description: "Description of the character, place or scene.",
+                  },
+                  mode: {
+                    type: "string",
+                    enum: [
+                      "face",
+                      "wide-body",
+                      "sheet",
+                      "location",
+                      "first-frame",
+                      "style-collage",
+                      "multishot-2x4",
+                      "multishot-1x4",
+                    ],
+                    description: "`face` close-up portrait; `wide-body` full body; `sheet` character turnaround; `location` set reference; `first-frame` opening shot; `style-collage` look and feel; `multishot-2x4` and `multishot-1x4` storyboard grids.",
+                  },
+                  params: {
+                    type: "object",
+                    additionalProperties: {
+                      type: "string",
+                    },
+                    description: "Optional per-mode settings: `cinematography` (every mode, default `cinematic`); `age` (default `adult`) and `gender` (default `female`) for `face`; `camera-angle` (default `eye-level`) for `first-frame`; `color-palette` (default `warm`), `lighting-mood` (default `natural`) and `era-vibe` (default `modern`) for `style-collage`.",
+                  },
+                  ratio: {
+                    type: "string",
+                    enum: ["auto", "1:1", "9:16", "16:9", "4:3", "3:4"],
+                    default: "16:9",
+                  },
+                  resolution: {
+                    type: "string",
+                    enum: ["1k", "2k", "4k"],
+                    default: "2k",
+                  },
+                  referenceImageUrls: {
+                    type: "array",
+                    maxItems: 14,
+                    items: {
+                      type: "string",
+                      format: "uri",
+                    },
+                    description: "Up to 14 reference images, e.g. of the actor or the set.",
+                  },
+                },
+                required: ["prompt", "mode"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Job queued",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/GenerationCreateResponse",
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Missing prompt, or an invalid mode, ratio or resolution, or more than 14 reference images",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "402": {
+            description: "Insufficient credits",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/movie-materials/all": {
+      get: {
+        tags: ["Movie materials"],
+        summary: "List movie-material images (paginated)",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        parameters: [
+          {
+            name: "page",
+            in: "query",
+            schema: {
+              type: "integer",
+              default: 1,
+              minimum: 1,
+            },
+          },
+          {
+            name: "limit",
+            in: "query",
+            schema: {
+              type: "integer",
+              default: 20,
+              minimum: 1,
+              maximum: 100,
+            },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Paginated list",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/MovieMaterialsListResponse",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/movie-materials/{generationId}": {
+      delete: {
+        tags: ["Movie materials"],
+        summary: "Delete a movie-material image",
+        description: "Deletes the generation record.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        parameters: [
+          {
+            name: "generationId",
+            in: "path",
+            required: true,
+            schema: {
+              type: "string",
+            },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Deleted",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/SuccessMessage",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "Not found, or not yours",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/voice-clones": {
+      get: {
+        tags: ["Voice clones"],
+        summary: "List voices you can use",
+        description: "The MiniMax preset voices, the Eleven v3 voices, and your cloned voices. Any of their ids works as `voice_id` in POST /voiceovers/create and POST /avatar-generations/create; POST /voice-conversions/create takes cloned voices only.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Voices",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/VoiceCloneListResponse",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/voice-clones/create": {
+      post: {
+        tags: ["Voice clones"],
+        summary: "Clone a voice from a sample",
+        description: "Makes an instant voice clone from a recording of one person speaking. Costs 15 credits. You can keep up to 10 clones.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  name: {
+                    type: "string",
+                    maxLength: 80,
+                  },
+                  description: {
+                    type: "string",
+                    maxLength: 500,
+                  },
+                  sample_url: {
+                    type: "string",
+                    format: "uri",
+                    description: "Audio or video of the voice. Send this or `sample_asset_id`.",
+                  },
+                  sample_asset_id: {
+                    type: "string",
+                    description: "One of your AUDIO or VIDEO assets (e.g. from POST /uploads) instead of `sample_url`.",
+                  },
+                },
+                required: ["name"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Job queued",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/VoiceCloneCreateResponse",
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Missing name or sample, name or description too long, an invalid or empty sample, or already 10 clones",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "402": {
+            description: "Insufficient credits",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "503": {
+            description: "Voice cloning is not configured",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/voice-clones/{cloneId}": {
+      delete: {
+        tags: ["Voice clones"],
+        summary: "Delete a cloned voice",
+        description: "Deletes the clone. It can no longer be used as a `voice_id`.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        parameters: [
+          {
+            name: "cloneId",
+            in: "path",
+            required: true,
+            schema: {
+              type: "string",
+            },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Deleted",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/SuccessMessage",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "Voice clone not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/voice-conversions/create": {
+      post: {
+        tags: ["Voice changer"],
+        summary: "Re-voice a recording with a cloned voice",
+        description: "Speech-to-speech: keeps the words and timing of a recording and swaps the voice for one of your clones. Audio up to 5 minutes. Costs 10 credits per minute, rounded up (minimum 1). Poll GET /voiceovers/status/{id} with `conversion.id`.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["voice_id"],
+                properties: {
+                  voice_id: {
+                    type: "string",
+                    description: "Id of one of your cloned voices (GET /voice-clones). Preset voices are rejected.",
+                  },
+                  source_url: {
+                    type: "string",
+                    format: "uri",
+                    description: "Recording to re-voice. Send this or `source_asset_id`.",
+                  },
+                  source_asset_id: {
+                    type: "string",
+                    description: "One of your AUDIO or VIDEO assets instead of `source_url`.",
+                  },
+                  output_format: {
+                    type: "string",
+                    enum: ["mp3", "wav"],
+                    default: "mp3",
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Job queued",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/VoiceConversionCreateResponse",
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Missing voice_id or source, a voice that isn't your clone, an invalid output_format, or audio longer than 5 minutes",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "402": {
+            description: "Insufficient credits",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+          "503": {
+            description: "Voice conversion is not configured",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/voice-conversions/all": {
+      get: {
+        tags: ["Voice changer"],
+        summary: "List voice-changer jobs (paginated)",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        parameters: [
+          {
+            name: "page",
+            in: "query",
+            schema: {
+              type: "integer",
+              default: 1,
+              minimum: 1,
+            },
+          },
+          {
+            name: "limit",
+            in: "query",
+            schema: {
+              type: "integer",
+              default: 12,
+              minimum: 1,
+              maximum: 100,
+            },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Paginated list",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/VoiceConversionListResponse",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/voice-conversions/{conversionId}": {
+      delete: {
+        tags: ["Voice changer"],
+        summary: "Delete a voice-changer job",
+        description: "Deletes the job record.",
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+        parameters: [
+          {
+            name: "conversionId",
+            in: "path",
+            required: true,
+            schema: {
+              type: "string",
+            },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Deleted",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/SuccessMessage",
+                },
+              },
+            },
+          },
+          "404": {
+            description: "Not found, or not yours",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorResponse",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
     "/uploads": {
       post: {
         tags: ["Uploads"],
@@ -4179,6 +5828,8 @@ const openApiDocument = {
       get: {
         tags: ["Uploads"],
         summary: "List your uploaded media",
+        description:
+          "Files you uploaded or imported, plus media URLs you passed to POST /posts (those are stored as uploads too). Generated media isn't included.",
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -4278,6 +5929,10 @@ const openApiDocument = {
                           type: "string",
                           description: "Pass to POST /uploads/complete.",
                         },
+                        note: {
+                          type: "string",
+                          description: "A reminder of the next steps.",
+                        },
                       },
                     },
                   },
@@ -4329,6 +5984,14 @@ const openApiDocument = {
               },
             },
           },
+          "403": {
+            description: "`blobName` is outside your own upload folder",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
         },
       },
     },
@@ -4336,7 +5999,8 @@ const openApiDocument = {
       delete: {
         tags: ["Uploads"],
         summary: "Delete an uploaded asset",
-        description: "Deletes the asset record and removes the stored file.",
+        description:
+          "Deletes the asset record, then the stored file. An upload that any post still uses (scheduled or published) can't be deleted: the request returns 409 until those posts are deleted.",
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -4350,6 +6014,14 @@ const openApiDocument = {
           "200": { description: "Deleted" },
           "404": {
             description: "Not found",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "409": {
+            description: "A post still uses this upload. Delete the post first.",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ErrorResponse" },
@@ -4481,9 +6153,13 @@ const openApiDocument = {
           "Per-platform options go in `settings` (or in top-level `instagram`, `tiktok`, " +
           "`youtube`, `pinterest` and `google_business` objects); each account receives only the options for its " +
           "own platform. " +
-          "Media, post type and account platforms are not cross-checked here. POST " +
-          "/posts/{id}/publish and /retry check them before starting; a scheduled post is " +
-          "published without that check and failures are recorded per account. " +
+          "A scheduled post is checked when it is created: media must match the post type, the caption " +
+          "must be there when the type needs one, every platform must support the type, and each " +
+          "platform's limits (caption length, image count, video length and size) must hold. A failed " +
+          "check returns 400 with a `code` and, for platform limits, `issues`. Problems Unsora can fix " +
+          "itself, such as an aspect ratio a platform rejects or a non-JPEG image for Instagram, are " +
+          "fixed at publish time (padded or converted) instead of rejected. Drafts are checked when you publish them. " +
+          "Media URLs you send are stored as uploads (they appear in GET /uploads). " +
           "Idempotency applies only to requests authenticated with an API key: send an " +
           "`Idempotency-Key` header, or `external_id` in the body when the header is absent. " +
           "The first 201 response is stored for 24 hours and returned again for the same key " +
@@ -4538,10 +6214,10 @@ const openApiDocument = {
           },
           "400": {
             description:
-              "Invalid request body. `error` describes the first problem found (for example a missing caption, more than 10 accounts, scheduled_at less than 2 minutes ahead, or an unsupported settings key).",
+              "Invalid request body (`error` describes the first problem: a missing caption, more than 10 accounts, the same account twice, scheduled_at less than 2 minutes ahead, an unsupported settings key), or a scheduled post that fails a publishing check (`code` MEDIA_REQUIRED, MEDIA_NOT_ALLOWED, MIXED_MEDIA, CAPTION_REQUIRED, UNSUPPORTED_FORMAT, PLATFORM_RULES with `issues`, or PLATFORM_UNAVAILABLE).",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
+                schema: { $ref: "#/components/schemas/PostRuleErrorResponse" },
               },
             },
           },
@@ -4636,8 +6312,10 @@ const openApiDocument = {
         description:
           "Aggregates engagement metrics for posts published in the last `days` days, counted " +
           "per account. Each post contributes its latest stored metrics snapshot. Snapshots are " +
-          "polled from the platforms every 6 hours for posts published in the last 90 days, and " +
-          "on demand with POST /posts/analytics/refresh.",
+          "polled less often as a post ages: every 6 hours for its first 48 hours, then daily " +
+          "up to 7 days, every 3 days up to 30 days, and weekly up to 90 days. X posts are " +
+          "polled every 12 hours, then every 2 days, then weekly, and stop at 30 days. Use " +
+          "POST /posts/analytics/refresh for fresh figures.",
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -4677,7 +6355,8 @@ const openApiDocument = {
           "Polls the platforms for current metrics of the caller's posts published in the last " +
           "90 days (YouTube, TikTok, Instagram, Facebook, Threads, Pinterest, LinkedIn, Bluesky, " +
           "X, Google Business Profile) " +
-          "and stores a snapshot for each. The response is returned after polling finishes. " +
+          "and stores a snapshot for each. Posts read in the last 15 minutes (3 hours for X) " +
+          "are skipped. The response is returned after polling finishes. " +
           "Accounts whose platform request fails are skipped. Call GET " +
           "/posts/analytics/summary afterwards for the updated figures.",
         security: [{ bearerAuth: [] }],
@@ -4743,10 +6422,13 @@ const openApiDocument = {
         tags: ["Scheduler"],
         summary: "Update a post",
         description:
-          "Updates the caption, schedule or accounts of a post that is not PUBLISHED. Only the " +
-          "fields sent are changed. Media, post type and platform settings can't be changed " +
-          "here. The 2-minute minimum lead time of POST /posts is not enforced; a time in the " +
-          "past is picked up by the next scheduler run. Requires an active paid plan.",
+          "Updates the caption, schedule, time zone or accounts of a post that is not PUBLISHED. " +
+          "Only `mainCaption`, `scheduledFor`, `timezone` and `accounts` are read, and only the fields " +
+          "sent are changed. Media, post type and platform settings can't be changed: delete the post " +
+          "and create a new one. The create-time spellings `caption`, `scheduled_at` and `accounts[].id` " +
+          "are not accepted here, and the 10-account limit of POST /posts isn't applied. " +
+          "`scheduledFor` must be at least 1 minute in the future (400 SCHEDULE_IN_PAST). " +
+          "Requires an active paid plan.",
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -4775,7 +6457,7 @@ const openApiDocument = {
           },
           "400": {
             description:
-              "Invalid field, or the post is PUBLISHED and can't be edited.",
+              "Invalid field, `scheduledFor` less than 1 minute ahead (code SCHEDULE_IN_PAST), or the post is PUBLISHED and can't be edited.",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ErrorResponse" },
@@ -4814,7 +6496,8 @@ const openApiDocument = {
         summary: "Delete a post",
         description:
           "Deletes the post and its per-account records. Content already published on a " +
-          "platform is not removed from that platform. Requires an active paid plan.",
+          "platform is not removed from that platform. Works without a paid plan, so a lapsed " +
+          "account can still clear its queue.",
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -4830,14 +6513,6 @@ const openApiDocument = {
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/SuccessMessage" },
-              },
-            },
-          },
-          "403": {
-            description: "PLAN_REQUIRED: no active paid plan.",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
               },
             },
           },
@@ -4897,10 +6572,10 @@ const openApiDocument = {
           },
           "400": {
             description:
-              "The post can't be published. `code` is POST_PUBLISHED (the post, or every account on it, is already published), ACCOUNT_REQUIRED, MEDIA_REQUIRED, MEDIA_NOT_ALLOWED, MIXED_MEDIA, CAPTION_REQUIRED or UNSUPPORTED_FORMAT.",
+              "The post can't be published. `code` is POST_PUBLISHED (the post, or every account on it, is already published), ACCOUNT_REQUIRED, MEDIA_REQUIRED, MEDIA_NOT_ALLOWED, MIXED_MEDIA, CAPTION_REQUIRED, UNSUPPORTED_FORMAT, PLATFORM_RULES (a platform limit is broken; see `issues`) or PLATFORM_UNAVAILABLE (a platform on the post is switched off).",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
+                schema: { $ref: "#/components/schemas/PostRuleErrorResponse" },
               },
             },
           },
@@ -4960,10 +6635,10 @@ const openApiDocument = {
           },
           "400": {
             description:
-              "The post can't be retried. `code` is NOT_RETRYABLE (the post is DRAFT or SCHEDULED), POST_PUBLISHED, ACCOUNT_REQUIRED, MEDIA_REQUIRED, MEDIA_NOT_ALLOWED, MIXED_MEDIA, CAPTION_REQUIRED or UNSUPPORTED_FORMAT.",
+              "The post can't be retried. `code` is NOT_RETRYABLE (the post is DRAFT or SCHEDULED), POST_PUBLISHED, ACCOUNT_REQUIRED, MEDIA_REQUIRED, MEDIA_NOT_ALLOWED, MIXED_MEDIA, CAPTION_REQUIRED, UNSUPPORTED_FORMAT, PLATFORM_RULES (a platform limit is broken; see `issues`) or PLATFORM_UNAVAILABLE (a platform on the post is switched off).",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/ErrorResponse" },
+                schema: { $ref: "#/components/schemas/PostRuleErrorResponse" },
               },
             },
           },
