@@ -33,6 +33,7 @@ export interface ClippingJobResult {
 
 export const clippingTask = task({
   id: "ai-clipping",
+  machine: "medium-1x",
   queue: { concurrencyLimit: 10 },
   retry: { ...STANDARD_RETRY, maxAttempts: 2 },
   run: async (payload: ClippingJobData): Promise<ClippingJobResult> => {
