@@ -8,6 +8,7 @@ export interface CreditPack {
   credits: number;
   priceUsd: number;
   description?: string;
+  popular?: boolean;
 }
 
 export const creditPacksQueryKeys = {

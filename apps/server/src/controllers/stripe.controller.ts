@@ -3,6 +3,7 @@ import prisma from "../lib/db";
 import { stripe } from "../lib/stripe";
 import { clerkClient } from "@clerk/express";
 import Stripe from "stripe";
+import type { Plan } from "@prisma/client";
 import { onCreditsPurchased, onPaymentFailed, onSubscriptionStarted } from "../emails";
 import {
   expireSubscriptionGrants,
@@ -103,12 +104,12 @@ async function planCreditsFor(opts: {
 }
 
 /**
- * Checkout return URL for an in-app `returnPath` (onboarding's trial step
- * sends one so the user lands back in that flow), with
- * `checkout=success|cancel` added. Only paths on CLIENT_URL are accepted;
- * anything else returns null and the caller falls back to the env URLs.
+ * Checkout return URL for an in-app `returnPath` (onboarding's trial and
+ * credits steps send one so the user lands back in that flow), with `params`
+ * added. Only paths on CLIENT_URL are accepted; anything else returns null and
+ * the caller falls back to its default URLs.
  */
-function appReturnUrl(returnPath: unknown, status: "success" | "cancel"): string | null {
+function appReturnUrl(returnPath: unknown, params: Record<string, string>): string | null {
   if (!CLIENT_URL || typeof returnPath !== "string") return null;
   if (!returnPath.startsWith("/") || returnPath.startsWith("//") || returnPath.includes("\\")) {
     return null;
@@ -117,11 +118,102 @@ function appReturnUrl(returnPath: unknown, status: "success" | "cancel"): string
     const base = new URL(CLIENT_URL);
     const url = new URL(returnPath, base);
     if (url.origin !== base.origin) return null;
-    url.searchParams.set("checkout", status);
+    for (const [name, value] of Object.entries(params)) url.searchParams.set(name, value);
     return url.toString();
   } catch {
     return null;
   }
+}
+
+/**
+ * A Stripe Checkout session for one credit pack, returning its URL. Comes back
+ * to `returnPath` when it's a valid in-app path, otherwise to the billing page.
+ * The `checkout.session.completed` webhook grants the credits.
+ */
+async function createTopupCheckoutUrl(
+  pack: Plan,
+  user: { id: string; email: string; stripeCustomerId: string | null },
+  returnPath?: unknown,
+): Promise<string | null> {
+  const success = { topup: "success", credits: String(pack.credits), pack: pack.key };
+  const cancel = { topup: "cancel" };
+
+  // Prefer the explicit CLIENT_URL env (so we land back on the billing page
+  // with a status flag); otherwise fall back to the generic
+  // STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL.
+  const billingBase = CLIENT_URL ? `${CLIENT_URL}/billing` : SUCCESS_URL;
+  const successUrl =
+    appReturnUrl(returnPath, success) ??
+    (billingBase ? `${billingBase}?${new URLSearchParams(success)}` : SUCCESS_URL);
+  const cancelUrl =
+    appReturnUrl(returnPath, cancel) ??
+    (billingBase ? `${billingBase}?${new URLSearchParams(cancel)}` : CANCEL_URL);
+
+  const lineItem: Stripe.Checkout.SessionCreateParams.LineItem = {
+    quantity: 1,
+    // Prefer a pre-created Stripe Price if the Plan row references one
+    // (cleaner reporting in the Stripe dashboard); otherwise fall back
+    // to inline `price_data` using the row's priceCents.
+    ...(pack.stripePriceId
+      ? { price: pack.stripePriceId }
+      : {
+          price_data: {
+            currency: pack.currency,
+            unit_amount: pack.priceCents,
+            product_data: {
+              name: `${pack.name} — ${pack.credits.toLocaleString()} credits`,
+              description:
+                pack.description ??
+                `${pack.credits.toLocaleString()} credits, never expire`,
+              metadata: {
+                packKey: pack.key,
+                credits: String(pack.credits),
+              },
+            },
+          },
+        }),
+  };
+
+  const sessionConfig: Stripe.Checkout.SessionCreateParams = {
+    mode: "payment",
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    payment_method_types: ["card"],
+    billing_address_collection: "auto",
+    allow_promotion_codes: true,
+    line_items: [lineItem],
+    // CRITICAL: these two fields drive the webhook handler in
+    // `handleWebhook` → `checkout.session.completed`. Do not rename them
+    // without updating the webhook too.
+    metadata: {
+      userId: user.id,
+      topupCredits: String(pack.credits),
+      packKey: pack.key,
+    },
+    // Mirror the metadata onto the underlying PaymentIntent so it's
+    // visible in Stripe → Payments without drilling into the Checkout
+    // Session.
+    payment_intent_data: {
+      metadata: {
+        userId: user.id,
+        topupCredits: String(pack.credits),
+        packKey: pack.key,
+        kind: "credit_topup",
+      },
+    },
+  };
+
+  // Reuse an existing Stripe customer when we have one so the user keeps
+  // a single payment-method history.
+  if (user.stripeCustomerId) {
+    sessionConfig.customer = user.stripeCustomerId;
+  } else {
+    sessionConfig.customer_email = user.email;
+    sessionConfig.customer_creation = "always";
+  }
+
+  const session = await stripe.checkout.sessions.create(sessionConfig);
+  return session.url;
 }
 
 /**
@@ -844,8 +936,8 @@ export class StripeController {
       }
 
       const sessionConfig: Stripe.Checkout.SessionCreateParams = {
-        success_url: appReturnUrl(returnPath, "success") ?? SUCCESS_URL,
-        cancel_url: appReturnUrl(returnPath, "cancel") ?? CANCEL_URL,
+        success_url: appReturnUrl(returnPath, { checkout: "success" }) ?? SUCCESS_URL,
+        cancel_url: appReturnUrl(returnPath, { checkout: "cancel" }) ?? CANCEL_URL,
         payment_method_types: ["card"],
         billing_address_collection: "auto",
         line_items: [{ price: priceId, quantity: 1 }],
@@ -1470,87 +1562,137 @@ export class StripeController {
           .json({ success: false, error: "User not found" });
       }
 
-      // Build return URLs. Prefer the explicit CLIENT_URL env (so we land
-      // back on the billing page with a status flag); otherwise fall back to
-      // the generic STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL.
-      const billingBase = CLIENT_URL ? `${CLIENT_URL}/billing` : SUCCESS_URL;
-      const successUrl = billingBase
-        ? `${billingBase}?topup=success&credits=${pack.credits}&pack=${pack.key}`
-        : SUCCESS_URL;
-      const cancelUrl = billingBase
-        ? `${billingBase}?topup=cancel`
-        : CANCEL_URL;
-
-      const lineItem: Stripe.Checkout.SessionCreateParams.LineItem = {
-        quantity: 1,
-        // Prefer a pre-created Stripe Price if the Plan row references one
-        // (cleaner reporting in the Stripe dashboard); otherwise fall back
-        // to inline `price_data` using the row's priceCents.
-        ...(pack.stripePriceId
-          ? { price: pack.stripePriceId }
-          : {
-              price_data: {
-                currency: pack.currency,
-                unit_amount: pack.priceCents,
-                product_data: {
-                  name: `${pack.name} — ${pack.credits.toLocaleString()} credits`,
-                  description:
-                    pack.description ??
-                    `${pack.credits.toLocaleString()} credits, never expire`,
-                  metadata: {
-                    packKey: pack.key,
-                    credits: String(pack.credits),
-                  },
-                },
-              },
-            }),
-      };
-
-      const sessionConfig: Stripe.Checkout.SessionCreateParams = {
-        mode: "payment",
-        success_url: successUrl,
-        cancel_url: cancelUrl,
-        payment_method_types: ["card"],
-        billing_address_collection: "auto",
-        allow_promotion_codes: true,
-        line_items: [lineItem],
-        // CRITICAL: these two fields drive the webhook handler in
-        // `handleWebhook` → `checkout.session.completed`. Do not rename them
-        // without updating the webhook too.
-        metadata: {
-          userId: user.id,
-          topupCredits: String(pack.credits),
-          packKey: pack.key,
-        },
-        // Mirror the metadata onto the underlying PaymentIntent so it's
-        // visible in Stripe → Payments without drilling into the Checkout
-        // Session.
-        payment_intent_data: {
-          metadata: {
-            userId: user.id,
-            topupCredits: String(pack.credits),
-            packKey: pack.key,
-            kind: "credit_topup",
-          },
-        },
-      };
-
-      // Reuse an existing Stripe customer when we have one so the user keeps
-      // a single payment-method history.
-      if (user.stripeCustomerId) {
-        sessionConfig.customer = user.stripeCustomerId;
-      } else {
-        sessionConfig.customer_email = user.email;
-        sessionConfig.customer_creation = "always";
-      }
-
-      const session = await stripe.checkout.sessions.create(sessionConfig);
-      return res.json({ success: true, url: session.url });
+      const url = await createTopupCheckoutUrl(pack, user);
+      return res.json({ success: true, url });
     } catch (error) {
       console.error("Error creating top-up checkout session:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to create checkout session" });
+    }
+  }
+
+  /**
+   * Buy a credit pack in one click, on the card the customer already saved.
+   * Onboarding's credits step uses this right after the free trial's checkout.
+   *
+   * Answers `{ success: true, credits }` once the card is charged and the
+   * credits are granted, or `{ success: true, url }` for a Stripe Checkout page
+   * when the card can't be charged here: no card saved yet, a decline, or a
+   * bank asking for authentication.
+   *
+   * `requestId` makes a retry safe. The same id reuses the same payment, so it
+   * can't charge twice, and it grants the credits if the first attempt charged
+   * the card but failed before granting them.
+   */
+  async buyCredits(req: Request, res: Response) {
+    try {
+      const clerkId = req.auth.userId;
+      const { packKey, requestId, returnPath } = req.body as {
+        packKey?: string;
+        requestId?: string;
+        returnPath?: string;
+      };
+
+      if (!packKey || typeof packKey !== "string") {
+        return res.status(400).json({ success: false, error: "Missing `packKey`" });
+      }
+      if (!requestId || typeof requestId !== "string" || requestId.length > 100) {
+        return res.status(400).json({ success: false, error: "Missing `requestId`" });
+      }
+
+      const pack = await getTopupPlan(packKey);
+      if (!pack) {
+        return res.status(400).json({ success: false, error: `Unknown pack: ${packKey}` });
+      }
+
+      const user = await prisma.user.findUnique({ where: { clerkId } });
+      if (!user) {
+        return res.status(404).json({ success: false, error: "User not found" });
+      }
+
+      const toCheckout = async () =>
+        res.json({
+          success: true,
+          url: await createTopupCheckoutUrl(pack, user, returnPath),
+        });
+
+      // The trial's checkout saved the card on the customer. Straight after
+      // it, the webhook may not have linked that customer to this user yet.
+      if (!user.stripeCustomerId) return await toCheckout();
+      const cards = await stripe.paymentMethods.list({
+        customer: user.stripeCustomerId,
+        type: "card",
+        limit: 1,
+      });
+      const card = cards.data[0];
+      if (!card) return await toCheckout();
+
+      let intent: Stripe.PaymentIntent;
+      try {
+        intent = await stripe.paymentIntents.create(
+          {
+            amount: pack.priceCents,
+            currency: pack.currency,
+            customer: user.stripeCustomerId,
+            payment_method: card.id,
+            off_session: true,
+            confirm: true,
+            description: `${pack.name}: ${pack.credits.toLocaleString()} credits`,
+            metadata: {
+              userId: user.id,
+              topupCredits: String(pack.credits),
+              packKey: pack.key,
+              kind: "credit_topup_saved_card",
+            },
+          },
+          { idempotencyKey: `buy-credits:${user.id}:${pack.key}:${requestId}` },
+        );
+      } catch (error) {
+        // Declined, or the bank wants the customer to authenticate.
+        if (error instanceof Stripe.errors.StripeCardError) return await toCheckout();
+        throw error;
+      }
+      if (intent.status !== "succeeded") return await toCheckout();
+
+      const reason = `topup:${intent.id}`;
+      const alreadyGranted = await prisma.creditGrant.findFirst({
+        where: { userId: user.id, reason },
+        select: { id: true },
+      });
+      if (!alreadyGranted) {
+        try {
+          await grantCredits({
+            userId: user.id,
+            amount: pack.credits,
+            source: "TOP_UP",
+            reason,
+            expiresAt: null, // top-ups never expire
+            metadata: {
+              stripePaymentIntent: intent.id,
+              amountTotal: intent.amount,
+              currency: intent.currency,
+            },
+          });
+        } catch (error) {
+          // There's no webhook behind this path, so say which payment it was.
+          // A retry with the same requestId grants them.
+          console.error(`Charged ${intent.id} but couldn't grant its credits:`, error);
+          throw error;
+        }
+        void onCreditsPurchased({
+          userId: user.id,
+          credits: pack.credits,
+          amountCents: intent.amount,
+          currency: intent.currency,
+          sessionId: intent.id,
+        });
+      }
+
+      return res.json({ success: true, credits: pack.credits });
+    } catch (error) {
+      console.error("Error buying credits:", error);
+      return res.status(500).json({ success: false, error: "Failed to buy credits" });
     }
   }
 

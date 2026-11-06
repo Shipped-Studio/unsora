@@ -105,7 +105,8 @@ function Stepper({ items }: { items: ProgressItem[] }) {
           <span
             className={cn(
               "text-sm whitespace-nowrap",
-              item.state === "current" ? "font-medium text-foreground" : "text-muted-foreground",
+              // Up to seven steps: below xl only the current one has room for its label.
+              item.state === "current" ? "font-medium text-foreground" : "text-muted-foreground max-xl:sr-only",
             )}
           >
             {item.label}
