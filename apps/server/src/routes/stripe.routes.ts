@@ -74,6 +74,10 @@ router.post(
   stripeController.createTopupCheckoutSession,
 );
 
+// One click on the saved card, used by onboarding's credits step. Answers with
+// a Checkout URL when the card can't be charged without the customer.
+router.post("/buy-credits", requireAuth, stripeController.buyCredits);
+
 // Mount webhook router
 router.use(stripeRouter);
 

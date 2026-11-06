@@ -2612,6 +2612,57 @@ const openApiDocument = {
         },
       },
     },
+    "/stripe/buy-credits": {
+      post: {
+        tags: ["Stripe"],
+        summary: "Buy a top-up pack on the saved card",
+        description:
+          "Charges the customer's saved card and grants the credits. Answers with a Checkout `url` instead when the card can't be charged without the customer. Retrying with the same `requestId` never charges twice.",
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  packKey: { type: "string" },
+                  requestId: { type: "string", maxLength: 100 },
+                  returnPath: { type: "string" },
+                },
+                required: ["packKey", "requestId"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Credits added, or a Checkout URL to finish the purchase",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean" },
+                    credits: { type: "integer" },
+                    url: { type: "string", format: "uri" },
+                  },
+                  required: ["success"],
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Missing or unknown pack, or missing requestId",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
     "/stripe/create-topup-session": {
       post: {
         tags: ["Stripe"],

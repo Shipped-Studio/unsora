@@ -4,10 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { CONNECT_PARAM, connectorApp } from "@/components/onboarding/connector-app";
+import { CreditPacksStep, CreditsAskStep } from "@/components/onboarding/credits-steps";
 import { MarkOnboarded } from "@/components/onboarding/mark-onboarded";
 import {
   CHECKOUT_PARAM,
+  PACKS_VIEW,
   SETUP_PARAM,
+  TOPUP_PARAM,
+  VIEW_PARAM,
   hasPaidPlan,
   type SetupContext,
   type StepId,
@@ -29,16 +33,17 @@ import { getBrowserTimezone } from "@/lib/timezone";
 /**
  * First-run setup after sign-up, as its own page:
  *
- *   account → where you heard about us → channels → how it works → free trial
+ *   account → where you heard about us → channels → how it works → free trial → credits
  *
  * An account made while connecting ChatGPT or Claude (`?connect=`) gets the
  * same steps, then one asking it to connect again from that app:
  *
- *   account → where you heard about us → channels → how it works → free trial → connect
+ *   account → where you heard about us → channels → how it works → free trial → credits → connect
  *
  * The free trial is left out for anyone who already has a plan; for
  * everyone else it can't be skipped, since the app needs a plan. Coming back
- * from a started trial moves on a step. Finishing goes into the app, straight to a first post for
+ * from a started trial moves on a step, to credits: the trial doesn't include
+ * any, so that step offers them, and it can be skipped. Finishing goes into the app, straight to a first post for
  * anyone who can post already.
  */
 export function OnboardingFlow() {
@@ -56,14 +61,19 @@ export function OnboardingFlow() {
   const fromCheckout = searchParams.get(CHECKOUT_PARAM) === "success";
   const requested = searchParams.get(SETUP_PARAM) as StepId | null;
   const paid = hasPaidPlan(usage);
+  // Stripe's return is a full page load, and moving on from it drops the
+  // param. The webhook may still be behind, so remember the plan is coming.
+  const [startedPlan] = useState(fromCheckout);
 
   // Decided once, so starting the trial doesn't reshuffle the steps. Back
   // from the trial's checkout the plan may show already; the trial step
-  // stays so the flow can move on from it.
+  // stays so the flow can move on from it, and credits stays through a
+  // reload or a purchase's checkout, by when the plan shows.
   const [steps, setSteps] = useState<StepId[] | null>(null);
   if (!steps && usage && accounts && user) {
     const backFromTrial = fromCheckout && requested === "trial";
-    const trial: StepId[] = paid && !backFromTrial ? [] : ["trial"];
+    const trial: StepId[] =
+      paid && !backFromTrial && requested !== "credits" ? [] : ["trial", "credits"];
     const source: StepId[] = user.unsafeMetadata?.heardFrom ? [] : ["source"];
     setSteps([...source, "channels", "howto", ...trial, ...(app ? (["connect"] as const) : [])]);
   }
@@ -83,7 +93,7 @@ export function OnboardingFlow() {
   // As in the connector setup: instant step changes, and Back goes a step back.
   const go = (step: StepId) => window.history.pushState(null, "", hrefFor(step));
 
-  const canPost = (paid || fromCheckout) && (accounts?.length ?? 0) > 0;
+  const canPost = (paid || startedPlan) && (accounts?.length ?? 0) > 0;
 
   /** Into the app, keeping the browser's timezone for scheduling. */
   const enterApp = async () => {
@@ -110,13 +120,16 @@ export function OnboardingFlow() {
 
   // Focus the new step's heading so screen readers announce it.
   const headingRef = useRef<HTMLDivElement>(null);
-  const lastStep = useRef(current);
+  const packsView = current === "credits" && searchParams.get(VIEW_PARAM) === PACKS_VIEW;
+  // Each of the credits step's screens gets its own heading focus and entrance.
+  const screen = packsView ? `${PACKS_VIEW}-${searchParams.get(TOPUP_PARAM)}` : current;
+  const lastStep = useRef(screen);
   useEffect(() => {
-    if (lastStep.current === current) return;
-    lastStep.current = current;
+    if (lastStep.current === screen) return;
+    lastStep.current = screen;
     headingRef.current?.querySelector("h1")?.focus({ preventScroll: true });
     window.scrollTo({ top: 0 });
-  }, [current]);
+  }, [screen]);
 
   if (!user || !steps || !current || fromCheckout) {
     return (
@@ -143,13 +156,15 @@ export function OnboardingFlow() {
           Without a plan it isn't done, and the next sign-in comes back here. */}
       {last && hasPaidPlan(usage) ? <MarkOnboarded /> : null}
       <div
-        key={current}
+        key={screen}
         ref={headingRef}
         className="w-full animate-in duration-300 fade-in slide-in-from-bottom-2"
       >
         {current === "channels" ? <ChannelsStep ctx={ctx} /> : null}
         {current === "howto" ? <HowToStep ctx={ctx} app={app} /> : null}
         {current === "trial" ? <TrialStep ctx={ctx} /> : null}
+        {current === "credits" && !packsView ? <CreditsAskStep ctx={ctx} finishing={finishing} /> : null}
+        {packsView ? <CreditPacksStep ctx={ctx} finishing={finishing} /> : null}
         {current === "source" ? <SourceStep ctx={ctx} finishing={finishing} /> : null}
         {current === "connect" && app ? (
           <ConnectStep ctx={ctx} app={app} finishing={finishing} />
