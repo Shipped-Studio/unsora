@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowRight, Check, Scissors, CalendarCheck } from "@phosphor-icons/react";
+import { ArrowRight, CalendarCheck, Check, Scissors } from "@phosphor-icons/react";
 import { formatUsd } from "@/components/billing/format";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,6 +12,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { EmptyState, ErrorState } from "@/components/shared/states";
 import { useAuthFetch } from "@/hooks/use-auth-fetch";
 import { useCreditPacks, type CreditPack } from "@/hooks/use-credit-packs";
+import { useCatalogQuote, type CatalogRequest } from "@/hooks/use-model-catalog";
 import { userUsageQueryKeys, useUserUsage } from "@/hooks/use-user-usage";
 import { CLIPPING_CREDITS_PER_MINUTE } from "@/lib/clipping-pricing";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,33 @@ import { CARD, StepFooter, StepHeader } from "./setup-steps";
  * then, on a yes, the packs. Both can be skipped. No Back to the trial, which
  * has already started.
  */
+
+/**
+ * What a pack can buy, after clipping. These are priced live, the same way the
+ * generators are, so the counts follow any change at /admin/pricing or from the
+ * provider. Each request pins the settings its label names; the rest are the
+ * model's defaults.
+ */
+const LIVE_FEATURES: { label: string; request: CatalogRequest }[] = [
+  {
+    label: "Seedance 2.5 videos (5s)",
+    request: { model: "seedance-2.5", mode: "omni", inputs: { duration: 5, resolution: "720p" } },
+  },
+  {
+    // Flare, the fast tier. Sunburst costs the same at these settings.
+    label: "GPT Image 2.5 images",
+    request: { model: "gpt-image-2.5-flare", mode: "create", inputs: {} },
+  },
+  {
+    label: "Nano Banana 2 images",
+    request: { model: "nano-banana-2", mode: "create", inputs: {} },
+  },
+];
+/** Fixed prices: keep in step with server `config/models/`. */
+const FIXED_FEATURES = [
+  { label: "image upscales (4K)", credits: 3 }, // image-upscaler.ts
+  { label: "video upscales (Standard)", credits: 10 }, // video-upscaler.ts
+];
 
 /** What the scheduler came with: someone who's had a plan before gets no new trial. */
 function usePlanWord() {
@@ -173,13 +201,13 @@ export function CreditPacksStep({ ctx, finishing }: { ctx: SetupContext; finishi
   return (
     <section className="mx-auto w-full max-w-4xl">
       <StepHeader
-        title="Add clipping credits"
-        lead="One click to buy. Credits never expire and work for AI creation too."
+        title="Add clipping and AI credits"
+        lead="One click to buy. Credits never expire."
       />
 
       <div className="mt-10">
         {loading ? (
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="mx-auto grid max-w-xl gap-3 lg:max-w-none lg:grid-cols-3">
             {Array.from({ length: 3 }).map((_, i) => (
               <Skeleton key={i} className="h-56 rounded-2xl" />
             ))}
@@ -190,7 +218,7 @@ export function CreditPacksStep({ ctx, finishing }: { ctx: SetupContext; finishi
           <EmptyState title="No credit packs right now" description="You can add credits later from Billing." />
         ) : (
           <>
-            <ul className="grid gap-3 sm:grid-cols-3">
+            <ul className="mx-auto grid max-w-xl gap-3 lg:max-w-none lg:grid-cols-3">
               {packs.map((pack) => (
                 <PackCard
                   key={pack.key}
@@ -202,6 +230,9 @@ export function CreditPacksStep({ ctx, finishing }: { ctx: SetupContext; finishi
               ))}
             </ul>
             <p className="mt-6 text-center text-sm text-muted-foreground">
+              It all comes from the same credits: each number is the whole pack spent on just that,
+              at standard settings.
+              <br />
               Charged now to the card you just added, separate from your {planWord}.
             </p>
           </>
@@ -230,6 +261,7 @@ function PackCard({
   onBuy: () => void;
 }) {
   const minutes = Math.floor(pack.credits / CLIPPING_CREDITS_PER_MINUTE);
+
   return (
     <li
       className={cn(
@@ -244,17 +276,80 @@ function PackCard({
         ) : null}
       </p>
       <p className="mt-3 text-4xl font-semibold tracking-tight tabular-nums">{formatUsd(pack.priceUsd)}</p>
-      <p className="mt-1 text-sm text-muted-foreground">Clips {minutes.toLocaleString()} minutes of video</p>
+      <div className="mt-5 mb-6 border-t pt-5">
+        <p className="flex items-start gap-2.5 font-medium">
+          <Check className="mt-1 size-4 shrink-0 text-success" weight="bold" />
+          <span>
+            Up to <span className="tabular-nums">{minutes.toLocaleString()}</span> minutes of video
+            clipping
+          </span>
+        </p>
+        <p className="mt-5 text-xs font-medium text-muted-foreground">And you also get up to</p>
+        <ul className="mt-3 flex flex-col gap-2.5 text-sm">
+          {LIVE_FEATURES.map((line) => (
+            <LivePackLine key={line.label} packCredits={pack.credits} {...line} />
+          ))}
+          {FIXED_FEATURES.map(({ label, credits }) => (
+            <PackLine key={label} amount={Math.floor(pack.credits / credits).toLocaleString()}>
+              {label}
+            </PackLine>
+          ))}
+        </ul>
+        <p className="mt-3 text-sm text-muted-foreground">
+          Plus Kling, avatars, thumbnails, voiceovers and more.
+        </p>
+      </div>
       <Button
         size="lg"
         variant={pack.popular ? "default" : "outline"}
-        className="mt-6 w-full"
+        className="mt-auto w-full"
         disabled={disabled}
         onClick={onBuy}
       >
         {pending ? <Spinner data-icon="inline-start" /> : null}
         Buy for {formatUsd(pack.priceUsd)}
       </Button>
+    </li>
+  );
+}
+
+/** A line priced live. Left out if its price can't be fetched. */
+function LivePackLine({
+  packCredits,
+  label,
+  request,
+}: {
+  packCredits: number;
+  label: string;
+  request: CatalogRequest;
+}) {
+  const { quote, error } = useCatalogQuote(request);
+  if (error || (quote && !quote.credits)) return null;
+  return (
+    <PackLine amount={quote?.credits ? Math.floor(packCredits / quote.credits).toLocaleString() : null}>
+      {label}
+    </PackLine>
+  );
+}
+
+function PackLine({
+  amount,
+  children,
+}: {
+  /** Null while its live price loads. */
+  amount: string | null;
+  children: React.ReactNode;
+}) {
+  return (
+    <li className="flex items-start gap-2.5">
+      <Check className="mt-0.5 size-4 shrink-0 text-success" weight="bold" />
+      {amount ? (
+        <span>
+          <span className="font-semibold tabular-nums">{amount}</span> {children}
+        </span>
+      ) : (
+        <Skeleton className="my-0.5 h-4 w-40" />
+      )}
     </li>
   );
 }
