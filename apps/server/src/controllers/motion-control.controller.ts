@@ -141,9 +141,18 @@ export class MotionControlController {
           .json({ success: false, error: "User not found" });
       }
 
-      await prisma.generation.delete({
-        where: { id: generationId, userId: user.id },
+      const { count } = await prisma.generation.deleteMany({
+        where: {
+          id: generationId,
+          userId: user.id,
+          functionMode: VideoGenerationType.MOTION_CONTROL,
+        },
       });
+      if (count === 0) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Generation not found" });
+      }
 
       return res.json({
         success: true,

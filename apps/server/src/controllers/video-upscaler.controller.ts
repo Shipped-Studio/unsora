@@ -301,9 +301,18 @@ export class VideoUpscalerController {
           .json({ success: false, error: "User not found" });
       }
 
-      await prisma.processedVideo.delete({
-        where: { id: jobId, userId: user.id },
+      const { count } = await prisma.processedVideo.deleteMany({
+        where: {
+          id: jobId,
+          userId: user.id,
+          operations: { has: "UPSCALING" },
+        },
       });
+      if (count === 0) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Upscale job not found" });
+      }
 
       return res.json({
         success: true,

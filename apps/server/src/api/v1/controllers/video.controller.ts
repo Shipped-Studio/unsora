@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import prisma from "../../../lib/db";
 import { VIDEO_MODELS } from "../../../config/models";
 import { CATALOG, catalogDbModels } from "../../../config/catalog";
+import { RETIRED_MODELS } from "../../../controllers/legacy-create.controller";
 import { handlePublicError } from "../helpers/public-response";
 
 const VALID_MODEL_KEYS = Object.values(VIDEO_MODELS).map((m) => m.key);
@@ -22,6 +23,14 @@ for (const cfg of Object.values(VIDEO_MODELS)) {
   const names = LIST_FILTERS[cfg.dbModel] ?? [cfg.dbModel];
   LIST_FILTERS[cfg.key] ??= names;
   LIST_FILTERS[cfg.dbModel] ??= names;
+}
+// A retired name (`wan`) now runs as its successor (`wan-3.0`), so both
+// names list the jobs saved under either.
+for (const [old, current] of Object.entries(RETIRED_MODELS)) {
+  const successor = LIST_FILTERS[current];
+  if (!successor) continue;
+  const names = [...new Set([...(LIST_FILTERS[old] ?? [old]), ...successor])];
+  for (const name of names) LIST_FILTERS[name] = names;
 }
 
 async function resolveUser(clerkUserId: string) {

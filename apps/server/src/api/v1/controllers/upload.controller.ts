@@ -328,13 +328,34 @@ export class PublicUploadController {
       });
       if (!asset) return sendError(res, 404, "Upload not found");
 
+      // Posts keep pointing at their media (post_media.assetId is NO ACTION,
+      // checked at commit), so a file any post uses can't be deleted, and
+      // its stored object must stay for the post to publish or display.
+      const usedBy = await prisma.post.findMany({
+        where: { media: { some: { assetId: asset.id } } },
+        select: { status: true },
+      });
+      if (usedBy.length > 0) {
+        const pending = usedBy.filter((p) => p.status !== "PUBLISHED").length;
+        return sendError(
+          res,
+          409,
+          pending > 0
+            ? `This upload is used by ${pending} post(s) that haven't finished publishing. Delete or edit those posts first.`
+            : `This upload is used by ${usedBy.length} published post(s). Delete those posts first.`,
+        );
+      }
+
+      // Record first, then the stored file: if removing the file fails, the
+      // worst case is an orphaned object, never a post with missing media.
+      await prisma.asset.delete({ where: { id: asset.id } });
+
       const path = bucketPathFromUrl(asset.url);
       if (path && isOwnUploadPath(path, user.id)) {
         await removeSupabaseObjects([path]).catch((err) =>
           console.error("Failed to remove storage object:", err),
         );
       }
-      await prisma.asset.delete({ where: { id: asset.id } });
 
       return res.json({ success: true, message: "Upload deleted" });
     } catch (error) {

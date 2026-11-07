@@ -298,9 +298,14 @@ export class VoiceConversionController {
           .json({ success: false, error: "User not found" });
       }
 
-      await prisma.voiceConversion.delete({
+      const { count } = await prisma.voiceConversion.deleteMany({
         where: { id: conversionId, userId: user.id },
       });
+      if (count === 0) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Conversion not found" });
+      }
 
       return res.json({ success: true, message: "Conversion deleted" });
     } catch (error) {

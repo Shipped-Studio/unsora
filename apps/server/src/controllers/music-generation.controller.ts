@@ -409,9 +409,14 @@ export class MusicGenerationController {
           .json({ success: false, error: "User not found" });
       }
 
-      await prisma.musicGeneration.delete({
+      const { count } = await prisma.musicGeneration.deleteMany({
         where: { id: generationId, userId: user.id },
       });
+      if (count === 0) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Generation not found" });
+      }
 
       return res.json({
         success: true,
