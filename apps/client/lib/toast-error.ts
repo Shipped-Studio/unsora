@@ -15,6 +15,13 @@ export function openCreditPacks() {
   window.dispatchEvent(new Event(BUY_CREDITS_EVENT));
 }
 
+/** Fired to take the user to Billing, where a failing payment is fixed. */
+export const OPEN_BILLING_EVENT = "unsora:open-billing";
+
+export function openBilling() {
+  window.dispatchEvent(new Event(OPEN_BILLING_EVENT));
+}
+
 /** The server's "Insufficient credits. Need 5, have 0", with or without a prefix. */
 export function isCreditsError(message?: string | null) {
   return /insufficient credits/i.test(message ?? "");
@@ -47,9 +54,19 @@ export function toastError(message: string) {
 export function toastApiError(title: string, error: unknown) {
   const message = error instanceof Error ? error.message : undefined;
   if (message && isCreditsError(message)) return toastError(message);
-  const planRequired = error instanceof ApiError && (error.code === "PLAN_REQUIRED" || error.status === 402);
+  // A renewal is failing: the plan is fine, the card isn't (server
+  // require-paid-plan.ts). Billing has the Update card button.
+  const paymentFailed = error instanceof ApiError && error.code === "PAYMENT_FAILED";
+  const planRequired =
+    !paymentFailed &&
+    error instanceof ApiError &&
+    (error.code === "PLAN_REQUIRED" || error.status === 402);
   toast.error(title, {
     description: message && message !== title ? message : undefined,
-    action: planRequired ? { label: "See plans", onClick: openPricingDialog } : undefined,
+    action: paymentFailed
+      ? { label: "Update card", onClick: openBilling }
+      : planRequired
+        ? { label: "See plans", onClick: openPricingDialog }
+        : undefined,
   });
 }

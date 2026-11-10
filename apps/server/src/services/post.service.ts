@@ -6,46 +6,74 @@ import { Post, PostAccount, SocialAccount } from "@prisma/client";
 import { getPublisher, type PostMediaWithAsset } from "./platforms/publisher";
 import { tokenRefreshService } from "./token-refresh.service";
 import { onPostPublishFailed } from "../emails";
-import { hasPaidPlan, postingAccountLimitForUser } from "../lib/plans";
+import {
+  PAYMENT_FAILED_MESSAGE,
+  hasPaidPlan,
+  isPaymentFailing,
+  postingAccountLimitForUser,
+} from "../lib/plans";
 import { logger } from "../lib/logger";
 
+export const PLAN_LIMIT_PUBLISH_ERROR =
+  "Your plan doesn't cover this account anymore. Upgrade, or disconnect accounts you don't use.";
+
+/** The accounts a post can't go to right now, and the error each leg records. */
+interface PostingBlock {
+  accounts: Set<string>;
+  reason: string;
+}
+
 /**
- * Accounts beyond what the owner's current plan covers, oldest connections
- * first. Connecting already stops at the limit, so this only bites after a
- * downgrade: their queued posts still go out to the accounts the plan
- * covers, not to every account. Without a live plan (lapsed, or free) the
- * limit is 0, as posting needs a plan.
+ * Which of the owner's accounts their queued posts can't go out to.
+ *
+ * - Payment failing (subscription past due): none of them, until the card is
+ *   fixed. The posts fail with that reason and can be retried after.
+ * - Otherwise, accounts beyond what the plan covers, oldest connections first.
+ *   Connecting already stops at the limit, so this only bites after a
+ *   downgrade: queued posts still go out to the accounts the plan covers, not
+ *   to every account. Without a live plan (lapsed, or free) the limit is 0, as
+ *   posting needs a plan.
  */
-async function accountsOverPlanLimit(userId: string): Promise<Set<string>> {
+async function postingBlock(userId: string): Promise<PostingBlock> {
+  const none: PostingBlock = { accounts: new Set(), reason: PLAN_LIMIT_PUBLISH_ERROR };
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { plan: true, isActive: true },
+    select: { plan: true, isActive: true, status: true },
   });
-  if (!user) return new Set();
-  const limit = await postingAccountLimitForUser(user);
-  // A paid plan with no limit configured: don't hold paying users back.
-  if (limit === null && hasPaidPlan(user)) return new Set();
+  if (!user) return none;
+
   const accounts = await prisma.socialAccount.findMany({
     where: { userId },
     orderBy: { createdAt: "asc" },
     select: { id: true },
   });
-  return new Set(accounts.slice(limit ?? 0).map((a) => a.id));
+
+  if (isPaymentFailing(user)) {
+    return { accounts: new Set(accounts.map((a) => a.id)), reason: PAYMENT_FAILED_MESSAGE };
+  }
+
+  const limit = await postingAccountLimitForUser(user);
+  // A paid plan with no limit configured: don't hold paying users back.
+  if (limit === null && hasPaidPlan(user)) return none;
+  return {
+    accounts: new Set(accounts.slice(limit ?? 0).map((a) => a.id)),
+    reason: PLAN_LIMIT_PUBLISH_ERROR,
+  };
 }
 
-export const PLAN_LIMIT_PUBLISH_ERROR =
-  "Your plan doesn't cover this account anymore. Upgrade, or disconnect accounts you don't use.";
+/** Failures that come from the account's plan, not from the platform. */
+const PLAN_BLOCK_ERRORS = [PLAN_LIMIT_PUBLISH_ERROR, PAYMENT_FAILED_MESSAGE];
 
-/** Quiet time after which a plan-limit failure is emailed about again. */
+/** Quiet time after which a plan failure is emailed about again. */
 const PLAN_LAPSE_EMAIL_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Whether to skip the failure email because it only repeats one the user was
- * just sent. When a plan lapses, every scheduled post fails for the plan
- * limit as it comes due; one email per post would flood them. So the first
- * such failure is emailed, and later ones aren't while another post of theirs
- * failed for the same reason in the last day. Each post still shows the error
- * and can be retried.
+ * just sent. When a plan lapses or a payment is failing, every scheduled post
+ * fails for it as it comes due; one email per post would flood them. So the
+ * first such failure is emailed, and later ones aren't while another post of
+ * theirs failed for the same kind of reason in the last day. Each post still
+ * shows the error and can be retried.
  *
  * Posts due at the same moment publish in parallel, so "another post" is one
  * that failed before this run started, or a sibling with a lower id: exactly
@@ -58,12 +86,12 @@ async function isRepeatPlanLapseFailure(
   startedAt: Date,
   failed: PublishResult[],
 ): Promise<boolean> {
-  if (failed.length === 0 || !failed.every((r) => r.error === PLAN_LIMIT_PUBLISH_ERROR)) {
+  if (failed.length === 0 || !failed.every((r) => PLAN_BLOCK_ERRORS.includes(r.error ?? ""))) {
     return false;
   }
   const earlier = await prisma.postAccount.count({
     where: {
-      error: PLAN_LIMIT_PUBLISH_ERROR,
+      error: { in: PLAN_BLOCK_ERRORS },
       updatedAt: { gte: new Date(Date.now() - PLAN_LAPSE_EMAIL_WINDOW_MS) },
       post: { userId, id: { not: postId } },
       OR: [{ updatedAt: { lt: startedAt } }, { postId: { lt: postId } }],
@@ -132,12 +160,12 @@ export class PostService {
         data: { status: "PUBLISHING" },
       });
 
-      const overLimit = await accountsOverPlanLimit(post.userId);
+      const block = await postingBlock(post.userId);
 
       // Publish to each remaining account
       const results = await Promise.allSettled(
         pendingAccounts.map((postAccount) =>
-          this.publishToAccount(post, postAccount, overLimit)
+          this.publishToAccount(post, postAccount, block)
         )
       );
 
@@ -221,13 +249,13 @@ export class PostService {
   private async publishToAccount(
     post: PostWithRelations,
     postAccount: PostAccount & { account: SocialAccount },
-    overLimit: Set<string> = new Set()
+    block: PostingBlock = { accounts: new Set(), reason: PLAN_LIMIT_PUBLISH_ERROR }
   ): Promise<PublishResult> {
     try {
       // Recorded on the leg like any other publish error, so it can be
-      // retried after an upgrade.
-      if (overLimit.has(postAccount.accountId)) {
-        throw new Error(PLAN_LIMIT_PUBLISH_ERROR);
+      // retried after an upgrade or once the card is fixed.
+      if (block.accounts.has(postAccount.accountId)) {
+        throw new Error(block.reason);
       }
 
       let { account } = postAccount;

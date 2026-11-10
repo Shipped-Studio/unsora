@@ -34,8 +34,9 @@ const CANCEL_URL = process.env.STRIPE_CANCEL_URL;
 const CLIENT_URL = process.env.CLIENT_URL;
 
 /**
- * Subscription states that keep plan access. past_due is included: it's the
- * window where Stripe is still retrying a failed renewal.
+ * Subscription states that keep the plan. past_due is included: it's the
+ * window where Stripe is still retrying a failed renewal. Posting is blocked
+ * in that window (`isPaymentFailing` in lib/plans.ts); everything else stays.
  */
 /**
  * The user a subscription belongs to: by Stripe customer, else by the
@@ -79,52 +80,6 @@ async function currentSubscriptionPlan(userId: string): Promise<string | null> {
 const LIVE_SUBSCRIPTION_STATUSES: Stripe.Subscription.Status[] = [
   "active",
   "trialing",
-  "past_due",
-];
-
-/**
- * Whether a subscription still grants its plan. Active and trialing do.
- * Past-due does only while Stripe still has a retry scheduled for the failed
- * invoice: after the last one fails, `next_payment_attempt` is null. What
- * Stripe does then is a dashboard setting (Billing > Manage failed payments):
- * cancel (the `deleted` event tears down), mark unpaid, or leave the
- * subscription past_due for good, which on status alone would keep the plan
- * running unpaid. Paying the open invoice later brings the plan back through
- * `invoice.payment_succeeded`.
- *
- * `failedInvoice` is the invoice from a payment_failed event; otherwise the
- * subscription's latest invoice is used.
- */
-export async function keepsPlanAccess(
-  subscription: Stripe.Subscription,
-  failedInvoice?: Stripe.Invoice,
-): Promise<boolean> {
-  if (subscription.status === "active" || subscription.status === "trialing") return true;
-  if (subscription.status !== "past_due") return false;
-
-  let invoice: Stripe.Invoice | null = failedInvoice ?? null;
-  if (!invoice) {
-    const latest = subscription.latest_invoice;
-    try {
-      invoice =
-        typeof latest === "string"
-          ? await stripe.invoices.retrieve(latest)
-          : (latest ?? null);
-    } catch (error) {
-      logger.warn("Couldn't read the latest invoice of a past-due subscription:", error, {
-        subscriptionId: subscription.id,
-      });
-    }
-  }
-  // Unknown: keep access rather than cut someone off over a failed lookup.
-  if (!invoice) return true;
-  return invoice.status === "paid" || invoice.next_payment_attempt != null;
-}
-
-/** Subscription states that end the plan for good without a `deleted` event. */
-const ENDED_WITHOUT_DELETE: Stripe.Subscription.Status[] = [
-  "unpaid",
-  "incomplete_expired",
   "past_due",
 ];
 
@@ -341,7 +296,7 @@ export class StripeController {
 
           // Get full subscription (plan name)
           const fullSub = await stripe.subscriptions.retrieve(subscription.id, {
-            expand: ["items.data.price.product", "latest_invoice"],
+            expand: ["items.data.price.product"],
           });
 
           const planName = (
@@ -403,43 +358,28 @@ export class StripeController {
             subscription.items.data[0]?.current_period_end ||
             (subscription as any).current_period_end; // fallback just in case
 
-          // Past-due only keeps the plan while Stripe still has a retry
-          // scheduled (keepsPlanAccess); read from the live subscription.
-          const keeps = await keepsPlanAccess(fullSub);
-
           await prisma.user.update({
             where: { id: user.id },
             data: {
               stripeSubscriptionId: subscription.id,
               stripePriceId: subscription.items.data[0].price.id,
-              isActive: keeps,
+              isActive: live,
               stripeCurrentPeriodEnd: currentPeriodEndUnix
                 ? new Date(currentPeriodEndUnix * 1000)
                 : null,
               // A dead subscription (unpaid, incomplete_expired) must not
               // leave its plan name behind: limits read the plan name.
-              plan: keeps ? planName : "free",
+              plan: live ? planName : "free",
               status: subscription.status,
               isCancelled: !!subscription.cancel_at_period_end,
             },
           });
 
-          // A subscription that ends without a `deleted` event (unpaid, or
-          // past-due with no retries left) loses its plan credits the same
-          // way a cancelled one does. Top-ups survive. Safe to repeat: there's
-          // nothing left to expire the second time.
-          if (!keeps && ENDED_WITHOUT_DELETE.includes(fullSub.status)) {
-            await expireSubscriptionGrants(
-              user.id,
-              `subscription:${user.plan ?? "free"}:${fullSub.status}`,
-            );
-          }
-
           // Optional: keep Clerk plan in sync if you want
           // (I usually only set plan on payment_succeeded, but keeping it here is fine)
           await clerkClient.users.updateUserMetadata(user.clerkId, {
             unsafeMetadata: {
-              plan: keeps ? planName : "free",
+              plan: live ? planName : "free",
             },
           });
 
@@ -748,12 +688,6 @@ export class StripeController {
             throw new Error("User not found");
           }
 
-          // Don't downgrade while Stripe still has a retry scheduled: the
-          // subscription sits in past_due and keeps access. Downgrading on
-          // the first failure cut customers off over a card that was about
-          // to be retried. Once the last retry fails (no next attempt), the
-          // plan ends here, whatever Stripe is set to do next (see
-          // keepsPlanAccess); paying the invoice later restores it.
           // A failed invoice on a subscription the user has moved away from
           // (a plan switch) must not touch the plan they're on now.
           if (user.stripeSubscriptionId && user.stripeSubscriptionId !== subscription.id) {
@@ -764,32 +698,23 @@ export class StripeController {
             break;
           }
 
-          const keeps = await keepsPlanAccess(subscription, invoice);
+          // Don't downgrade here. Stripe retries the charge for a while and
+          // the subscription sits in past_due: the plan stays, but posting
+          // is blocked until the card is fixed (requirePaidPlan and
+          // PostService check the past_due status). If every retry fails
+          // Stripe cancels it and `customer.subscription.deleted` expires the
+          // plan credits and drops the user to free.
+          const live = LIVE_SUBSCRIPTION_STATUSES.includes(subscription.status);
           await prisma.user.update({
             where: {
               id: user.id,
             },
             data: {
-              isActive: keeps,
-              ...(keeps ? {} : { plan: "free" }),
+              isActive: live,
+              ...(live ? {} : { plan: "free" }),
               status: subscription.status,
             },
           });
-
-          if (!keeps) {
-            await expireSubscriptionGrants(
-              user.id,
-              `subscription:${user.plan ?? "free"}:payment_failed`,
-            );
-            await clerkClient.users.updateUserMetadata(user.clerkId, {
-              unsafeMetadata: { plan: "free" },
-            });
-            logger.warn("Subscription retries exhausted; plan ended", {
-              userId: user.id,
-              subscriptionId: subscription.id,
-              status: subscription.status,
-            });
-          }
 
           // Stripe sends this on every retry of the charge; email once.
           if ((invoice.attempt_count ?? 1) <= 1) {

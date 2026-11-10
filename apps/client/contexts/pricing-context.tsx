@@ -10,7 +10,7 @@ import {
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { PricingDialog } from "@/components/pricing-dialog";
-import { BUY_CREDITS_EVENT, OPEN_PRICING_EVENT } from "@/lib/toast-error";
+import { BUY_CREDITS_EVENT, OPEN_BILLING_EVENT, OPEN_PRICING_EVENT } from "@/lib/toast-error";
 
 interface PricingContextValue {
   openPricing: () => void;
@@ -45,6 +45,16 @@ export function PricingProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener(BUY_CREDITS_EVENT, openPacks);
     return () => window.removeEventListener(BUY_CREDITS_EVENT, openPacks);
+  }, [pathname, router]);
+
+  // "Update card" in a toast: the past-due banner on Billing has the button.
+  useEffect(() => {
+    const openBilling = () => {
+      if (pathname === "/billing") window.scrollTo({ top: 0, behavior: "smooth" });
+      else router.push("/billing");
+    };
+    window.addEventListener(OPEN_BILLING_EVENT, openBilling);
+    return () => window.removeEventListener(OPEN_BILLING_EVENT, openBilling);
   }, [pathname, router]);
 
   return (
