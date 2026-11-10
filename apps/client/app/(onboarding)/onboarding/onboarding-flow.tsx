@@ -100,6 +100,14 @@ export function OnboardingFlow() {
     if (usage && !usage.preferences?.timezone) {
       await savePreferences.mutateAsync({ timezone: getBrowserTimezone() }).catch(() => {});
     }
+    // The app sends new accounts back here until they're marked onboarded
+    // (mustFinishOnboarding). MarkOnboarded saves the flag in the background,
+    // so make sure it has landed before going in, or a quick click races it.
+    if (user && !user.unsafeMetadata?.onboardedAt && (paid || startedPlan)) {
+      await user
+        .update({ unsafeMetadata: { ...user.unsafeMetadata, onboardedAt: new Date().toISOString() } })
+        .catch(() => {});
+    }
     router.push(canPost ? "/scheduler/new" : "/");
   };
   const finish = () => {

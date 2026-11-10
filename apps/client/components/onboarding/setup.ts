@@ -58,13 +58,38 @@ export function hasPaidPlan(usage: { user: { plan: string | null; isActive: bool
 const NEW_ACCOUNT_MS = 24 * 60 * 60 * 1000;
 
 /**
- * A new account that hasn't finished onboarding (MarkOnboarded). Takes the
- * Clerk user from either the server (`createdAt` in ms) or the client (a Date).
+ * Accounts made from here on must finish onboarding before using the app
+ * (mustFinishOnboarding). Older ones were only offered it for their first
+ * day, and keep that, so nobody already using the app is locked out.
  */
-export function needsOnboarding(user: {
+const ONBOARDING_REQUIRED_FROM = Date.parse("2026-11-10T00:00:00Z");
+
+type OnboardingUser = {
   unsafeMetadata?: Record<string, unknown>;
   createdAt: number | Date | null;
-}): boolean {
+};
+
+/**
+ * An account that has to finish onboarding before the rest of the app: made
+ * after ONBOARDING_REQUIRED_FROM, not marked onboarded (MarkOnboarded), and
+ * without a paid plan. The plan check means a payer is never held here, even
+ * if the onboarded flag hasn't saved yet. `plan` is the one the Stripe
+ * webhooks keep in Clerk's metadata ("free" when there's none).
+ */
+export function mustFinishOnboarding(user: OnboardingUser): boolean {
   if (user.unsafeMetadata?.onboardedAt || !user.createdAt) return false;
+  if (Number(user.createdAt) < ONBOARDING_REQUIRED_FROM) return false;
+  const plan = String(user.unsafeMetadata?.plan ?? "free").trim().toLowerCase();
+  return plan === "" || plan === "free";
+}
+
+/**
+ * An account that hasn't finished onboarding and may go through it: one that
+ * must (mustFinishOnboarding), or an older one in its first day. Takes the
+ * Clerk user from either the server (`createdAt` in ms) or the client (a Date).
+ */
+export function needsOnboarding(user: OnboardingUser): boolean {
+  if (user.unsafeMetadata?.onboardedAt || !user.createdAt) return false;
+  if (mustFinishOnboarding(user)) return true;
   return Date.now() - Number(user.createdAt) < NEW_ACCOUNT_MS;
 }
