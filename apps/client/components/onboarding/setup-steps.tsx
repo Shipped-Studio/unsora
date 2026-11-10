@@ -22,21 +22,16 @@ import {
 } from "@/components/icons";
 import { ConnectGrid } from "@/components/scheduler/accounts-view";
 import { AccountAvatar, accountLabel } from "@/components/scheduler/account-avatar";
-import { formatLongDate, formatUsd, intervalLabel, planAllowanceLabel } from "@/components/billing/format";
-import { planCardFeatures } from "@/components/billing/plan-features";
+import { formatLongDate, formatUsd, intervalLabel } from "@/components/billing/format";
+import { CardGridSkeleton, PlanCard, cardGridClass, cardItemClass } from "@/components/billing/pricing-cards";
+import { PostToRow } from "@/components/billing/post-to-row";
 import { redirectToStripe } from "@/components/billing/redirect-to-stripe";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/shared/states";
 import { useAuthFetch } from "@/hooks/use-auth-fetch";
 import { useConnectedAccounts } from "@/hooks/use-connected-accounts";
-import {
-  plansForSale,
-  useSubscriptionPlans,
-  useTrialDays,
-  type SubscriptionPlan,
-} from "@/hooks/use-subscription-plans";
+import { plansForSale, useSubscriptionPlans, useTrialDays } from "@/hooks/use-subscription-plans";
 import { cn } from "@/lib/utils";
 import type { ConnectorApp } from "./connector-app";
 import { HowItWorksLoop, useLoopClock, type Beat } from "./how-it-works-loop";
@@ -371,32 +366,39 @@ export function TrialStep({ ctx }: { ctx: SetupContext }) {
         lead={hasTrial ? "Every plan starts free. Cancel anytime." : "Plans are priced by how many accounts you post to."}
       />
 
+      <PostToRow className="mt-8 justify-center" />
+
       <div className="mt-10">
         {loading || trialDays === null ? (
-          <div className="grid gap-3 md:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-120 rounded-2xl" />
-            ))}
-          </div>
+          <CardGridSkeleton />
         ) : error ? (
           <ErrorState title="Couldn't load plans" description={error} onRetry={() => void refetch()} />
         ) : (
-          <ul
-            className={cn(
-              "grid items-stretch gap-3",
-              (plans?.length ?? 0) >= 4 ? "md:grid-cols-2 lg:grid-cols-4" : "md:grid-cols-3",
-            )}
-          >
-            {plans?.map((plan) => (
-              <PlanCard
-                key={plan.key}
-                plan={plan}
-                trialDays={hasTrial ? (trialDays ?? 0) : 0}
-                pending={pendingKey === plan.key}
-                disabled={pendingKey !== null}
-                onStart={() => void start(plan.key)}
-              />
-            ))}
+          <ul className={cardGridClass(plans?.length ?? 0)}>
+            {plans?.map((plan) => {
+              const per = intervalLabel(plan.interval);
+              return (
+                <li key={plan.key} className={cardItemClass(plans?.length ?? 0)}>
+                  <PlanCard
+                    plan={plan}
+                    highlight={Boolean(plan.isPopular)}
+                    badge={plan.isPopular ? "Popular" : undefined}
+                    trialDays={hasTrial ? (trialDays ?? 0) : 0}
+                    action={{
+                      label: hasTrial ? "Start free trial" : `Choose ${plan.name}`,
+                      onClick: () => void start(plan.key),
+                      pending: pendingKey === plan.key,
+                      disabled: pendingKey !== null,
+                    }}
+                    note={
+                      hasTrial
+                        ? `Then ${formatUsd(plan.priceUsd)}${per ? `/${per}` : ""}. Cancel anytime.`
+                        : null
+                    }
+                  />
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -466,82 +468,5 @@ export function ConnectStep({
         </Button>
       </StepFooter>
     </section>
-  );
-}
-
-function PlanCard({
-  plan,
-  trialDays,
-  pending,
-  disabled,
-  onStart,
-}: {
-  plan: SubscriptionPlan;
-  /** 0 when checkout won't start a trial. */
-  trialDays: number;
-  pending: boolean;
-  disabled: boolean;
-  onStart: () => void;
-}) {
-  const per = intervalLabel(plan.interval);
-  const allowance = planAllowanceLabel(plan);
-  const { lead, items } = planCardFeatures(plan);
-
-  return (
-    <li
-      className={cn(
-        "flex flex-col rounded-2xl bg-card p-5 ring-1 sm:p-6",
-        plan.isPopular ? "ring-2 ring-foreground" : "ring-border",
-      )}
-    >
-      <p className="flex items-center gap-2 font-medium">
-        {plan.name}
-        {plan.isPopular ? (
-          <span className="rounded-full bg-foreground px-2 py-0.5 text-2xs font-medium text-background">
-            Popular
-          </span>
-        ) : null}
-      </p>
-      <p className="mt-4 text-4xl font-semibold tracking-tight tabular-nums">
-        {formatUsd(plan.priceUsd)}
-        {per ? <span className="text-sm font-normal text-muted-foreground"> / {per}</span> : null}
-      </p>
-      {allowance ? <p className="mt-1 text-sm text-muted-foreground">{allowance}</p> : null}
-
-      <Button
-        size="lg"
-        variant={plan.isPopular ? "default" : "outline"}
-        className="mt-6 w-full"
-        disabled={disabled}
-        onClick={onStart}
-      >
-        {pending ? <Spinner data-icon="inline-start" /> : null}
-        {trialDays ? "Start free trial" : `Choose ${plan.name}`}
-      </Button>
-      {trialDays ? (
-        <p className="mt-2 text-center text-xs text-muted-foreground">
-          {/* Non-breaking hyphen keeps "7-day" on one line. */}
-          {trialDays}&#8209;day free trial, then {formatUsd(plan.priceUsd)}
-          {per ? `/${per}` : ""}
-        </p>
-      ) : null}
-
-      <div className="mt-6 border-t pt-6 text-sm">
-        <ul className="space-y-2.5">
-          {lead ? (
-            <li className="flex gap-2.5 font-medium">
-              <Check className="mt-0.5 size-4 shrink-0 text-success" weight="bold" />
-              <span>{lead}</span>
-            </li>
-          ) : null}
-          {items.map((feature) => (
-            <li key={feature} className="flex gap-2.5">
-              <Check className="mt-0.5 size-4 shrink-0 text-success" weight="bold" />
-              <span>{feature}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </li>
   );
 }
