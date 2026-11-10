@@ -1,4 +1,5 @@
 import { clerkClient } from "@clerk/express";
+import { logger } from "../lib/logger";
 
 export interface ClerkProfile {
   name: string | null;
@@ -29,7 +30,7 @@ export async function fetchClerkProfile(clerkId: string): Promise<ClerkProfile> 
       signupMethod: signupMethodFromProviders(providers),
     };
   } catch (err) {
-    console.error("[email] Clerk profile fetch failed:", err);
+    logger.error("[email] Clerk profile fetch failed:", err);
     return { name: null, firstName: null, username: null, signupMethod: null };
   }
 }

@@ -1,6 +1,7 @@
 import type { Plan, PlanInterval, PlanType } from "@prisma/client";
 import { stripe } from "./stripe";
 import { planMeta, type PlanMeta } from "./plans";
+import { logger } from "./logger";
 
 /**
  * Keeps sellable plans (SUBSCRIPTION, TOPUP) backed by a Stripe product and
@@ -110,7 +111,7 @@ export async function syncPlanToStripe(
     stripePriceId = price.id;
     if (old) {
       await stripe.prices.update(old, { active: false }).catch((err) => {
-        console.warn(`[plans] couldn't archive old Stripe price ${old}:`, err);
+        logger.warn(`[plans] couldn't archive old Stripe price ${old}:`, err);
       });
       remember(metadata, old, price.id);
     }

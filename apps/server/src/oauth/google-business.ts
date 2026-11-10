@@ -1,5 +1,6 @@
 import axios from "axios";
 import { uploadUrlToStorage } from "../lib/upload";
+import { logger } from "../lib/logger";
 
 /**
  * Google Business Profile OAuth. Reuses the YouTube Google OAuth client
@@ -58,7 +59,7 @@ export async function exchangeGoogleBusinessCode(code: string) {
   );
 
   if (!res.data.access_token) {
-    console.error("Google Business token response missing fields:", res.data);
+    logger.error("Google Business token response missing fields:", res.data);
     throw new Error("Invalid Google token response");
   }
 
@@ -147,7 +148,7 @@ export async function getGoogleBusinessLocation(
       address: formatAddress(res.data?.storefrontAddress),
     };
   } catch (error: any) {
-    console.error(
+    logger.error(
       "Error fetching Google Business location:",
       error?.response?.data || error,
     );
@@ -187,7 +188,7 @@ export async function getGoogleBusinessLocationPicture(
     const uploaded = await uploadUrlToStorage(url);
     return uploaded.fileUrl || null;
   } catch (error: any) {
-    console.error(
+    logger.error(
       "Failed to fetch Google Business location picture:",
       error?.response?.data || error?.message || error,
     );

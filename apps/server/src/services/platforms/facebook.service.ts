@@ -1,6 +1,7 @@
 import { SocialAccount } from "@prisma/client";
 import type { PostMediaWithAsset } from "../post.service";
 import axios from "axios";
+import { logger } from "../../lib/logger";
 
 /**
  * Facebook API Service
@@ -160,7 +161,7 @@ export class FacebookService {
   private handleFacebookError(error: any, context: string): never {
     const fbError = error.response?.data?.error;
 
-    console.error(`${context} error:`, {
+    logger.error(`${context} error:`, {
       message: error.message,
       response: error.response?.data,
       status: error.response?.status,

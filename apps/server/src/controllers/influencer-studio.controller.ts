@@ -8,6 +8,7 @@ import {
   refundConsumption,
   InsufficientCreditsError,
 } from "../lib/credits";
+import { logger } from "../lib/logger";
 
 const CREDIT_COST = gptImage2.credits({ resolution: "2k" });
 
@@ -176,7 +177,7 @@ export class InfluencerStudioController {
         creditsRemaining,
       });
     } catch (error) {
-      console.error("Create influencer studio generation error:", error);
+      logger.error("Create influencer studio generation error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -237,7 +238,7 @@ export class InfluencerStudioController {
         },
       });
     } catch (error) {
-      console.error("Get influencer studio generations error:", error);
+      logger.error("Get influencer studio generations error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -287,7 +288,7 @@ export class InfluencerStudioController {
 
       return res.json({ success: true, generation });
     } catch (error) {
-      console.error("Refresh influencer studio status error:", error);
+      logger.error("Refresh influencer studio status error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -322,7 +323,7 @@ export class InfluencerStudioController {
         message: "Generation deleted successfully",
       });
     } catch (error) {
-      console.error("Delete influencer studio generation error:", error);
+      logger.error("Delete influencer studio generation error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",

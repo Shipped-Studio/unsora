@@ -14,6 +14,7 @@ import {
 } from "../shared/state";
 import { canAddAccount, ACCOUNT_LIMIT_MESSAGE } from "../shared/limits";
 import { getUserIdFromClerkId } from "../shared/user";
+import { logger } from "../../../lib/logger";
 
 export class TikTokSchedulerController {
   getTikTokAuthUrl = async (req: Request, res: Response) => {
@@ -40,7 +41,7 @@ export class TikTokSchedulerController {
       }
 
       if (error) {
-        console.error("TikTok OAuth error:", { error, error_description });
+        logger.error("TikTok OAuth error:", { error, error_description });
         return res.redirect(
           redirect(
             "error",
@@ -99,7 +100,7 @@ export class TikTokSchedulerController {
 
       res.redirect(redirect("success"));
     } catch (error) {
-      console.error("TikTok callback error:", error);
+      logger.error("TikTok callback error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       res.redirect(redirect("error", errorMessage));
@@ -148,7 +149,7 @@ export class TikTokSchedulerController {
         data: creatorInfo,
       });
     } catch (error) {
-      console.error("Get TikTok creator info error:", error);
+      logger.error("Get TikTok creator info error:", error);
       res.status(500).json({
         success: false,
         error: "Failed to fetch TikTok creator info",

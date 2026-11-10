@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import prisma from "../../lib/db";
 import { FEED_SELECT, FEED_KINDS, num, toPositiveInt } from "./_shared";
+import { logger } from "../../lib/logger";
 
 /**
  * GET /api/admin/analytics?days=30
@@ -103,7 +104,7 @@ export class AdminAnalyticsController {
         },
       });
     } catch (error) {
-      console.error("[admin] analytics error:", error);
+      logger.error("[admin] analytics error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to load analytics" });

@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import prisma from "../../lib/db";
 import { allProfiles } from "../../lib/clerk-profile";
 import { FEED_SELECT, num, toPositiveInt } from "./_shared";
+import { logger } from "../../lib/logger";
 
 interface DayCount {
   date: string;
@@ -83,7 +84,7 @@ export class AdminOverviewController {
         this.dailyCreditsSeries(days),
         // Answers and countries live in Clerk; if it's unreachable the rest still loads.
         this.signupBreakdown(since).catch((error) => {
-          console.error("[admin] overview sign-up breakdown error:", error);
+          logger.error("[admin] overview sign-up breakdown error:", error);
           return null;
         }),
       ]);
@@ -145,7 +146,7 @@ export class AdminOverviewController {
         },
       });
     } catch (error) {
-      console.error("[admin] overview error:", error);
+      logger.error("[admin] overview error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to load overview" });

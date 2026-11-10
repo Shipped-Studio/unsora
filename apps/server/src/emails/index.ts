@@ -33,6 +33,7 @@ import { lowCreditsEmail } from "./templates/account/low-credits";
 import { postFailedEmail, type PostFailedTarget } from "./templates/account/post-failed";
 import { newSignupEmail } from "./templates/internal/new-signup";
 import { newSubscriptionEmail } from "./templates/internal/new-subscription";
+import { logger } from "../lib/logger";
 
 export { sendEmail, emailConfigured } from "./send";
 
@@ -42,7 +43,7 @@ async function emailForUser(userId: string): Promise<string | null> {
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
     return user?.email ?? null;
   } catch (err) {
-    console.error("[email] user lookup failed:", err);
+    logger.error("[email] user lookup failed:", err);
     return null;
   }
 }

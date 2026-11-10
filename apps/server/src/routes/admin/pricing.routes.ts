@@ -4,6 +4,7 @@ import {
   savePricingConfig,
   validPricing,
 } from "../../lib/generation-pricing";
+import { logger } from "../../lib/logger";
 
 const router = Router();
 
@@ -13,7 +14,7 @@ router.get("/", async (_req, res) => {
   try {
     res.json({ success: true, data: await pricingConfig() });
   } catch (error) {
-    console.error("Admin pricing load error:", error);
+    logger.error("Admin pricing load error:", error);
     res.status(500).json({ success: false, error: "Couldn't load pricing" });
   }
 });
@@ -33,7 +34,7 @@ router.put("/", async (req, res) => {
     await savePricingConfig(value, req.auth?.userId);
     res.json({ success: true, data: await pricingConfig() });
   } catch (error) {
-    console.error("Admin pricing save error:", error);
+    logger.error("Admin pricing save error:", error);
     res.status(500).json({
       success: false,
       error:

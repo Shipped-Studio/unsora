@@ -10,6 +10,7 @@
  *   Team inboxes: see INBOXES below.
  */
 import type { RenderedEmail } from "./layout";
+import { logger } from "../lib/logger";
 
 const DEFAULT_API_URL = "https://next-api.useplunk.com";
 
@@ -108,12 +109,12 @@ export async function sendSafely(
 ): Promise<void> {
   if (!to) return;
   if (!emailConfigured()) {
-    console.warn(`[email] ${label}: PLUNK_SECRET_KEY / PLUNK_FROM_EMAIL not set, skipping`);
+    logger.warn(`[email] ${label}: PLUNK_SECRET_KEY / PLUNK_FROM_EMAIL not set, skipping`);
     return;
   }
   try {
     await sendRendered(to, await render(), opts);
   } catch (err) {
-    console.error(`[email] ${label} failed:`, err);
+    logger.error(`[email] ${label} failed:`, err);
   }
 }

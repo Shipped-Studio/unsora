@@ -7,6 +7,7 @@ import { createAsset } from "../lib/asset-utils";
 import { submitWavespeed, pollWavespeed } from "./providers/wavespeed";
 import { refundConsumption } from "../lib/credits";
 import { getWavespeedClient } from "../lib/wavespeed-api";
+import { logger } from "../lib/logger";
 
 /**
  * Unified video-generation queue. Every video generation provider — Kling,
@@ -354,7 +355,7 @@ async function finalizeGeneration(
       });
     }
   } catch (refundError) {
-    console.error(
+    logger.error(
       `[VideoGen ${generationId}] Failed to update DB/refund:`,
       refundError,
     );

@@ -1,6 +1,7 @@
 import { Supadata } from "@supadata/js";
 import { probeVideoMetadata } from "./asset-utils";
 import { measureMediaSeconds } from "./media-limits";
+import { logger } from "./logger";
 
 const YOUTUBE_PATTERNS = [
   /(?:youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/,
@@ -54,7 +55,7 @@ async function getYoutubeDurationFromDataApi(
 
     const response = await fetch(url);
     if (!response.ok) {
-      console.warn(
+      logger.warn(
         `[clipping-video-info] YouTube Data API returned ${response.status}`,
       );
       return null;
@@ -66,7 +67,7 @@ async function getYoutubeDurationFromDataApi(
     const duration = data.items?.[0]?.contentDetails?.duration;
     return duration ? parseIso8601Duration(duration) : null;
   } catch (error) {
-    console.warn(
+    logger.warn(
       "[clipping-video-info] YouTube Data API lookup failed:",
       error,
     );
@@ -86,7 +87,7 @@ async function getYoutubeDurationFromSupadata(
       ? video.duration
       : null;
   } catch (error) {
-    console.warn("[clipping-video-info] Supadata lookup failed:", error);
+    logger.warn("[clipping-video-info] Supadata lookup failed:", error);
     return null;
   }
 }

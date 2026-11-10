@@ -21,6 +21,7 @@ import {
 import { getUserByClerkId } from "../services/user.service";
 import { uploadUrlToStorage } from "../lib/upload";
 import { CANCELLED_ERROR } from "./task-utils";
+import { logger } from "../lib/logger";
 
 export interface SubtitleProcessingJobData {
   userId: string;
@@ -128,7 +129,7 @@ export const subtitleProcessingTask = task({
             await findCaptionKeywords(words.map((w) => w.word)),
           );
         } catch (keywordError) {
-          console.error(`[Subtitle ${ctx.run.id}] Keyword pass failed:`, keywordError);
+          logger.error(`[Subtitle ${ctx.run.id}] Keyword pass failed:`, keywordError);
         }
       }
       const subtitleChunks = words.length
@@ -193,7 +194,7 @@ export const subtitleProcessingTask = task({
             height: savedTranscription.height || videoDimensions.height,
           });
         } catch (renderError) {
-          console.error(
+          logger.error(
             `[Subtitle ${ctx.run.id}] Render failed (transcription still available):`,
             renderError,
           );
@@ -213,7 +214,7 @@ export const subtitleProcessingTask = task({
         },
       };
     } catch (error) {
-      console.error(`[Subtitle ${ctx.run.id}] Processing error:`, error);
+      logger.error(`[Subtitle ${ctx.run.id}] Processing error:`, error);
 
       try {
         await updateTranscriptionError(
@@ -242,7 +243,7 @@ export const subtitleProcessingTask = task({
     try {
       await updateTranscriptionError(payload.transcriptionId, CANCELLED_ERROR);
     } catch (cancelError) {
-      console.error(
+      logger.error(
         `[Subtitle ${payload.transcriptionId}] Failed to mark cancelled:`,
         cancelError,
       );

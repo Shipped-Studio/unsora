@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import crypto from "crypto";
 import { prisma } from "../lib/db";
 import { tiktokService } from "../services/platforms/tiktok.service";
+import { logger } from "../lib/logger";
 
 export class WebhookController {
   // ─── Facebook Webhook ───────────────────────────────────────────────
@@ -30,7 +31,7 @@ export class WebhookController {
     const signature = req.headers["x-hub-signature-256"] as string;
 
     if (!WebhookController.verifyMetaSignature(req, signature, process.env.FB_APP_SECRET!)) {
-      console.error("Facebook webhook signature verification failed");
+      logger.error("Facebook webhook signature verification failed");
       return res.sendStatus(403);
     }
 
@@ -47,7 +48,7 @@ export class WebhookController {
         }
       }
     } catch (error) {
-      console.error("Error processing Facebook webhook:", error);
+      logger.error("Error processing Facebook webhook:", error);
     }
 
     return res.sendStatus(200);
@@ -79,7 +80,7 @@ export class WebhookController {
     const signature = req.headers["x-hub-signature-256"] as string;
 
     if (!WebhookController.verifyMetaSignature(req, signature, process.env.IG_APP_SECRET!)) {
-      console.error("Instagram webhook signature verification failed");
+      logger.error("Instagram webhook signature verification failed");
       return res.sendStatus(403);
     }
 
@@ -96,7 +97,7 @@ export class WebhookController {
         }
       }
     } catch (error) {
-      console.error("Error processing Instagram webhook:", error);
+      logger.error("Error processing Instagram webhook:", error);
     }
 
     return res.sendStatus(200);
@@ -137,7 +138,7 @@ export class WebhookController {
           .digest("hex");
 
       if (signature !== expectedSig) {
-        console.error("YouTube webhook signature verification failed");
+        logger.error("YouTube webhook signature verification failed");
         return res.sendStatus(403);
       }
     }
@@ -145,7 +146,7 @@ export class WebhookController {
     try {
       await WebhookController.handleYouTubeEvent(rawBody);
     } catch (error) {
-      console.error("Error processing YouTube webhook:", error);
+      logger.error("Error processing YouTube webhook:", error);
     }
 
     return res.sendStatus(200);
@@ -164,7 +165,7 @@ export class WebhookController {
    */
   async tiktokEvent(req: Request, res: Response) {
     if (!WebhookController.verifyTikTokSignature(req)) {
-      console.error("TikTok webhook signature verification failed");
+      logger.error("TikTok webhook signature verification failed");
       return res.sendStatus(403);
     }
 
@@ -191,7 +192,7 @@ export class WebhookController {
           break;
       }
     } catch (error) {
-      console.error("Error processing TikTok webhook:", error);
+      logger.error("Error processing TikTok webhook:", error);
     }
 
     return res.sendStatus(200);
@@ -254,7 +255,7 @@ export class WebhookController {
     try {
       return JSON.parse(quoted);
     } catch {
-      console.error("Failed to parse TikTok webhook content:", content);
+      logger.error("Failed to parse TikTok webhook content:", content);
       return {};
     }
   }
@@ -312,7 +313,7 @@ export class WebhookController {
     });
 
     if (!postAccount) {
-      console.warn(
+      logger.warn(
         `TikTok publicly_available webhook: no post found for publish_id ${publishId}`,
       );
       return;

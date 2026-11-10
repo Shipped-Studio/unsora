@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { Prisma } from "@prisma/client";
 import prisma from "../../lib/db";
 import { toPositiveInt, num } from "./_shared";
+import { logger } from "../../lib/logger";
 
 const VALID_TYPES = new Set(["IMAGE", "VIDEO", "AUDIO", "DOCUMENT"]);
 
@@ -78,7 +79,7 @@ export class AdminContentController {
         },
       });
     } catch (error) {
-      console.error("[admin] content.list error:", error);
+      logger.error("[admin] content.list error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to load content" });

@@ -24,6 +24,7 @@ import {
   toPublicPlan,
   trialDays,
 } from "../lib/plans";
+import { logger } from "../lib/logger";
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -232,7 +233,7 @@ async function trialDaysFor(stripeCustomerId: string | null): Promise<number> {
       });
       if (invoices.data.length > 0) return 0;
     } catch (error) {
-      console.error("Error checking previous payments:", error);
+      logger.error("Error checking previous payments:", error);
     }
   }
   return trialDays();
@@ -257,7 +258,7 @@ export class StripeController {
         webhookSecret,
       );
     } catch (err) {
-      console.error("Webhook signature verification failed:", err);
+      logger.error("Webhook signature verification failed:", err);
       return res.status(400).json({ success: false, error: "Invalid signature" });
     }
 
@@ -400,7 +401,7 @@ export class StripeController {
           // forever, and matching by customer instead would wipe the new
           // plan's freshly minted credits.
           if (!user) {
-            console.warn(
+            logger.warn(
               `subscription.deleted for ${subscription.id}: no user references it (likely superseded by an upgrade) — ignoring`,
             );
             break;
@@ -641,7 +642,7 @@ export class StripeController {
                 });
               }
             } catch (err) {
-              console.error(
+              logger.error(
                 `Failed to cancel superseded subscription ${upgradeFromSubscriptionId}:`,
                 err,
               );
@@ -869,7 +870,7 @@ export class StripeController {
 
       return res.json({ received: true });
     } catch (error) {
-      console.error("Error processing webhook:", error);
+      logger.error("Error processing webhook:", error);
       return res
         .status(500)
         .json({ success: false, error: "Webhook processing failed" });
@@ -931,7 +932,7 @@ export class StripeController {
             upgradeFromSubscriptionId = user.stripeSubscriptionId;
           }
         } catch (error) {
-          console.error("Error checking current subscription:", error);
+          logger.error("Error checking current subscription:", error);
         }
       }
 
@@ -983,7 +984,7 @@ export class StripeController {
 
       res.json({ url: session.url });
     } catch (error) {
-      console.error("Error creating checkout session:", error);
+      logger.error("Error creating checkout session:", error);
       return res.status(500).json({
         error: "Failed to create checkout session",
         message: error instanceof Error ? error.message : "Unknown error",
@@ -1097,7 +1098,7 @@ export class StripeController {
 
       return res.json({ success: true, url: session.url });
     } catch (error) {
-      console.error("Error creating upgrade checkout session:", error);
+      logger.error("Error creating upgrade checkout session:", error);
       return res.status(500).json({
         success: false,
         error: "Failed to start plan upgrade",
@@ -1300,7 +1301,7 @@ export class StripeController {
           unsafeMetadata: { onboardingCompleted: true, plan: planName },
         });
       } catch (err) {
-        console.error("Failed to sync Clerk metadata after upgrade:", err);
+        logger.error("Failed to sync Clerk metadata after upgrade:", err);
       }
 
       return res.status(200).json({
@@ -1321,7 +1322,7 @@ export class StripeController {
           error: error.message || "Your card was declined.",
         });
       }
-      console.error("Error upgrading trial to paid subscription:", error);
+      logger.error("Error upgrading trial to paid subscription:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to process subscription upgrade" });
@@ -1382,7 +1383,7 @@ export class StripeController {
         },
       });
     } catch (error) {
-      console.error("Error canceling trial:", error);
+      logger.error("Error canceling trial:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to cancel trial" });
@@ -1414,7 +1415,7 @@ export class StripeController {
 
       res.json({ url: portalSession.url });
     } catch (error) {
-      console.error("Error getting billing portal URL:", error);
+      logger.error("Error getting billing portal URL:", error);
       res
         .status(500)
         .json({ success: false, error: "Failed to create billing portal session" });
@@ -1439,7 +1440,7 @@ export class StripeController {
       const days = await trialDaysFor(user?.stripeCustomerId ?? null);
       return res.json({ success: true, data: { trialDays: days } });
     } catch (error) {
-      console.error("Error checking trial eligibility:", error);
+      logger.error("Error checking trial eligibility:", error);
       return res
         .status(500)
         .json({ success: false, error: "Couldn't check trial eligibility" });
@@ -1486,7 +1487,7 @@ export class StripeController {
       });
       return res.json({ success: true, data });
     } catch (error) {
-      console.error("Error listing subscription plans:", error);
+      logger.error("Error listing subscription plans:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to load subscription plans" });
@@ -1512,7 +1513,7 @@ export class StripeController {
       });
       return res.json({ success: true, data });
     } catch (error) {
-      console.error("Error listing credit packs:", error);
+      logger.error("Error listing credit packs:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to load credit packs" });
@@ -1565,7 +1566,7 @@ export class StripeController {
       const url = await createTopupCheckoutUrl(pack, user);
       return res.json({ success: true, url });
     } catch (error) {
-      console.error("Error creating top-up checkout session:", error);
+      logger.error("Error creating top-up checkout session:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to create checkout session" });
@@ -1677,7 +1678,7 @@ export class StripeController {
         } catch (error) {
           // There's no webhook behind this path, so say which payment it was.
           // A retry with the same requestId grants them.
-          console.error(`Charged ${intent.id} but couldn't grant its credits:`, error);
+          logger.error(`Charged ${intent.id} but couldn't grant its credits:`, error);
           throw error;
         }
         void onCreditsPurchased({
@@ -1691,7 +1692,7 @@ export class StripeController {
 
       return res.json({ success: true, credits: pack.credits });
     } catch (error) {
-      console.error("Error buying credits:", error);
+      logger.error("Error buying credits:", error);
       return res.status(500).json({ success: false, error: "Failed to buy credits" });
     }
   }
@@ -1729,7 +1730,7 @@ export class StripeController {
 
       res.json(user);
     } catch (error) {
-      console.error("Error getting subscription details:", error);
+      logger.error("Error getting subscription details:", error);
       return res.status(500).json({
         success: false,
         error: "Failed to fetch subscription details",

@@ -9,6 +9,7 @@ import { refreshPinterestToken } from "../oauth/pinterest";
 import { refreshThreadsToken } from "../oauth/threads";
 import { refreshTikTokToken } from "../oauth/tiktok";
 import { refreshXToken } from "../oauth/x";
+import { logger } from "../lib/logger";
 
 export class TokenRefreshService {
   /**
@@ -86,7 +87,7 @@ export class TokenRefreshService {
               account.expiresAt &&
               new Date(account.expiresAt).getTime() > Date.now();
             if (stillValid) {
-              console.warn(
+              logger.warn(
                 "Instagram token refresh failed but stored token is still valid; using it.",
                 refreshError instanceof Error
                   ? refreshError.message
@@ -115,7 +116,7 @@ export class TokenRefreshService {
               account.expiresAt &&
               new Date(account.expiresAt).getTime() > Date.now();
             if (stillValid) {
-              console.warn(
+              logger.warn(
                 "Threads token refresh failed but stored token is still valid; using it.",
                 refreshError instanceof Error
                   ? refreshError.message
@@ -251,7 +252,7 @@ export class TokenRefreshService {
 
       return updatedAccount;
     } catch (error) {
-      console.error(
+      logger.error(
         `Error refreshing token for ${account.provider} account:`,
         error
       );

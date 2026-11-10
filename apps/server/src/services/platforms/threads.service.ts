@@ -1,6 +1,7 @@
 import { SocialAccount } from "@prisma/client";
 import type { PostMediaWithAsset } from "../post.service";
 import axios from "axios";
+import { logger } from "../../lib/logger";
 
 /**
  * Threads API Service
@@ -193,7 +194,7 @@ export class ThreadsService {
         return response.data.permalink;
       }
     } catch (error: any) {
-      console.error("Failed to fetch Threads permalink:", {
+      logger.error("Failed to fetch Threads permalink:", {
         mediaId,
         message: error.message,
         response: error.response?.data,
@@ -215,7 +216,7 @@ export class ThreadsService {
   private handleThreadsError(error: any, context: string): never {
     const apiError = error.response?.data?.error;
 
-    console.error(`${context} error:`, {
+    logger.error(`${context} error:`, {
       message: error.message,
       response: error.response?.data,
       status: error.response?.status,

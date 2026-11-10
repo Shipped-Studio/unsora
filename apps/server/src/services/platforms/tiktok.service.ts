@@ -2,6 +2,7 @@ import { SocialAccount } from "@prisma/client";
 import { ensureTikTokPhotoUrl } from "../../lib/jpeg-image";
 import type { PostMediaWithAsset } from "../post.service";
 import axios, { AxiosResponse } from "axios";
+import { logger } from "../../lib/logger";
 
 /**
  * TikTok API Service
@@ -337,7 +338,7 @@ export class TikTokService {
   }
 
   private wrapTikTokError(error: any, prefix: string): Error {
-    console.error("TikTok publish error:", {
+    logger.error("TikTok publish error:", {
       message: error.message,
       response: error.response?.data,
       status: error.response?.status,
@@ -408,7 +409,7 @@ export class TikTokService {
           await sleep(intervalMs);
         }
       } catch (error: any) {
-        console.error("Error polling TikTok upload status:", {
+        logger.error("Error polling TikTok upload status:", {
           message: error.message,
           response: error.response?.data,
         });
@@ -463,7 +464,7 @@ export class TikTokService {
           await sleep(intervalMs);
         }
       } catch (error: any) {
-        console.error("Error querying TikTok video share URL:", {
+        logger.error("Error querying TikTok video share URL:", {
           videoId,
           attempt,
           message: error.message,

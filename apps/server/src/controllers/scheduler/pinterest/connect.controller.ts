@@ -15,6 +15,7 @@ import {
 } from "../shared/state";
 import { canAddAccount, ACCOUNT_LIMIT_MESSAGE } from "../shared/limits";
 import { getUserIdFromClerkId } from "../shared/user";
+import { logger } from "../../../lib/logger";
 
 export class PinterestSchedulerController {
   getPinterestAuthUrl = async (req: Request, res: Response) => {
@@ -41,7 +42,7 @@ export class PinterestSchedulerController {
       }
 
       if (error) {
-        console.error("Pinterest OAuth error:", { error, error_description });
+        logger.error("Pinterest OAuth error:", { error, error_description });
         return res.redirect(
           redirect(
             "error",
@@ -114,7 +115,7 @@ export class PinterestSchedulerController {
 
       res.redirect(redirect("success"));
     } catch (error) {
-      console.error("Pinterest callback error:", error);
+      logger.error("Pinterest callback error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       res.redirect(
@@ -152,7 +153,7 @@ export class PinterestSchedulerController {
 
       res.json({ success: true, data: boards });
     } catch (error) {
-      console.error("Get Pinterest boards error:", error);
+      logger.error("Get Pinterest boards error:", error);
       res.status(500).json({
         success: false,
         error: "Failed to fetch Pinterest boards",

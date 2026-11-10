@@ -1,6 +1,7 @@
 import axios from "axios";
 import { createHash } from "crypto";
 import { uploadUrlToStorage } from "../lib/upload";
+import { logger } from "../lib/logger";
 
 /**
  * X (Twitter) OAuth 2.0 authorization code flow with PKCE, as a confidential
@@ -63,7 +64,7 @@ export async function exchangeXCode(code: string, codeVerifier: string) {
   });
 
   if (!res.data.access_token) {
-    console.error("X token response missing fields:", res.data);
+    logger.error("X token response missing fields:", res.data);
     throw new Error("Invalid X token response");
   }
 
@@ -86,7 +87,7 @@ export async function refreshXToken(refreshToken: string) {
   });
 
   if (!res.data.access_token) {
-    console.error("X refresh response missing fields:", res.data);
+    logger.error("X refresh response missing fields:", res.data);
     throw new Error("Invalid X refresh response");
   }
 
@@ -115,7 +116,7 @@ export async function getXUser(accessToken: string) {
         const uploaded = await uploadUrlToStorage(fullSize);
         uploadedProfilePicture = uploaded.fileUrl || null;
       } catch (uploadError) {
-        console.error("Failed to re-host X avatar:", uploadError);
+        logger.error("Failed to re-host X avatar:", uploadError);
       }
     }
 
@@ -126,7 +127,7 @@ export async function getXUser(accessToken: string) {
       profilePicture: uploadedProfilePicture,
     };
   } catch (error: any) {
-    console.error("Error fetching X user:", error?.response?.data || error);
+    logger.error("Error fetching X user:", error?.response?.data || error);
     return null;
   }
 }
@@ -148,6 +149,6 @@ export async function revokeXToken(token: string): Promise<void> {
       },
     );
   } catch (error: any) {
-    console.error("X token revoke failed:", error?.response?.data || error);
+    logger.error("X token revoke failed:", error?.response?.data || error);
   }
 }

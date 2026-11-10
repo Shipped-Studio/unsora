@@ -2,6 +2,7 @@ import prisma from "./db";
 import type { AssetType, AssetSource } from "@prisma/client";
 import { Input, FilePathSource, MP4 } from "mediabunny";
 import { downloadToTemp, removeTempFile, safeGet } from "./remote-import";
+import { logger } from "./logger";
 
 interface CreateAssetInput {
   userId: string;
@@ -87,7 +88,7 @@ export async function probeVideoMetadata(
       fileSize: BigInt(file.size),
     };
   } catch (err) {
-    console.warn("[probeVideoMetadata] Failed to probe video:", err);
+    logger.warn("[probeVideoMetadata] Failed to probe video:", err);
     return null;
   } finally {
     if (tempPath) await removeTempFile(tempPath);

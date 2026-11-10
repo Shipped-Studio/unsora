@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import prisma from "../lib/db";
 import { klingV3Pro } from "../config/models";
+import { logger } from "../lib/logger";
 
 // Rows from the old Kling route plus Kling 3.0 Pro catalog generations.
 const KLING_DB_MODELS = [klingV3Pro.dbModel, "kling-3.0-pro"];
@@ -62,7 +63,7 @@ export class KlingController {
         },
       });
     } catch (error) {
-      console.error("Get Kling generations error:", error);
+      logger.error("Get Kling generations error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -111,7 +112,7 @@ export class KlingController {
 
       return res.json({ success: true, generation });
     } catch (error) {
-      console.error("Refresh Kling generation status error:", error);
+      logger.error("Refresh Kling generation status error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -150,7 +151,7 @@ export class KlingController {
         message: "Generation deleted successfully",
       });
     } catch (error) {
-      console.error("Delete Kling generation error:", error);
+      logger.error("Delete Kling generation error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",

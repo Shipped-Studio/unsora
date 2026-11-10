@@ -24,7 +24,7 @@ export function PricingDialog({ open, onOpenChange }: PricingDialogProps) {
       <DialogContent
         className={cn(
           "flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0",
-          count >= 4 ? "sm:max-w-6xl" : "sm:max-w-4xl",
+          count >= 4 ? "sm:max-w-7xl" : "sm:max-w-5xl",
         )}
       >
         <DialogHeader className="border-b p-6 pr-12">

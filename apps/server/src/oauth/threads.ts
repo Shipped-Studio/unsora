@@ -1,5 +1,6 @@
 import axios from "axios";
 import { uploadUrlToStorage } from "../lib/upload";
+import { logger } from "../lib/logger";
 
 /**
  * Threads OAuth (Meta, but fully separate from Facebook/Instagram):
@@ -43,7 +44,7 @@ export async function exchangeThreadsCode(code: string) {
   });
 
   if (!res.data.access_token || !res.data.user_id) {
-    console.error("Threads token response missing fields:", res.data);
+    logger.error("Threads token response missing fields:", res.data);
     throw new Error("Invalid Threads token response");
   }
 
@@ -93,7 +94,7 @@ export async function getThreadsProfile(accessToken: string) {
         );
         uploadedProfilePicture = uploaded.fileUrl || null;
       } catch (uploadError) {
-        console.error("Failed to re-host Threads avatar:", uploadError);
+        logger.error("Failed to re-host Threads avatar:", uploadError);
       }
     }
 
@@ -104,7 +105,7 @@ export async function getThreadsProfile(accessToken: string) {
       profilePicture: uploadedProfilePicture,
     };
   } catch (error: any) {
-    console.error(
+    logger.error(
       "Error fetching Threads profile:",
       error?.response?.data || error,
     );

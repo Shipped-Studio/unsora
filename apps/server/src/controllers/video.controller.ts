@@ -8,6 +8,7 @@ import {
   InsufficientCreditsError,
 } from "../lib/credits";
 import { DURATION_TOLERANCE_SECONDS, measureMediaSeconds } from "../lib/media-limits";
+import { logger } from "../lib/logger";
 
 /** Longest video watermark/subtitle removal takes (matches the app's limit). */
 const MAX_PROCESS_SECONDS = 120;
@@ -207,7 +208,7 @@ export class VideoController {
         creditsRemaining,
       });
     } catch (error) {
-      console.error("Video processing job creation error:", error);
+      logger.error("Video processing job creation error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -300,7 +301,7 @@ export class VideoController {
         },
       });
     } catch (error) {
-      console.error("Get videos error:", error);
+      logger.error("Get videos error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -369,7 +370,7 @@ export class VideoController {
         video,
       });
     } catch (error) {
-      console.error("Refresh video status error:", error);
+      logger.error("Refresh video status error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -415,7 +416,7 @@ export class VideoController {
         message: "Video deleted successfully",
       });
     } catch (error) {
-      console.error("Delete video error:", error);
+      logger.error("Delete video error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -462,7 +463,7 @@ export class VideoController {
         count: deletedVideos.count,
       });
     } catch (error) {
-      console.error("Delete videos error:", error);
+      logger.error("Delete videos error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",

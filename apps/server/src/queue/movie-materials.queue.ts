@@ -17,6 +17,7 @@ import {
   multishotBoard2x4Prompt,
   multishotBoard1x4Prompt,
 } from "../../prompts/movie-materials.prompts";
+import { logger } from "../lib/logger";
 
 export interface MovieMaterialsJobData {
   userId: string;
@@ -266,7 +267,7 @@ async function finalizeGeneration(
       });
     }
   } catch (refundError) {
-    console.error(
+    logger.error(
       `[MovieMat ${generationId}] Failed to update DB/refund:`,
       refundError,
     );

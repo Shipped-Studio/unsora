@@ -10,6 +10,7 @@ import {
 } from "../shared/state";
 import { canAddAccount, ACCOUNT_LIMIT_MESSAGE } from "../shared/limits";
 import { getUserIdFromClerkId } from "../shared/user";
+import { logger } from "../../../lib/logger";
 
 /** X access tokens last 2 hours. */
 const X_DEFAULT_EXPIRES_IN = 7200;
@@ -40,7 +41,7 @@ export class XSchedulerController {
       }
 
       if (error) {
-        console.error("X OAuth error:", { error, error_description });
+        logger.error("X OAuth error:", { error, error_description });
         return res.redirect(
           redirect(
             "error",
@@ -100,7 +101,7 @@ export class XSchedulerController {
 
       res.redirect(redirect("success"));
     } catch (error: any) {
-      console.error("X callback error:", error?.response?.data || error);
+      logger.error("X callback error:", error?.response?.data || error);
       const errorMessage =
         error?.response?.data?.error_description ||
         (error instanceof Error ? error.message : "Unknown error");

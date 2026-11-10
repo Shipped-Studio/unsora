@@ -14,6 +14,7 @@ import {
 } from "../shared/state";
 import { canAddAccount, ACCOUNT_LIMIT_MESSAGE } from "../shared/limits";
 import { getUserIdFromClerkId } from "../shared/user";
+import { logger } from "../../../lib/logger";
 
 export class ThreadsSchedulerController {
   getThreadsAuthUrl = async (req: Request, res: Response) => {
@@ -40,7 +41,7 @@ export class ThreadsSchedulerController {
       }
 
       if (error) {
-        console.error("Threads OAuth error:", { error, error_description });
+        logger.error("Threads OAuth error:", { error, error_description });
         return res.redirect(
           redirect(
             "error",
@@ -108,7 +109,7 @@ export class ThreadsSchedulerController {
 
       res.redirect(redirect("success"));
     } catch (error) {
-      console.error("Threads callback error:", error);
+      logger.error("Threads callback error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       res.redirect(

@@ -17,6 +17,7 @@ import {
   getCreditBalance,
   InsufficientCreditsError,
 } from "../lib/credits";
+import { logger } from "../lib/logger";
 
 const VALID_OUTPUT_FORMATS = ["mp3", "wav", "flac"] as const;
 const MAX_TEXT_LENGTH = 10000;
@@ -256,7 +257,7 @@ export class VoiceGenerationController {
         elevenLabsConfigured: isElevenLabsConfigured(),
       });
     } catch (error) {
-      console.error("Get voice options error:", error);
+      logger.error("Get voice options error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -372,7 +373,7 @@ export class VoiceGenerationController {
         throw err;
       }
     } catch (error) {
-      console.error("Create voice generation error:", error);
+      logger.error("Create voice generation error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -424,7 +425,7 @@ export class VoiceGenerationController {
         },
       });
     } catch (error) {
-      console.error("Get voice generations error:", error);
+      logger.error("Get voice generations error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -463,7 +464,7 @@ export class VoiceGenerationController {
 
       return res.json({ success: true, generation });
     } catch (error) {
-      console.error("Refresh voice generation status error:", error);
+      logger.error("Refresh voice generation status error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -498,7 +499,7 @@ export class VoiceGenerationController {
         message: "Generation deleted successfully",
       });
     } catch (error) {
-      console.error("Delete voice generation error:", error);
+      logger.error("Delete voice generation error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",

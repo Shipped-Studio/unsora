@@ -14,6 +14,7 @@ import {
 import { generateObject, generateText } from "ai";
 import { z } from "zod";
 import { openrouter } from "../lib/ai-client";
+import { logger } from "../lib/logger";
 
 const thumbnailIdeationSchema = z.object({
   description: z.string(),
@@ -323,7 +324,7 @@ async function finalizeGeneration(
       });
     }
   } catch (refundError) {
-    console.error(
+    logger.error(
       `[ThumbnailGen ${generationId}] Failed to update DB/refund:`,
       refundError,
     );

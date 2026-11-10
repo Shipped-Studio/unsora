@@ -3,6 +3,7 @@ import prisma from "./db";
 import { createAsset } from "./asset-utils";
 import { uploadUrlToStorage } from "./upload";
 import type { WayinAPI, WayinClip, WayinTaskStatus } from "./wayin-api";
+import { logger } from "./logger";
 
 export const WAYIN_TARGET_DURATIONS = [
   "DURATION_0_30",
@@ -173,7 +174,7 @@ async function mirrorToStorage(
     }
   }
 
-  console.error(
+  logger.error(
     `[clipping] Storage upload failed after ${MIRROR_ATTEMPTS} attempts for ${fileName}; storing expiring source URL:`,
     lastError,
   );

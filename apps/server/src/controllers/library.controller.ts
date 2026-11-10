@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { Prisma } from "@prisma/client";
 import prisma from "../lib/db";
 import { num, toPositiveInt } from "./admin/_shared";
+import { logger } from "../lib/logger";
 
 /**
  * The Library is every finished file a user has: generations of every kind
@@ -314,9 +315,9 @@ export class LibraryController {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        console.error("Library query error:", error.code, error.message);
+        logger.error("Library query error:", error.code, error.message);
       } else {
-        console.error("Library query error:", error);
+        logger.error("Library query error:", error);
       }
       return res
         .status(500)
@@ -358,7 +359,7 @@ export class LibraryController {
         },
       });
     } catch (error) {
-      console.error("List folders error:", error);
+      logger.error("List folders error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to load your folders" });
@@ -405,7 +406,7 @@ export class LibraryController {
         data: { ...folder, count: 0 },
       });
     } catch (error) {
-      console.error("Create folder error:", error);
+      logger.error("Create folder error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to create the folder" });
@@ -462,7 +463,7 @@ export class LibraryController {
         },
       });
     } catch (error) {
-      console.error("Update folder error:", error);
+      logger.error("Update folder error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to rename the folder" });
@@ -490,7 +491,7 @@ export class LibraryController {
       await prisma.assetFolder.delete({ where: { id: folder.id } });
       return res.json({ success: true, message: "Folder deleted" });
     } catch (error) {
-      console.error("Delete folder error:", error);
+      logger.error("Delete folder error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to delete the folder" });
@@ -545,7 +546,7 @@ export class LibraryController {
 
       return res.json({ success: true, data: { moved: result.count } });
     } catch (error) {
-      console.error("Move assets error:", error);
+      logger.error("Move assets error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to move the files" });

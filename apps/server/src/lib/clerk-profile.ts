@@ -1,4 +1,5 @@
 import { clerkClient } from "@clerk/express";
+import { logger } from "./logger";
 
 /**
  * Admin-only facts we keep on the Clerk user rather than in our database:
@@ -184,11 +185,11 @@ export function startCountryFill() {
   const run = () =>
     fillCountries()
       .then(({ looked, saved }) => {
-        if (looked) console.log(`[clerk-profile] countries: looked up ${looked}, saved ${saved}`);
+        if (looked) logger.info(`[clerk-profile] countries: looked up ${looked}, saved ${saved}`);
       })
       // Countries saved before the failure are kept; the rest wait for the next run.
       .catch((error) =>
-        console.error("[clerk-profile] country fill stopped, retrying next hour:", error),
+        logger.error("[clerk-profile] country fill stopped, retrying next hour:", error),
       );
   setTimeout(run, 30 * 1000).unref();
   setInterval(run, FILL_EVERY_MS).unref();

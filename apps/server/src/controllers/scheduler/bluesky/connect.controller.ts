@@ -9,6 +9,7 @@ import {
 import { Agent } from "@atproto/api";
 import { schedulerConnectionsRedirect } from "../shared/redirect";
 import { getUserIdFromClerkId } from "../shared/user";
+import { logger } from "../../../lib/logger";
 
 export class BlueskySchedulerController {
   /**
@@ -37,7 +38,7 @@ export class BlueskySchedulerController {
       const url = await getBlueskyAuthUrl(handle, userId);
       res.json({ authUrl: url });
     } catch (error) {
-      console.error("Bluesky auth URL error:", error);
+      logger.error("Bluesky auth URL error:", error);
       const message =
         error instanceof Error ? error.message : "Failed to start Bluesky OAuth";
       res.status(500).json({ success: false, error: message });
@@ -49,7 +50,7 @@ export class BlueskySchedulerController {
       const { error, error_description } = req.query;
 
       if (error) {
-        console.error("Bluesky OAuth error:", { error, error_description });
+        logger.error("Bluesky OAuth error:", { error, error_description });
         return res.redirect(
           schedulerConnectionsRedirect(
             "bluesky",
@@ -101,7 +102,7 @@ export class BlueskySchedulerController {
 
       res.redirect(schedulerConnectionsRedirect("bluesky", "success"));
     } catch (error) {
-      console.error("Bluesky callback error:", error);
+      logger.error("Bluesky callback error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       res.redirect(
@@ -119,7 +120,7 @@ export class BlueskySchedulerController {
       const client = await getBlueskyClient();
       res.json(client.clientMetadata);
     } catch (error) {
-      console.error("Bluesky client metadata error:", error);
+      logger.error("Bluesky client metadata error:", error);
       res.status(500).json({ error: "Bluesky OAuth is not configured" });
     }
   };
@@ -130,7 +131,7 @@ export class BlueskySchedulerController {
       const client = await getBlueskyClient();
       res.json(client.jwks);
     } catch (error) {
-      console.error("Bluesky JWKS error:", error);
+      logger.error("Bluesky JWKS error:", error);
       res.status(500).json({ error: "Bluesky OAuth is not configured" });
     }
   };

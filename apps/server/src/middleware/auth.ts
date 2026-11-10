@@ -9,6 +9,7 @@ import {
   validateApiKey,
 } from "../lib/api-keys";
 import { isUnkeyConfigured, verifyUnkeyKey } from "../lib/unkey";
+import { logger } from "../lib/logger";
 
 // Extend Express Request type to include auth
 declare global {
@@ -139,7 +140,7 @@ export const requireAuthOrApiKey = [
             try {
               await ensureApiKeyRecord(verified.keyId, verified.clerkId);
             } catch (err) {
-              console.error("[auth] ensureApiKeyRecord failed:", err);
+              logger.error("[auth] ensureApiKeyRecord failed:", err);
               apiKeyId = undefined;
             }
             req.auth = {
@@ -156,7 +157,7 @@ export const requireAuthOrApiKey = [
             });
           }
         } catch (err) {
-          console.error("[auth] Unkey verify error:", err);
+          logger.error("[auth] Unkey verify error:", err);
           // Fall through to legacy validation rather than hard-failing.
         }
       }

@@ -23,6 +23,7 @@ import {
 } from "../shared/state";
 import { canAddAccount, ACCOUNT_LIMIT_MESSAGE } from "../shared/limits";
 import { getUserIdFromClerkId } from "../shared/user";
+import { logger } from "../../../lib/logger";
 
 export class InstagramSchedulerController {
   getInstagramAuthUrl = async (req: Request, res: Response) => {
@@ -99,7 +100,7 @@ export class InstagramSchedulerController {
 
       res.redirect(redirect("success"));
     } catch (error) {
-      console.error("Instagram callback error:", error);
+      logger.error("Instagram callback error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       res.redirect(
@@ -141,7 +142,7 @@ export class InstagramSchedulerController {
       }
 
       if (error) {
-        console.error("Instagram (Facebook Login) OAuth error:", {
+        logger.error("Instagram (Facebook Login) OAuth error:", {
           error,
           error_description,
         });
@@ -171,7 +172,7 @@ export class InstagramSchedulerController {
       );
 
       if (accounts.length === 0) {
-        console.warn(
+        logger.warn(
           "Instagram (Facebook Login): no linked Instagram account found.",
           JSON.stringify(await describeFacebookGrant(longLivedUser.access_token)),
         );
@@ -218,7 +219,7 @@ export class InstagramSchedulerController {
 
       res.redirect(redirect("success"));
     } catch (error: any) {
-      console.error(
+      logger.error(
         "Instagram (Facebook Login) callback error:",
         error?.response?.data || error,
       );

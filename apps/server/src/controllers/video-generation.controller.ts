@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import prisma from "../lib/db";
 import { VIDEO_MODELS } from "../config/models";
 import { catalogDbModels } from "../config/catalog";
+import { logger } from "../lib/logger";
 
 export class VideoGenerationController {
   async getGenerations(req: Request, res: Response) {
@@ -65,7 +66,7 @@ export class VideoGenerationController {
         },
       });
     } catch (error) {
-      console.error("Get video generations error:", error);
+      logger.error("Get video generations error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -114,7 +115,7 @@ export class VideoGenerationController {
 
       return res.json({ success: true, generation });
     } catch (error) {
-      console.error("Refresh video generation status error:", error);
+      logger.error("Refresh video generation status error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -153,7 +154,7 @@ export class VideoGenerationController {
         message: "Generation deleted successfully",
       });
     } catch (error) {
-      console.error("Delete video generation error:", error);
+      logger.error("Delete video generation error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -197,7 +198,7 @@ export class VideoGenerationController {
         count: result.count,
       });
     } catch (error) {
-      console.error("Delete video generations error:", error);
+      logger.error("Delete video generations error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",

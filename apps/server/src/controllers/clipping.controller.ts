@@ -17,6 +17,7 @@ import {
   getCreditBalance,
   InsufficientCreditsError,
 } from "../lib/credits";
+import { logger } from "../lib/logger";
 
 async function resolveUser(clerkUserId: string) {
   return prisma.user.findUnique({
@@ -218,7 +219,7 @@ export class ClippingController {
         creditsRemaining,
       });
     } catch (error) {
-      console.error("Error creating clipping job:", error);
+      logger.error("Error creating clipping job:", error);
       res.status(500).json({
         success: false,
         error:
@@ -256,7 +257,7 @@ export class ClippingController {
 
       res.json({ success: true, data: clippings });
     } catch (error) {
-      console.error("Error fetching clippings:", error);
+      logger.error("Error fetching clippings:", error);
       res.status(500).json({
         success: false,
         error: "Failed to fetch clippings",
@@ -326,7 +327,7 @@ export class ClippingController {
 
       res.json({ success: true, data: updated });
     } catch (error) {
-      console.error("Error refreshing clipping job:", error);
+      logger.error("Error refreshing clipping job:", error);
       res.status(500).json({
         success: false,
         error: "Failed to refresh clipping job",
@@ -361,7 +362,7 @@ export class ClippingController {
 
       res.json({ success: true, message: "Clipping job deleted" });
     } catch (error) {
-      console.error("Error deleting clipping job:", error);
+      logger.error("Error deleting clipping job:", error);
       res.status(500).json({
         success: false,
         error: "Failed to delete clipping job",
@@ -408,7 +409,7 @@ export class ClippingController {
 
       res.json({ success: true, message: "Clip deleted" });
     } catch (error) {
-      console.error("Error deleting clip:", error);
+      logger.error("Error deleting clip:", error);
       res.status(500).json({
         success: false,
         error: "Failed to delete clip",

@@ -9,6 +9,7 @@ import {
   getCreditBalance,
   InsufficientCreditsError,
 } from "../lib/credits";
+import { logger } from "../lib/logger";
 
 async function resolveUser(clerkUserId: string) {
   return prisma.user.findUnique({
@@ -119,7 +120,7 @@ export class ImageUpscaleController {
         creditsRemaining,
       });
     } catch (error) {
-      console.error("Create image upscale error:", error);
+      logger.error("Create image upscale error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -178,7 +179,7 @@ export class ImageUpscaleController {
         },
       });
     } catch (error) {
-      console.error("Get image upscales error:", error);
+      logger.error("Get image upscales error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -222,7 +223,7 @@ export class ImageUpscaleController {
 
       return res.json({ success: true, job });
     } catch (error) {
-      console.error("Refresh image upscale status error:", error);
+      logger.error("Refresh image upscale status error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -258,7 +259,7 @@ export class ImageUpscaleController {
         message: "Upscale deleted successfully",
       });
     } catch (error) {
-      console.error("Delete image upscale error:", error);
+      logger.error("Delete image upscale error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",

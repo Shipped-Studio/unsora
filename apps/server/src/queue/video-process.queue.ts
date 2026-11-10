@@ -5,6 +5,7 @@ import { uploadVideoToStorage } from "../lib/upload";
 import { SHORT_RETRY, CANCELLED_ERROR } from "./task-utils";
 import { createAsset, createVideoAssetWithProbe } from "../lib/asset-utils";
 import { refundConsumption } from "../lib/credits";
+import { logger } from "../lib/logger";
 
 export interface VideoProcessingJobData {
   userId: string;
@@ -315,7 +316,7 @@ export const videoProcessingTask = task({
         creditsUsed,
       };
     } catch (error) {
-      console.error(`[video-processing ${ctx.run.id}]`, error);
+      logger.error(`[video-processing ${ctx.run.id}]`, error);
 
       try {
         if (video.dbVideoId) {
@@ -329,7 +330,7 @@ export const videoProcessingTask = task({
           });
         }
       } catch (updateError) {
-        console.error(
+        logger.error(
           `[video-processing ${ctx.run.id}] Failed to update video status:`,
           updateError,
         );
@@ -344,7 +345,7 @@ export const videoProcessingTask = task({
     const { creditTransactionId, video } = payload;
     const message = error instanceof Error ? error.message : String(error);
 
-    console.error(
+    logger.error(
       `[video-processing] Final failure for ${video.dbVideoId}: ${message}`,
     );
 
@@ -357,7 +358,7 @@ export const videoProcessingTask = task({
         );
       }
     } catch (refundError) {
-      console.error(`[video-processing] Failed to refund credits:`, refundError);
+      logger.error(`[video-processing] Failed to refund credits:`, refundError);
     }
   },
   // Cancelled runs skip both the run()'s catch block and onFailure, so mark
@@ -379,7 +380,7 @@ export const videoProcessingTask = task({
         );
       }
     } catch (cancelError) {
-      console.error(
+      logger.error(
         `[video-processing] Failed to update DB/refund on cancel:`,
         cancelError,
       );

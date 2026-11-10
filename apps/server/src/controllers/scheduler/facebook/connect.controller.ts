@@ -15,6 +15,7 @@ import {
 } from "../shared/state";
 import { canAddAccount, ACCOUNT_LIMIT_MESSAGE } from "../shared/limits";
 import { getUserIdFromClerkId } from "../shared/user";
+import { logger } from "../../../lib/logger";
 
 export class FacebookSchedulerController {
   getFacebookAuthUrl = async (req: Request, res: Response) => {
@@ -41,7 +42,7 @@ export class FacebookSchedulerController {
       }
 
       if (error) {
-        console.error("Facebook OAuth error:", { error, error_description });
+        logger.error("Facebook OAuth error:", { error, error_description });
         return res.redirect(
           redirect(
             "error",
@@ -118,7 +119,7 @@ export class FacebookSchedulerController {
 
       res.redirect(redirect("success"));
     } catch (error) {
-      console.error("Facebook callback error:", error);
+      logger.error("Facebook callback error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       res.redirect(

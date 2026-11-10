@@ -1,5 +1,6 @@
 import axios from "axios";
 import fs from "fs";
+import { logger } from "./logger";
 
 export async function downloadVideo(url, outputPath) {
   try {
@@ -16,12 +17,12 @@ export async function downloadVideo(url, outputPath) {
       response.data.pipe(stream);
 
       stream.on("finish", () => {
-        console.log(`Video downloaded successfully to: ${outputPath}`);
+        logger.info(`Video downloaded successfully to: ${outputPath}`);
         resolve(outputPath);
       });
 
       stream.on("error", (error) => {
-        console.error("Stream write error:", error);
+        logger.error("Stream write error:", error);
         // Clean up partial file on error
         if (fs.existsSync(outputPath)) {
           fs.unlinkSync(outputPath);
@@ -30,7 +31,7 @@ export async function downloadVideo(url, outputPath) {
       });
 
       response.data.on("error", (error) => {
-        console.error("Download stream error:", error);
+        logger.error("Download stream error:", error);
         stream.destroy();
         // Clean up partial file on error
         if (fs.existsSync(outputPath)) {
@@ -40,7 +41,7 @@ export async function downloadVideo(url, outputPath) {
       });
     });
   } catch (error) {
-    console.error("Error downloading video from URL:", url, error);
+    logger.error("Error downloading video from URL:", url, error);
     throw new Error(
       `Failed to download video: ${
         error instanceof Error ? error.message : "Unknown error"

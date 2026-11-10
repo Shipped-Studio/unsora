@@ -18,6 +18,7 @@ import {
 import prisma from "../../../lib/db";
 import { resolveUser } from "../helpers/resolve-user";
 import { handlePublicError, sendError } from "../helpers/public-response";
+import { logger } from "../../../lib/logger";
 
 /** Path of an object inside our bucket, or null if the URL is elsewhere. */
 function bucketPathFromUrl(url: string): string | null {
@@ -331,7 +332,7 @@ export class PublicUploadController {
       const path = bucketPathFromUrl(asset.url);
       if (path && isOwnUploadPath(path, user.id)) {
         await removeSupabaseObjects([path]).catch((err) =>
-          console.error("Failed to remove storage object:", err),
+          logger.error("Failed to remove storage object:", err),
         );
       }
       await prisma.asset.delete({ where: { id: asset.id } });

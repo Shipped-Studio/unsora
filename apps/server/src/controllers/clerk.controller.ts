@@ -5,6 +5,7 @@ import { clerkClient } from "@clerk/express";
 import { onNewSignup } from "../emails";
 import { isBlockedSignupEmail } from "../lib/signup-policy";
 import { createUserOnSignup } from "../lib/signup";
+import { logger } from "../lib/logger";
 
 export class ClerkController {
   async webhooks(req: Request, res: Response) {
@@ -19,12 +20,12 @@ export class ClerkController {
           !evt.data.email_addresses ||
           evt.data.email_addresses.length === 0
         ) {
-          console.error("No email addresses found in user.created event");
+          logger.error("No email addresses found in user.created event");
           return res.status(400).send("Invalid webhook payload");
         }
 
         if (isBlockedSignupEmail(evt.data.email_addresses[0].email_address)) {
-          console.error(
+          logger.error(
             "Email addresses from rejected domains are not allowed",
           );
           return res
@@ -72,7 +73,7 @@ export class ClerkController {
 
       return res.status(200).send("Webhook received");
     } catch (err) {
-      console.error("Error processing webhook:", err);
+      logger.error("Error processing webhook:", err);
       return res.status(400).send("Error processing webhook");
     }
   }

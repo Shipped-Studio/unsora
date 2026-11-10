@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { ImageGenerationType } from "@prisma/client";
 import prisma from "../../../lib/db";
+import { logger } from "../../../lib/logger";
 
 const POLLABLE_IMAGE_TYPES: ImageGenerationType[] = [
   ImageGenerationType.BASIC,
@@ -68,7 +69,7 @@ export class PublicImageStatusController {
         },
       });
     } catch (error) {
-      console.error("Get image generation status error:", error);
+      logger.error("Get image generation status error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",

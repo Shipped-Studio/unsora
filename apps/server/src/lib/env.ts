@@ -125,7 +125,10 @@ if (!parsed.success) {
   const missing = parsed.error.issues.map(
     (issue) => `  - ${issue.path.join(".")}: ${issue.message}`,
   );
-  console.error(
+  // Plain stderr, not lib/logger: this runs before Sentry is initialized, and
+  // importing the logger here would load its dependencies ahead of Sentry's
+  // instrumentation.
+  process.stderr.write(
     [
       "",
       "❌ Invalid or missing environment variables:",
@@ -133,7 +136,7 @@ if (!parsed.success) {
       "",
       "Copy .env.example to .env and fill in the values above.",
       "",
-    ].join("\n"),
+    ].join("\n") + "\n",
   );
   process.exit(1);
 }

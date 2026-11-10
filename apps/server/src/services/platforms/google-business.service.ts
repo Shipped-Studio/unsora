@@ -1,6 +1,7 @@
 import { SocialAccount } from "@prisma/client";
 import type { PostMediaWithAsset } from "../post.service";
 import axios from "axios";
+import { logger } from "../../lib/logger";
 
 /**
  * Google Business Profile local posts (My Business API v4).
@@ -128,7 +129,7 @@ export class GoogleBusinessService {
   private handleGoogleError(error: any, context: string): never {
     const apiError = error.response?.data?.error;
 
-    console.error(`${context} error:`, {
+    logger.error(`${context} error:`, {
       message: error.message,
       response: apiError ?? error.response?.data,
       status: error.response?.status,

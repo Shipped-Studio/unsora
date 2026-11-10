@@ -1,6 +1,7 @@
 // src/oauth/tiktok.js
 import axios from "axios";
 import { uploadUrlToStorage } from "../lib/upload";
+import { logger } from "../lib/logger";
 
 /**
  * TikTok Creator Info Response Types
@@ -70,7 +71,7 @@ export async function getTikTokCreatorInfo(
     }
     return null;
   } catch (error: any) {
-    console.error(
+    logger.error(
       "Error fetching TikTok creator info:",
       error?.response?.data || error,
     );
@@ -126,7 +127,7 @@ export async function exchangeTikTokCode(code) {
     },
   );
 
-  console.log(
+  logger.info(
     "TikTok token exchange response:",
     JSON.stringify(res.data, null, 2),
   );
@@ -142,7 +143,7 @@ export async function exchangeTikTokCode(code) {
 
   // Validate required fields are present
   if (!res.data.access_token || !res.data.open_id) {
-    console.error("TikTok token response missing required fields:", res.data);
+    logger.error("TikTok token response missing required fields:", res.data);
     throw new Error(
       "Invalid TikTok token response - missing access_token or open_id",
     );
@@ -177,7 +178,7 @@ export async function getTikTokUserInfo(accessToken) {
     }
     return null;
   } catch (error) {
-    console.error("Error fetching TikTok user info:", error);
+    logger.error("Error fetching TikTok user info:", error);
     return null;
   }
 }
@@ -209,7 +210,7 @@ export async function refreshTikTokToken(refreshToken) {
   }
 
   if (!res.data.access_token) {
-    console.error("TikTok refresh response missing access_token:", res.data);
+    logger.error("TikTok refresh response missing access_token:", res.data);
     throw new Error("Invalid TikTok refresh response - missing access_token");
   }
 

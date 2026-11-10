@@ -2,6 +2,7 @@ import { SocialAccount } from "@prisma/client";
 import type { PostMediaWithAsset } from "../post.service";
 import axios from "axios";
 import { getPinterestBoards, PINTEREST_API } from "../../oauth/pinterest";
+import { logger } from "../../lib/logger";
 
 /**
  * Pinterest API Service (v5)
@@ -231,7 +232,7 @@ export class PinterestService {
   private handlePinterestError(error: any, context: string): never {
     const apiError = error.response?.data;
 
-    console.error(`${context} error:`, {
+    logger.error(`${context} error:`, {
       message: error.message,
       response: apiError,
       status: error.response?.status,
