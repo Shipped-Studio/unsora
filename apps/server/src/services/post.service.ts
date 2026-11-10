@@ -36,6 +36,42 @@ async function accountsOverPlanLimit(userId: string): Promise<Set<string>> {
 export const PLAN_LIMIT_PUBLISH_ERROR =
   "Your plan doesn't cover this account anymore. Upgrade, or disconnect accounts you don't use.";
 
+/** Quiet time after which a plan-limit failure is emailed about again. */
+const PLAN_LAPSE_EMAIL_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Whether to skip the failure email because it only repeats one the user was
+ * just sent. When a plan lapses, every scheduled post fails for the plan
+ * limit as it comes due; one email per post would flood them. So the first
+ * such failure is emailed, and later ones aren't while another post of theirs
+ * failed for the same reason in the last day. Each post still shows the error
+ * and can be retried.
+ *
+ * Posts due at the same moment publish in parallel, so "another post" is one
+ * that failed before this run started, or a sibling with a lower id: exactly
+ * one of a simultaneous batch sends the email (at worst, a rare second one
+ * that checked before its sibling saved).
+ */
+async function isRepeatPlanLapseFailure(
+  userId: string,
+  postId: string,
+  startedAt: Date,
+  failed: PublishResult[],
+): Promise<boolean> {
+  if (failed.length === 0 || !failed.every((r) => r.error === PLAN_LIMIT_PUBLISH_ERROR)) {
+    return false;
+  }
+  const earlier = await prisma.postAccount.count({
+    where: {
+      error: PLAN_LIMIT_PUBLISH_ERROR,
+      updatedAt: { gte: new Date(Date.now() - PLAN_LAPSE_EMAIL_WINDOW_MS) },
+      post: { userId, id: { not: postId } },
+      OR: [{ updatedAt: { lt: startedAt } }, { postId: { lt: postId } }],
+    },
+  });
+  return earlier > 0;
+}
+
 dotenv.config();
 
 export type { PostMediaWithAsset };
@@ -61,6 +97,9 @@ export class PostService {
     success: boolean;
     results: PublishResult[];
   }> {
+    // Before any leg is saved, so this run's own failures count as "later"
+    // when deciding whether to email (isRepeatPlanLapseFailure).
+    const startedAt = new Date();
     try {
       // Get post with all relations
       const post = await prisma.post.findUnique({
@@ -148,7 +187,10 @@ export class PostService {
         },
       });
 
-      if (!allSucceeded) {
+      if (
+        !allSucceeded &&
+        !(await isRepeatPlanLapseFailure(post.userId, post.id, startedAt, failed))
+      ) {
         const byAccount = new Map(publishResults.map((r) => [r.accountId, r]));
         void onPostPublishFailed({
           userId: post.userId,
