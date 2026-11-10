@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { clerkMiddleware, getAuth } from "@clerk/express";
 import prisma from "../lib/db";
 import { userIsAdmin } from "../lib/is-admin";
+import { logger } from "../lib/logger";
 
 /**
  * Admin guard.
@@ -45,7 +46,7 @@ export async function requireApiAdmin(
       error: "Forbidden: Admin access required",
     });
   } catch (error) {
-    console.error("Admin auth error:", error);
+    logger.error("Admin auth error:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -78,7 +79,7 @@ export const requireAdmin = [
         error: "Forbidden: Admin access required",
       });
     } catch (error) {
-      console.error("Admin auth error:", error);
+      logger.error("Admin auth error:", error);
       return res.status(500).json({ error: "Internal server error" });
     }
   },

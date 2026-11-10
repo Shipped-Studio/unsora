@@ -13,6 +13,7 @@ import {
 import { createHash } from "crypto";
 import { prisma } from "../lib/db";
 import { uploadUrlToStorage } from "../lib/upload";
+import { logger } from "../lib/logger";
 
 /**
  * Bluesky / AT Protocol OAuth.
@@ -211,7 +212,7 @@ export async function getBlueskyAgent(did: string): Promise<Agent> {
     const session = await client.restore(did);
     return new Agent(session);
   } catch (error) {
-    console.error(`Failed to restore Bluesky session for ${did}:`, error);
+    logger.error(`Failed to restore Bluesky session for ${did}:`, error);
     throw new Error(
       "Bluesky session is invalid or was revoked. Please reconnect your account.",
     );
@@ -250,7 +251,7 @@ export async function getBlueskyProfile(
       const uploaded = await uploadUrlToStorage(data.avatar);
       uploadedProfilePicture = uploaded.fileUrl || null;
     } catch (error) {
-      console.error("Failed to re-host Bluesky avatar:", error);
+      logger.error("Failed to re-host Bluesky avatar:", error);
     }
   }
 

@@ -2,6 +2,7 @@ import { SocialAccount } from "@prisma/client";
 import type { PostMediaWithAsset } from "../post.service";
 import axios from "axios";
 import { instagramGraphBase } from "../../oauth/instagram-facebook";
+import { logger } from "../../lib/logger";
 
 /**
  * Instagram API Service
@@ -279,7 +280,7 @@ export class InstagramService {
           await sleep(intervalMs);
         }
       } catch (error: any) {
-        console.error("Error polling media status:", {
+        logger.error("Error polling media status:", {
           message: error.message,
           response: error.response?.data,
         });
@@ -315,7 +316,7 @@ export class InstagramService {
 
       return response.data.permalink;
     } catch (error: any) {
-      console.error("Failed to fetch Instagram permalink:", {
+      logger.error("Failed to fetch Instagram permalink:", {
         mediaId,
         message: error.message,
         response: error.response?.data,
@@ -330,7 +331,7 @@ export class InstagramService {
   private handleInstagramError(error: any, context: string): never {
     const igError = error.response?.data?.error;
 
-    console.error(`${context} error:`, {
+    logger.error(`${context} error:`, {
       message: error.message,
       response: error.response?.data,
       status: error.response?.status,

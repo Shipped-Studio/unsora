@@ -14,6 +14,7 @@ import {
 } from "../shared/state";
 import { canAddAccount, ACCOUNT_LIMIT_MESSAGE } from "../shared/limits";
 import { getUserIdFromClerkId } from "../shared/user";
+import { logger } from "../../../lib/logger";
 
 export class GoogleSchedulerController {
   getGoogleAuthUrl = async (req: Request, res: Response) => {
@@ -40,7 +41,7 @@ export class GoogleSchedulerController {
       }
 
       if (error) {
-        console.error("Google OAuth error:", error);
+        logger.error("Google OAuth error:", error);
         return res.redirect(
           redirect(
             "error",
@@ -73,7 +74,7 @@ export class GoogleSchedulerController {
       );
 
       if (missingScopes.length > 0) {
-        console.error("Missing required scopes:", missingScopes);
+        logger.error("Missing required scopes:", missingScopes);
         return res.redirect(
           redirect(
             "error",
@@ -133,7 +134,7 @@ export class GoogleSchedulerController {
 
       res.redirect(redirect("success"));
     } catch (error) {
-      console.error("Google callback error:", error);
+      logger.error("Google callback error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       res.redirect(redirect("error", errorMessage));

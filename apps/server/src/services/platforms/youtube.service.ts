@@ -1,6 +1,7 @@
 import { SocialAccount } from "@prisma/client";
 import type { PostMediaWithAsset } from "../post.service";
 import axios from "axios";
+import { logger } from "../../lib/logger";
 
 /**
  * YouTube API Service
@@ -130,7 +131,7 @@ export class YouTubeService {
         postUrl: videoUrl,
       };
     } catch (error: any) {
-      console.error("YouTube video upload error:", {
+      logger.error("YouTube video upload error:", {
         message: error.message,
         response: error.response?.data,
         status: error.response?.status,
@@ -189,7 +190,7 @@ export class YouTubeService {
       );
     } catch (error: any) {
       // Common case: channel not verified for custom thumbnails.
-      console.error("YouTube thumbnail upload failed (non-fatal):", {
+      logger.error("YouTube thumbnail upload failed (non-fatal):", {
         videoId,
         message: error.message,
         response: error.response?.data,

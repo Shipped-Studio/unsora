@@ -2,6 +2,7 @@ import { schedules } from "@trigger.dev/sdk";
 import { CreditTransactionType } from "@prisma/client";
 import prisma from "../lib/db";
 import { refundConsumption } from "../lib/credits";
+import { logger } from "../lib/logger";
 
 /**
  * Safety net for jobs whose runs died without any lifecycle hook firing:
@@ -210,7 +211,7 @@ async function sweepTarget(target: SweepTarget): Promise<{
         refunded += 1;
       }
     } catch (refundError) {
-      console.error(
+      logger.error(
         `[Sweeper] Failed to refund ${target.name} ${row.id}:`,
         refundError,
       );
@@ -253,7 +254,7 @@ async function sweepVideoExports(): Promise<{ swept: number; refunded: number }>
         refunded += 1;
       }
     } catch (refundError) {
-      console.error(`[Sweeper] Failed to refund videoExport ${row.id}:`, refundError);
+      logger.error(`[Sweeper] Failed to refund videoExport ${row.id}:`, refundError);
     }
   }
 
@@ -292,7 +293,7 @@ export const stuckJobsSweeper = schedules.task({
         const result = await sweepTarget(target);
         if (result.swept > 0) summary[target.name] = result;
       } catch (sweepError) {
-        console.error(`[Sweeper] ${target.name} sweep failed:`, sweepError);
+        logger.error(`[Sweeper] ${target.name} sweep failed:`, sweepError);
       }
     }
 
@@ -300,18 +301,18 @@ export const stuckJobsSweeper = schedules.task({
       const exports = await sweepVideoExports();
       if (exports.swept > 0) summary.videoExport = exports;
     } catch (sweepError) {
-      console.error(`[Sweeper] videoExport sweep failed:`, sweepError);
+      logger.error(`[Sweeper] videoExport sweep failed:`, sweepError);
     }
 
     try {
       const posts = await sweepPosts();
       if (posts > 0) summary.post = { swept: posts, refunded: 0 };
     } catch (sweepError) {
-      console.error(`[Sweeper] post sweep failed:`, sweepError);
+      logger.error(`[Sweeper] post sweep failed:`, sweepError);
     }
 
     if (Object.keys(summary).length > 0) {
-      console.warn(`[Sweeper] Reconciled stuck jobs:`, JSON.stringify(summary));
+      logger.warn(`[Sweeper] Reconciled stuck jobs:`, JSON.stringify(summary));
     }
 
     return summary;

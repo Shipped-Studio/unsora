@@ -15,6 +15,7 @@ import {
   voiceConversionCredits,
   cleanupTempFiles,
 } from "../lib/audio-mix";
+import { logger } from "../lib/logger";
 
 const VALID_OUTPUT_FORMATS = ["mp3", "wav"] as const;
 
@@ -194,7 +195,7 @@ export class VoiceConversionController {
         creditsRemaining,
       });
     } catch (error) {
-      console.error("Create voice conversion error:", error);
+      logger.error("Create voice conversion error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -245,7 +246,7 @@ export class VoiceConversionController {
         },
       });
     } catch (error) {
-      console.error("Get voice conversions error:", error);
+      logger.error("Get voice conversions error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -278,7 +279,7 @@ export class VoiceConversionController {
 
       return res.json({ success: true, conversion });
     } catch (error) {
-      console.error("Refresh voice conversion error:", error);
+      logger.error("Refresh voice conversion error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -304,7 +305,7 @@ export class VoiceConversionController {
 
       return res.json({ success: true, message: "Conversion deleted" });
     } catch (error) {
-      console.error("Delete voice conversion error:", error);
+      logger.error("Delete voice conversion error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",

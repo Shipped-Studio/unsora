@@ -1,5 +1,6 @@
 import axios from "axios";
 import { uploadUrlToStorage } from "../lib/upload";
+import { logger } from "../lib/logger";
 
 /**
  * LinkedIn OAuth 2.0 (3-legged). Access tokens last 60 days. Refresh tokens
@@ -48,7 +49,7 @@ export async function exchangeLinkedInCode(code: string) {
   });
 
   if (!res.data.access_token) {
-    console.error("LinkedIn token response missing fields:", res.data);
+    logger.error("LinkedIn token response missing fields:", res.data);
     throw new Error("Invalid LinkedIn token response");
   }
 
@@ -69,7 +70,7 @@ export async function refreshLinkedInToken(refreshToken: string) {
   });
 
   if (!res.data.access_token) {
-    console.error("LinkedIn refresh response missing fields:", res.data);
+    logger.error("LinkedIn refresh response missing fields:", res.data);
     throw new Error("Invalid LinkedIn refresh response");
   }
 
@@ -88,7 +89,7 @@ export async function getLinkedInUser(accessToken: string) {
         const uploaded = await uploadUrlToStorage(res.data.picture);
         uploadedProfilePicture = uploaded.fileUrl || null;
       } catch (uploadError) {
-        console.error("Failed to re-host LinkedIn avatar:", uploadError);
+        logger.error("Failed to re-host LinkedIn avatar:", uploadError);
       }
     }
 
@@ -100,7 +101,7 @@ export async function getLinkedInUser(accessToken: string) {
       profilePicture: uploadedProfilePicture,
     };
   } catch (error: any) {
-    console.error(
+    logger.error(
       "Error fetching LinkedIn user:",
       error?.response?.data || error,
     );

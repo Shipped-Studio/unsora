@@ -7,6 +7,7 @@ import {
   uploadBufferToSupabase,
 } from "../lib/supabase-storage";
 import { parseSkillMd, slugify } from "../lib/skill-source";
+import { logger } from "../lib/logger";
 
 /**
  * Public, unauthenticated skill catalog consumed by the landing site
@@ -199,7 +200,7 @@ export class SkillsController {
           .status(409)
           .json({ success: false, error: "A skill with this slug already exists" });
       }
-      console.error("skill upload failed:", error);
+      logger.error("skill upload failed:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to upload skill" });
@@ -226,7 +227,7 @@ export class SkillsController {
       }
       return res.json({ success: true, data: { skill } });
     } catch (error) {
-      console.error("admin skill get failed:", error);
+      logger.error("admin skill get failed:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to load skill" });
@@ -315,7 +316,7 @@ export class SkillsController {
           error: "A skill with this slug already exists",
         });
       }
-      console.error("admin skill update failed:", error);
+      logger.error("admin skill update failed:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to update skill" });
@@ -335,7 +336,7 @@ export class SkillsController {
         data: { skills: skills.map(withDownloadUrl) },
       });
     } catch (error) {
-      console.error("public skills list failed:", error);
+      logger.error("public skills list failed:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to load skills" });
@@ -359,7 +360,7 @@ export class SkillsController {
         data: { skill: withDownloadUrl(skill) },
       });
     } catch (error) {
-      console.error("public skills get failed:", error);
+      logger.error("public skills get failed:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to load skill" });

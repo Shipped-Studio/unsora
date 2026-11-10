@@ -6,6 +6,7 @@ import {
   revokeUnkeyKey,
 } from "../lib/unkey";
 import prisma from "../lib/db";
+import { logger } from "../lib/logger";
 
 /**
  * API keys for the public `/api/v1` surface are managed by Unkey. Each key is
@@ -28,7 +29,7 @@ export class ApiKeyController {
 
       return res.json({ success: true, data });
     } catch (error) {
-      console.error("API key list error:", error);
+      logger.error("API key list error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to list API keys" });
@@ -78,7 +79,7 @@ export class ApiKeyController {
           });
         }
       } catch (err) {
-        console.error("API key mirror error:", err);
+        logger.error("API key mirror error:", err);
       }
 
       return res.status(201).json({
@@ -92,7 +93,7 @@ export class ApiKeyController {
         },
       });
     } catch (error) {
-      console.error("API key create error:", error);
+      logger.error("API key create error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to create API key" });
@@ -116,7 +117,7 @@ export class ApiKeyController {
 
       return res.json({ success: true, message: "API key revoked" });
     } catch (error) {
-      console.error("API key revoke error:", error);
+      logger.error("API key revoke error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to revoke API key" });

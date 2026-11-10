@@ -14,6 +14,7 @@ import {
   THUMB_MAX_TEMPLATES,
   THUMB_MAX_VARIATIONS,
 } from "../config/models/thumbnail-generator";
+import { logger } from "../lib/logger";
 
 async function resolveUser(clerkUserId: string) {
   return prisma.user.findUnique({
@@ -218,7 +219,7 @@ export class ThumbnailController {
         creditsRemaining,
       });
     } catch (error) {
-      console.error("Create thumbnail generation error:", error);
+      logger.error("Create thumbnail generation error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -291,7 +292,7 @@ export class ThumbnailController {
         },
       });
     } catch (error) {
-      console.error("Get thumbnails error:", error);
+      logger.error("Get thumbnails error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -341,7 +342,7 @@ export class ThumbnailController {
 
       return res.json({ success: true, generation });
     } catch (error) {
-      console.error("Refresh thumbnail generation error:", error);
+      logger.error("Refresh thumbnail generation error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -381,7 +382,7 @@ export class ThumbnailController {
         message: "Thumbnail deleted successfully",
       });
     } catch (error) {
-      console.error("Delete thumbnail error:", error);
+      logger.error("Delete thumbnail error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",

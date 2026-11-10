@@ -1,5 +1,6 @@
 import axios from "axios";
 import { uploadUrlToStorage } from "../lib/upload";
+import { logger } from "../lib/logger";
 
 /**
  * Pinterest OAuth (v5 API). Access tokens expire after ~30 days;
@@ -52,7 +53,7 @@ export async function exchangePinterestCode(code: string) {
   });
 
   if (!res.data.access_token) {
-    console.error("Pinterest token response missing fields:", res.data);
+    logger.error("Pinterest token response missing fields:", res.data);
     throw new Error("Invalid Pinterest token response");
   }
 
@@ -74,7 +75,7 @@ export async function refreshPinterestToken(refreshToken: string) {
   });
 
   if (!res.data.access_token) {
-    console.error("Pinterest refresh response missing fields:", res.data);
+    logger.error("Pinterest refresh response missing fields:", res.data);
     throw new Error("Invalid Pinterest refresh response");
   }
 
@@ -94,7 +95,7 @@ export async function getPinterestUser(accessToken: string) {
         const uploaded = await uploadUrlToStorage(res.data.profile_image);
         uploadedProfilePicture = uploaded.fileUrl || null;
       } catch (uploadError) {
-        console.error("Failed to re-host Pinterest avatar:", uploadError);
+        logger.error("Failed to re-host Pinterest avatar:", uploadError);
       }
     }
 
@@ -105,7 +106,7 @@ export async function getPinterestUser(accessToken: string) {
       profilePicture: uploadedProfilePicture,
     };
   } catch (error: any) {
-    console.error(
+    logger.error(
       "Error fetching Pinterest user:",
       error?.response?.data || error,
     );

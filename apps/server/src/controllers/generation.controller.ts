@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import prisma from "../lib/db";
+import { logger } from "../lib/logger";
 
 export class GenerationController {
   async getGenerations(req: Request, res: Response) {
@@ -61,7 +62,7 @@ export class GenerationController {
         },
       });
     } catch (error) {
-      console.error("Get generations error:", error);
+      logger.error("Get generations error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -110,7 +111,7 @@ export class GenerationController {
 
       return res.json({ success: true, generation });
     } catch (error) {
-      console.error("Refresh generation status error:", error);
+      logger.error("Refresh generation status error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -149,7 +150,7 @@ export class GenerationController {
         message: "Generation deleted successfully",
       });
     } catch (error) {
-      console.error("Delete generation error:", error);
+      logger.error("Delete generation error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -193,7 +194,7 @@ export class GenerationController {
         count: result.count,
       });
     } catch (error) {
-      console.error("Delete generations error:", error);
+      logger.error("Delete generations error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",

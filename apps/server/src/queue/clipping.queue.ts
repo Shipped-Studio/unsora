@@ -8,6 +8,7 @@ import {
   syncClippingClips,
 } from "../lib/clipping-utils";
 import { refundConsumption } from "../lib/credits";
+import { logger } from "../lib/logger";
 
 export interface ClippingJobData {
   userId: string;
@@ -264,7 +265,7 @@ async function finalizeClipping(
       });
     }
   } catch (updateError) {
-    console.error(
+    logger.error(
       `[AIClipping ${clippingId}] Failed to update clipping status/refund:`,
       updateError,
     );

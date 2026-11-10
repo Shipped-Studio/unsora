@@ -20,6 +20,7 @@
 
 import { getSetting, setSetting } from "./app-settings";
 import { wavespeedApiKey } from "./wavespeed-api";
+import { logger } from "./logger";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
 const QUOTE_TTL_MS = 2 * 60 * 1000;
@@ -141,7 +142,7 @@ export async function quoteGeneration(
 
   const apiKey = wavespeedApiKey();
   if (!apiKey) {
-    console.error("[pricing] WAVESPEED_API_KEY is not configured");
+    logger.error("[pricing] WAVESPEED_API_KEY is not configured");
     throw new PricingError("Generation is temporarily unavailable. Try again later.", 503);
   }
 
@@ -170,12 +171,12 @@ export async function quoteGeneration(
   if (!res.ok || body.code !== 200 || !body.data) {
     const mediaError = body.code ? MEDIA_ERRORS[body.code] : undefined;
     if (mediaError) throw new PricingError(mediaError, 400);
-    console.error(
+    logger.error(
       `[pricing] ${modelId} failed — HTTP ${res.status}:`,
       body.message ?? body,
     );
     if (res.status === 401) {
-      console.error("[pricing] WAVESPEED_API_KEY is invalid or revoked on this deployment");
+      logger.error("[pricing] WAVESPEED_API_KEY is invalid or revoked on this deployment");
       throw new PricingError(
         "Generation is temporarily unavailable. Try again later.",
         503,

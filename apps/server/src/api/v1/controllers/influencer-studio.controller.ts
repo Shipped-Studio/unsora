@@ -10,6 +10,7 @@ import {
 } from "../../../lib/credits";
 import { getApiKeyId, mergeApiContext } from "../../../lib/api-public";
 import { withPublicCreate } from "../helpers/public-create";
+import { logger } from "../../../lib/logger";
 
 const CREDIT_COST = gptImage2.credits({ resolution: "2k" });
 
@@ -36,7 +37,7 @@ export class PublicInfluencerStudioController {
         return result.body;
       });
     } catch (error) {
-      console.error("Public create influencer studio error:", error);
+      logger.error("Public create influencer studio error:", error);
       if (!res.headersSent) {
         res.status(500).json({
           success: false,
@@ -97,7 +98,7 @@ export class PublicInfluencerStudioController {
         },
       });
     } catch (error) {
-      console.error("Get influencer studio generations error:", error);
+      logger.error("Get influencer studio generations error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -130,7 +131,7 @@ export class PublicInfluencerStudioController {
         message: "Generation deleted successfully",
       });
     } catch (error) {
-      console.error("Delete influencer studio generation error:", error);
+      logger.error("Delete influencer studio generation error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",

@@ -10,6 +10,7 @@ import {
   type SessionDevice,
 } from "../../lib/clerk-profile";
 import { FEED_SELECT, num, toPositiveInt } from "./_shared";
+import { logger } from "../../lib/logger";
 
 const SORTABLE = new Set(["createdAt", "email", "plan", "status", "updatedAt"]);
 
@@ -102,7 +103,7 @@ export class AdminUsersController {
         },
       });
     } catch (error) {
-      console.error("[admin] users.list error:", error);
+      logger.error("[admin] users.list error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to load users" });
@@ -230,7 +231,7 @@ export class AdminUsersController {
         },
       });
     } catch (error) {
-      console.error("[admin] users.detail error:", error);
+      logger.error("[admin] users.detail error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to load user" });
@@ -278,7 +279,7 @@ export class AdminUsersController {
 
       return res.json({ success: true, data: { user } });
     } catch (error) {
-      console.error("[admin] users.update error:", error);
+      logger.error("[admin] users.update error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to update user" });
@@ -316,7 +317,7 @@ export class AdminUsersController {
       const credits = await getCreditBalance(id);
       return res.json({ success: true, data: { credits } });
     } catch (error) {
-      console.error("[admin] users.adjustCredits error:", error);
+      logger.error("[admin] users.adjustCredits error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to adjust credits" });
@@ -329,7 +330,7 @@ export class AdminUsersController {
     try {
       return await profilesFor(clerkIds);
     } catch (error) {
-      console.error("[admin] Clerk profile lookup error:", error);
+      logger.error("[admin] Clerk profile lookup error:", error);
       return new Map();
     }
   }
@@ -345,7 +346,7 @@ export class AdminUsersController {
     const [profiles, devices] = await Promise.all([
       this.profilesOrEmpty([clerkId]),
       sessionDevices(clerkId).catch((error) => {
-        console.error("[admin] Clerk sessions lookup error:", error);
+        logger.error("[admin] Clerk sessions lookup error:", error);
         return null;
       }),
     ]);
@@ -354,7 +355,7 @@ export class AdminUsersController {
       const country = devices?.find((d) => d.country)?.country;
       if (country) {
         saveCountry(clerkId, country).catch((error) =>
-          console.error("[admin] country save error:", error),
+          logger.error("[admin] country save error:", error),
         );
         return { profile: { ...profile, country }, devices };
       }

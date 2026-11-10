@@ -60,6 +60,7 @@ import {
   type SubtitleToolJobData,
   type ToolState,
 } from "../queue/subtitle-tools.queue";
+import { logger } from "../lib/logger";
 
 /** The start of a transcript is plenty to write a hook from. */
 const HOOK_TRANSCRIPT_CHARS = 4000;
@@ -209,7 +210,7 @@ export class SubtitleController {
         },
       });
     } catch (error) {
-      console.error("Error creating transcription:", error);
+      logger.error("Error creating transcription:", error);
       res.status(500).json({
         success: false,
         error:
@@ -312,7 +313,7 @@ export class SubtitleController {
         },
       });
     } catch (error) {
-      console.error("Error starting transcription:", error);
+      logger.error("Error starting transcription:", error);
       res.status(500).json({
         success: false,
         error:
@@ -449,7 +450,7 @@ export class SubtitleController {
             },
           });
         } catch (error) {
-          console.error(`Error processing video ${filename}:`, error);
+          logger.error(`Error processing video ${filename}:`, error);
           results.push({
             success: false,
             error:
@@ -479,7 +480,7 @@ export class SubtitleController {
         },
       });
     } catch (error) {
-      console.error("Error queueing videos for batch transcription:", error);
+      logger.error("Error queueing videos for batch transcription:", error);
       res.status(500).json({
         success: false,
         error:
@@ -570,7 +571,7 @@ export class SubtitleController {
         },
       });
     } catch (error) {
-      console.error("Error queueing video for transcription:", error);
+      logger.error("Error queueing video for transcription:", error);
       res.status(500).json({
         success: false,
         error:
@@ -630,7 +631,7 @@ export class SubtitleController {
         },
       });
     } catch (error) {
-      console.error("Error getting transcription status:", error);
+      logger.error("Error getting transcription status:", error);
       res.status(500).json({
         success: false,
         error: "Failed to get transcription status",
@@ -649,7 +650,7 @@ export class SubtitleController {
         data: stats,
       });
     } catch (error) {
-      console.error("Error getting queue stats:", error);
+      logger.error("Error getting queue stats:", error);
       res.status(500).json({
         success: false,
         error: "Failed to get queue statistics",
@@ -703,7 +704,7 @@ export class SubtitleController {
         data: transcription,
       });
     } catch (error) {
-      console.error("Error getting transcription:", error);
+      logger.error("Error getting transcription:", error);
       res.status(500).json({
         success: false,
         error: "Failed to get transcription",
@@ -758,7 +759,7 @@ export class SubtitleController {
 
       res.status(200).json({ success: true, data: updated });
     } catch (error) {
-      console.error("Error updating transcription:", error);
+      logger.error("Error updating transcription:", error);
       res.status(500).json({
         success: false,
         error:
@@ -816,7 +817,7 @@ export class SubtitleController {
       const markup = await findCaptionKeywords(words as string[]);
       res.status(200).json({ success: true, data: markup });
     } catch (error) {
-      console.error("Error finding caption keywords:", error);
+      logger.error("Error finding caption keywords:", error);
       res.status(500).json({
         success: false,
         error: "Try again in a moment.",
@@ -910,10 +911,10 @@ export class SubtitleController {
           error: `This tool needs ${AI_TOOL_CREDITS[tool]} credits.`,
         });
       }
-      console.error(`Error running AI tool ${tool}:`, error);
+      logger.error(`Error running AI tool ${tool}:`, error);
       if (transactionId) {
         await refundConsumption(transactionId, `${tool} failed to start`).catch(
-          (refundError) => console.error("Refund failed:", refundError),
+          (refundError) => logger.error("Refund failed:", refundError),
         );
         await setToolState(req.params.id, tool, null).catch(() => {});
       }
@@ -962,7 +963,7 @@ export class SubtitleController {
       });
       res.status(200).json({ success: true, data: { restored: true } });
     } catch (error) {
-      console.error(`Error removing AI tool ${tool}:`, error);
+      logger.error(`Error removing AI tool ${tool}:`, error);
       res.status(500).json({ success: false, error: "Try again in a moment." });
     }
   }
@@ -988,7 +989,7 @@ export class SubtitleController {
     } catch (error) {
       const stock = stockFootageError(error);
       if (stock) return res.status(stock.status).json({ success: false, error: stock.error });
-      console.error("Error searching B-roll:", error);
+      logger.error("Error searching B-roll:", error);
       res.status(502).json({ success: false, error: "Search failed. Try again." });
     }
   }
@@ -1006,7 +1007,7 @@ export class SubtitleController {
       if (error instanceof InvalidStockUrlError) {
         return res.status(400).json({ success: false, error: "Only Pixabay images can be added." });
       }
-      console.error("Error importing B-roll image:", error);
+      logger.error("Error importing B-roll image:", error);
       res.status(502).json({ success: false, error: "Couldn't add the image. Try again." });
     }
   }
@@ -1042,7 +1043,7 @@ export class SubtitleController {
           error: `An AI image needs ${AI_IMAGE_CREDITS} credits.`,
         });
       }
-      console.error("Error generating B-roll image:", error);
+      logger.error("Error generating B-roll image:", error);
       if (transactionId) {
         await refundConsumption(transactionId, "B-roll image failed").catch(() => {});
       }
@@ -1126,7 +1127,7 @@ export class SubtitleController {
           error: "You don't have enough credits for AI B-rolls.",
         });
       }
-      console.error("Error planning B-rolls:", error);
+      logger.error("Error planning B-rolls:", error);
       if (transactionId) {
         await refundConsumption(transactionId, "Auto B-rolls failed").catch(() => {});
       }
@@ -1151,7 +1152,7 @@ export class SubtitleController {
       const scenes = await findScenes(chunks, row?.duration ?? 0);
       res.status(200).json({ success: true, data: { scenes } });
     } catch (error) {
-      console.error("Error finding scenes:", error);
+      logger.error("Error finding scenes:", error);
       res.status(500).json({ success: false, error: "Try again in a moment." });
     }
   }
@@ -1180,7 +1181,7 @@ export class SubtitleController {
       await prisma.transcription.update({ where: { id: owner.transcriptionId }, data: { title } });
       res.status(200).json({ success: true, data: { title } });
     } catch (error) {
-      console.error("Error writing project title:", error);
+      logger.error("Error writing project title:", error);
       res.status(500).json({ success: false, error: "Try again in a moment." });
     }
   }
@@ -1265,10 +1266,10 @@ export class SubtitleController {
           error: "You don't have enough credits to translate.",
         });
       }
-      console.error("Error translating captions:", error);
+      logger.error("Error translating captions:", error);
       if (transactionId) {
         await refundConsumption(transactionId, "Translate captions failed").catch(
-          (refundError) => console.error("Refund failed:", refundError),
+          (refundError) => logger.error("Refund failed:", refundError),
         );
       }
       res.status(500).json({ success: false, error: "Try again in a moment." });
@@ -1323,7 +1324,7 @@ export class SubtitleController {
       });
       res.status(200).json({ success: true, data: { lines: fixed } });
     } catch (error) {
-      console.error("Error optimizing captions:", error);
+      logger.error("Error optimizing captions:", error);
       res.status(500).json({ success: false, error: "Try again in a moment." });
     }
   }
@@ -1391,7 +1392,7 @@ export class SubtitleController {
 
       res.status(200).json({ success: true, data: { hook } });
     } catch (error) {
-      console.error("Error generating hook title:", error);
+      logger.error("Error generating hook title:", error);
       res.status(500).json({
         success: false,
         error: "Try again in a moment.",
@@ -1419,7 +1420,7 @@ export class SubtitleController {
       });
       res.status(200).json({ success: true, data: presets });
     } catch (error) {
-      console.error("Error listing subtitle presets:", error);
+      logger.error("Error listing subtitle presets:", error);
       res
         .status(500)
         .json({ success: false, error: "Failed to load saved presets" });
@@ -1474,7 +1475,7 @@ export class SubtitleController {
       });
       res.status(201).json({ success: true, data: preset });
     } catch (error) {
-      console.error("Error saving subtitle preset:", error);
+      logger.error("Error saving subtitle preset:", error);
       res
         .status(500)
         .json({ success: false, error: "Failed to save the preset" });
@@ -1503,7 +1504,7 @@ export class SubtitleController {
       }
       res.status(200).json({ success: true });
     } catch (error) {
-      console.error("Error deleting subtitle preset:", error);
+      logger.error("Error deleting subtitle preset:", error);
       res
         .status(500)
         .json({ success: false, error: "Failed to delete the preset" });
@@ -1575,7 +1576,7 @@ export class SubtitleController {
         },
       });
     } catch (error) {
-      console.error("Error updating subtitle chunks:", error);
+      logger.error("Error updating subtitle chunks:", error);
       res.status(500).json({
         success: false,
         error: "Failed to update subtitle chunks",
@@ -1670,7 +1671,7 @@ export class SubtitleController {
         },
       });
     } catch (error) {
-      console.error("Error getting user transcriptions:", error);
+      logger.error("Error getting user transcriptions:", error);
       res.status(500).json({
         success: false,
         error: "Failed to get transcriptions",
@@ -1734,7 +1735,7 @@ export class SubtitleController {
         message: "Transcription deleted successfully",
       });
     } catch (error) {
-      console.error("Error deleting transcription:", error);
+      logger.error("Error deleting transcription:", error);
       res.status(500).json({
         success: false,
         error:
@@ -1792,7 +1793,7 @@ export class SubtitleController {
         } deleted successfully`,
       });
     } catch (error) {
-      console.error("Error deleting transcriptions:", error);
+      logger.error("Error deleting transcriptions:", error);
       res.status(500).json({
         success: false,
         error:

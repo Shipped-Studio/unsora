@@ -19,6 +19,7 @@ import {
   createVoiceGenerationForUser,
   validateVoiceGenerationInput,
 } from "../../../controllers/voice-generation.controller";
+import { logger } from "../../../lib/logger";
 
 async function resolveUser(clerkUserId: string) {
   return prisma.user.findUnique({
@@ -57,7 +58,7 @@ export class PublicVoiceoverController {
         return result.body;
       });
     } catch (error) {
-      console.error("Public create voiceover error:", error);
+      logger.error("Public create voiceover error:", error);
       if (!res.headersSent) {
         res.status(500).json({
           success: false,

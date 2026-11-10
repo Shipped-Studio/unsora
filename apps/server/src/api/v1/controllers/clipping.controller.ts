@@ -20,6 +20,7 @@ import {
 import { getApiKeyId, mergeApiContext } from "../../../lib/api-public";
 import { withPublicCreate } from "../helpers/public-create";
 import { handlePublicError } from "../helpers/public-response";
+import { logger } from "../../../lib/logger";
 
 const clippingInclude = {
   clips: {
@@ -60,7 +61,7 @@ export class PublicClippingController {
         return result.body;
       });
     } catch (error) {
-      console.error("Public create clipping error:", error);
+      logger.error("Public create clipping error:", error);
       if (!res.headersSent) {
         res.status(500).json({
           success: false,
@@ -213,7 +214,7 @@ export class PublicClippingController {
 
       res.json({ success: true, message: "Clipping job deleted" });
     } catch (error) {
-      console.error("Error deleting clipping job:", error);
+      logger.error("Error deleting clipping job:", error);
       res.status(500).json({
         success: false,
         error: "Failed to delete clipping job",
@@ -250,7 +251,7 @@ export class PublicClippingController {
 
       res.json({ success: true, message: "Clip deleted" });
     } catch (error) {
-      console.error("Error deleting clip:", error);
+      logger.error("Error deleting clip:", error);
       res.status(500).json({
         success: false,
         error: "Failed to delete clip",

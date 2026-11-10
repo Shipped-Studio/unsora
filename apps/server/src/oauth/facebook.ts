@@ -1,6 +1,7 @@
 // src/oauth/facebook.js
 import axios from "axios";
 import { uploadUrlToStorage } from "../lib/upload";
+import { logger } from "../lib/logger";
 
 const facebookScopes = [
   "pages_show_list", // list the user's Pages at connect time
@@ -54,7 +55,7 @@ export async function getFacebookPages(accessToken: string) {
 
     return null;
   } catch (error: any) {
-    console.error(
+    logger.error(
       "Error fetching Facebook pages:",
       error?.response?.data || error
     );
@@ -79,7 +80,7 @@ export async function getFacebookPagePicture(
     const uploadedProfilePicture = await uploadUrlToStorage(pictureUrl);
     return uploadedProfilePicture.fileUrl || null;
   } catch (error) {
-    console.error("Error fetching Facebook page picture:", error);
+    logger.error("Error fetching Facebook page picture:", error);
     return null;
   }
 }
@@ -116,7 +117,7 @@ export async function disconnectFacebookUser(userAccessToken: string) {
       data: res.data,
     };
   } catch (error: any) {
-    console.error(
+    logger.error(
       "Error disconnecting Facebook user:",
       error?.response?.data || error.message
     );

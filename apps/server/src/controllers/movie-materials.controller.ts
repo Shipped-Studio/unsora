@@ -8,6 +8,7 @@ import {
   getCreditBalance,
   InsufficientCreditsError,
 } from "../lib/credits";
+import { logger } from "../lib/logger";
 
 async function resolveUser(clerkUserId: string) {
   return prisma.user.findUnique({
@@ -156,7 +157,7 @@ export class MovieMaterialsController {
         creditsRemaining,
       });
     } catch (error) {
-      console.error("Create movie materials generation error:", error);
+      logger.error("Create movie materials generation error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -214,7 +215,7 @@ export class MovieMaterialsController {
         },
       });
     } catch (error) {
-      console.error("Get movie materials error:", error);
+      logger.error("Get movie materials error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -261,7 +262,7 @@ export class MovieMaterialsController {
 
       return res.json({ success: true, generation });
     } catch (error) {
-      console.error("Refresh movie materials status error:", error);
+      logger.error("Refresh movie materials status error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -296,7 +297,7 @@ export class MovieMaterialsController {
         message: "Generation deleted successfully",
       });
     } catch (error) {
-      console.error("Delete movie materials error:", error);
+      logger.error("Delete movie materials error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",

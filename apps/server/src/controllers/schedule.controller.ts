@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { addDays } from "date-fns";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { prisma } from "../lib/db";
+import { logger } from "../lib/logger";
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const MAX_SLOTS = 70;
@@ -127,7 +128,7 @@ export class ScheduleController {
         },
       });
     } catch (error) {
-      console.error("Get posting slots error:", error);
+      logger.error("Get posting slots error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to load posting times" });
@@ -207,7 +208,7 @@ export class ScheduleController {
         },
       });
     } catch (error) {
-      console.error("Replace posting slots error:", error);
+      logger.error("Replace posting slots error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to save posting times" });
@@ -244,7 +245,7 @@ export class ScheduleController {
         data: { timezone: timeZone, slots: next.map((d) => d.toISOString()) },
       });
     } catch (error) {
-      console.error("Get next posting slots error:", error);
+      logger.error("Get next posting slots error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to find the next free slot" });

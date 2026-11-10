@@ -1,5 +1,6 @@
 import { BatchTriggerError, schedules, task, wait } from "@trigger.dev/sdk";
 import { analyticsService } from "../services/analytics.service";
+import { logger } from "../lib/logger";
 
 // batchTrigger accepts at most 1,000 items per call.
 const FAN_OUT_BATCH_SIZE = 1000;
@@ -57,7 +58,7 @@ export const postMetricsCron = schedules.task({
       }
     }
 
-    console.log(
+    logger.info(
       `[${new Date().toISOString()}] Queued metrics refresh for ${accountIds.length} accounts`,
     );
     return { accounts: accountIds.length };

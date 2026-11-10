@@ -6,6 +6,7 @@ import { uploadUrlToStorage } from "../lib/upload";
 import { createAsset } from "../lib/asset-utils";
 import { STANDARD_RETRY, CANCELLED_ERROR } from "./task-utils";
 import { refundConsumption } from "../lib/credits";
+import { logger } from "../lib/logger";
 
 export interface ImageGenerationJobData {
   userId: string;
@@ -169,7 +170,7 @@ async function finalizeGeneration(
       });
     }
   } catch (refundError) {
-    console.error(
+    logger.error(
       `[ImageGen ${generationId}] Failed to update DB/refund:`,
       refundError,
     );

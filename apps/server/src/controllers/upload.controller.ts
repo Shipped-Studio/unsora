@@ -21,6 +21,7 @@ import {
   findUserFolder,
   uploadAssetToLibraryItem,
 } from "./library.controller";
+import { logger } from "../lib/logger";
 
 const MAX_IMPORT_ITEMS = 20;
 const IMPORT_CONCURRENCY = 3;
@@ -110,7 +111,7 @@ export class UploadController {
         uploadMethod: "supabase",
       });
     } catch (error) {
-      console.error("Error generating signed upload URL:", error);
+      logger.error("Error generating signed upload URL:", error);
       return res.status(500).json({
         success: false,
         error: "Failed to generate signed upload URL",
@@ -214,7 +215,7 @@ export class UploadController {
             return { ok: true as const, item: uploadAssetToLibraryItem(asset) };
           } catch (error) {
             if (!(error instanceof ImportError)) {
-              console.error(`Import (${item.provider}) failed:`, error);
+              logger.error(`Import (${item.provider}) failed:`, error);
             }
             const message =
               error instanceof ImportError
@@ -240,7 +241,7 @@ export class UploadController {
         },
       });
     } catch (error) {
-      console.error("Import error:", error);
+      logger.error("Import error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to import files" });

@@ -1,6 +1,7 @@
 import { SocialAccount } from "@prisma/client";
 import type { PostMediaWithAsset } from "../post.service";
 import axios from "axios";
+import { logger } from "../../lib/logger";
 
 /**
  * X API v2 posting.
@@ -208,7 +209,7 @@ export class XService {
   private handleXError(error: any, context: string): never {
     const apiError = error.response?.data;
 
-    console.error(`${context} error:`, {
+    logger.error(`${context} error:`, {
       message: error.message,
       response: apiError,
       status: error.response?.status,

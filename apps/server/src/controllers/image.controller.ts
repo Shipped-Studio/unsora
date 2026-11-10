@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import prisma from "../lib/db";
 import { ImageGenerationType } from "@prisma/client";
+import { logger } from "../lib/logger";
 
 // ─── Helpers ───
 
@@ -68,7 +69,7 @@ export class ImageController {
         },
       });
     } catch (error) {
-      console.error("Get image generations error:", error);
+      logger.error("Get image generations error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -115,7 +116,7 @@ export class ImageController {
 
       return res.json({ success: true, generation });
     } catch (error) {
-      console.error("Refresh image generation status error:", error);
+      logger.error("Refresh image generation status error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -151,7 +152,7 @@ export class ImageController {
         message: "Generation deleted successfully",
       });
     } catch (error) {
-      console.error("Delete image generation error:", error);
+      logger.error("Delete image generation error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",

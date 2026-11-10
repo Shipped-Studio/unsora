@@ -1,4 +1,5 @@
 import { Response } from "express";
+import { logger } from "../../../lib/logger";
 
 export function sendError(
   res: Response,
@@ -15,7 +16,7 @@ export function handlePublicError(
   logLabel: string,
   fallback = "Internal server error",
 ) {
-  console.error(logLabel, error);
+  logger.error(logLabel, error);
   if (res.headersSent) return;
   return sendError(
     res,

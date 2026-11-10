@@ -2,20 +2,12 @@ import { prepareMediaForPlatform } from "../lib/platform-media-fix";
 import dotenv from "dotenv";
 
 import { prisma } from "../lib/db";
-import { Post, PostAccount, SocialAccount, PostMedia, Asset } from "@prisma/client";
-import { blueskyService } from "./platforms/bluesky.service";
-import { facebookService } from "./platforms/facebook.service";
-import { instagramService } from "./platforms/instagram.service";
-import { linkedInService } from "./platforms/linkedin.service";
-import { pinterestService } from "./platforms/pinterest.service";
-import { threadsService } from "./platforms/threads.service";
-import { tiktokService } from "./platforms/tiktok.service";
-import { youtubeService } from "./platforms/youtube.service";
-import { xService } from "./platforms/x.service";
-import { googleBusinessService } from "./platforms/google-business.service";
+import { Post, PostAccount, SocialAccount } from "@prisma/client";
+import { getPublisher, type PostMediaWithAsset } from "./platforms/publisher";
 import { tokenRefreshService } from "./token-refresh.service";
 import { onPostPublishFailed } from "../emails";
 import { hasPaidPlan, postingAccountLimitForUser } from "../lib/plans";
+import { logger } from "../lib/logger";
 
 /**
  * Accounts beyond what the owner's current plan covers, oldest connections
@@ -46,7 +38,7 @@ export const PLAN_LIMIT_PUBLISH_ERROR =
 
 dotenv.config();
 
-export type PostMediaWithAsset = PostMedia & { asset: Asset };
+export type { PostMediaWithAsset };
 
 // Extended types with relations
 type PostWithRelations = Post & {
@@ -179,7 +171,7 @@ export class PostService {
     } catch (error) {
       // Leave the post in PUBLISHING: the publishing task retries, and its
       // onFailure hook settles the post once attempts run out.
-      console.error("Error publishing post:", error);
+      logger.error("Error publishing post:", error, { postId });
       throw error;
     }
   }
@@ -210,129 +202,24 @@ export class PostService {
         post.media,
       );
 
-      let platformPostId: string | undefined;
-      let platformPostUrl: string | undefined;
+      const { postId: platformPostId, postUrl: platformPostUrl } =
+        await getPublisher(account.provider).publish({
+          postType: post.type,
+          media,
+          account,
+          caption,
+          title: postAccount.title,
+          settings: postAccount.settings as Record<string, unknown> | null,
+        });
 
-      // Route to appropriate platform
-      switch (account.provider.toLowerCase()) {
-        case "google": // YouTube
-          const youtubeResult = await youtubeService.publishPost(
-            post.type,
-            media,
-            account,
-            caption,
-            postAccount.title || caption.substring(0, 100),
-            postAccount.settings as Record<string, unknown> | null,
-          );
-          platformPostId = youtubeResult.postId;
-          platformPostUrl = youtubeResult.postUrl;
-          break;
-
-        case "facebook":
-          const facebookResult = await facebookService.publishPost(
-            post.type,
-            media,
-            account,
-            caption
-          );
-          platformPostId = facebookResult.postId;
-          platformPostUrl = facebookResult.postUrl;
-          break;
-
-        case "instagram":
-          const instagramResult = await instagramService.publishPost(
-            post.type,
-            media,
-            account,
-            caption,
-          );
-          platformPostId = instagramResult.postId;
-          platformPostUrl = instagramResult.postUrl;
-          break;
-
-        case "bluesky":
-          const blueskyResult = await blueskyService.publishPost(
-            post.type,
-            media,
-            account,
-            caption,
-          );
-          platformPostId = blueskyResult.postId;
-          platformPostUrl = blueskyResult.postUrl;
-          break;
-
-        case "threads":
-          const threadsResult = await threadsService.publishPost(
-            post.type,
-            media,
-            account,
-            caption,
-          );
-          platformPostId = threadsResult.postId;
-          platformPostUrl = threadsResult.postUrl;
-          break;
-
-        case "pinterest":
-          const pinterestResult = await pinterestService.publishPost(
-            post.type,
-            media,
-            account,
-            caption,
-            postAccount.settings as Record<string, unknown> | null,
-          );
-          platformPostId = pinterestResult.postId;
-          platformPostUrl = pinterestResult.postUrl;
-          break;
-
-        case "linkedin":
-          const linkedInResult = await linkedInService.publishPost(
-            post.type,
-            media,
-            account,
-            caption,
-          );
-          platformPostId = linkedInResult.postId;
-          platformPostUrl = linkedInResult.postUrl;
-          break;
-
-        case "tiktok":
-          const tiktokResult = await tiktokService.publishPost(
-            post.type,
-            media,
-            account,
-            caption,
-            postAccount.settings as Record<string, unknown> | null,
-          );
-          platformPostId = tiktokResult.postId;
-          platformPostUrl = tiktokResult.postUrl;
-          break;
-
-        case "x":
-          const xResult = await xService.publishPost(
-            post.type,
-            media,
-            account,
-            caption,
-          );
-          platformPostId = xResult.postId;
-          platformPostUrl = xResult.postUrl;
-          break;
-
-        case "google_business":
-          const googleBusinessResult = await googleBusinessService.publishPost(
-            post.type,
-            media,
-            account,
-            caption,
-            postAccount.settings as Record<string, unknown> | null,
-          );
-          platformPostId = googleBusinessResult.postId;
-          platformPostUrl = googleBusinessResult.postUrl;
-          break;
-
-        default:
-          throw new Error(`Unsupported platform: ${account.provider}`);
-      }
+      logger.info(`Published to ${account.provider}`, {
+        postId: post.id,
+        userId: post.userId,
+        accountId: account.id,
+        provider: account.provider,
+        platformPostId: platformPostId ?? "",
+        platformPostUrl: platformPostUrl ?? "",
+      });
 
       // Update PostAccount record
       await prisma.postAccount.update({
@@ -353,10 +240,13 @@ export class PostService {
         platformPostUrl,
       };
     } catch (error) {
-      console.error(
-        `Error publishing to ${postAccount.account.provider}:`,
-        error
-      );
+      logger.error(`Error publishing to ${postAccount.account.provider}:`, error, {
+        postId: post.id,
+        userId: post.userId,
+        accountId: postAccount.accountId,
+        provider: postAccount.account.provider,
+        postType: post.type,
+      });
 
       // Update PostAccount with error
       await prisma.postAccount.update({

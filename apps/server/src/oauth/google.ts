@@ -2,6 +2,7 @@
 import axios from "axios";
 import querystring from "querystring";
 import { uploadUrlToStorage } from "../lib/upload";
+import { logger } from "../lib/logger";
 
 const GOOGLE_OAUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -49,7 +50,7 @@ export async function verifyYouTubeScopes(accessToken) {
       grantedScopes,
     };
   } catch (error) {
-    console.error("Error verifying YouTube scopes:", error);
+    logger.error("Error verifying YouTube scopes:", error);
     return {
       valid: false,
       missingScopes: [],
@@ -110,7 +111,7 @@ export async function getYouTubeChannelInfo(accessToken) {
   } catch (error: any) {
     const apiError = error?.response?.data?.error;
     const reason = apiError?.errors?.[0]?.reason;
-    console.error(
+    logger.error(
       "Error fetching YouTube channel info:",
       apiError || error?.message || error,
     );

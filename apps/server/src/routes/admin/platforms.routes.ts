@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { platformAdminView, savePlatformSwitches } from "../../lib/platforms";
+import { logger } from "../../lib/logger";
 
 const router = Router();
 
@@ -9,7 +10,7 @@ router.get("/", async (_req, res) => {
   try {
     res.json({ success: true, data: await platformAdminView() });
   } catch (error) {
-    console.error("Admin platforms load error:", error);
+    logger.error("Admin platforms load error:", error);
     res.status(500).json({ success: false, error: "Couldn't load platforms" });
   }
 });
@@ -26,7 +27,7 @@ router.put("/", async (req, res) => {
     await savePlatformSwitches(enabled, req.auth?.userId);
     res.json({ success: true, data: await platformAdminView() });
   } catch (error) {
-    console.error("Admin platforms save error:", error);
+    logger.error("Admin platforms save error:", error);
     res.status(500).json({
       success: false,
       error:

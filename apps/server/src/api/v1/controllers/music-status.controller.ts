@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import prisma from "../../../lib/db";
+import { logger } from "../../../lib/logger";
 
 async function resolveUser(clerkUserId: string) {
   return prisma.user.findUnique({
@@ -52,7 +53,7 @@ export class PublicMusicStatusController {
         },
       });
     } catch (error) {
-      console.error("Get music generation status error:", error);
+      logger.error("Get music generation status error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",

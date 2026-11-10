@@ -8,6 +8,7 @@ import {
   isSupabaseStorageConfigured,
   uploadBufferToSupabase,
 } from "./supabase-storage";
+import { logger } from "./logger";
 
 /**
  * Rewrites a post's images to fit one platform before it's published:
@@ -212,7 +213,7 @@ export async function prepareMediaForPlatform(
   try {
     loaded = await Promise.all(images.map((m) => load(m.asset.url)));
   } catch (err) {
-    console.warn(`[platform-media] ${provider}: couldn't read images, sending originals:`, err);
+    logger.warn(`[platform-media] ${provider}: couldn't read images, sending originals:`, err);
     return media;
   }
 
@@ -245,12 +246,12 @@ export async function prepareMediaForPlatform(
           },
         });
       } catch (err) {
-        console.warn(`[platform-media] ${provider}: kept original ${m.asset.url}:`, err);
+        logger.warn(`[platform-media] ${provider}: kept original ${m.asset.url}:`, err);
       }
     }),
   );
 
   if (!replaced.size) return media;
-  console.log(`[platform-media] ${provider}: adjusted ${replaced.size} of ${images.length} image(s)`);
+  logger.info(`[platform-media] ${provider}: adjusted ${replaced.size} of ${images.length} image(s)`);
   return media.map((m) => replaced.get(m.id) ?? m);
 }

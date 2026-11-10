@@ -7,6 +7,7 @@
 import axios from "axios";
 import type { SocialAccount } from "@prisma/client";
 import { uploadUrlToStorage } from "../lib/upload";
+import { logger } from "../lib/logger";
 
 const GRAPH_VERSION = "v24.0";
 
@@ -147,7 +148,7 @@ async function listPagesFromGrant(userAccessToken: string): Promise<any[]> {
         });
         pages.push(res.data);
       } catch (error: any) {
-        console.error(
+        logger.error(
           "Could not read a granted Page:",
           error?.response?.data?.error?.message || error.message,
         );
@@ -155,7 +156,7 @@ async function listPagesFromGrant(userAccessToken: string): Promise<any[]> {
     }
     return pages;
   } catch (error: any) {
-    console.error(
+    logger.error(
       "Could not read granted Pages from the token:",
       error?.response?.data?.error?.message || error.message,
     );
@@ -192,7 +193,7 @@ export async function getLinkedInstagramAccounts(
         const uploaded = await uploadUrlToStorage(ig.profile_picture_url);
         profilePicture = uploaded.fileUrl || null;
       } catch (uploadError) {
-        console.error("Failed to re-host Instagram avatar:", uploadError);
+        logger.error("Failed to re-host Instagram avatar:", uploadError);
       }
     }
 
@@ -284,7 +285,7 @@ export async function getInstagramFacebookAccountInfo(
 
     return { username: res.data.username || null, profilePicture };
   } catch (error: any) {
-    console.error(
+    logger.error(
       "Error fetching Instagram account info via Facebook:",
       error?.response?.data || error.message,
     );

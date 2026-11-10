@@ -17,6 +17,7 @@ import {
 } from "../config/models";
 import { downloadFromStorageUrl } from "../lib/supabase-storage";
 import { listElevenV3Voices } from "../lib/voice-catalog";
+import { logger } from "../lib/logger";
 
 const MAX_NAME_LENGTH = 80;
 const MAX_DESCRIPTION_LENGTH = 500;
@@ -96,7 +97,7 @@ export class VoiceCloneController {
         cloneCreditCost: VOICE_CLONE_CREDIT_COST,
       });
     } catch (error) {
-      console.error("List voice clones error:", error);
+      logger.error("List voice clones error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -291,7 +292,7 @@ export class VoiceCloneController {
         creditsRemaining,
       });
     } catch (error) {
-      console.error("Create voice clone error:", error);
+      logger.error("Create voice clone error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -332,7 +333,7 @@ export class VoiceCloneController {
         try {
           await getElevenLabsClient().deleteVoice(clone.elevenLabsVoiceId);
         } catch (err) {
-          console.error(
+          logger.error(
             `Failed to delete ElevenLabs voice ${clone.elevenLabsVoiceId}:`,
             err,
           );
@@ -346,7 +347,7 @@ export class VoiceCloneController {
         message: "Voice clone deleted",
       });
     } catch (error) {
-      console.error("Delete voice clone error:", error);
+      logger.error("Delete voice clone error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",

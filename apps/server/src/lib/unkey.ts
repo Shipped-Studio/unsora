@@ -1,4 +1,5 @@
 import { Unkey } from "@unkey/api";
+import { logger } from "./logger";
 
 /**
  * Unkey-backed API key management for the public `/api/v1` surface.
@@ -12,7 +13,7 @@ const rootKey = process.env.UNKEY_ROOT_KEY;
 export const UNKEY_API_ID = process.env.UNKEY_API_ID ?? "";
 
 if (!rootKey || !UNKEY_API_ID) {
-  console.warn(
+  logger.warn(
     "[unkey] UNKEY_ROOT_KEY / UNKEY_API_ID not set — Unkey API key management is disabled.",
   );
 }

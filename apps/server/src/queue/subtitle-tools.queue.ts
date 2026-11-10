@@ -17,6 +17,7 @@ import {
   type Range,
   type ToolChunk,
 } from "../lib/subtitle-tools";
+import { logger } from "../lib/logger";
 
 export interface SubtitleToolJobData {
   transcriptionId: string;
@@ -154,14 +155,14 @@ export const subtitleToolTask = task({
       );
       return { changed: true };
     } catch (error) {
-      console.error(`[Subtitle tool ${tool}] failed:`, error);
+      logger.error(`[Subtitle tool ${tool}] failed:`, error);
       await setToolState(transcriptionId, tool, {
         status: "failed",
         updatedAt: new Date().toISOString(),
         error: error instanceof Error ? error.message : "Failed",
       });
       await refundConsumption(payload.transactionId, `${tool} failed`).catch((refundError) =>
-        console.error("Refund failed:", refundError),
+        logger.error("Refund failed:", refundError),
       );
       throw error;
     } finally {

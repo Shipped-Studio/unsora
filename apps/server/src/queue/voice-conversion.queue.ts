@@ -13,6 +13,7 @@ import {
 import { STANDARD_RETRY, CANCELLED_ERROR } from "./task-utils";
 import { createAsset } from "../lib/asset-utils";
 import { refundConsumption } from "../lib/credits";
+import { logger } from "../lib/logger";
 
 export interface VoiceConversionJobData {
   userId: string;
@@ -146,7 +147,7 @@ async function finalizeConversion(
       });
     }
   } catch (refundError) {
-    console.error(
+    logger.error(
       `[VoiceConv ${conversionId}] Failed to update DB/refund:`,
       refundError,
     );

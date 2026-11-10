@@ -5,6 +5,7 @@ import { createAsset } from "../lib/asset-utils";
 import { uploadUrlToStorage } from "../lib/upload";
 import { refundConsumption } from "../lib/credits";
 import { CANCELLED_ERROR } from "./task-utils";
+import { logger } from "../lib/logger";
 
 /**
  * Progress budget allocated to each pipeline phase. The values are
@@ -178,7 +179,7 @@ async function finalizeRender(
 ) {
   const { renderId, creditTransactionId } = payload;
 
-  console.error(`[Render ${renderId}] Final failure: ${message}`);
+  logger.error(`[Render ${renderId}] Final failure: ${message}`);
 
   try {
     const existing = await prisma.videoExport.findUnique({
@@ -192,7 +193,7 @@ async function finalizeRender(
       });
     }
   } catch (updateError) {
-    console.error(
+    logger.error(
       `[Render ${renderId}] Failed to update render status:`,
       updateError
     );
@@ -202,7 +203,7 @@ async function finalizeRender(
     try {
       await refundConsumption(creditTransactionId, refundReason, { renderId });
     } catch (refundError) {
-      console.error(
+      logger.error(
         `[Render ${renderId}] Failed to refund credits for txn ${creditTransactionId}:`,
         refundError
       );

@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { prisma } from "../lib/db";
 import { analyticsService } from "../services/analytics.service";
+import { logger } from "../lib/logger";
 
 export class AnalyticsController {
   /**
@@ -28,7 +29,7 @@ export class AnalyticsController {
 
       return res.json({ success: true, data: { days, ...summary } });
     } catch (error) {
-      console.error("Error building analytics summary:", error);
+      logger.error("Error building analytics summary:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to load analytics" });
@@ -56,7 +57,7 @@ export class AnalyticsController {
 
       return res.json({ success: true, data: { refreshed } });
     } catch (error) {
-      console.error("Error refreshing analytics:", error);
+      logger.error("Error refreshing analytics:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to refresh analytics" });

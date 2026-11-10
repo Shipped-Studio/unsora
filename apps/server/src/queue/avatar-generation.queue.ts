@@ -16,6 +16,7 @@ import {
   formatTranscriptForAvatarTts,
 } from "../lib/avatar-speech";
 import type { VoiceSource } from "../lib/voice-resolver";
+import { logger } from "../lib/logger";
 
 export interface AvatarGenerationJobData {
   userId: string;
@@ -292,7 +293,7 @@ async function finalizeGeneration(
       });
     }
   } catch (refundError) {
-    console.error(
+    logger.error(
       `[AvatarGen ${generationId}] Failed to update DB/refund:`,
       refundError,
     );

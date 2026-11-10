@@ -35,6 +35,7 @@ import {
 } from "../../../oauth/google-business";
 import { tokenRefreshService } from "../../../services/token-refresh.service";
 import { getUserIdFromClerkId } from "../shared/user";
+import { logger } from "../../../lib/logger";
 
 const EXPIRING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -161,7 +162,7 @@ export class SchedulerAccountsController {
 
       res.json({ success: true, data });
     } catch (error) {
-      console.error("Get connected accounts error:", error);
+      logger.error("Get connected accounts error:", error);
       res.status(500).json({
         success: false,
         error: "Failed to fetch connected accounts",
@@ -451,7 +452,7 @@ export class SchedulerAccountsController {
         data: updatedAccount,
       });
     } catch (error) {
-      console.error("Refresh account error:", error);
+      logger.error("Refresh account error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       res.status(500).json({
@@ -501,7 +502,7 @@ export class SchedulerAccountsController {
 
       res.json({ success: true, message: "Account disconnected" });
     } catch (error) {
-      console.error("Disconnect account error:", error);
+      logger.error("Disconnect account error:", error);
       res.status(500).json({
         success: false,
         error: "Failed to disconnect account",

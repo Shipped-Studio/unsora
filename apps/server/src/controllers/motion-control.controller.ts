@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import prisma from "../lib/db";
 import { VideoGenerationType } from "@prisma/client";
+import { logger } from "../lib/logger";
 
 export class MotionControlController {
   async getGenerations(req: Request, res: Response) {
@@ -62,7 +63,7 @@ export class MotionControlController {
         },
       });
     } catch (error) {
-      console.error("Get motion control generations error:", error);
+      logger.error("Get motion control generations error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -111,7 +112,7 @@ export class MotionControlController {
 
       return res.json({ success: true, generation });
     } catch (error) {
-      console.error("Refresh motion control status error:", error);
+      logger.error("Refresh motion control status error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -150,7 +151,7 @@ export class MotionControlController {
         message: "Generation deleted successfully",
       });
     } catch (error) {
-      console.error("Delete motion control generation error:", error);
+      logger.error("Delete motion control generation error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",

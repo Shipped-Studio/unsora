@@ -7,6 +7,7 @@ import {
   type CatalogMode,
   type CatalogModel,
 } from "../config/catalog";
+import { logger } from "./logger";
 
 /**
  * Live WaveSpeed model schemas, and the bridge between them and the app.
@@ -114,7 +115,7 @@ export async function getLiveSchemas(): Promise<Map<string, RequestSchema>> {
   if (!schemaCache) return refreshSchemas();
   if (Date.now() - schemaCache.at >= SCHEMA_TTL_MS) {
     refreshSchemas().catch((err) =>
-      console.warn("[wavespeed-catalog] refresh failed, serving stale:", err),
+      logger.warn("[wavespeed-catalog] refresh failed, serving stale:", err),
     );
   }
   return schemaCache.byId;

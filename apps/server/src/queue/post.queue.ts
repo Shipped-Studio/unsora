@@ -7,6 +7,7 @@ import {
 import prisma from "../lib/db";
 import { STANDARD_RETRY, CANCELLED_ERROR } from "./task-utils";
 import { postService } from "../services/post.service";
+import { logger } from "../lib/logger";
 
 // Job data interface for post publishing
 export interface PostPublishingJobData {
@@ -120,10 +121,7 @@ async function finalizePost(payload: PostPublishingJobData, message: string) {
       },
     });
   } catch (updateError) {
-    console.error(
-      `[Post ${postId}] Failed to update post status:`,
-      updateError
-    );
+    logger.error("Failed to settle post status:", updateError, { postId });
   }
 }
 
@@ -229,11 +227,11 @@ export const queueScheduledPosts = async (): Promise<number> => {
     } catch (error) {
       await releasePosts(claimed.map((post) => post.id));
       if (error instanceof BatchTriggerError && error.isRateLimited) {
-        console.warn(
+        logger.warn(
           `[Scheduler] Batch trigger rate limited; ${claimed.length} posts released for the next tick`,
         );
       } else {
-        console.error(`[Scheduler] Failed to enqueue ${claimed.length} posts:`, error);
+        logger.error(`[Scheduler] Failed to enqueue ${claimed.length} posts:`, error);
       }
       break;
     }
@@ -252,9 +250,9 @@ export const scheduledPostsCron = schedules.task({
   run: async () => {
     const queuedCount = await queueScheduledPosts();
     if (queuedCount > 0) {
-      console.log(
-        `[${new Date().toISOString()}] Queued ${queuedCount} posts for publishing`
-      );
+      logger.info(`[Scheduler] Queued ${queuedCount} posts for publishing`, {
+        queuedCount,
+      });
     }
     return { queuedCount };
   },

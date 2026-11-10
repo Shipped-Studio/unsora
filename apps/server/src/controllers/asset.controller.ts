@@ -10,6 +10,7 @@ import {
   findUserFolder,
   uploadAssetToLibraryItem,
 } from "./library.controller";
+import { logger } from "../lib/logger";
 
 const VALID_VIDEO_FEATURES = new Set<VideoGenerationType>([
   VideoGenerationType.OMNI_REFERENCE,
@@ -230,7 +231,7 @@ export class AssetController {
         },
       });
     } catch (error) {
-      console.error("Error browsing assets:", error);
+      logger.error("Error browsing assets:", error);
       res
         .status(500)
         .json({ success: false, error: "Failed to browse assets" });
@@ -288,7 +289,7 @@ export class AssetController {
         },
       });
     } catch (error) {
-      console.error("Error fetching uploaded assets:", error);
+      logger.error("Error fetching uploaded assets:", error);
       res
         .status(500)
         .json({ success: false, error: "Failed to fetch uploaded assets" });
@@ -360,7 +361,7 @@ export class AssetController {
         item: uploadAssetToLibraryItem(asset),
       });
     } catch (error) {
-      console.error("Error creating uploaded asset:", error);
+      logger.error("Error creating uploaded asset:", error);
       res
         .status(500)
         .json({ success: false, error: "Failed to create uploaded asset" });
@@ -448,7 +449,7 @@ export class AssetController {
         },
       });
     } catch (error) {
-      console.error("Error updating asset:", error);
+      logger.error("Error updating asset:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to update the file" });
@@ -485,7 +486,7 @@ export class AssetController {
         .status(200)
         .json({ success: true, message: "Asset deleted successfully" });
     } catch (error) {
-      console.error("Error deleting uploaded asset:", error);
+      logger.error("Error deleting uploaded asset:", error);
       res
         .status(500)
         .json({ success: false, error: "Failed to delete uploaded asset" });

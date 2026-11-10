@@ -17,6 +17,7 @@ import {
 import { getApiKeyId, mergeApiContext } from "../../../lib/api-public";
 import { withPublicCreate } from "../helpers/public-create";
 import { handlePublicError } from "../helpers/public-response";
+import { logger } from "../../../lib/logger";
 
 const THUMB_RATIO = "16:9";
 const THUMB_RESOLUTION = "2k";
@@ -104,7 +105,7 @@ export class PublicThumbnailController {
         return result.body;
       });
     } catch (error) {
-      console.error("Public create thumbnail error:", error);
+      logger.error("Public create thumbnail error:", error);
       if (!res.headersSent) {
         res.status(500).json({
           success: false,
@@ -161,7 +162,7 @@ export class PublicThumbnailController {
         },
       });
     } catch (error) {
-      console.error("Get thumbnails error:", error);
+      logger.error("Get thumbnails error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -246,7 +247,7 @@ export class PublicThumbnailController {
         message: "Thumbnail deleted successfully",
       });
     } catch (error) {
-      console.error("Delete thumbnail error:", error);
+      logger.error("Delete thumbnail error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",

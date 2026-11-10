@@ -14,6 +14,7 @@ import {
 } from "../shared/state";
 import { canAddAccount, ACCOUNT_LIMIT_MESSAGE } from "../shared/limits";
 import { getUserIdFromClerkId } from "../shared/user";
+import { logger } from "../../../lib/logger";
 
 const PROVIDER = "google_business";
 
@@ -42,7 +43,7 @@ export class GoogleBusinessSchedulerController {
       }
 
       if (error) {
-        console.error("Google Business OAuth error:", { error });
+        logger.error("Google Business OAuth error:", { error });
         return res.redirect(
           redirect(
             "error",
@@ -143,7 +144,7 @@ export class GoogleBusinessSchedulerController {
       res.redirect(redirect("success"));
     } catch (error: any) {
       const apiError = error?.response?.data?.error;
-      console.error(
+      logger.error(
         "Google Business callback error:",
         apiError || error,
         error?.response?.data?.error_description ?? "",

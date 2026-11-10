@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
+import { logger } from "./logger";
 
 /**
  * The ffmpeg-based functions below run in Trigger.dev workers ONLY — the
@@ -69,13 +70,13 @@ export async function extractAudioFromVideo(
       .audioFrequency(16000)
       .outputOptions(["-threads 0"])
       .output(audioPath)
-      .on("start", (cmd) => console.log("FFmpeg START:", cmd))
+      .on("start", (cmd) => logger.info("FFmpeg START:", cmd))
       .on("error", (err) => {
-        console.error("FFmpeg ERROR:", err);
+        logger.error("FFmpeg ERROR:", err);
         reject(err);
       })
       .on("end", () => {
-        console.log("FFmpeg FINISHED");
+        logger.info("FFmpeg FINISHED");
         resolve(audioPath);
       })
       .run();
@@ -158,7 +159,7 @@ export async function transcribeAudio(
       end: w.end,
     }));
 
-    console.log(`Extracted ${allWords.length} words from Whisper response`);
+    logger.info(`Extracted ${allWords.length} words from Whisper response`);
 
     // Segment → include words
     // Each word goes to the segment it starts in. Matching on both ends
@@ -192,7 +193,7 @@ export async function transcribeAudio(
       duration: response.duration || 0,
     };
   } catch (error) {
-    console.error("Transcription error:", error);
+    logger.error("Transcription error:", error);
     // Ensure stream is closed on error
     if (audioFile) {
       audioFile.destroy();
@@ -222,13 +223,13 @@ export async function transcribeVideo(
   );
 
   try {
-    console.log("Extracting audio from video...");
+    logger.info("Extracting audio from video...");
     await extractAudioFromVideo(videoPath, audioPath);
 
-    console.log("Reading video duration...");
+    logger.info("Reading video duration...");
     const duration = await getVideoDuration(videoPath);
 
-    console.log("Transcribing audio...");
+    logger.info("Transcribing audio...");
     const transcription = await transcribeAudio(audioPath, language);
 
     if (!transcription.duration) {

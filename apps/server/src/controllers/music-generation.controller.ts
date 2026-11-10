@@ -23,6 +23,7 @@ import {
   getCreditBalance,
   InsufficientCreditsError,
 } from "../lib/credits";
+import { logger } from "../lib/logger";
 
 const VALID_OUTPUT_FORMATS = ["mp3", "wav", "flac"] as const;
 const MAX_LYRICS_LENGTH = 3000;
@@ -256,11 +257,11 @@ export class MusicGenerationController {
       } catch (err) {
         // The job never started: give the credits back now rather than
         // leaving it to the stuck-jobs sweeper hours later.
-        console.error("[music] enqueue failed:", err);
+        logger.error("[music] enqueue failed:", err);
         await refundConsumption(creditTransactionId, "music.generation.enqueue_failed", {
           generationId: generation.id,
         }).catch((refundErr) =>
-          console.error("[music] refund after enqueue failure:", refundErr),
+          logger.error("[music] refund after enqueue failure:", refundErr),
         );
         await prisma.musicGeneration
           .delete({ where: { id: generation.id } })
@@ -283,7 +284,7 @@ export class MusicGenerationController {
         creditsRemaining,
       });
     } catch (error) {
-      console.error("Create music generation error:", error);
+      logger.error("Create music generation error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -337,7 +338,7 @@ export class MusicGenerationController {
         },
       });
     } catch (error) {
-      console.error("Get music generations error:", error);
+      logger.error("Get music generations error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -382,7 +383,7 @@ export class MusicGenerationController {
         generation: withTrackNumber(generation, trackMap),
       });
     } catch (error) {
-      console.error("Refresh music generation status error:", error);
+      logger.error("Refresh music generation status error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -418,7 +419,7 @@ export class MusicGenerationController {
         message: "Generation deleted successfully",
       });
     } catch (error) {
-      console.error("Delete music generation error:", error);
+      logger.error("Delete music generation error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",

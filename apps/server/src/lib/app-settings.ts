@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "./db";
+import { logger } from "./logger";
 
 /**
  * Runtime settings stored in the `app_settings` table, edited from /admin.
@@ -27,7 +28,7 @@ export async function getSetting<T>(key: string): Promise<T | undefined> {
     const row = await prisma.appSetting.findUnique({ where: { key } });
     value = row?.value ?? undefined;
   } catch (err) {
-    console.warn(`[app-settings] couldn't read "${key}", using defaults:`, err);
+    logger.warn(`[app-settings] couldn't read "${key}", using defaults:`, err);
     value = undefined;
   }
   cache.set(key, { at: Date.now(), value });

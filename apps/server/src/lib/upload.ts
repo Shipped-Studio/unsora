@@ -4,6 +4,7 @@ import {
   isSupabaseStorageConfigured,
   uploadBufferToSupabase,
 } from "./supabase-storage";
+import { logger } from "./logger";
 
 /**
  * File uploads for generated media — backed by Supabase Storage.
@@ -17,7 +18,7 @@ export const uploadVideoToStorage = async (
   originalName?: string,
 ) => {
   if (!isSupabaseStorageConfigured()) {
-    console.error("[storage] SUPABASE_URL / SUPABASE_SECRET_KEY not configured — generated media will NOT be uploaded to Supabase and external provider URLs will be stored instead.");
+    logger.error("[storage] SUPABASE_URL / SUPABASE_SECRET_KEY not configured — generated media will NOT be uploaded to Supabase and external provider URLs will be stored instead.");
     return { success: false as const, error: "Storage configuration missing" };
   }
 
@@ -49,7 +50,7 @@ export const uploadLocalFileToStorage = async (
   }
 
   if (!isSupabaseStorageConfigured()) {
-    console.error("[storage] SUPABASE_URL / SUPABASE_SECRET_KEY not configured — generated media will NOT be uploaded to Supabase and external provider URLs will be stored instead.");
+    logger.error("[storage] SUPABASE_URL / SUPABASE_SECRET_KEY not configured — generated media will NOT be uploaded to Supabase and external provider URLs will be stored instead.");
     return { success: false as const, error: "Storage configuration missing" };
   }
 
@@ -80,7 +81,7 @@ export const uploadUrlToStorage = async (
 ) => {
   try {
     if (!isSupabaseStorageConfigured()) {
-      console.error("[storage] SUPABASE_URL / SUPABASE_SECRET_KEY not configured — generated media will NOT be uploaded to Supabase and external provider URLs will be stored instead.");
+      logger.error("[storage] SUPABASE_URL / SUPABASE_SECRET_KEY not configured — generated media will NOT be uploaded to Supabase and external provider URLs will be stored instead.");
       return {
         success: false as const,
         error: "Storage configuration missing",
@@ -140,7 +141,7 @@ export const uploadUrlToStorage = async (
       contentType,
     };
   } catch (error) {
-    console.error("Error uploading file from URL:", error);
+    logger.error("Error uploading file from URL:", error);
     return {
       success: false as const,
       error: error instanceof Error ? error.message : "Unknown error occurred",

@@ -14,6 +14,7 @@ import { resolveVoiceForUser, type ResolvedVoice } from "../lib/voice-resolver";
 import { isElevenLabsConfigured } from "../lib/elevenlabs-api";
 import { AVATAR_MAX_AUDIO_SECONDS, estimateSpeechSeconds } from "../lib/avatar-speech";
 import { DURATION_TOLERANCE_SECONDS, measureMediaSeconds } from "../lib/media-limits";
+import { logger } from "../lib/logger";
 
 const VALID_RESOLUTIONS = ["480p", "720p"] as const;
 const VALID_EMOTIONS = [
@@ -272,7 +273,7 @@ export class AvatarGenerationController {
         creditsRemaining,
       });
     } catch (error) {
-      console.error("Create avatar generation error:", error);
+      logger.error("Create avatar generation error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -328,7 +329,7 @@ export class AvatarGenerationController {
         },
       });
     } catch (error) {
-      console.error("Get avatar generations error:", error);
+      logger.error("Get avatar generations error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -371,7 +372,7 @@ export class AvatarGenerationController {
 
       return res.json({ success: true, generation });
     } catch (error) {
-      console.error("Refresh avatar generation status error:", error);
+      logger.error("Refresh avatar generation status error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -406,7 +407,7 @@ export class AvatarGenerationController {
         message: "Generation deleted successfully",
       });
     } catch (error) {
-      console.error("Delete avatar generation error:", error);
+      logger.error("Delete avatar generation error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",

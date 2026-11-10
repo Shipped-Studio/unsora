@@ -17,6 +17,7 @@ import {
   isPostType,
   parseFutureDate,
 } from "../lib/post-rules";
+import { logger } from "../lib/logger";
 
 const ACCOUNT_SELECT = {
   id: true,
@@ -347,7 +348,7 @@ export class PostController {
       });
     } catch (error) {
       if (error instanceof PostRuleError) return sendRuleError(res, error);
-      console.error("Error creating post:", error);
+      logger.error("Error creating post:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to create post" });
@@ -440,7 +441,7 @@ export class PostController {
         },
       });
     } catch (error) {
-      console.error("Error fetching posts:", error);
+      logger.error("Error fetching posts:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to fetch posts" });
@@ -474,7 +475,7 @@ export class PostController {
         },
       });
     } catch (error) {
-      console.error("Error counting posts:", error);
+      logger.error("Error counting posts:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to count posts" });
@@ -499,7 +500,7 @@ export class PostController {
 
       return res.json({ success: true, data: post });
     } catch (error) {
-      console.error("Error fetching post:", error);
+      logger.error("Error fetching post:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to fetch post" });
@@ -660,7 +661,7 @@ export class PostController {
       return res.json({ success: true, data: updated, message: "Post updated" });
     } catch (error) {
       if (error instanceof PostRuleError) return sendRuleError(res, error);
-      console.error("Error updating post:", error);
+      logger.error("Error updating post:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to update post" });
@@ -713,7 +714,7 @@ export class PostController {
         .status(201)
         .json({ success: true, data: copy, message: "Draft created" });
     } catch (error) {
-      console.error("Error duplicating post:", error);
+      logger.error("Error duplicating post:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to duplicate post" });
@@ -746,7 +747,7 @@ export class PostController {
         message: `${result.count} post${result.count === 1 ? "" : "s"} deleted`,
       });
     } catch (error) {
-      console.error("Error bulk deleting posts:", error);
+      logger.error("Error bulk deleting posts:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to delete posts" });
@@ -778,7 +779,7 @@ export class PostController {
       await prisma.post.delete({ where: { id: post.id } });
       return res.json({ success: true, message: "Post deleted" });
     } catch (error) {
-      console.error("Error deleting post:", error);
+      logger.error("Error deleting post:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to delete post" });
@@ -878,7 +879,7 @@ export class PostController {
         .json({ success: true, data: post, message: "Publishing started" });
     } catch (error) {
       if (error instanceof PostRuleError) return sendRuleError(res, error);
-      console.error("Error creating and publishing post:", error);
+      logger.error("Error creating and publishing post:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to publish post" });
@@ -915,7 +916,7 @@ export class PostController {
 
       return res.json({ success: true, message: "Caption updated" });
     } catch (error) {
-      console.error("Error updating caption:", error);
+      logger.error("Error updating caption:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to update caption" });
@@ -1018,7 +1019,7 @@ async function enqueuePublish(
     });
   } catch (error) {
     if (error instanceof PostRuleError) return sendRuleError(res, error);
-    console.error(`Error starting ${mode} for post ${id}:`, error);
+    logger.error(`Error starting ${mode} for post ${id}:`, error);
     return res.status(500).json({
       success: false,
       error:

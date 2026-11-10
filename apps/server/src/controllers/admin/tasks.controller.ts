@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import prisma from "../../lib/db";
 import { FEED_SELECT, FEED_KINDS, num, toPositiveInt } from "./_shared";
+import { logger } from "../../lib/logger";
 
 interface FeedRow {
   id: string;
@@ -133,7 +134,7 @@ export class AdminTasksController {
         },
       });
     } catch (error) {
-      console.error("[admin] tasks.list error:", error);
+      logger.error("[admin] tasks.list error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to load tasks" });

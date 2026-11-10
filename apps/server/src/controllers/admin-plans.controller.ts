@@ -14,6 +14,7 @@ import {
   syncPlanToStripe,
   type PlanStripeState,
 } from "../lib/plan-stripe";
+import { logger } from "../lib/logger";
 
 /**
  * Admin CRUD for the `plans` table — subscription tiers, top-up packs, promos
@@ -144,13 +145,13 @@ function sendError(res: Response, err: unknown, action: string) {
     }
   }
   if (err instanceof Stripe.errors.StripeError) {
-    console.error(`AdminPlansController.${action} Stripe error:`, err.message);
+    logger.error(`AdminPlansController.${action} Stripe error:`, err.message);
     return res.status(502).json({
       success: false,
       error: `Stripe rejected the change, so nothing was saved: ${err.message}`,
     });
   }
-  console.error(`AdminPlansController.${action} error:`, err);
+  logger.error(`AdminPlansController.${action} error:`, err);
   return res
     .status(500)
     .json({ success: false, error: `Failed to ${action} plan` });

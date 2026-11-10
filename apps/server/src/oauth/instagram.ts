@@ -1,6 +1,7 @@
 // src/oauth/instagram.js
 import axios from "axios";
 import { uploadUrlToStorage } from "../lib/upload";
+import { logger } from "../lib/logger";
 
 // Instagram  - redirect to Instagram
 export function getInstagramAuthUrl(state: string) {
@@ -59,7 +60,7 @@ export async function getInstagramBusinessAccount(accessToken: string) {
         const uploaded = await uploadUrlToStorage(res.data.profile_picture_url);
         uploadedProfilePicture = uploaded.fileUrl || null;
       } catch (uploadError) {
-        console.error("Failed to re-host Instagram avatar:", uploadError);
+        logger.error("Failed to re-host Instagram avatar:", uploadError);
       }
     }
 
@@ -70,7 +71,7 @@ export async function getInstagramBusinessAccount(accessToken: string) {
       profilePicture: uploadedProfilePicture,
     };
   } catch (error: any) {
-    console.error("Instagram API error:", {
+    logger.error("Instagram API error:", {
       status: error.response?.status,
       data: error.response?.data,
       url: error.config?.url,
@@ -104,7 +105,7 @@ export async function getInstagramAccountInfo(accessToken: string) {
       profilePicture: uploadedProfilePicture,
     };
   } catch (error) {
-    console.error("Error fetching Instagram account info:", error);
+    logger.error("Error fetching Instagram account info:", error);
     return null;
   }
 }
@@ -126,7 +127,7 @@ export async function exchangeForLongLivedToken(accessToken: string) {
       error.response?.data?.error?.message ||
       error.response?.data?.error_message ||
       error.message;
-    console.error("Error exchanging for long-lived token:", detail);
+    logger.error("Error exchanging for long-lived token:", detail);
     throw new Error(`Instagram long-lived token exchange failed: ${detail}`);
   }
 }
@@ -148,7 +149,7 @@ export async function refreshInstagramToken(accessToken: string) {
     return res.data; // { access_token, token_type, expires_in }
   } catch (error: any) {
     const detail = error.response?.data?.error?.message || error.message;
-    console.error("Error refreshing Instagram token:", detail);
+    logger.error("Error refreshing Instagram token:", detail);
     throw new Error(`Instagram token refresh failed: ${detail}`);
   }
 }
@@ -166,7 +167,7 @@ export async function disconnectInstagramUser(accessToken: string) {
 
     return res.data;
   } catch (error) {
-    console.error("Error disconnecting Instagram user:", error);
+    logger.error("Error disconnecting Instagram user:", error);
     throw error;
   }
 }

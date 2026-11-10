@@ -3,6 +3,7 @@ import {
   isSupabaseStorageConfigured,
   uploadBufferToSupabase,
 } from "./supabase-storage";
+import { logger } from "./logger";
 
 /**
  * TikTok photo posts only accept JPEG/WebP (PNG fails with
@@ -42,7 +43,7 @@ export async function ensureTikTokPhotoUrl(url: string): Promise<string> {
     }
 
     if (!isSupabaseStorageConfigured()) {
-      console.warn(
+      logger.warn(
         "[jpeg-image] Storage not configured — cannot convert image for TikTok, using original URL",
       );
       return url;
@@ -66,7 +67,7 @@ export async function ensureTikTokPhotoUrl(url: string): Promise<string> {
 
     return await uploadBufferToSupabase(jpeg, fileName, "image/jpeg");
   } catch (error) {
-    console.warn(`[jpeg-image] TikTok photo conversion failed for ${url}:`, error);
+    logger.warn(`[jpeg-image] TikTok photo conversion failed for ${url}:`, error);
     return url;
   }
 }

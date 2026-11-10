@@ -14,6 +14,7 @@ import apiV1Routes from "./api/v1/routes";
 import { errorHandler } from "./middleware/errorHandler";
 import { startCountryFill } from "./lib/clerk-profile";
 import openApiDocument from "./docs/openapi";
+import { logger } from "./lib/logger";
 
 // JSON.stringify (and therefore res.json) throws on BigInt values. Prisma uses
 // BigInt for fields like Asset.fileSize, so serialize BigInt as a string
@@ -148,7 +149,7 @@ Sentry.setupExpressErrorHandler(app);
 app.use(errorHandler);
 
 app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+  logger.info(`Server is running on port ${port}`);
   // Saves each user's sign-in country from Clerk before their sessions expire.
   startCountryFill();
 });

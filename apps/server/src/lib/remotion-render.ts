@@ -2,6 +2,7 @@ import {
   renderMediaOnLambda,
   getRenderProgress,
 } from "@remotion/lambda/client";
+import { logger } from "./logger";
 
 export interface RenderVideoRequest {
   videoUrl: string;
@@ -60,7 +61,7 @@ export async function renderSubtitleVideo(
       timeoutInMilliseconds: 240000,
     });
 
-    console.log(`Render started with ID: ${renderId}`);
+    logger.info(`Render started with ID: ${renderId}`);
 
     let progress = 0;
     let lastStatus;
@@ -77,13 +78,13 @@ export async function renderSubtitleVideo(
 
       lastStatus = status;
       progress = status.overallProgress;
-      console.log(`Render progress: ${Math.round(progress * 100)}%`);
+      logger.info(`Render progress: ${Math.round(progress * 100)}%`);
 
       if (onProgress) {
         try {
           await onProgress(progress);
         } catch (cbErr) {
-          console.warn("onProgress callback threw:", cbErr);
+          logger.warn("onProgress callback threw:", cbErr);
         }
       }
 
@@ -94,7 +95,7 @@ export async function renderSubtitleVideo(
       }
 
       if (status.done) {
-        console.log(`Render completed! Video URL: ${status.outputFile}`);
+        logger.info(`Render completed! Video URL: ${status.outputFile}`);
         if (!status.outputFile) {
           throw new Error("Render completed but no output file URL returned");
         }
@@ -103,13 +104,13 @@ export async function renderSubtitleVideo(
     }
 
     if (lastStatus?.done && lastStatus?.outputFile) {
-      console.log(`Render completed! Video URL: ${lastStatus.outputFile}`);
+      logger.info(`Render completed! Video URL: ${lastStatus.outputFile}`);
       return lastStatus.outputFile as string;
     }
 
     throw new Error("Render completed but no output file found");
   } catch (error) {
-    console.error("Error rendering video on Lambda:", error);
+    logger.error("Error rendering video on Lambda:", error);
     throw error;
   }
 }

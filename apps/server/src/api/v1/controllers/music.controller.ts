@@ -15,6 +15,7 @@ import {
   createMusicGenerationForUser,
   MusicGenerationController,
 } from "../../../controllers/music-generation.controller";
+import { logger } from "../../../lib/logger";
 
 const musicGenerationInclude = {
   outputAsset: true,
@@ -47,7 +48,7 @@ export class PublicMusicController {
         return result.body;
       });
     } catch (error) {
-      console.error("Public create music generation error:", error);
+      logger.error("Public create music generation error:", error);
       if (!res.headersSent) {
         res.status(500).json({
           success: false,

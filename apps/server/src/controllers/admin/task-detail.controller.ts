@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import prisma from "../../lib/db";
 import { FEED_KINDS, type FeedKind } from "./_shared";
+import { logger } from "../../lib/logger";
 
 /** Minimal asset shape selected from every relation. */
 const ASSET_SELECT = {
@@ -82,7 +83,7 @@ export class AdminTaskDetailController {
       detail.inputs = detail.inputs.filter(Boolean);
       return res.json({ success: true, data: detail });
     } catch (error) {
-      console.error("[admin] task detail error:", error);
+      logger.error("[admin] task detail error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to load task" });

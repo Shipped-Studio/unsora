@@ -13,6 +13,7 @@ import {
 } from "../shared/state";
 import { canAddAccount, ACCOUNT_LIMIT_MESSAGE } from "../shared/limits";
 import { getUserIdFromClerkId } from "../shared/user";
+import { logger } from "../../../lib/logger";
 
 export class LinkedInSchedulerController {
   getLinkedInAuthUrl = async (req: Request, res: Response) => {
@@ -39,7 +40,7 @@ export class LinkedInSchedulerController {
       }
 
       if (error) {
-        console.error("LinkedIn OAuth error:", { error, error_description });
+        logger.error("LinkedIn OAuth error:", { error, error_description });
         return res.redirect(
           redirect(
             "error",
@@ -113,7 +114,7 @@ export class LinkedInSchedulerController {
 
       res.redirect(redirect("success"));
     } catch (error) {
-      console.error("LinkedIn callback error:", error);
+      logger.error("LinkedIn callback error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       res.redirect(

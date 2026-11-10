@@ -31,6 +31,7 @@ import {
 } from "../lib/credits";
 import { addWavespeedCatalogJob } from "../queue/video-generation.queue";
 import { addImageGenerationJob } from "../queue/image-generation.queue";
+import { logger } from "../lib/logger";
 
 const CATEGORIES: CatalogCategory[] = ["video", "image", "motion-control"];
 
@@ -89,14 +90,14 @@ export function sendCatalogError(res: Response, error: unknown, context: string)
     return res.status(error.status).json({ success: false, error: error.message });
   }
   if (error instanceof ProviderUnavailableError) {
-    console.error(`[catalog] ${context}: provider unavailable:`, error.message);
+    logger.error(`[catalog] ${context}: provider unavailable:`, error.message);
     return res.status(503).json({
       success: false,
       code: "PROVIDER_UNAVAILABLE",
       error: "Generation is temporarily unavailable. Try again later.",
     });
   }
-  console.error(`[catalog] ${context}:`, error);
+  logger.error(`[catalog] ${context}:`, error);
   return res.status(500).json({
     success: false,
     error: error instanceof Error ? error.message : "Internal server error",
@@ -344,13 +345,13 @@ export async function startCatalogGeneration(
   } catch (err) {
     // The job never started: give the credits back now rather than
     // leaving it to the stuck-jobs sweeper hours later.
-    console.error("[catalog] enqueue failed:", err);
+    logger.error("[catalog] enqueue failed:", err);
     await refundConsumption(
       consumption.transactionId,
       isImage ? "image.generation.enqueue_failed" : "video.generation.enqueue_failed",
       { generationId: generation.id },
     ).catch((refundErr) =>
-      console.error("[catalog] refund after enqueue failure:", refundErr),
+      logger.error("[catalog] refund after enqueue failure:", refundErr),
     );
     await deleteRow();
     return {
@@ -392,7 +393,7 @@ export class CatalogController {
       const models = await getCatalog(category);
       return res.json({ success: true, models });
     } catch (error) {
-      console.error("[catalog] list:", error);
+      logger.error("[catalog] list:", error);
       return res.status(503).json({
         success: false,
         error: "Models are unavailable right now. Try again in a minute.",

@@ -5,6 +5,7 @@ import { uploadUrlToStorage } from "../lib/upload";
 import { STANDARD_RETRY, CANCELLED_ERROR } from "./task-utils";
 import { createAsset } from "../lib/asset-utils";
 import { refundConsumption } from "../lib/credits";
+import { logger } from "../lib/logger";
 
 export interface ImageUpscaleJobData {
   userId: string;
@@ -130,7 +131,7 @@ async function finalizeUpscale(
       await refundConsumption(creditTransactionId, refundReason, { jobId });
     }
   } catch (refundError) {
-    console.error(
+    logger.error(
       `[ImageUpscale ${jobId}] Failed to update DB/refund:`,
       refundError,
     );

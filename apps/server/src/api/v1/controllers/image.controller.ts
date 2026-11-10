@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import prisma from "../../../lib/db";
 import { ImageGenerationType } from "@prisma/client";
 import { handlePublicError } from "../helpers/public-response";
+import { logger } from "../../../lib/logger";
 
 const imageGenerationInclude = {
   outputAsset: true,
@@ -72,7 +73,7 @@ export class PublicImageController {
         },
       });
     } catch (error) {
-      console.error("Get image generations error:", error);
+      logger.error("Get image generations error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -157,7 +158,7 @@ export class PublicImageController {
         message: "Generation deleted successfully",
       });
     } catch (error) {
-      console.error("Delete image generation error:", error);
+      logger.error("Delete image generation error:", error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",

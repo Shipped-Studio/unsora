@@ -5,6 +5,7 @@ import { clerkClient } from "@clerk/express";
 import { userIsAdmin } from "../lib/is-admin";
 import { socialAccountLimitForUser } from "../lib/plans";
 import { isValidTimeZone } from "./schedule.controller";
+import { logger } from "../lib/logger";
 
 export class UserController {
   async getUsageDetails(req: Request, res: Response) {
@@ -75,7 +76,7 @@ export class UserController {
         },
       });
     } catch (error) {
-      console.error("Usage details fetch error:", error);
+      logger.error("Usage details fetch error:", error);
       res.status(500).json({
         success: false,
         error: "Failed to fetch usage details",
@@ -137,7 +138,7 @@ export class UserController {
         },
       });
     } catch (error) {
-      console.error("Credit transactions fetch error:", error);
+      logger.error("Credit transactions fetch error:", error);
       res
         .status(500)
         .json({ success: false, error: "Failed to load credit history" });
@@ -179,7 +180,7 @@ export class UserController {
 
       res.json({ success: true, data: user });
     } catch (error) {
-      console.error("Update preferences error:", error);
+      logger.error("Update preferences error:", error);
       res
         .status(500)
         .json({ success: false, error: "Failed to save preferences" });
@@ -214,7 +215,7 @@ export class UserController {
         data: { ...user, credits },
       });
     } catch (error) {
-      console.error("User profile fetch error:", error);
+      logger.error("User profile fetch error:", error);
       res.status(500).json({
         success: false,
         error: "Failed to fetch user profile",
@@ -247,7 +248,7 @@ export class UserController {
 
       return res.json({ success: true, data: { id: user.id, email: user.email } });
     } catch (error) {
-      console.error("User sync error:", error);
+      logger.error("User sync error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to sync user" });
@@ -294,7 +295,7 @@ export class UserController {
         },
       });
     } catch (error) {
-      console.error("Subscription fetch error:", error);
+      logger.error("Subscription fetch error:", error);
       return res.status(500).json({
         success: false,
         error: "Failed to fetch subscription",
@@ -316,7 +317,7 @@ export class UserController {
       const credits = await getCreditBalance(user.id);
       return res.json({ credits });
     } catch (error) {
-      console.error("Credits fetch error:", error);
+      logger.error("Credits fetch error:", error);
       return res
         .status(500)
         .json({ success: false, error: "Failed to fetch credits" });
@@ -355,7 +356,7 @@ export class UserController {
         })),
       });
     } catch (error) {
-      console.error("Credit grants fetch error:", error);
+      logger.error("Credit grants fetch error:", error);
       return res.status(500).json({
         success: false,
         error: "Failed to fetch credit grants",

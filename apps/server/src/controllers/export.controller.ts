@@ -11,6 +11,7 @@ import {
   InsufficientCreditsError,
 } from "../lib/credits";
 import { calculateRenderCredits } from "../lib/render-pricing";
+import { logger } from "../lib/logger";
 
 const MAX_EXPORT_FPS = 60;
 const MAX_EXPORT_SIDE = 4096;
@@ -183,7 +184,7 @@ export class ExportController {
         },
       });
     } catch (error) {
-      console.error("Error queueing export job:", error);
+      logger.error("Error queueing export job:", error);
       res.status(500).json({
         success: false,
         error:
@@ -224,7 +225,7 @@ export class ExportController {
         },
       });
     } catch (error) {
-      console.error("Error getting job status:", error);
+      logger.error("Error getting job status:", error);
       res.status(500).json({
         success: false,
         error: "Failed to get job status",
@@ -272,7 +273,7 @@ export class ExportController {
         data: videoExport,
       });
     } catch (error) {
-      console.error("Error getting export:", error);
+      logger.error("Error getting export:", error);
       res.status(500).json({
         success: false,
         error: "Failed to get export",
@@ -347,7 +348,7 @@ export class ExportController {
         },
       });
     } catch (error) {
-      console.error("Error getting user exports:", error);
+      logger.error("Error getting user exports:", error);
       res.status(500).json({
         success: false,
         error: "Failed to get user exports",
@@ -395,7 +396,7 @@ export class ExportController {
         message: "Export deleted successfully",
       });
     } catch (error) {
-      console.error("Error deleting export:", error);
+      logger.error("Error deleting export:", error);
       res.status(500).json({
         success: false,
         error: "Failed to delete export",

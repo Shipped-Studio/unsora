@@ -15,6 +15,7 @@ import {
   parseSkillMd,
   slugify,
 } from "../../lib/skill-source";
+import { logger } from "../../lib/logger";
 
 const MEDIA_TYPES = new Set(["IMAGE", "VIDEO"]);
 const ASPECTS = new Set(["9/16", "1/1", "16/9"]);
@@ -94,7 +95,7 @@ export class AdminSkillsController {
       });
       return res.json({ success: true, data: { skills } });
     } catch (error) {
-      console.error("admin skills list failed:", error);
+      logger.error("admin skills list failed:", error);
       return fail(res, 500, "Failed to list skills");
     }
   }
@@ -109,7 +110,7 @@ export class AdminSkillsController {
       if (!skill) return fail(res, 404, "Skill not found");
       return res.json({ success: true, data: { skill } });
     } catch (error) {
-      console.error("admin skills get failed:", error);
+      logger.error("admin skills get failed:", error);
       return fail(res, 500, "Failed to load skill");
     }
   }
@@ -144,7 +145,7 @@ export class AdminSkillsController {
       ) {
         return fail(res, 409, "A skill with this slug already exists");
       }
-      console.error("admin skills create failed:", error);
+      logger.error("admin skills create failed:", error);
       return fail(res, 500, "Failed to create skill");
     }
   }
@@ -201,7 +202,7 @@ export class AdminSkillsController {
       });
       return res.status(201).json({ success: true, data: { skill } });
     } catch (error) {
-      console.error("admin skills github import failed:", error);
+      logger.error("admin skills github import failed:", error);
       return fail(res, 500, "Failed to import from GitHub");
     }
   }
@@ -241,7 +242,7 @@ export class AdminSkillsController {
       });
       return res.json({ success: true, data: { skill: updated } });
     } catch (error) {
-      console.error("admin skills resync failed:", error);
+      logger.error("admin skills resync failed:", error);
       return fail(res, 500, "Failed to re-sync from GitHub");
     }
   }
@@ -262,7 +263,7 @@ export class AdminSkillsController {
         if (error.code === "P2002")
           return fail(res, 409, "A skill with this slug already exists");
       }
-      console.error("admin skills update failed:", error);
+      logger.error("admin skills update failed:", error);
       return fail(res, 500, "Failed to update skill");
     }
   }
@@ -274,7 +275,7 @@ export class AdminSkillsController {
       if (isSupabaseStorageConfigured()) {
         // Best-effort cleanup; the DB row is already gone.
         removeSupabasePrefix(storagePrefix(skill.slug)).catch((e) =>
-          console.error("skill storage cleanup failed:", e),
+          logger.error("skill storage cleanup failed:", e),
         );
       }
       return res.json({ success: true });
@@ -285,7 +286,7 @@ export class AdminSkillsController {
       ) {
         return fail(res, 404, "Skill not found");
       }
-      console.error("admin skills delete failed:", error);
+      logger.error("admin skills delete failed:", error);
       return fail(res, 500, "Failed to delete skill");
     }
   }
@@ -325,7 +326,7 @@ export class AdminSkillsController {
         data: { uploadUrl: signedUrl, token, publicUrl, path, relativePath: clean },
       });
     } catch (error) {
-      console.error("admin skills upload-url failed:", error);
+      logger.error("admin skills upload-url failed:", error);
       return fail(res, 500, "Failed to create upload URL");
     }
   }
@@ -376,7 +377,7 @@ export class AdminSkillsController {
           if (meta.description && !skill.description)
             data.description = meta.description;
         } catch (e) {
-          console.error("SKILL.md parse after upload failed:", e);
+          logger.error("SKILL.md parse after upload failed:", e);
         }
       }
 
@@ -387,7 +388,7 @@ export class AdminSkillsController {
       });
       return res.json({ success: true, data: { skill: updated } });
     } catch (error) {
-      console.error("admin skills register files failed:", error);
+      logger.error("admin skills register files failed:", error);
       return fail(res, 500, "Failed to register files");
     }
   }
@@ -431,13 +432,13 @@ export class AdminSkillsController {
       if (isSupabaseStorageConfigured()) {
         // Best-effort cleanup; the DB no longer references the object.
         removeSupabaseObjects([path]).catch((e) =>
-          console.error("skill file storage cleanup failed:", e),
+          logger.error("skill file storage cleanup failed:", e),
         );
       }
 
       return res.json({ success: true, data: { skill: updated } });
     } catch (error) {
-      console.error("admin skills remove file failed:", error);
+      logger.error("admin skills remove file failed:", error);
       return fail(res, 500, "Failed to remove file");
     }
   }
@@ -468,7 +469,7 @@ export class AdminSkillsController {
       });
       return res.status(201).json({ success: true, data: { media } });
     } catch (error) {
-      console.error("admin skills add media failed:", error);
+      logger.error("admin skills add media failed:", error);
       return fail(res, 500, "Failed to add media");
     }
   }
@@ -496,7 +497,7 @@ export class AdminSkillsController {
       ) {
         return fail(res, 404, "Media not found");
       }
-      console.error("admin skills update media failed:", error);
+      logger.error("admin skills update media failed:", error);
       return fail(res, 500, "Failed to update media");
     }
   }
@@ -515,7 +516,7 @@ export class AdminSkillsController {
       ) {
         return fail(res, 404, "Media not found");
       }
-      console.error("admin skills remove media failed:", error);
+      logger.error("admin skills remove media failed:", error);
       return fail(res, 500, "Failed to remove media");
     }
   }

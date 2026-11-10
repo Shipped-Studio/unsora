@@ -12,6 +12,7 @@ import {
   InsufficientCreditsError,
 } from "../lib/credits";
 import { DURATION_TOLERANCE_SECONDS, measureMediaSeconds } from "../lib/media-limits";
+import { logger } from "../lib/logger";
 
 /** Longest video the upscaler takes; the price tiers assume this cap. */
 const MAX_UPSCALE_SECONDS = 25;
@@ -149,7 +150,7 @@ export class VideoUpscalerController {
         creditsRemaining,
       });
     } catch (error) {
-      console.error("Create video upscale error:", error);
+      logger.error("Create video upscale error:", error);
       return res.status(500).json({
         success: false,
         error:
@@ -220,7 +221,7 @@ export class VideoUpscalerController {
         },
       });
     } catch (error) {
-      console.error("Get video upscales error:", error);
+      logger.error("Get video upscales error:", error);
       return res.status(500).json({
         success: false,
         error:
@@ -273,7 +274,7 @@ export class VideoUpscalerController {
 
       return res.json({ success: true, job });
     } catch (error) {
-      console.error("Refresh video upscale status error:", error);
+      logger.error("Refresh video upscale status error:", error);
       return res.status(500).json({
         success: false,
         error:
@@ -310,7 +311,7 @@ export class VideoUpscalerController {
         message: "Upscale job deleted successfully",
       });
     } catch (error) {
-      console.error("Delete video upscale error:", error);
+      logger.error("Delete video upscale error:", error);
       return res.status(500).json({
         success: false,
         error:
@@ -348,7 +349,7 @@ export class VideoUpscalerController {
         count: deleted.count,
       });
     } catch (error) {
-      console.error("Delete video upscales error:", error);
+      logger.error("Delete video upscales error:", error);
       return res.status(500).json({
         success: false,
         error:

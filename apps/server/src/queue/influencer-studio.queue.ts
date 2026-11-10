@@ -8,6 +8,7 @@ import { createAsset } from "../lib/asset-utils";
 import { STANDARD_RETRY, CANCELLED_ERROR } from "./task-utils";
 import { influencerStudioPrompt } from "../../prompts/influencer-studio.prompt";
 import { refundConsumption } from "../lib/credits";
+import { logger } from "../lib/logger";
 
 export interface InfluencerStudioJobData {
   userId: string;
@@ -166,7 +167,7 @@ async function finalizeGeneration(
       });
     }
   } catch (refundError) {
-    console.error(
+    logger.error(
       `[Influencer ${generationId}] Failed to update DB/refund:`,
       refundError,
     );

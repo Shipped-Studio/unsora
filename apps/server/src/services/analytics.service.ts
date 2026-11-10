@@ -4,6 +4,7 @@ import { prisma } from "../lib/db";
 import { tokenRefreshService } from "./token-refresh.service";
 import { PINTEREST_API } from "../oauth/pinterest";
 import { instagramGraphBase } from "../oauth/instagram-facebook";
+import { logger } from "../lib/logger";
 
 /**
  * Post analytics service.
@@ -278,7 +279,7 @@ export class AnalyticsService {
         }
       } catch (error) {
         // One broken account (revoked token etc.) must not stop the rest.
-        console.error(
+        logger.error(
           `Analytics refresh failed for account ${accountId}:`,
           error instanceof Error ? error.message : error,
         );
@@ -331,7 +332,7 @@ export class AnalyticsService {
           });
         }
       } catch (error: any) {
-        console.error("TikTok metrics query failed:", {
+        logger.error("TikTok metrics query failed:", {
           accountId: account.id,
           message: error.message,
           response: error.response?.data,
@@ -383,7 +384,7 @@ export class AnalyticsService {
 
         result.set(pa.id, metrics);
       } catch (error: any) {
-        console.error("Threads insights query failed:", {
+        logger.error("Threads insights query failed:", {
           mediaId,
           message: error.message,
           response: error.response?.data,
@@ -447,7 +448,7 @@ export class AnalyticsService {
           saves: summary.SAVE ?? 0,
         });
       } catch (error: any) {
-        console.error("Pinterest analytics query failed:", {
+        logger.error("Pinterest analytics query failed:", {
           accountId: account.id,
           pinId,
           message: error.message,
@@ -500,7 +501,7 @@ export class AnalyticsService {
         metrics.shares = response.data.shares?.count ?? 0;
         fetchedAnything = true;
       } catch (error: any) {
-        console.error("Facebook post fields query failed:", {
+        logger.error("Facebook post fields query failed:", {
           postId,
           message: error.message,
           response: error.response?.data,
@@ -583,7 +584,7 @@ export class AnalyticsService {
           });
         }
       } catch (error: any) {
-        console.error("X metrics query failed:", {
+        logger.error("X metrics query failed:", {
           accountId: account.id,
           message: error.message,
           response: error.response?.data,
@@ -644,7 +645,7 @@ export class AnalyticsService {
           });
         }
       } catch (error: any) {
-        console.error("Google Business insights query failed:", {
+        logger.error("Google Business insights query failed:", {
           accountId: account.id,
           message: error.message,
           response: error.response?.data,
@@ -717,7 +718,7 @@ export class AnalyticsService {
             0;
           fetchedAnything = true;
         } catch (error: any) {
-          console.error("LinkedIn metrics query failed:", {
+          logger.error("LinkedIn metrics query failed:", {
             postUrn,
             message: error.message,
             response: error.response?.data,
@@ -776,7 +777,7 @@ export class AnalyticsService {
           });
         }
       } catch (error: any) {
-        console.error("YouTube metrics query failed:", {
+        logger.error("YouTube metrics query failed:", {
           accountId: account.id,
           message: error.message,
           response: error.response?.data,
@@ -825,7 +826,7 @@ export class AnalyticsService {
           });
         }
       } catch (error: any) {
-        console.error("Bluesky metrics query failed:", {
+        logger.error("Bluesky metrics query failed:", {
           message: error.message,
           response: error.response?.data,
         });
@@ -869,7 +870,7 @@ export class AnalyticsService {
           },
         );
 
-        console.log(JSON.stringify(response.data, null, 2));
+        logger.info(JSON.stringify(response.data, null, 2));
 
         for (const item of response.data?.data ?? []) {
           const value =
@@ -882,7 +883,7 @@ export class AnalyticsService {
         }
         fetchedAnything = true;
       } catch (error: any) {
-        console.error("Instagram insights query failed:", {
+        logger.error("Instagram insights query failed:", {
           mediaId,
           message: error.message,
           response: error.response?.data,
@@ -906,7 +907,7 @@ export class AnalyticsService {
           metrics.comments = response.data.comments_count ?? 0;
           fetchedAnything = true;
         } catch (error: any) {
-          console.error("Instagram media fields query failed:", {
+          logger.error("Instagram media fields query failed:", {
             mediaId,
             message: error.message,
             response: error.response?.data,

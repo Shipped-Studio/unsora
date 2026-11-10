@@ -13,6 +13,7 @@ import {
   VOICE_MODELS,
 } from "../config/models";
 import type { VoiceSource } from "../lib/voice-resolver";
+import { logger } from "../lib/logger";
 
 export interface VoiceGenerationJobData {
   userId: string;
@@ -223,7 +224,7 @@ async function finalizeGeneration(
       });
     }
   } catch (refundError) {
-    console.error(
+    logger.error(
       `[VoiceGen ${generationId}] Failed to update DB/refund:`,
       refundError,
     );
