@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import prisma from "../lib/db";
-import { hasPaidPlan } from "../lib/plans";
+import { PAYMENT_FAILED_MESSAGE, hasPaidPlan, isPaymentFailing } from "../lib/plans";
 
 /**
  * Blocks the request unless the authenticated user has an active paid plan.
@@ -10,7 +10,8 @@ import { hasPaidPlan } from "../lib/plans";
  *   - `user.plan` is set and not equal to "free" (case-insensitive).
  *
  * Used to gate publishing: creating, scheduling and publishing posts need an
- * active subscription. Connecting accounts doesn't (check-limit.ts).
+ * active subscription. Connecting accounts doesn't (check-limit.ts). A
+ * past-due subscription keeps the plan but can't post (PAYMENT_FAILED).
  *
  * Must be mounted AFTER `requireAuth` so `req.auth.userId` is available.
  */
@@ -34,6 +35,7 @@ export const requirePaidPlan = async (
       id: true,
       plan: true,
       isActive: true,
+      status: true,
     },
   });
 
@@ -49,6 +51,16 @@ export const requirePaidPlan = async (
       success: false,
       error: "An active paid plan is required to use the scheduler.",
       code: "PLAN_REQUIRED",
+    });
+  }
+
+  // A renewal failed and Stripe is retrying it: the plan stays, posting
+  // waits for the card to be fixed.
+  if (isPaymentFailing(user)) {
+    return res.status(402).json({
+      success: false,
+      error: PAYMENT_FAILED_MESSAGE,
+      code: "PAYMENT_FAILED",
     });
   }
 

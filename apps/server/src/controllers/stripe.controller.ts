@@ -34,8 +34,9 @@ const CANCEL_URL = process.env.STRIPE_CANCEL_URL;
 const CLIENT_URL = process.env.CLIENT_URL;
 
 /**
- * Subscription states that keep plan access. past_due is included: it's the
- * window where Stripe is still retrying a failed renewal.
+ * Subscription states that keep the plan. past_due is included: it's the
+ * window where Stripe is still retrying a failed renewal. Posting is blocked
+ * in that window (`isPaymentFailing` in lib/plans.ts); everything else stays.
  */
 /**
  * The user a subscription belongs to: by Stripe customer, else by the
@@ -687,12 +688,22 @@ export class StripeController {
             throw new Error("User not found");
           }
 
+          // A failed invoice on a subscription the user has moved away from
+          // (a plan switch) must not touch the plan they're on now.
+          if (user.stripeSubscriptionId && user.stripeSubscriptionId !== subscription.id) {
+            logger.warn("invoice.payment_failed for a superseded subscription; ignoring", {
+              userId: user.id,
+              subscriptionId: subscription.id,
+            });
+            break;
+          }
+
           // Don't downgrade here. Stripe retries the charge for a while and
-          // the subscription sits in past_due, which keeps access (see
-          // LIVE_SUBSCRIPTION_STATUSES). If every retry fails Stripe cancels
-          // it and `customer.subscription.deleted` expires the plan credits
-          // and drops the user to free. Downgrading on the first failure cut
-          // customers off over a card that was about to be retried.
+          // the subscription sits in past_due: the plan stays, but posting
+          // is blocked until the card is fixed (requirePaidPlan and
+          // PostService check the past_due status). If every retry fails
+          // Stripe cancels it and `customer.subscription.deleted` expires the
+          // plan credits and drops the user to free.
           const live = LIVE_SUBSCRIPTION_STATUSES.includes(subscription.status);
           await prisma.user.update({
             where: {

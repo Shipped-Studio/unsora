@@ -145,6 +145,20 @@ export function hasPaidPlan(user: { plan: string | null; isActive: boolean }): b
   return user.isActive && (user.plan?.trim().toLowerCase() || "free") !== "free";
 }
 
+/** Why posting is paused while a renewal payment is failing. */
+export const PAYMENT_FAILED_MESSAGE =
+  "Your last payment didn't go through. Update your card in Billing to keep posting.";
+
+/**
+ * Whether the user's subscription is past due: a renewal failed and Stripe
+ * is retrying it. They keep their plan, credits and accounts, but can't post
+ * until a payment goes through (the `invoice.payment_succeeded` webhook sets
+ * the status back to active).
+ */
+export function isPaymentFailing(user: { status?: string | null }): boolean {
+  return user.status === "past_due";
+}
+
 /**
  * Social accounts this user may connect: their plan's limit while it's live,
  * otherwise the free allowance (Basic's). Use this rather than
