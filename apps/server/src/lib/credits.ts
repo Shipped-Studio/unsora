@@ -419,6 +419,39 @@ export async function refundConsumption(
 // ---------------------------------------------------------------------------
 
 /**
+ * The credit buckets a subscription renews: SUBSCRIPTION for the scheduler
+ * plan (legacy plans that include credits, and trials), MONTHLY_CREDITS for
+ * the Monthly credits subscription. Each one only ever expires its own.
+ */
+export type SubscriptionBucket =
+  | typeof CreditSource.SUBSCRIPTION
+  | typeof CreditSource.MONTHLY_CREDITS;
+
+/**
+ * Unspent monthly credits and when they reset, for the billing summary.
+ * Several live grants can overlap briefly around a renewal; the earliest
+ * expiry is the one the user meets first.
+ */
+export async function getMonthlyCreditsSummary(
+  userId: string,
+): Promise<{ remaining: number; expiresAt: Date | null }> {
+  const grants = await prisma.creditGrant.findMany({
+    where: {
+      userId,
+      source: CreditSource.MONTHLY_CREDITS,
+      expiresAt: { gt: new Date() },
+    },
+    select: { amount: true, used: true, expiresAt: true },
+    orderBy: { expiresAt: "asc" },
+  });
+  const live = grants.filter((g) => g.amount > g.used);
+  return {
+    remaining: live.reduce((sum, g) => sum + (g.amount - g.used), 0),
+    expiresAt: live[0]?.expiresAt ?? null,
+  };
+}
+
+/**
  * Remaining (unspent, unexpired) credits across the user's SUBSCRIPTION
  * grants only. Used by the plan-upgrade flow to know how many credits to
  * carry over into the new plan's bucket before the old grants are expired.
@@ -427,11 +460,12 @@ export async function refundConsumption(
  */
 export async function getSubscriptionCreditsRemaining(
   userId: string,
+  source: SubscriptionBucket = CreditSource.SUBSCRIPTION,
 ): Promise<number> {
   const result = await prisma.creditGrant.aggregate({
     where: {
       userId,
-      source: CreditSource.SUBSCRIPTION,
+      source,
       OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
     },
     _sum: { amount: true, used: true },
@@ -447,14 +481,18 @@ export async function getSubscriptionCreditsRemaining(
  * Top-up / promotion / refund grants are intentionally untouched — they're
  * the user's purchased credits and never expire.
  */
-export async function expireSubscriptionGrants(userId: string, reason: string) {
+export async function expireSubscriptionGrants(
+  userId: string,
+  reason: string,
+  source: SubscriptionBucket = CreditSource.SUBSCRIPTION,
+) {
   return prisma.$transaction(async (tx) => {
     const now = new Date();
 
     const active = await tx.creditGrant.findMany({
       where: {
         userId,
-        source: CreditSource.SUBSCRIPTION,
+        source,
         OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
       },
     });
@@ -501,12 +539,14 @@ export async function rolloverSubscriptionCycle(opts: {
   expiresAt: Date;
   reason: string;
   metadata?: Prisma.InputJsonValue;
+  source?: SubscriptionBucket;
 }) {
-  await expireSubscriptionGrants(opts.userId, `${opts.reason}:expire-previous`);
+  const source = opts.source ?? CreditSource.SUBSCRIPTION;
+  await expireSubscriptionGrants(opts.userId, `${opts.reason}:expire-previous`, source);
   return grantCredits({
     userId: opts.userId,
     amount: opts.amount,
-    source: CreditSource.SUBSCRIPTION,
+    source,
     reason: opts.reason,
     expiresAt: opts.expiresAt,
     metadata: opts.metadata,

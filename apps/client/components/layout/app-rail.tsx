@@ -36,7 +36,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { UnsoraLogo } from "@/components/brand/unsora-logo";
 import { usePricing } from "@/contexts/pricing-context";
-import { useUserUsage } from "@/hooks/use-user-usage";
+import { hasCreditPlan, useUserUsage, type UserUsage } from "@/hooks/use-user-usage";
 import {
   CREATE_GROUPS,
   DOCS_URL,
@@ -349,18 +349,37 @@ function balanceLine(credits: number, isFree: boolean) {
   return isFree ? "Choose a plan to post" : "AI tools use credits";
 }
 
+/**
+ * What the user subscribes to, both kinds: "Growth plan", "Core credits",
+ * "Growth · Core credits", or "Free plan" with neither.
+ */
+function subscriptionLabel(usage: UserUsage) {
+  const plan = usage.user.plan ?? "free";
+  const scheduler = usage.user.isActive && plan.toLowerCase() !== "free" ? plan : null;
+  const credits = hasCreditPlan(usage) ? usage.creditSubscription?.planName : null;
+  if (scheduler && credits) return `${scheduler} · ${credits} credits`;
+  if (credits) return `${credits} credits`;
+  return `${scheduler ?? "free"} plan`;
+}
+
+/** No subscription of either kind. */
+function hasNoPlan(usage: UserUsage) {
+  return (usage.user.plan ?? "free").toLowerCase() === "free" && !hasCreditPlan(usage);
+}
+
 /** Plan and credit balance, with the one action that matters for it. */
 function PlanCard({ collapsed }: { collapsed: boolean }) {
   const { usage } = useUserUsage();
   const { openPricing } = usePricing();
   if (!usage || collapsed) return null;
-  const plan = usage.user.plan ?? "free";
-  const isFree = plan.toLowerCase() === "free";
+  const isFree = hasNoPlan(usage);
 
   return (
     <div className="rounded-xl border bg-card p-3 shadow-xs">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-muted-foreground capitalize">{plan} plan</p>
+        <p className="truncate text-xs font-medium text-muted-foreground capitalize">
+          {subscriptionLabel(usage)}
+        </p>
         <Link href="/billing" className="text-xs font-medium text-muted-foreground hover:text-foreground">
           Billing
         </Link>
@@ -390,7 +409,7 @@ function UserMenu({ collapsed, side = "right" }: { collapsed: boolean; side?: "r
   const name = user.fullName || email;
   const initials =
     (user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? "") || email[0]?.toUpperCase() || "U";
-  const isFree = Boolean(usage) && (usage?.user?.plan ?? "free").toLowerCase() === "free";
+  const isFree = Boolean(usage) && hasNoPlan(usage!);
 
   return (
     <DropdownMenu>
@@ -432,7 +451,7 @@ function UserMenu({ collapsed, side = "right" }: { collapsed: boolean; side?: "r
           <div className="mx-1.5 mb-1.5 flex items-center justify-between rounded-lg bg-secondary px-3 py-2">
             <div>
               <p className="text-xs text-muted-foreground capitalize">
-                {usage ? `${usage.user.plan ?? "free"} plan` : "Credits"}
+                {usage ? subscriptionLabel(usage) : "Credits"}
               </p>
               <p className="text-sm font-semibold tabular-nums">
                 {usage ? balanceLine(usage.credits, isFree) : "–"}

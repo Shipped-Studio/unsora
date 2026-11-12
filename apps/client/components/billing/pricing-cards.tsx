@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import type { CreditPack } from "@/hooks/use-credit-packs";
+import type { CreditPlan } from "@/hooks/use-credit-plans";
 import { useCatalogQuote, type CatalogRequest } from "@/hooks/use-model-catalog";
 import type { SubscriptionPlan } from "@/hooks/use-subscription-plans";
 import { CLIPPING_CREDITS_PER_MINUTE } from "@/lib/clipping-pricing";
@@ -43,7 +44,7 @@ export function cardGridClass(count: number) {
 /** The `<li>` for each card in a cardGridClass grid. */
 export function cardItemClass(count: number) {
   return cn(
-    "row-span-3 grid grid-rows-subgrid pb-10",
+    "row-span-3 grid grid-rows-subgrid pb-8",
     // No space under a row that's the only one.
     count >= 4 ? "xl:pb-0" : "md:pb-0",
   );
@@ -54,9 +55,9 @@ export function CardGridSkeleton({ count = 3 }: { count?: number }) {
     <div className={cn("grid gap-5 lg:gap-6", cardGridCols(count))}>
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="space-y-4">
-          <Skeleton className="h-60 rounded-3xl" />
-          <Skeleton className="h-12 rounded-2xl" />
-          <Skeleton className="h-40 rounded-2xl" />
+          <Skeleton className="h-44 rounded-2xl" />
+          <Skeleton className="h-10 rounded-xl" />
+          <Skeleton className="h-32 rounded-xl" />
         </div>
       ))}
     </div>
@@ -82,7 +83,7 @@ function Panel({
   return (
     <div
       className={cn(
-        "relative flex flex-col overflow-hidden rounded-3xl p-6 sm:min-h-60 sm:p-7",
+        "relative flex flex-col overflow-hidden rounded-2xl p-5 sm:p-6",
         dark ? "bg-[#0c0c0d] text-white ring-1 ring-white/10" : "bg-card ring-1 ring-border",
       )}
     >
@@ -98,11 +99,11 @@ function Panel({
 
       <div className="relative flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="font-display text-2xl font-semibold tracking-[-0.03em] tabular-nums sm:text-[1.75rem]">
+          <h3 className="font-display text-xl font-semibold tracking-[-0.03em] tabular-nums sm:text-2xl">
             {title}
           </h3>
           {subtitle ? (
-            <div className={cn("mt-1.5 text-sm", dark ? "text-white/70" : "text-muted-foreground")}>
+            <div className={cn("mt-1 text-sm", dark ? "text-white/70" : "text-muted-foreground")}>
               {subtitle}
             </div>
           ) : null}
@@ -126,7 +127,7 @@ function Panel({
         ) : null}
       </div>
 
-      <div className="relative mt-auto pt-7 sm:pt-10">{bottom}</div>
+      <div className="relative mt-auto pt-5 sm:pt-6">{bottom}</div>
     </div>
   );
 }
@@ -134,7 +135,7 @@ function Panel({
 function Price({ usd, per, dark }: { usd: number; per?: string | null; dark: boolean }) {
   return (
     <p className="flex items-baseline gap-1.5">
-      <span className="font-display text-5xl font-semibold tracking-[-0.045em] tabular-nums">
+      <span className="font-display text-4xl font-semibold tracking-[-0.045em] tabular-nums">
         {formatUsd(usd)}
       </span>
       {per ? (
@@ -163,7 +164,7 @@ function CardButton({
 }) {
   if (!action) {
     return (
-      <div className="mt-4 flex h-12 items-center justify-center rounded-2xl text-sm text-muted-foreground ring-1 ring-border ring-dashed">
+      <div className="mt-3 flex h-10 items-center justify-center rounded-xl text-sm text-muted-foreground ring-1 ring-border ring-dashed">
         {idleLabel}
       </div>
     );
@@ -172,7 +173,7 @@ function CardButton({
     <Button
       size="lg"
       variant={primary ? "default" : "outline"}
-      className="mt-4 h-12 w-full rounded-2xl text-[15px]"
+      className="mt-3 h-10 w-full rounded-xl text-sm"
       disabled={action.disabled}
       onClick={action.onClick}
     >
@@ -264,16 +265,16 @@ export function PlanCard({
         {note ? <p className="mt-2 text-center text-xs text-muted-foreground">{note}</p> : null}
       </div>
 
-      <div className="mt-6 px-1 md:mt-7">
+      <div className="mt-5 px-1">
         {list.length ? (
           <>
             <ListLabel>What&apos;s included</ListLabel>
-            <ul className="mt-4 space-y-3 text-[15px]">
+            <ul className="mt-3 space-y-2 text-sm">
               {list.map((feature) => (
                 <li key={feature} className="flex items-start gap-3">
                   <CheckCircle
                     className={cn(
-                      "mt-0.5 size-4.5 shrink-0",
+                      "mt-0.5 size-4 shrink-0",
                       highlight ? "text-foreground" : "text-muted-foreground/60",
                     )}
                     weight={highlight ? "fill" : "regular"}
@@ -369,25 +370,98 @@ export function PackCard({
         <CardButton action={action} primary={highlight} />
       </div>
 
-      <div className="mt-6 px-1 md:mt-7">
-        <ListLabel>Or make up to</ListLabel>
-        <ul className="mt-4 space-y-3 text-[15px]">
-          {LIVE_FEATURES.map((line) => (
-            <LivePackLine key={line.label} packCredits={pack.credits} {...line} />
-          ))}
-          {FIXED_FEATURES.map(({ label, credits, icon }) => (
-            <PackLine key={label} icon={icon} amount={Math.floor(pack.credits / credits).toLocaleString()}>
-              {label}
-            </PackLine>
-          ))}
-        </ul>
-        <p className="mt-4 flex items-center gap-3 text-sm text-muted-foreground">
-          <IconChip>
-            <ModelLogo src="/models/kling.svg" />
-          </IconChip>
-          Plus Kling, avatars, thumbnails, voiceovers and more.
-        </p>
+      <CreditUses credits={pack.credits} label="Or make up to" />
+    </div>
+  );
+}
+
+/** A Monthly credits tier: a pack's card, billed every month. */
+export function CreditPlanCard({
+  plan,
+  highlight,
+  badge,
+  badgeTone = "lime",
+  action,
+  idleLabel,
+  note,
+}: {
+  plan: CreditPlan;
+  highlight: boolean;
+  badge?: string;
+  badgeTone?: "lime" | "plain";
+  /** Null shows `idleLabel` instead (e.g. the tier you're on). */
+  action: CardAction | null;
+  idleLabel?: string;
+  note?: string | null;
+}) {
+  const per = intervalLabel(plan.interval) ?? "month";
+  const minutes = Math.floor(plan.credits / CLIPPING_CREDITS_PER_MINUTE);
+  const perCredit = plan.credits > 0 ? plan.priceUsd / plan.credits : 0;
+
+  // `contents`: see PlanCard.
+  return (
+    <div className="contents">
+      <Panel
+        dark={highlight}
+        title={plan.name}
+        subtitle={
+          <>
+            <p className="font-medium tabular-nums">
+              {plan.credits.toLocaleString()} credits every {per}
+            </p>
+            <p className="mt-1 flex items-center gap-1.5">
+              <Scissors aria-hidden className="size-4 shrink-0" weight="bold" />
+              <span>
+                Up to <span className="tabular-nums">{minutes.toLocaleString()}</span> min of clipping
+              </span>
+            </p>
+          </>
+        }
+        badge={badge}
+        badgeTone={badgeTone}
+        bottom={
+          <>
+            <Price usd={plan.priceUsd} per={per} dark={highlight} />
+            {perCredit ? (
+              <p className={cn("mt-1 text-xs tabular-nums", highlight ? "text-white/60" : "text-muted-foreground")}>
+                ${perCredit.toFixed(3)} per credit
+              </p>
+            ) : null}
+          </>
+        }
+      />
+
+      <div>
+        <CardButton action={action} primary={highlight} idleLabel={idleLabel} />
+        {note ? <p className="mt-2 text-center text-xs text-muted-foreground">{note}</p> : null}
       </div>
+
+      <CreditUses credits={plan.credits} label={`Each ${per}, make up to`} />
+    </div>
+  );
+}
+
+/** What an amount of credits buys, each line as if it were all spent on that. */
+function CreditUses({ credits, label }: { credits: number; label: string }) {
+  return (
+    <div className="mt-5 px-1">
+      <ListLabel>{label}</ListLabel>
+      <ul className="mt-3 space-y-2 text-sm">
+        {LIVE_FEATURES.map((line) => (
+          <LivePackLine key={line.label} packCredits={credits} {...line} />
+        ))}
+        {FIXED_FEATURES.map(({ label: line, credits: cost, icon }) => (
+          <PackLine key={line} icon={icon} amount={Math.floor(credits / cost).toLocaleString()}>
+            {line}
+          </PackLine>
+        ))}
+      </ul>
+      <p className="mt-3 flex items-center gap-3 text-sm text-muted-foreground">
+        <IconChip>
+          <ModelLogo src="/models/kling.svg" />
+        </IconChip>
+        Plus Kling, avatars, thumbnails, voiceovers and more.
+      </p>
     </div>
   );
 }

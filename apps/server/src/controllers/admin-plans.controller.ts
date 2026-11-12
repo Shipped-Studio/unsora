@@ -26,7 +26,10 @@ import { logger } from "../lib/logger";
  * `stripePriceId` of its own or `syncStripe: false`.
  */
 
-const PLAN_TYPES = ["SUBSCRIPTION", "TOPUP", "PROMO"] as const;
+const PLAN_TYPES = ["SUBSCRIPTION", "CREDIT_SUBSCRIPTION", "TOPUP", "PROMO"] as const;
+
+/** Plan types billed on a schedule, so they need an `interval`. */
+const RECURRING_TYPES: readonly string[] = ["SUBSCRIPTION", "CREDIT_SUBSCRIPTION"];
 const PLAN_INTERVALS = ["MONTH", "YEAR"] as const;
 
 type PlanTypeValue = (typeof PLAN_TYPES)[number];
@@ -109,7 +112,9 @@ function present(plan: Plan, subscribers: Map<string, number>) {
           (plan.name.toLowerCase() !== plan.key.toLowerCase()
             ? (subscribers.get(plan.name.toLowerCase()) ?? 0)
             : 0)
-        : null,
+        : plan.type === "CREDIT_SUBSCRIPTION"
+          ? (subscribers.get(`credits:${plan.key.toLowerCase()}`) ?? 0)
+          : null,
   };
 }
 
@@ -126,6 +131,14 @@ async function subscriberCounts(): Promise<Map<string, number>> {
     const k = r.plan.toLowerCase();
     counts.set(k, (counts.get(k) ?? 0) + r._count._all);
   }
+  // Monthly credits subscribers, keyed apart so a credits tier and a
+  // scheduler plan with the same name don't add up.
+  const credit = await prisma.subscription.groupBy({
+    by: ["planKey"],
+    where: { kind: "CREDITS", isActive: true },
+    _count: { _all: true },
+  });
+  for (const r of credit) counts.set(`credits:${r.planKey.toLowerCase()}`, r._count._all);
   return counts;
 }
 
@@ -264,11 +277,11 @@ export class AdminPlansController {
         }
         interval = body.interval;
       }
-      if (body.type === "SUBSCRIPTION" && !interval) {
-        bad("SUBSCRIPTION plans require an `interval`");
+      if (RECURRING_TYPES.includes(body.type) && !interval) {
+        bad("Subscription plans require an `interval`");
       }
-      if (body.type !== "SUBSCRIPTION" && interval) {
-        bad("`interval` only applies to SUBSCRIPTION plans");
+      if (!RECURRING_TYPES.includes(body.type) && interval) {
+        bad("`interval` only applies to subscription plans");
       }
 
       const key = body.key.trim();
@@ -410,11 +423,11 @@ export class AdminPlansController {
           bad(`\`interval\` must be one of ${PLAN_INTERVALS.join(", ")} or null`);
         }
       }
-      if (next.type === "SUBSCRIPTION" && !next.interval) {
-        bad("SUBSCRIPTION plans require an `interval`");
+      if (RECURRING_TYPES.includes(next.type) && !next.interval) {
+        bad("Subscription plans require an `interval`");
       }
-      if (next.type !== "SUBSCRIPTION" && next.interval) {
-        bad("`interval` only applies to SUBSCRIPTION plans");
+      if (!RECURRING_TYPES.includes(next.type) && next.interval) {
+        bad("`interval` only applies to subscription plans");
       }
       if (body.trialDays !== undefined) {
         const t = body.trialDays === null || body.trialDays === "" ? null : toInt(body.trialDays);

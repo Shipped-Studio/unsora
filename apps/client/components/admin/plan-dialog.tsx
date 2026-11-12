@@ -43,7 +43,8 @@ import {
 } from "@/hooks/admin/use-admin-plans";
 
 export const PLAN_TYPE_LABEL: Record<PlanType, string> = {
-  SUBSCRIPTION: "Subscription plan",
+  SUBSCRIPTION: "Scheduler plan",
+  CREDIT_SUBSCRIPTION: "Monthly credits plan",
   TOPUP: "Credit pack",
   PROMO: "Promo grant",
 };
@@ -63,7 +64,8 @@ function slugify(name: string, type: PlanType) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
-  return type === "TOPUP" && slug && !slug.startsWith("topup_") ? `topup_${slug}` : slug;
+  const prefix = type === "TOPUP" ? "topup_" : type === "CREDIT_SUBSCRIPTION" ? "credits_" : "";
+  return prefix && slug && !slug.startsWith(prefix) ? `${prefix}${slug}` : slug;
 }
 
 interface FormState {
@@ -129,12 +131,14 @@ export function PlanDialog({
 
   const isTrial = plan?.key === "trial";
   const isSub = form.type === "SUBSCRIPTION";
+  // Billed on a schedule: scheduler plans and Monthly credits plans.
+  const recurring = isSub || form.type === "CREDIT_SUBSCRIPTION";
   const sellable = form.type !== "PROMO";
   const priceCents = Math.round(Number(form.price || 0) * 100);
   const priceChanged =
     !!plan &&
     sellable &&
-    (plan.priceCents !== priceCents || (isSub && plan.interval !== form.interval));
+    (plan.priceCents !== priceCents || (recurring && plan.interval !== form.interval));
   const manualPrice = form.stripePriceId.trim() !== (plan?.stripePriceId ?? "");
 
   const submit = async (event: React.FormEvent) => {
@@ -160,8 +164,8 @@ export function PlanDialog({
       input.key = form.key.trim();
     }
     if (sellable) input.priceCents = priceCents;
+    if (recurring) input.interval = form.interval;
     if (isSub) {
-      input.interval = form.interval;
       input.socialAccounts = form.socialAccounts.trim() ? Number(form.socialAccounts) : null;
       input.features = form.features.split("\n").map((l) => l.trim()).filter(Boolean);
     }
@@ -188,7 +192,9 @@ export function PlanDialog({
             {isTrial
               ? "New subscribers get this trial on their first subscription, with these credits instead of the plan's."
               : form.type === "SUBSCRIPTION"
-                ? "A recurring plan. Its credits are granted every billing period and expire at the end of it."
+                ? "A scheduler plan: posting to social accounts. Any credits it includes are granted every billing period and expire at the end of it."
+                : form.type === "CREDIT_SUBSCRIPTION"
+                  ? "A Monthly credits plan, held apart from the scheduler plan. No trial. Its credits are granted on each paid invoice and expire at the end of that period."
                 : form.type === "TOPUP"
                   ? "A one-time credit pack subscribers can buy. Its credits never expire."
                   : "Credits granted outside checkout."}
@@ -274,7 +280,7 @@ export function PlanDialog({
               </Field>
 
               {sellable ? (
-                <div className={isSub ? "grid gap-4 sm:grid-cols-2" : undefined}>
+                <div className={recurring ? "grid gap-4 sm:grid-cols-2" : undefined}>
                   <Field>
                     <FieldLabel htmlFor="plan-price">Price</FieldLabel>
                     <InputGroup>
@@ -288,7 +294,7 @@ export function PlanDialog({
                       />
                     </InputGroup>
                   </Field>
-                  {isSub ? (
+                  {recurring ? (
                     <Field>
                       <FieldLabel htmlFor="plan-interval">Billed</FieldLabel>
                       <Select
@@ -325,7 +331,7 @@ export function PlanDialog({
               <div className={isSub ? "grid gap-4 sm:grid-cols-2" : undefined}>
                 <Field>
                   <FieldLabel htmlFor="plan-credits">
-                    {isSub
+                    {recurring
                       ? `Credits per ${form.interval === "YEAR" ? "year" : "month"}`
                       : isTrial
                         ? "Trial credits"

@@ -14,6 +14,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import type { SubscriptionPlan } from "@/hooks/use-subscription-plans";
 import { formatLongDate, formatUsd, intervalLabel } from "./format";
+import { PostToRow } from "./post-to-row";
 
 export type PlanState = "free" | "active" | "trialing" | "ending";
 
@@ -24,7 +25,6 @@ interface CurrentPlanCardProps {
   state: PlanState;
   /** ISO end of the current paid (or trial) period. */
   periodEnd: string | null;
-  credits: number;
   /** Which portal-bound button is waiting on the redirect. */
   portalPending: "manage" | "resume" | null;
   onChangePlan: () => void;
@@ -36,7 +36,7 @@ interface CurrentPlanCardProps {
 function statusLine(state: PlanState, endsOn: string | null) {
   switch (state) {
     case "free":
-      return "You can connect accounts on the free plan, but posting needs a plan. Choose one to start posting.";
+      return "You can connect accounts for free, but posting needs a scheduler plan.";
     case "active":
       return endsOn ? `Renews on ${endsOn}.` : "Your subscription is active.";
     case "trialing":
@@ -45,8 +45,8 @@ function statusLine(state: PlanState, endsOn: string | null) {
         : "Your plan starts when the trial ends. To cancel, use Manage billing.";
     case "ending":
       return endsOn
-        ? `Your plan won't renew. You keep access and your credits until ${endsOn}.`
-        : "Your plan won't renew. You keep access and your credits until the period ends.";
+        ? `Your plan won't renew. You can keep posting until ${endsOn}.`
+        : "Your plan won't renew. You can keep posting until the period ends.";
   }
 }
 
@@ -55,7 +55,6 @@ export function CurrentPlanCard({
   plan,
   state,
   periodEnd,
-  credits,
   portalPending,
   onChangePlan,
   onManageBilling,
@@ -67,8 +66,11 @@ export function CurrentPlanCard({
   const portalBusy = portalPending !== null;
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader>
+        <p className="font-mono text-[11px] font-medium tracking-[0.18em] text-muted-foreground uppercase">
+          Scheduler
+        </p>
         <CardTitle className="flex flex-wrap items-center gap-2">
           {planName}
           {state === "active" ? (
@@ -97,47 +99,27 @@ export function CurrentPlanCard({
         ) : null}
       </CardHeader>
 
-      <CardContent>
-        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <dt className="text-xs text-muted-foreground">Credit balance</dt>
-            {/* Plans include no credits, so an empty balance says what
-                credits are for rather than showing 0. */}
-            {credits > 0 ? (
-              <dd className="mt-1 text-2xl font-medium tabular-nums">
-                {credits.toLocaleString()}
-                <span className="ml-1.5 text-sm font-normal text-muted-foreground">
-                  credits
-                </span>
-              </dd>
-            ) : (
-              <dd className="mt-1">
-                <span className="block text-base font-medium">No credits yet</span>
-                <span className="block text-sm text-muted-foreground">
-                  AI tools run on the credit packs below.
-                </span>
-              </dd>
-            )}
-          </div>
-          {plan ? (
-            <div>
-              <dt className="text-xs text-muted-foreground">Plan includes</dt>
-              {/* Older plans include monthly credits; the account-based
-                  ones don't, so they show their account limit. */}
-              <dd className="mt-1 text-2xl font-medium tabular-nums">
-                {plan.credits > 0 ? plan.credits.toLocaleString() : (plan.socialAccounts ?? "—")}
-                <span className="ml-1.5 text-sm font-normal text-muted-foreground">
-                  {plan.credits > 0 ? `credits per ${per ?? "billing period"}` : "social accounts"}
-                </span>
-              </dd>
-            </div>
-          ) : null}
-        </dl>
-      </CardContent>
+      {plan?.socialAccounts ? (
+        <CardContent className="flex-1">
+          <dl>
+            <dt className="text-xs text-muted-foreground">Posts to</dt>
+            <dd className="mt-1 text-2xl font-medium tabular-nums">
+              {plan.socialAccounts}
+              <span className="ml-1.5 text-sm font-normal text-muted-foreground">social accounts</span>
+            </dd>
+          </dl>
+        </CardContent>
+      ) : state === "free" ? (
+        <CardContent className="flex-1">
+          <PostToRow />
+        </CardContent>
+      ) : (
+        <div className="flex-1" />
+      )}
 
       <CardFooter className="flex flex-wrap gap-2 border-t">
         {state === "free" ? (
-          <Button onClick={onChangePlan}>Choose a plan</Button>
+          <Button onClick={onChangePlan}>Choose a scheduler plan</Button>
         ) : null}
 
         {state === "ending" ? (

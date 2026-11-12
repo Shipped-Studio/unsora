@@ -351,7 +351,7 @@ export function TrialStep({ ctx }: { ctx: SetupContext }) {
           // Stripe brings them back to this step (the app being connected
           // too), with `checkout=success|cancel` added; the setup moves on
           // from there.
-          returnPath: ctx.hrefFor("trial"),
+          returnPath: ctx.hrefFor("plan"),
         }),
       }),
       "Couldn't start checkout",
@@ -409,7 +409,8 @@ export function TrialStep({ ctx }: { ctx: SetupContext }) {
         </p>
       ) : null}
 
-      {/* No way past this step without a plan: picking one is the only way on. */}
+      {/* No way past this step without a plan: a scheduler plan or Monthly
+          credits (the other tab) is the only way on. */}
       <StepFooter back={ctx.back}>{null}</StepFooter>
     </section>
   );

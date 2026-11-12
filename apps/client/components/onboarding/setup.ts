@@ -1,37 +1,43 @@
 /**
  * The app's onboarding after sign-up (app/(onboarding)/onboarding):
  *
- *   where you heard about us → channels → how it works → free trial → credits
+ *   where you heard about us → channels → how it works → plan (→ credits)
+ *
+ * The plan step has two tabs: the scheduler (with its free trial) and
+ * Monthly credits on their own, for someone who only wants clipping and AI
+ * (no trial on those). Either one gets you in. Starting the trial adds the
+ * credits step, which offers Monthly credits on top. One-time packs aren't
+ * offered here, only in the app.
  *
  * An account made while connecting ChatGPT or Claude (`?connect=`, see
  * connector-app.ts) gets the same steps, then one asking it to connect again
  * from that app:
  *
- *   where you heard about us → channels → how it works → free trial → credits → connect
+ *   where you heard about us → channels → how it works → plan (→ credits) → connect
  *
- * The free trial and credits are left out for anyone who already has a plan.
- * The trial doesn't include credits, so that step offers clipping and AI
- * credits on top; it can be skipped. The step lives in the URL so it survives
- * the channel OAuth and Stripe round trips.
+ * The plan and credits steps are left out for anyone who already has a
+ * scheduler plan. The credits step can be skipped. The step lives in the URL so it survives the
+ * channel OAuth and Stripe round trips.
  */
 
 /** The step's query param. */
 export const SETUP_PARAM = "setup";
 /** Added by the server to Stripe's return URL: `success` or `cancel`. */
 export const CHECKOUT_PARAM = "checkout";
-/** The credits step's second screen, `packs`; without it, the question. */
+/**
+ * `monthly`: the Monthly credits screen, on the plan step (its second tab)
+ * or the credits step (after the question).
+ */
 export const VIEW_PARAM = "view";
-export const PACKS_VIEW = "packs";
-/** A credit purchase's result on the packs screen: `success` or `cancel`. */
-export const TOPUP_PARAM = "topup";
-/** How many credits a successful purchase added. */
-export const CREDITS_PARAM = "credits";
+export const MONTHLY_VIEW = "monthly";
+/** Added by the server to a Monthly credits checkout's return: `success` or `cancel`. */
+export const CREDITS_PLAN_PARAM = "creditsPlan";
 
 export const STEP_LABELS = {
   source: "About you",
   channels: "Channels",
   howto: "How it works",
-  trial: "Free trial",
+  plan: "Plan",
   credits: "Credits",
   connect: "Connect",
 } as const;
@@ -48,7 +54,7 @@ export interface SetupContext {
   last: boolean;
 }
 
-/** Whether the usage response says the user has an active paid plan. */
+/** Whether the usage response says the user has an active scheduler plan. */
 export function hasPaidPlan(usage: { user: { plan: string | null; isActive: boolean } } | null | undefined) {
   const plan = (usage?.user.plan ?? "free").toLowerCase();
   return Boolean(usage?.user.isActive) && plan !== "free";
@@ -73,12 +79,14 @@ type OnboardingUser = {
  * An account that has to finish onboarding before the rest of the app: made
  * after ONBOARDING_REQUIRED_FROM, not marked onboarded (MarkOnboarded), and
  * without a paid plan. The plan check means a payer is never held here, even
- * if the onboarded flag hasn't saved yet. `plan` is the one the Stripe
- * webhooks keep in Clerk's metadata ("free" when there's none).
+ * if the onboarded flag hasn't saved yet. `plan` (scheduler) and `creditsPlan`
+ * (Monthly credits) are what the Stripe webhooks keep in Clerk's metadata;
+ * either one counts.
  */
 export function mustFinishOnboarding(user: OnboardingUser): boolean {
   if (user.unsafeMetadata?.onboardedAt || !user.createdAt) return false;
   if (Number(user.createdAt) < ONBOARDING_REQUIRED_FROM) return false;
+  if (user.unsafeMetadata?.creditsPlan) return false;
   const plan = String(user.unsafeMetadata?.plan ?? "free").trim().toLowerCase();
   return plan === "" || plan === "free";
 }
@@ -92,4 +100,10 @@ export function needsOnboarding(user: OnboardingUser): boolean {
   if (user.unsafeMetadata?.onboardedAt || !user.createdAt) return false;
   if (mustFinishOnboarding(user)) return true;
   return Date.now() - Number(user.createdAt) < NEW_ACCOUNT_MS;
+}
+
+/** Steps from before the plan step's rename, still in in-flight Stripe return URLs. */
+export function normalizeStep(step: string | null): StepId | null {
+  if (step === "trial") return "plan";
+  return step && step in STEP_LABELS ? (step as StepId) : null;
 }

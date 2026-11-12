@@ -5,6 +5,7 @@ import { clerkClient } from "@clerk/express";
 import { userIsAdmin } from "../lib/is-admin";
 import { socialAccountLimitForUser } from "../lib/plans";
 import { isValidTimeZone } from "./schedule.controller";
+import { creditSubscriptionSummary } from "../services/credit-subscription.service";
 import { logger } from "../lib/logger";
 
 export class UserController {
@@ -33,10 +34,11 @@ export class UserController {
         return res.status(404).json({ success: false, error: "User not found" });
       }
 
-      const [credits, socialAccountCount, socialAccountLimit] = await Promise.all([
+      const [credits, socialAccountCount, socialAccountLimit, creditPlan] = await Promise.all([
         getCreditBalance(user.id),
         prisma.socialAccount.count({ where: { userId: user.id } }),
         socialAccountLimitForUser(user),
+        creditSubscriptionSummary(user.id),
       ]);
 
       res.json({
@@ -63,6 +65,10 @@ export class UserController {
           // Kept named `credits` for client backward-compat. Sourced live
           // from the CreditGrant table — there is no cached counter.
           credits,
+          // The Monthly credits subscription (null when none), and how many of
+          // `credits` are monthly ones that reset at `monthlyCredits.expiresAt`.
+          creditSubscription: creditPlan.subscription,
+          monthlyCredits: creditPlan.monthly,
           preferences: {
             timezone: user.timezone,
             weekStartsOn: user.weekStartsOn,
@@ -400,8 +406,11 @@ function creditReasonLabel(type: string, reason: string): string {
             .replace(/[._:-]+/g, " ")
             .replace(/^\w/, (c) => c.toUpperCase()));
 
+  const monthly = reason.startsWith("monthly-credits:");
   if (type === "REFUND") return `Refund: ${base}`;
-  if (type === "EXPIRY") return "Expired credits";
+  if (type === "EXPIRY") return monthly ? "Monthly credits reset" : "Expired credits";
+  if (type === "GRANT" && monthly) return "Monthly credits";
+  if (type === "GRANT" && reason.startsWith("topup:")) return "Credit pack";
   if (type === "GRANT" && !CREDIT_REASON_LABELS[reason]) return "Credits added";
   return base;
 }

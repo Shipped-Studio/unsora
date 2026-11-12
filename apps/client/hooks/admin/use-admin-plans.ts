@@ -6,7 +6,7 @@ import { creditPacksQueryKeys } from "../use-credit-packs";
 import { subscriptionPlansQueryKeys } from "../use-subscription-plans";
 import { useIsAdmin } from "./use-admin-data";
 
-export type PlanType = "SUBSCRIPTION" | "TOPUP" | "PROMO";
+export type PlanType = "SUBSCRIPTION" | "CREDIT_SUBSCRIPTION" | "TOPUP" | "PROMO";
 export type PlanInterval = "MONTH" | "YEAR";
 
 export interface AdminPlan {
