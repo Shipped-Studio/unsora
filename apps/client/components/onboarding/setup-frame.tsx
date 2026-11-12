@@ -76,7 +76,7 @@ export function SetupFrame({
           <span />
         )}
       </header>
-      <main className="flex flex-1 justify-center px-4 pt-6 pb-16 sm:px-8 sm:pt-12">{children}</main>
+      <main className="flex flex-1 justify-center px-4 pt-6 sm:px-8 sm:pt-12 sm:pb-16">{children}</main>
     </div>
   );
 }

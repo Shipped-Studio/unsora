@@ -89,19 +89,24 @@ export function StepFooter({
   children: React.ReactNode;
 }) {
   return (
-    <div className="sticky bottom-0 z-10 -mx-4 mt-10 flex items-center gap-2 border-t bg-background/85 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md sm:static sm:mx-0 sm:justify-between sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
-      {back ? (
-        <Button variant="ghost" size="lg" onClick={back} className="text-muted-foreground max-sm:px-3">
-          <ArrowLeft />
-          <span className="max-sm:sr-only">Back</span>
-        </Button>
-      ) : (
-        <span className="max-sm:hidden" />
-      )}
-      <div className="flex flex-1 items-center justify-end gap-2 sm:flex-none max-sm:[&>*:last-child]:flex-1">
-        {children}
+    <>
+      {/* On a phone the gap grows, so the bar sits at the bottom of the
+          screen on a short step instead of right under its content. */}
+      <div aria-hidden className="h-10 shrink-0 max-sm:flex-1" />
+      <div className="sticky bottom-0 z-10 -mx-4 flex items-center gap-2 border-t bg-background/85 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md sm:static sm:mx-0 sm:justify-between sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+        {back ? (
+          <Button variant="ghost" size="lg" onClick={back} className="text-muted-foreground max-sm:px-3">
+            <ArrowLeft />
+            <span className="max-sm:sr-only">Back</span>
+          </Button>
+        ) : (
+          <span className="max-sm:hidden" />
+        )}
+        <div className="flex flex-1 items-center justify-end gap-2 sm:flex-none max-sm:[&>*:last-child]:flex-1">
+          {children}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -143,7 +148,7 @@ export function SourceStep({ ctx, finishing }: { ctx: SetupContext; finishing?: 
   };
 
   return (
-    <section className="mx-auto w-full max-w-3xl">
+    <section className="mx-auto flex w-full flex-1 flex-col max-w-3xl">
       <StepHeader
         eyebrow="One quick question"
         title="How did you hear about Unsora?"
@@ -190,7 +195,7 @@ export function ChannelsStep({ ctx }: { ctx: SetupContext }) {
   const connected = accounts ?? [];
 
   return (
-    <section className="mx-auto w-full max-w-4xl">
+    <section className="mx-auto flex w-full flex-1 flex-col max-w-4xl">
       <StepHeader
         eyebrow="Connect channels"
         title="Where should Unsora post?"
@@ -245,7 +250,7 @@ export function HowToStep({ ctx, app }: { ctx: SetupContext; app: ConnectorApp |
   ];
 
   return (
-    <section className="mx-auto w-full max-w-4xl">
+    <section className="mx-auto flex w-full flex-1 flex-col max-w-4xl">
       <StepHeader
         title="How it works"
         lead={`Schedule posts and clip videos, right in ${app ? app.name : "ChatGPT or Claude"}.`}
@@ -360,7 +365,7 @@ export function TrialStep({ ctx }: { ctx: SetupContext }) {
   };
 
   return (
-    <section className="mx-auto w-full max-w-6xl">
+    <section className="mx-auto flex w-full flex-1 flex-col max-w-6xl">
       <StepHeader
         title={hasTrial ? `Try Unsora free for ${trialDays} days` : "Pick a plan"}
         lead={hasTrial ? "Every plan starts free. Cancel anytime." : "Plans are priced by how many accounts you post to."}
@@ -441,7 +446,7 @@ export function ConnectStep({
   ];
 
   return (
-    <section className="mx-auto w-full max-w-xl">
+    <section className="mx-auto flex w-full flex-1 flex-col max-w-xl">
       <StepHeader
         eyebrow="You're set up"
         title={`Now connect ${name}`}

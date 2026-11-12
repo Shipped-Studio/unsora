@@ -177,7 +177,7 @@ export function OnboardingFlow() {
       <div
         key={screen}
         ref={headingRef}
-        className="w-full animate-in duration-300 fade-in slide-in-from-bottom-2"
+        className="flex w-full flex-col animate-in duration-300 fade-in slide-in-from-bottom-2"
       >
         {current === "channels" ? <ChannelsStep ctx={ctx} /> : null}
         {current === "howto" ? <HowToStep ctx={ctx} app={app} /> : null}

@@ -60,7 +60,7 @@ export function PlanStep({
   const bought = searchParams.get(CREDITS_PLAN_PARAM) === "success";
 
   return (
-    <div className="w-full">
+    <div className="flex w-full flex-1 flex-col">
       {/* After buying, the success screen stands alone. */}
       {bought ? null : (
         <PlanTabs
@@ -91,7 +91,7 @@ export function CreditsAskStep({ ctx, finishing }: { ctx: SetupContext; finishin
   const showPlans = () => window.history.pushState(null, "", monthlyHref(ctx));
 
   return (
-    <section className="mx-auto w-full max-w-xl">
+    <section className="mx-auto flex w-full flex-1 flex-col max-w-xl">
       <StepHeader
         eyebrow="Scheduler unlocked"
         title="Do you also need clipping and AI credits?"
@@ -155,7 +155,7 @@ export function CreditPlansStep({
 
   if (searchParams.get(CREDITS_PLAN_PARAM) === "success") {
     return (
-      <section className="mx-auto w-full max-w-xl">
+      <section className="mx-auto flex w-full flex-1 flex-col max-w-xl">
         <StepHeader
           title="Monthly credits are on"
           lead={
@@ -185,7 +185,7 @@ export function CreditPlansStep({
   const back = addOn ? () => window.history.pushState(null, "", ctx.hrefFor("credits")) : ctx.back;
 
   return (
-    <section className="mx-auto w-full max-w-6xl">
+    <section className="mx-auto flex w-full flex-1 flex-col max-w-6xl">
       <StepHeader
         title={withScheduler ? "Add monthly credits" : "Get monthly credits"}
         lead={

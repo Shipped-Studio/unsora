@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
  */
 
 const TRIGGER =
-  "h-9 rounded-full px-4 text-sm text-foreground/70 data-active:bg-foreground! data-active:text-background! sm:h-10 sm:px-5 sm:text-[15px]";
+  "h-9 rounded-full px-3 text-sm text-foreground/70 data-active:bg-foreground! data-active:text-background! sm:h-10 sm:px-5 sm:text-[15px]";
 
 export function PlanTabs<T extends string>({
   value,
@@ -26,7 +26,7 @@ export function PlanTabs<T extends string>({
 }) {
   return (
     <Tabs value={value} onValueChange={(next) => onValueChange(next as T)} className={className}>
-      <TabsList className="h-11 max-w-full overflow-x-auto rounded-full bg-card p-1 shadow-sm ring-1 ring-border sm:h-12">
+      <TabsList className="h-11 max-w-full overflow-x-auto rounded-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden bg-card p-1 shadow-sm ring-1 ring-border sm:h-12">
         {items.map((item) => (
           <TabsTrigger key={item.value} value={item.value} className={cn(TRIGGER)}>
             {item.label}
