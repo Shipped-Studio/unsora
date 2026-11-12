@@ -94,7 +94,7 @@ export function CreditPlanGrid({ choice }: { choice: CreditPlanChoice }) {
               plan={plan}
               highlight={popular}
               badge={isCurrent ? "Current plan" : popular ? "Popular" : undefined}
-              badgeTone={isCurrent ? "plain" : "lime"}
+              badgeTone={isCurrent ? "plain" : "dot"}
               action={
                 isCurrent
                   ? null

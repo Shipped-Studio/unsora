@@ -117,7 +117,6 @@ export function HowItWorksLoop({
       aria-hidden
       className="relative isolate overflow-hidden rounded-2xl bg-stage p-5 text-stage-foreground ring-1 ring-stage-border sm:p-7"
     >
-      <div className="pointer-events-none absolute -right-24 -bottom-32 -z-10 size-80 rounded-full bg-brand/10 blur-3xl" />
       {/* Both scenes share one cell, so the panel keeps the taller one's height. */}
       <div className="grid">
         <div className={cn("col-start-1 row-start-1", !scene1 && "invisible")}>
@@ -180,7 +179,7 @@ function ScheduleScene({ t, still, ...app }: SceneProps) {
                 <PlatformIcon provider={p.provider} className="size-5" />
                 <span className="min-w-0 flex-1 truncate">{p.name}</span>
                 <Check
-                  className={cn("size-3.5 text-brand transition-opacity", on ? "opacity-100" : "opacity-0")}
+                  className={cn("size-3.5 text-stage-foreground transition-opacity", on ? "opacity-100" : "opacity-0")}
                   weight="bold"
                 />
               </div>
@@ -235,7 +234,7 @@ function ClipScene({ t, still, ...app }: SceneProps) {
           <span
             key={i}
             className={cn(
-              "absolute inset-y-0 rounded-md bg-brand/35 ring-1 ring-brand transition-opacity duration-300",
+              "absolute inset-y-0 rounded-md bg-stage-foreground/20 ring-1 ring-stage-foreground/60 transition-opacity duration-300",
               t >= C.find + 400 * (i + 1) ? "opacity-100" : "opacity-0",
             )}
             style={{ left: `${m.left}%`, width: `${m.width}%` }}
@@ -273,7 +272,7 @@ function ClipScene({ t, still, ...app }: SceneProps) {
                   posted ? "opacity-100" : "opacity-0",
                 )}
               >
-                <Check className="size-3 text-brand" weight="bold" />
+                <Check className="size-3 text-stage-foreground" weight="bold" />
                 {clip.when}
               </span>
             </div>
@@ -304,7 +303,7 @@ function Ask({ visible, children }: { visible: boolean; children: React.ReactNod
 function Bubble({ text, typing }: { text: string; typing: boolean }) {
   return (
     <p className="min-h-10 rounded-2xl rounded-tr-md bg-stage-card px-4 py-2.5 text-sm leading-relaxed ring-1 ring-stage-border">
-      <span className="mr-1.5 inline-flex translate-y-0.5 items-center gap-1.5 align-baseline font-medium text-chart-2">
+      <span className="mr-1.5 inline-flex translate-y-0.5 items-center gap-1.5 align-baseline font-semibold text-stage-foreground">
         <Image
           src="/brand/icon-tile-180.png"
           alt=""
@@ -347,7 +346,7 @@ function Handoff({
       <span className="relative h-px flex-1 overflow-hidden bg-stage-border">
         <span
           className={cn(
-            "absolute inset-y-0 left-0 bg-brand transition-[width] duration-700 ease-out",
+            "absolute inset-y-0 left-0 bg-stage-foreground transition-[width] duration-700 ease-out",
             visible ? "w-full" : "w-0",
           )}
         />

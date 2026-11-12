@@ -42,8 +42,8 @@ import type { SetupContext } from "./setup";
  *
  * Every step shares one shape: a title, one short line under it, the content,
  * and a footer with Back on the left and one primary action on the right.
- * Cards are flat (a hairline ring, no shadow); lime is kept for progress and
- * success, so it always means "done" or "you are here".
+ * Cards are flat (a hairline ring, no shadow); the ink brand marks progress
+ * and success.
  */
 
 export const CARD = "rounded-2xl bg-card ring-1 ring-border";

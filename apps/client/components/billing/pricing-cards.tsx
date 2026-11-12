@@ -21,9 +21,6 @@ import { planCardFeatures } from "./plan-features";
  * popular one) gets a dark panel.
  */
 
-/** Onboarding lime, fixed here: in the app the brand colour is ink. */
-const LIME = "#e8ff6b";
-
 /** Grid classes for a row of cards; the cards need room for their lists. */
 function cardGridCols(count: number) {
   if (count >= 4) return "md:grid-cols-2 xl:grid-cols-4";
@@ -76,8 +73,8 @@ function Panel({
   title: React.ReactNode;
   subtitle?: React.ReactNode;
   badge?: string;
-  /** `lime` gets the dot (Popular); `plain` is an outlined pill (Current plan). */
-  badgeTone?: "lime" | "plain";
+  /** `dot` gets the dot (Popular); `plain` is an outlined pill (Current plan). */
+  badgeTone?: "dot" | "plain";
   bottom: React.ReactNode;
 }) {
   return (
@@ -92,7 +89,7 @@ function Panel({
           aria-hidden
           className="pointer-events-none absolute inset-0"
           style={{
-            background: `radial-gradient(110% 75% at 100% 0%, color-mix(in oklab, ${LIME} 42%, transparent), transparent 62%), radial-gradient(80% 60% at 0% 100%, color-mix(in oklab, ${LIME} 16%, transparent), transparent 70%)`,
+            background: "radial-gradient(110% 75% at 100% 0%, rgb(255 255 255 / 0.14), transparent 62%), radial-gradient(80% 60% at 0% 100%, rgb(255 255 255 / 0.05), transparent 70%)",
           }}
         />
       ) : null}
@@ -120,7 +117,7 @@ function Panel({
             )}
           >
             {badgeTone === "plain" ? null : (
-              <span aria-hidden className="size-1.5 rounded-full ring-1 ring-black/10" style={{ background: LIME }} />
+              <span aria-hidden className="size-1.5 rounded-full bg-[#0c0c0d]" />
             )}
             {badge}
           </span>
@@ -198,7 +195,7 @@ export function PlanCard({
   plan,
   highlight,
   badge,
-  badgeTone = "lime",
+  badgeTone = "dot",
   trialDays = 0,
   action,
   idleLabel,
@@ -208,7 +205,7 @@ export function PlanCard({
   /** Dark panel and the primary button. */
   highlight: boolean;
   badge?: string;
-  badgeTone?: "lime" | "plain";
+  badgeTone?: "dot" | "plain";
   /** Shows the trial pill; 0 when checkout won't start one. */
   trialDays?: number;
   /** Null hides the button (e.g. the plan you're on). */
@@ -380,7 +377,7 @@ export function CreditPlanCard({
   plan,
   highlight,
   badge,
-  badgeTone = "lime",
+  badgeTone = "dot",
   action,
   idleLabel,
   note,
@@ -388,7 +385,7 @@ export function CreditPlanCard({
   plan: CreditPlan;
   highlight: boolean;
   badge?: string;
-  badgeTone?: "lime" | "plain";
+  badgeTone?: "dot" | "plain";
   /** Null shows `idleLabel` instead (e.g. the tier you're on). */
   action: CardAction | null;
   idleLabel?: string;
