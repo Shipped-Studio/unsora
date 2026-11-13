@@ -79,10 +79,14 @@ export function OnboardingFlow() {
     // trial has started (back from its checkout, or a reload after).
     const backFromTrial = fromCheckout && requested === "plan";
     const trialStarted = paid || backFromTrial || requested === "credits";
+    // Already on Monthly credits (or just bought them on the plan step's
+    // tab): no point asking about credits. Back from buying them on the
+    // credits step itself, it stays for its success screen.
+    const haveCredits = (hasCreditPlan(usage) || startedCredits) && requested !== "credits";
     const plan: StepId[] =
       paid && !backFromTrial && requested !== "credits" && requested !== "plan"
         ? []
-        : trialStarted
+        : trialStarted && !haveCredits
           ? ["plan", "credits"]
           : ["plan"];
     const source: StepId[] = user.unsafeMetadata?.heardFrom ? [] : ["source"];

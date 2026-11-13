@@ -84,9 +84,12 @@ export function StepHeader({
 export function StepFooter({
   back,
   children,
+  center = false,
 }: {
   back: (() => void) | null;
   children: React.ReactNode;
+  /** For a screen whose content is centred (a success screen): the action sits under it. */
+  center?: boolean;
 }) {
   return (
     <>
@@ -94,7 +97,7 @@ export function StepFooter({
           screen on a short step instead of right under its content. */}
       <div aria-hidden className="h-10 shrink-0 max-sm:flex-1" />
       <div className="sticky bottom-0 z-10 -mx-4 flex items-center gap-2 border-t bg-background/85 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md sm:static sm:mx-0 sm:justify-between sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
-        {back ? (
+        {center ? null : back ? (
           <Button variant="ghost" size="lg" onClick={back} className="text-muted-foreground max-sm:px-3">
             <ArrowLeft />
             <span className="max-sm:sr-only">Back</span>
@@ -102,7 +105,12 @@ export function StepFooter({
         ) : (
           <span className="max-sm:hidden" />
         )}
-        <div className="flex flex-1 items-center justify-end gap-2 sm:flex-none max-sm:[&>*:last-child]:flex-1">
+        <div
+          className={cn(
+            "flex flex-1 items-center justify-end gap-2 sm:flex-none max-sm:[&>*:last-child]:flex-1",
+            center && "sm:flex-1 sm:justify-center",
+          )}
+        >
           {children}
         </div>
       </div>

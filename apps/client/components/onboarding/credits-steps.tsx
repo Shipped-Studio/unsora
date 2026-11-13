@@ -169,7 +169,7 @@ export function CreditPlansStep({
             <Check className="size-8" weight="bold" />
           </span>
         </div>
-        <StepFooter back={null}>
+        <StepFooter back={null} center>
           <Button size="lg" onClick={ctx.next} disabled={finishing}>
             {finishing ? <Spinner data-icon="inline-start" /> : null}
             Proceed
