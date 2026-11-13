@@ -69,6 +69,9 @@ export class UserController {
           // `credits` are monthly ones that reset at `monthlyCredits.expiresAt`.
           creditSubscription: creditPlan.subscription,
           monthlyCredits: creditPlan.monthly,
+          // Credits that came with the scheduler plan (older plans include
+          // some): they end with the plan, unlike top-ups.
+          planCredits: creditPlan.planBucket,
           preferences: {
             timezone: user.timezone,
             weekStartsOn: user.weekStartsOn,

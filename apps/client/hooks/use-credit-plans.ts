@@ -26,7 +26,7 @@ export const creditPlansQueryKeys = {
  * CREDIT_SUBSCRIPTION). Checkout is driven by the `key`; the Stripe price
  * never reaches the browser.
  */
-export function useCreditPlans() {
+export function useCreditPlans(enabled = true) {
   const { authFetch } = useAuthFetch();
   const { isSignedIn } = useUser();
 
@@ -40,7 +40,7 @@ export function useCreditPlans() {
       }
       return data.data as CreditPlan[];
     },
-    enabled: !!isSignedIn,
+    enabled: !!isSignedIn && enabled,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   });

@@ -17,11 +17,11 @@ import { redirectToStripe } from "./redirect-to-stripe";
  * `returnPath` brings Stripe back to an in-app page (onboarding); without
  * it, Billing.
  */
-export function useCreditPlanChoice(returnPath?: string) {
+export function useCreditPlanChoice(returnPath?: string, enabled = true) {
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const { authFetch } = useAuthFetch();
   const { usage } = useUserUsage();
-  const { plans, loading, error, refetch } = useCreditPlans();
+  const { plans, loading, error, refetch } = useCreditPlans(enabled);
 
   const subscription = usage?.creditSubscription ?? null;
   const subscribed = hasCreditPlan(usage);

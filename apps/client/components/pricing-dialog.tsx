@@ -35,7 +35,8 @@ const PACKS_DESCRIPTION =
  */
 export function PricingDialog({ open, onOpenChange, tab, onTabChange }: PricingDialogProps) {
   const choice = usePlanChoice(open);
-  const creditChoice = useCreditPlanChoice();
+  // Only once the dialog opens: it's mounted on every page.
+  const creditChoice = useCreditPlanChoice(undefined, open);
   const planCount = choice.shown?.length ?? 3;
 
   const heading = {

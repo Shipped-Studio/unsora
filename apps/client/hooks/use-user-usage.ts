@@ -33,6 +33,8 @@ interface UserUsage {
    * (top-ups and other grants) doesn't expire.
    */
   monthlyCredits?: { remaining: number; expiresAt: string | null };
+  /** Credits that came with the scheduler plan (older plans): they end with it. */
+  planCredits?: { remaining: number; expiresAt: string | null };
   preferences?: {
     /** IANA zone the user picked; null until they set one. */
     timezone: string | null;

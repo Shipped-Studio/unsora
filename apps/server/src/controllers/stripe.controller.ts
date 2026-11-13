@@ -34,6 +34,7 @@ import {
   handleCreditInvoiceFailed,
   handleCreditInvoicePaid,
   handleCreditSubscriptionDeleted,
+  liveCreditSubscriptions,
   syncCreditSubscription,
 } from "../services/credit-subscription.service";
 
@@ -1789,23 +1790,32 @@ export class StripeController {
       const user = await prisma.user.findUnique({ where: { clerkId } });
       if (!user) return res.status(404).json({ success: false, error: "User not found" });
 
-      const current = await prisma.subscription.findUnique({
-        where: { userId_kind: { userId: user.id, kind: "CREDITS" } },
-      });
+      // The live credit subscription, read from Stripe: our row lags behind
+      // the webhook, so a checkout finished a moment ago may not show there
+      // yet. If Stripe can't be reached, stop rather than risk a second
+      // subscription billing next to the first.
+      let live: Stripe.Subscription | null = null;
+      if (user.stripeCustomerId) {
+        try {
+          [live = null] = await liveCreditSubscriptions(user.stripeCustomerId);
+        } catch (err) {
+          logger.error("Couldn't check for a live credit subscription", { userId: user.id, err });
+          return res.status(503).json({ success: false, error: "Couldn't reach billing. Try again in a moment." });
+        }
+      }
       let switchFrom: string | null = null;
-      if (current?.isActive) {
-        const live = await stripe.subscriptions
-          .retrieve(current.stripeSubscriptionId)
-          .catch(() => null);
-        if (live?.status === "past_due") {
+      if (live) {
+        const route = await classifySubscription(live);
+        const liveKey = (route.kind === "credits" ? route.plan?.key : null) ?? live.metadata?.planKey;
+        if (live.status === "past_due") {
           return res.status(400).json({
             success: false,
             error: "Your last monthly credits payment didn't go through. Update your card in Billing first.",
             code: "PAYMENT_FAILED",
           });
         }
-        if (live && ["active", "trialing"].includes(live.status)) {
-          if (current.planKey === plan.key) {
+        if (["active", "trialing"].includes(live.status)) {
+          if (liveKey === plan.key) {
             return res.status(400).json({ success: false, error: "You're already on this plan" });
           }
           switchFrom = live.id;

@@ -7,8 +7,9 @@ import { stripe } from "../lib/stripe";
 import { logger } from "../lib/logger";
 import {
   expireSubscriptionGrants,
-  getMonthlyCreditsSummary,
+  getBucketSummary,
   getSubscriptionCreditsRemaining,
+  grantCredits,
   rolloverSubscriptionCycle,
 } from "../lib/credits";
 import { getCreditPlanByStripePriceId, getPlanByKey, toPublicPlan } from "../lib/plans";
@@ -29,6 +30,11 @@ import { onPaymentFailed, onSubscriptionStarted } from "../emails";
  *   - Switching tiers starts a new subscription; on its first invoice the
  *     leftover monthly credits move into the new bucket and the old
  *     subscription is cancelled without a refund (its credits came along).
+ *     A second subscription bought without a switch (two checkouts at once)
+ *     is handled the same way, so nobody pays for two.
+ *   - A tier changed in place (Stripe portal, dashboard) grants nothing
+ *     extra: the new tier's credits come with its next renewal. Granting a
+ *     full tier for a prorated charge could be repeated for free credits.
  *
  * The Stripe webhook classifies every subscription with
  * `classifySubscription` first and hands credit subscriptions to the
@@ -79,6 +85,37 @@ export async function classifySubscription(sub: Stripe.Subscription): Promise<Su
 function periodEndOf(sub: Stripe.Subscription): Date | null {
   const unix = sub.items.data[0]?.current_period_end;
   return unix ? new Date(unix * 1000) : null;
+}
+
+/**
+ * The customer's live credit subscriptions in Stripe, newest first, other
+ * than `exceptId`. Read from Stripe rather than our row, which lags behind
+ * the webhook. Throws when Stripe can't be reached.
+ */
+export async function liveCreditSubscriptions(
+  customerId: string,
+  exceptId?: string,
+): Promise<Stripe.Subscription[]> {
+  const { data } = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 20 });
+  const live = data.filter((s) => s.id !== exceptId && LIVE_SUBSCRIPTION_STATUSES.includes(s.status));
+  const credit: Stripe.Subscription[] = [];
+  for (const s of live) {
+    if ((await classifySubscription(s)).kind === "credits") credit.push(s);
+  }
+  return credit.sort((a, b) => b.created - a.created);
+}
+
+const customerIdOf = (sub: Stripe.Subscription) =>
+  typeof sub.customer === "string" ? sub.customer : sub.customer.id;
+
+/** Cancel a credit subscription another one replaced. No proration: its credits came along. */
+async function cancelSuperseded(id: string) {
+  try {
+    const old = await stripe.subscriptions.retrieve(id);
+    if (old.status !== "canceled") await stripe.subscriptions.cancel(id, { prorate: false });
+  } catch (err) {
+    logger.error(`Failed to cancel superseded credit subscription ${id}:`, err);
+  }
 }
 
 /**
@@ -147,17 +184,6 @@ async function syncClerkCreditsPlan(clerkId: string, planKey: string | null) {
   }
 }
 
-/** Plan key of the newest live monthly credit bucket, from its grant reason. */
-async function currentMonthlyPlanKey(userId: string): Promise<string | null> {
-  const grant = await prisma.creditGrant.findFirst({
-    where: { userId, source: MONTHLY, expiresAt: { gt: new Date() } },
-    orderBy: { createdAt: "desc" },
-    select: { reason: true },
-  });
-  const [prefix, key] = grant?.reason?.split(":") ?? [];
-  return prefix === "monthly-credits" && key ? key : null;
-}
-
 /**
  * A credit subscription invoice was paid: sync the row and grant this
  * period's credits. Keyed on the invoice id, so a webhook retry grants once.
@@ -185,28 +211,69 @@ export async function handleCreditInvoicePaid(opts: {
     });
     return;
   }
-  // A paid invoice for a superseded subscription (its last cycle raced the
-  // switch) must not reset the new tier's bucket.
+  const reason = `monthly-credits:${plan.key}:${billingReason}:${invoice.id}`;
+
+  // A paid invoice for a superseded subscription must not reset the newer
+  // tier's bucket. A renewal that raced a switch grants nothing. A first
+  // invoice means two were bought at once and this older one lost: its
+  // credits join the current bucket so the payment isn't wasted, and it's
+  // cancelled.
   if (!synced) {
-    logger.warn("Paid invoice for a superseded credit subscription; no credits granted", {
+    logger.warn("Paid invoice for a superseded credit subscription", {
       userId: user.id,
       subscriptionId: sub.id,
       invoiceId: invoice.id,
+      billingReason,
     });
+    if (!isCreate) return;
+    const already = await prisma.creditGrant.findFirst({
+      where: { userId: user.id, reason },
+      select: { id: true },
+    });
+    if (!already) {
+      // Its own period end: the same day as the one that won, near enough.
+      await grantCredits({
+        userId: user.id,
+        amount: plan.credits,
+        source: MONTHLY,
+        reason,
+        expiresAt: periodEndOf(sub) ?? new Date(Date.now() + 31 * 24 * 60 * 60 * 1000),
+        metadata: { stripeSubscriptionId: sub.id, stripeInvoiceId: invoice.id ?? null, superseded: true },
+      });
+    }
+    await cancelSuperseded(sub.id);
     return;
   }
 
-  // A tier switch from the app: a new subscription that names the old one.
-  const switchedFrom = sub.metadata?.upgradeFromSubscriptionId;
-  const isSwitch = isCreate && !!switchedFrom && switchedFrom !== sub.id;
-  // A tier switched in place (Stripe portal) bills as subscription_update.
-  // Any other update invoice (proration for nothing that adds credits)
-  // grants nothing: the period's credits were already granted.
-  const previousKey = isUpdate ? await currentMonthlyPlanKey(user.id) : null;
-  const isInPlaceSwitch = isUpdate && previousKey !== null && previousKey !== plan.key;
-  if (isUpdate && !isInPlaceSwitch) return;
+  // A tier changed in place (portal, dashboard) bills as subscription_update
+  // for a prorated amount. Its credits come with the next renewal: granting
+  // a whole tier here could be repeated (up, down, up) for free credits.
+  if (isUpdate) return;
 
-  const reason = `monthly-credits:${plan.key}:${billingReason}:${invoice.id}`;
+  // The subscriptions this one replaces: the one a switch from the app names,
+  // or any other live one (two checkouts completed at once).
+  const switchedFrom = sub.metadata?.upgradeFromSubscriptionId;
+  let replaces: string[] = [];
+  if (isCreate) {
+    if (switchedFrom && switchedFrom !== sub.id) {
+      replaces = [switchedFrom];
+    } else {
+      replaces = await liveCreditSubscriptions(customerIdOf(sub), sub.id)
+        .then((subs) => subs.filter((s) => s.created < sub.created).map((s) => s.id))
+        .catch((err) => {
+          logger.error("Couldn't check for other credit subscriptions", { userId: user.id, err });
+          return [];
+        });
+      if (replaces.length) {
+        logger.warn("Second credit subscription bought without a switch; replacing the older one", {
+          userId: user.id,
+          subscriptionId: sub.id,
+          replaces,
+        });
+      }
+    }
+  }
+  const isSwitch = replaces.length > 0;
   const already = await prisma.creditGrant.findFirst({
     where: { userId: user.id, reason },
     select: { id: true },
@@ -216,8 +283,7 @@ export async function handleCreditInvoicePaid(opts: {
     const periodEnd = periodEndOf(sub) ?? new Date(Date.now() + 31 * 24 * 60 * 60 * 1000);
     // What's left of the old tier this period moves along on a switch; a
     // renewal starts from zero (monthly credits don't roll over).
-    const carryover =
-      isSwitch || isInPlaceSwitch ? await getSubscriptionCreditsRemaining(user.id, MONTHLY) : 0;
+    const carryover = isSwitch ? await getSubscriptionCreditsRemaining(user.id, MONTHLY) : 0;
 
     await rolloverSubscriptionCycle({
       userId: user.id,
@@ -231,7 +297,7 @@ export async function handleCreditInvoicePaid(opts: {
         billingReason,
         planCredits: plan.credits,
         ...(carryover > 0 ? { carryoverCredits: carryover } : {}),
-        ...(isSwitch ? { switchedFromSubscriptionId: switchedFrom } : {}),
+        ...(isSwitch ? { switchedFromSubscriptionIds: replaces } : {}),
       },
     });
 
@@ -256,20 +322,11 @@ export async function handleCreditInvoicePaid(opts: {
 
   await syncClerkCreditsPlan(user.clerkId, plan.key);
 
-  // Cancel the tier the user switched away from. Outside the grant guard so
-  // a failed cancel is retried with the webhook; after the row was repointed
-  // above, so the old subscription's `deleted` event finds no row and leaves
-  // the new bucket alone. No proration: the old tier's credits came along.
-  if (isSwitch && switchedFrom) {
-    try {
-      const old = await stripe.subscriptions.retrieve(switchedFrom);
-      if (old.status !== "canceled") {
-        await stripe.subscriptions.cancel(switchedFrom, { prorate: false });
-      }
-    } catch (err) {
-      logger.error(`Failed to cancel superseded credit subscription ${switchedFrom}:`, err);
-    }
-  }
+  // Cancel what this one replaces. Outside the grant guard so a failed
+  // cancel is retried with the webhook; after the row was repointed above,
+  // so the old subscription's `deleted` event finds no row and leaves the
+  // new bucket alone.
+  for (const id of replaces) await cancelSuperseded(id);
 }
 
 /** A credit subscription charge failed: record past_due, email once. */
@@ -341,11 +398,13 @@ export async function ensureStripePrice(plan: Plan): Promise<string> {
 
 /** The user's credit subscription as the billing UI shows it, or null. */
 export async function creditSubscriptionSummary(userId: string) {
-  const row = await prisma.subscription.findUnique({
-    where: { userId_kind: { userId, kind: CREDITS } },
-  });
-  const monthly = await getMonthlyCreditsSummary(userId);
-  if (!row) return { subscription: null, monthly };
+  const [row, monthly, planBucket] = await Promise.all([
+    prisma.subscription.findUnique({ where: { userId_kind: { userId, kind: CREDITS } } }),
+    getBucketSummary(userId, MONTHLY),
+    // Credits that came with a scheduler plan (older plans): they end with it.
+    getBucketSummary(userId, CreditSource.SUBSCRIPTION),
+  ]);
+  if (!row) return { subscription: null, monthly, planBucket };
 
   const plan = await getPlanByKey(row.planKey);
   const pub = plan ? toPublicPlan(plan) : null;
@@ -362,5 +421,6 @@ export async function creditSubscriptionSummary(userId: string) {
       currentPeriodEnd: row.currentPeriodEnd,
     },
     monthly,
+    planBucket,
   };
 }

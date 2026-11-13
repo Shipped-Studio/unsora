@@ -7,25 +7,30 @@ import { formatLongDate } from "./format";
 /**
  * The account's credits, above the subscriptions: they belong to the account,
  * not to either plan. The bar splits monthly credits (spent first, reset each
- * period) from top-ups (never expire).
+ * period) from top-ups (never expire), and shows credits that came with an
+ * older scheduler plan apart, since those end with the plan.
  */
 export function CreditBalanceCard({
   credits,
   monthly,
+  planBucket = null,
   subscribedToCredits,
   onTopUp,
   onGetMonthly,
 }: {
   credits: number;
   monthly: { remaining: number; expiresAt: string | null } | null;
+  planBucket?: { remaining: number; expiresAt: string | null } | null;
   subscribedToCredits: boolean;
   onTopUp: () => void;
   onGetMonthly: () => void;
 }) {
   const monthlyLeft = Math.min(monthly?.remaining ?? 0, credits);
-  const permanent = Math.max(0, credits - monthlyLeft);
+  const planLeft = Math.min(planBucket?.remaining ?? 0, credits - monthlyLeft);
+  const permanent = Math.max(0, credits - monthlyLeft - planLeft);
   const resetsOn = formatLongDate(monthly?.expiresAt);
-  const monthlyShare = credits > 0 ? (monthlyLeft / credits) * 100 : 0;
+  const planEndsOn = formatLongDate(planBucket?.expiresAt);
+  const share = (n: number) => (credits > 0 ? (n / credits) * 100 : 0);
 
   return (
     <Card>
@@ -48,10 +53,13 @@ export function CreditBalanceCard({
             <div
               className="flex h-2 overflow-hidden rounded-full bg-foreground/10"
               role="img"
-              aria-label={`${monthlyLeft.toLocaleString()} monthly credits and ${permanent.toLocaleString()} top-up credits`}
+              aria-label={`${monthlyLeft.toLocaleString()} monthly credits${planLeft > 0 ? `, ${planLeft.toLocaleString()} plan credits` : ""} and ${permanent.toLocaleString()} top-up credits`}
             >
               {monthlyLeft > 0 ? (
-                <div className="h-full bg-foreground" style={{ width: `${monthlyShare}%` }} />
+                <div className="h-full bg-foreground" style={{ width: `${share(monthlyLeft)}%` }} />
+              ) : null}
+              {planLeft > 0 ? (
+                <div className="h-full bg-foreground/65" style={{ width: `${share(planLeft)}%` }} />
               ) : null}
               {permanent > 0 ? <div className="h-full flex-1 bg-foreground/35" /> : null}
             </div>
@@ -70,6 +78,14 @@ export function CreditBalanceCard({
                       : "no monthly plan"
                 }
               />
+              {planLeft > 0 ? (
+                <Legend
+                  swatch="bg-foreground/65"
+                  label="With your plan"
+                  value={planLeft}
+                  note={planEndsOn ? `until ${planEndsOn}` : "end with the plan"}
+                />
+              ) : null}
               <Legend swatch="bg-foreground/35" label="Top-ups" value={permanent} note="never expire" />
             </dl>
           </div>

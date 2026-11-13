@@ -170,6 +170,7 @@ export function BillingContent() {
       <CreditBalanceCard
         credits={usage.credits}
         monthly={usage.monthlyCredits ?? null}
+        planBucket={usage.planCredits ?? null}
         subscribedToCredits={creditsState !== "none"}
         onTopUp={() => showTab("credits")}
         onGetMonthly={() => showTab("monthly")}

@@ -428,18 +428,19 @@ export type SubscriptionBucket =
   | typeof CreditSource.MONTHLY_CREDITS;
 
 /**
- * Unspent monthly credits and when they reset, for the billing summary.
- * Several live grants can overlap briefly around a renewal; the earliest
- * expiry is the one the user meets first.
+ * Unspent credits in one subscription bucket and when they end, for the
+ * billing summary. Several live grants can overlap briefly around a renewal;
+ * the earliest expiry is the one the user meets first.
  */
-export async function getMonthlyCreditsSummary(
+export async function getBucketSummary(
   userId: string,
+  source: SubscriptionBucket,
 ): Promise<{ remaining: number; expiresAt: Date | null }> {
   const grants = await prisma.creditGrant.findMany({
     where: {
       userId,
-      source: CreditSource.MONTHLY_CREDITS,
-      expiresAt: { gt: new Date() },
+      source,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
     },
     select: { amount: true, used: true, expiresAt: true },
     orderBy: { expiresAt: "asc" },
@@ -447,7 +448,7 @@ export async function getMonthlyCreditsSummary(
   const live = grants.filter((g) => g.amount > g.used);
   return {
     remaining: live.reduce((sum, g) => sum + (g.amount - g.used), 0),
-    expiresAt: live[0]?.expiresAt ?? null,
+    expiresAt: live.find((g) => g.expiresAt)?.expiresAt ?? null,
   };
 }
 
