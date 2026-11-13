@@ -30,10 +30,10 @@ export function paymentFailedEmail(input: PaymentFailedInput): RenderedEmail {
   const url = appUrl("/billing");
   const credits = input.product === "credits";
   const what = credits
-    ? `your ${input.planName} monthly credits`
+    ? `your AI Studio ${input.planName} plan`
     : `your ${input.planName} plan`;
   const effect = credits
-    ? "Your monthly credits won't renew until it goes through. Credits already in your account still work."
+    ? "Your AI Studio credits won't renew until it goes through. Credits already in your account still work."
     : "Posting is paused until it goes through. Your plan, accounts and scheduled posts are kept.";
 
   const html = layout({

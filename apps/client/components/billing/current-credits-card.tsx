@@ -39,14 +39,14 @@ function statusLine(state: CreditsState, renewsOn: string | null) {
       return "Credits every month for clipping and AI, at a lower price per credit than packs.";
     case "active":
       return renewsOn
-        ? `Renews on ${renewsOn}. Unused monthly credits don't roll over.`
-        : "Unused monthly credits don't roll over.";
+        ? `Renews on ${renewsOn}. Unused AI Studio credits don't roll over.`
+        : "Unused AI Studio credits don't roll over.";
     case "ending":
       return renewsOn
-        ? `Won't renew. Your monthly credits work until ${renewsOn}.`
-        : "Won't renew. Your monthly credits work until the period ends.";
+        ? `Won't renew. Your AI Studio credits work until ${renewsOn}.`
+        : "Won't renew. Your AI Studio credits work until the period ends.";
     case "past_due":
-      return "Your last payment didn't go through. New monthly credits are added once it's paid.";
+      return "Your last payment didn't go through. New AI Studio credits are added once it's paid.";
   }
 }
 
@@ -66,10 +66,10 @@ export function CurrentCreditsCard({
     <Card className="h-full">
       <CardHeader>
         <p className="font-mono text-[11px] font-medium tracking-[0.18em] text-muted-foreground uppercase">
-          Monthly credits
+          AI Studio
         </p>
         <CardTitle className="flex flex-wrap items-center gap-2">
-          {active ? subscription.planName : "No monthly plan"}
+          {active ? subscription.planName : "No AI Studio plan"}
           {state === "active" ? <Badge className="bg-success-subtle text-success">Active</Badge> : null}
           {state === "ending" ? (
             <Badge variant="outline">{renewsOn ? `Ends on ${renewsOn}` : "Ending"}</Badge>
@@ -103,7 +103,7 @@ export function CurrentCreditsCard({
       <CardFooter className="flex flex-wrap gap-2 border-t">
         {state === "none" ? (
           <Button variant="outline" onClick={onChoosePlan}>
-            See monthly plans
+            See AI Studio plans
           </Button>
         ) : (
           <>

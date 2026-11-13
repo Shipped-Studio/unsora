@@ -159,8 +159,8 @@ export function BillingContent() {
       ) : null}
       {creditsState === "past_due" ? (
         <PastDueBanner
-          what="monthly credits"
-          effect="New monthly credits are added once it's paid."
+          what="AI Studio"
+          effect="New AI Studio credits are added once it's paid."
           pending={portalPending === "credits"}
           disabled={portalPending !== null}
           onUpdate={() => void handlePortal("credits")}
@@ -178,7 +178,7 @@ export function BillingContent() {
 
       <PageSection
         title="Your subscriptions"
-        description="Posting and monthly credits are billed separately. Have either, or both."
+        description="The scheduler and AI Studio are billed separately. Have either, or both."
       >
         <div className="grid gap-4 lg:grid-cols-2">
           <CurrentPlanCard
@@ -211,7 +211,7 @@ export function BillingContent() {
           onValueChange={setTab}
           items={[
             { value: "plans", label: "Scheduler" },
-            { value: "monthly", label: "Monthly credits" },
+            { value: "monthly", label: "AI Studio" },
             { value: "credits", label: "One-time packs" },
           ]}
         />
@@ -222,7 +222,7 @@ export function BillingContent() {
               ? choice.description
               : tab === "monthly"
                 ? creditChoice.description
-                : "Top-ups for when you run out. They never expire, and are used after your monthly credits. Buy them with or without a plan."}
+                : "Top-ups for when you run out. They never expire, and are used after your AI Studio credits. Buy them with or without a plan."}
           </p>
         </div>
         {tab === "plans" ? <PlanGrid choice={choice} /> : null}
@@ -257,10 +257,10 @@ export function BillingContent() {
       <CancelSubscriptionDialog
         open={cancelOpen === "credits"}
         onOpenChange={(open) => setCancelOpen(open ? "credits" : null)}
-        planName={`${creditSub?.planName ?? "monthly credits"} monthly credits`}
+        planName={creditSub?.planName ? `AI Studio ${creditSub.planName}` : "AI Studio"}
         endsOn={creditsEndOn}
         isCancelling={cancelling === "credits"}
-        consequence={`Your monthly credits work until ${creditsEndOn ?? "the end of the billing period"}, then stop renewing. Top-ups and your scheduler plan aren't affected.`}
+        consequence={`Your AI Studio credits work until ${creditsEndOn ?? "the end of the billing period"}, then stop renewing. Top-ups and your scheduler plan aren't affected.`}
         onConfirm={() => void handleCancel("credits")}
       />
     </div>
@@ -278,7 +278,7 @@ function isBillingTab(value: unknown): value is BillingTab {
 
 const TAB_HEADINGS: Record<BillingTab, (paid: boolean, subscribed: boolean) => string> = {
   plans: (paid) => (paid ? "Change scheduler plan" : "Scheduler plans"),
-  monthly: (_paid, subscribed) => (subscribed ? "Change monthly credits" : "Monthly credits"),
+  monthly: (_paid, subscribed) => (subscribed ? "Change AI Studio plan" : "AI Studio"),
   credits: () => "One-time packs",
 };
 
