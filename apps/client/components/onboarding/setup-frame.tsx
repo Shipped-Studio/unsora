@@ -51,12 +51,6 @@ export function SetupFrame({
   return (
     // Fills a `flex min-h-svh flex-col` page.
     <div className="relative isolate flex flex-1 flex-col overflow-clip">
-      {/* Soft brand glow behind the header. `overflow-clip`, not hidden, keeps the
-          phone step bar sticky. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-72 left-1/2 -z-10 size-160 -translate-x-1/2 rounded-full bg-brand/15 blur-3xl"
-      />
       <header className="flex items-center justify-between gap-4 px-4 py-4 sm:px-8 sm:py-5">
         <Link href={homeHref} className="inline-flex w-fit shrink-0 rounded-md">
           <UnsoraLogo variant="full" priority className="h-7" />
@@ -76,7 +70,7 @@ export function SetupFrame({
           <span />
         )}
       </header>
-      <main className="flex flex-1 justify-center px-4 pt-6 pb-16 sm:px-8 sm:pt-12">{children}</main>
+      <main className="flex flex-1 justify-center px-4 pt-6 sm:px-8 sm:pt-12 sm:pb-16">{children}</main>
     </div>
   );
 }

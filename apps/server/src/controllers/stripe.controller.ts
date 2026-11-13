@@ -16,6 +16,7 @@ import {
   getPlanByKey,
   getTopupPlan,
   hasPaidPlan,
+  listCreditSubscriptionPlans,
   listSubscriptionPlans,
   listTopupPlans,
   planFeatures,
@@ -25,6 +26,17 @@ import {
   trialDays,
 } from "../lib/plans";
 import { logger } from "../lib/logger";
+import {
+  CREDIT_SUBSCRIPTION_KIND,
+  LIVE_SUBSCRIPTION_STATUSES,
+  classifySubscription,
+  ensureStripePrice,
+  handleCreditInvoiceFailed,
+  handleCreditInvoicePaid,
+  handleCreditSubscriptionDeleted,
+  liveCreditSubscriptions,
+  syncCreditSubscription,
+} from "../services/credit-subscription.service";
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -33,11 +45,6 @@ const CANCEL_URL = process.env.STRIPE_CANCEL_URL;
 /** Public origin of the web app — used to build top-up return URLs. */
 const CLIENT_URL = process.env.CLIENT_URL;
 
-/**
- * Subscription states that keep the plan. past_due is included: it's the
- * window where Stripe is still retrying a failed renewal. Posting is blocked
- * in that window (`isPaymentFailing` in lib/plans.ts); everything else stays.
- */
 /**
  * The user a subscription belongs to: by Stripe customer, else by the
  * `userId` checkout stamps on the subscription (then the customer is linked
@@ -76,12 +83,6 @@ async function currentSubscriptionPlan(userId: string): Promise<string | null> {
   const [prefix, plan] = grant?.reason?.split(":") ?? [];
   return prefix === "subscription" && plan ? plan : null;
 }
-
-const LIVE_SUBSCRIPTION_STATUSES: Stripe.Subscription.Status[] = [
-  "active",
-  "trialing",
-  "past_due",
-];
 
 /**
  * Resolve how many credits a subscription cycle should grant.
@@ -219,10 +220,12 @@ async function createTopupCheckoutUrl(
 }
 
 /**
- * Free-trial days a checkout would start with: the `trial` row's length, or
- * 0 once the customer has any paid invoice (the trial is first-subscription
- * only). Checkout and the pricing dialog's button label both read this, so
- * the label can't promise a trial checkout won't give.
+ * Free-trial days a scheduler checkout would start with: the `trial` row's
+ * length, or 0 once the customer has paid for a scheduler plan (the trial is
+ * first-plan only). Monthly credits invoices don't count, so someone who
+ * started with credits still gets the scheduler trial. Checkout and the
+ * pricing dialog's button label both read this, so the label can't promise
+ * a trial checkout won't give.
  */
 async function trialDaysFor(stripeCustomerId: string | null): Promise<number> {
   if (stripeCustomerId) {
@@ -230,9 +233,13 @@ async function trialDaysFor(stripeCustomerId: string | null): Promise<number> {
       const invoices = await stripe.invoices.list({
         customer: stripeCustomerId,
         status: "paid",
-        limit: 1,
+        limit: 100,
       });
-      if (invoices.data.length > 0) return 0;
+      const paidScheduler = invoices.data.some(
+        (invoice) =>
+          invoice.parent?.subscription_details?.metadata?.kind !== CREDIT_SUBSCRIPTION_KIND,
+      );
+      if (paidScheduler) return 0;
     } catch (error) {
       logger.error("Error checking previous payments:", error);
     }
@@ -298,6 +305,16 @@ export class StripeController {
           const fullSub = await stripe.subscriptions.retrieve(subscription.id, {
             expand: ["items.data.price.product"],
           });
+
+          // A Monthly credits subscription has its own row; it must never
+          // write the scheduler columns below.
+          const route = await classifySubscription(fullSub);
+          if (route.kind === "credits") {
+            const owner = await findUserForSubscription(fullSub);
+            if (!owner) throw new Error("User not found");
+            await syncCreditSubscription(owner.id, fullSub, route.plan);
+            break;
+          }
 
           const planName = (
             fullSub.items.data[0].price.product as Stripe.Product
@@ -389,6 +406,11 @@ export class StripeController {
         case "customer.subscription.deleted": {
           const subscription = event.data.object as Stripe.Subscription;
 
+          if ((await classifySubscription(subscription)).kind === "credits") {
+            await handleCreditSubscriptionDeleted(subscription);
+            break;
+          }
+
           const user = await prisma.user.findFirst({
             where: {
               stripeSubscriptionId: subscription.id,
@@ -469,12 +491,19 @@ export class StripeController {
             },
           );
 
+          const user = await findUserForSubscription(subscription);
+          if (!user) throw new Error("User not found");
+
+          // Monthly credits: their own row and credit bucket.
+          const route = await classifySubscription(subscription);
+          if (route.kind === "credits") {
+            await handleCreditInvoicePaid({ user, invoice, sub: subscription, plan: route.plan });
+            break;
+          }
+
           const planName = (
             subscription.items.data[0].price.product as Stripe.Product
           ).name;
-
-          const user = await findUserForSubscription(subscription);
-          if (!user) throw new Error("User not found");
 
           const periodEnd = new Date(
             subscription.items.data[0].current_period_end * 1000,
@@ -686,6 +715,12 @@ export class StripeController {
 
           if (!user) {
             throw new Error("User not found");
+          }
+
+          const route = await classifySubscription(subscription);
+          if (route.kind === "credits") {
+            await handleCreditInvoiceFailed({ user, invoice, sub: subscription, plan: route.plan });
+            break;
           }
 
           // A failed invoice on a subscription the user has moved away from
@@ -1705,6 +1740,139 @@ export class StripeController {
     } catch (error) {
       logger.error("Error buying credits:", error);
       return res.status(500).json({ success: false, error: "Failed to buy credits" });
+    }
+  }
+
+  /**
+   * Monthly credits tiers on sale. Like the scheduler plans, the Stripe
+   * price stays server-side: checkout resolves it from `key`.
+   */
+  async getCreditPlans(_req: Request, res: Response) {
+    try {
+      const plans = await listCreditSubscriptionPlans();
+      const data = plans.map((p) => {
+        const pub = toPublicPlan(p);
+        return {
+          key: pub.key,
+          name: pub.name,
+          description: pub.description ?? undefined,
+          credits: pub.credits,
+          priceUsd: pub.priceUsd,
+          interval: pub.interval ?? "MONTH",
+          isPopular: pub.isPopular,
+          sortOrder: pub.sortOrder,
+        };
+      });
+      return res.json({ success: true, data });
+    } catch (error) {
+      logger.error("Error listing credit plans:", error);
+      return res.status(500).json({ success: false, error: "Failed to load credit plans" });
+    }
+  }
+
+  /**
+   * Checkout for a Monthly credits tier, or a switch to another tier. No
+   * free trial. A switch opens a new subscription naming the old one; the
+   * webhook moves the leftover monthly credits over and cancels the old one
+   * once the new one is paid (credit-subscription.service).
+   */
+  async createCreditSubscriptionSession(req: Request, res: Response) {
+    try {
+      const clerkId = req.auth.userId;
+      const { key, returnPath } = req.body as { key?: string; returnPath?: string };
+      if (!key) return res.status(400).json({ success: false, error: "Missing plan selection" });
+
+      const plan = await getPlanByKey(key);
+      if (!plan || plan.type !== "CREDIT_SUBSCRIPTION" || !plan.isActive || plan.priceCents <= 0) {
+        return res.status(400).json({ success: false, error: "Unknown or unavailable plan" });
+      }
+
+      const user = await prisma.user.findUnique({ where: { clerkId } });
+      if (!user) return res.status(404).json({ success: false, error: "User not found" });
+
+      // The live credit subscription, read from Stripe: our row lags behind
+      // the webhook, so a checkout finished a moment ago may not show there
+      // yet. If Stripe can't be reached, stop rather than risk a second
+      // subscription billing next to the first.
+      let live: Stripe.Subscription | null = null;
+      if (user.stripeCustomerId) {
+        try {
+          [live = null] = await liveCreditSubscriptions(user.stripeCustomerId);
+        } catch (err) {
+          logger.error("Couldn't check for a live credit subscription", { userId: user.id, err });
+          return res.status(503).json({ success: false, error: "Couldn't reach billing. Try again in a moment." });
+        }
+      }
+      let switchFrom: string | null = null;
+      if (live) {
+        const route = await classifySubscription(live);
+        const liveKey = (route.kind === "credits" ? route.plan?.key : null) ?? live.metadata?.planKey;
+        if (live.status === "past_due") {
+          return res.status(400).json({
+            success: false,
+            error: "Your last monthly credits payment didn't go through. Update your card in Billing first.",
+            code: "PAYMENT_FAILED",
+          });
+        }
+        if (["active", "trialing"].includes(live.status)) {
+          if (liveKey === plan.key) {
+            return res.status(400).json({ success: false, error: "You're already on this plan" });
+          }
+          switchFrom = live.id;
+        }
+      }
+
+      const priceId = await ensureStripePrice(plan);
+      const billingBase = CLIENT_URL ? `${CLIENT_URL}/billing` : SUCCESS_URL;
+      const success = { creditsPlan: "success", plan: plan.key };
+      const cancel = { creditsPlan: "cancel" };
+
+      const sessionConfig: Stripe.Checkout.SessionCreateParams = {
+        mode: "subscription",
+        success_url:
+          appReturnUrl(returnPath, success) ??
+          (billingBase ? `${billingBase}?${new URLSearchParams(success)}` : SUCCESS_URL),
+        cancel_url:
+          appReturnUrl(returnPath, cancel) ??
+          (billingBase ? `${billingBase}?${new URLSearchParams(cancel)}` : CANCEL_URL),
+        payment_method_types: ["card"],
+        billing_address_collection: "auto",
+        allow_promotion_codes: true,
+        line_items: [{ price: priceId, quantity: 1 }],
+        metadata: { userId: user.id, kind: CREDIT_SUBSCRIPTION_KIND },
+        // CRITICAL: `kind` and `planKey` route this subscription's webhooks
+        // to the credit subscription handlers, and keep its invoices out of
+        // the scheduler trial check. No trial on credits.
+        subscription_data: {
+          metadata: {
+            userId: user.id,
+            kind: CREDIT_SUBSCRIPTION_KIND,
+            planKey: plan.key,
+            ...(switchFrom ? { upgradeFromSubscriptionId: switchFrom } : {}),
+          },
+        },
+        custom_text: {
+          submit: {
+            message: switchFrom
+              ? "Your current monthly credits plan ends now. Credits you haven't used this month move to the new plan."
+              : `${plan.credits.toLocaleString()} credits are added now and every month you're subscribed. Monthly credits don't roll over.`,
+          },
+        },
+      };
+
+      if (user.stripeCustomerId) {
+        sessionConfig.customer = user.stripeCustomerId;
+      } else {
+        sessionConfig.customer_email = user.email;
+      }
+
+      const session = await stripe.checkout.sessions.create(sessionConfig);
+      return res.json({ success: true, url: session.url });
+    } catch (error) {
+      logger.error("Error creating credit subscription checkout:", error);
+      return res
+        .status(500)
+        .json({ success: false, error: "Failed to start checkout" });
     }
   }
 

@@ -120,7 +120,7 @@ export function PlanGrid({ choice }: { choice: PlanChoice }) {
                 plan={plan}
                 highlight={popular}
                 badge={isCurrent ? "Current plan" : popular ? "Popular" : undefined}
-                badgeTone={isCurrent ? "plain" : "lime"}
+                badgeTone={isCurrent ? "plain" : "dot"}
                 trialDays={offerTrial ? (trialDays ?? 0) : 0}
                 action={
                   isCurrent

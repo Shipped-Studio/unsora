@@ -118,7 +118,8 @@ export async function onSubscriptionStarted(event: SubscriptionStartedEvent): Pr
         newSubscriptionEmail({
           userId: event.userId,
           email: event.email,
-          planName: event.planName,
+          planName:
+            event.product === "credits" ? `${event.planName} monthly credits` : event.planName,
           kind: event.kind,
           amountPaidCents: event.amountPaidCents,
           currency: event.currency,

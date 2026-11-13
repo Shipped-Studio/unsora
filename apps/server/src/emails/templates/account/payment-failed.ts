@@ -15,34 +15,43 @@ export interface PaymentFailedInput {
   planName: string;
   amountCents: number;
   currency: string;
+  /** Which subscription failed. Defaults to the scheduler plan. */
+  product?: "scheduler" | "credits";
 }
 
 /**
- * Sent on the first failed subscription charge. The server moves the account
- * to the free plan straight away (stripe.controller), so the copy says so.
+ * Sent on the first failed subscription charge. Stripe keeps retrying, and
+ * the subscription stays until the retries run out: a scheduler plan can't
+ * post meanwhile (requirePaidPlan), and Monthly credits don't renew until an
+ * invoice is paid (credit-subscription.service).
  */
 export function paymentFailedEmail(input: PaymentFailedInput): RenderedEmail {
   const amount = fmtAmount(input.amountCents, input.currency);
   const url = appUrl("/billing");
+  const credits = input.product === "credits";
+  const what = credits
+    ? `your ${input.planName} monthly credits`
+    : `your ${input.planName} plan`;
+  const effect = credits
+    ? "Your monthly credits won't renew until it goes through. Credits already in your account still work."
+    : "Posting is paused until it goes through. Your plan, accounts and scheduled posts are kept.";
 
   const html = layout({
-    preheader: `We couldn't charge ${amount} for your ${input.planName} plan.`,
+    preheader: `We couldn't charge ${amount} for ${what}.`,
     content: [
       heading("Your payment didn't go through"),
-      paragraph(
-        `We couldn't charge ${strong(amount)} for your ${strong(input.planName)} plan, so your account is on the free plan for now. Scheduled posts won't publish until your plan is active again.`,
-      ),
-      paragraph("Update your card or choose a plan again in Billing to pick up where you left off."),
-      button("Update billing", url),
+      paragraph(`We couldn't charge ${strong(amount)} for ${what}. ${effect}`),
+      paragraph("We'll retry the charge automatically. Update your card in Billing to fix it now."),
+      button("Update card", url),
     ].join("\n"),
     footer: accountFooter(input.email),
   });
 
   const text = [
-    `We couldn't charge ${amount} for your ${input.planName} plan, so your Unsora account is on the free plan for now. Scheduled posts won't publish until your plan is active again.`,
-    "Update your card or choose a plan again in Billing to pick up where you left off.",
+    `We couldn't charge ${amount} for ${what}. ${effect}`,
+    "We'll retry the charge automatically. Update your card in Billing to fix it now.",
     "",
-    `Update billing: ${url}`,
+    `Update card: ${url}`,
   ].join("\n");
 
   return { subject: "Your Unsora payment didn't go through", html, text };

@@ -41,6 +41,7 @@ export default function AdminPricingPage() {
 
   const all = plans.data?.plans ?? [];
   const subs = all.filter((p) => p.type === "SUBSCRIPTION");
+  const creditPlans = all.filter((p) => p.type === "CREDIT_SUBSCRIPTION");
   const packs = all.filter((p) => p.type === "TOPUP");
   const trial = all.find((p) => p.key === "trial") ?? null;
   const promos = all.filter((p) => p.type === "PROMO" && p.key !== "trial");
@@ -87,12 +88,21 @@ export default function AdminPricingPage() {
           )}
 
           <Section
-            title="Subscription plans"
-            note="Shown on the pricing dialog to free users and subscribers switching plans."
+            title="Scheduler plans"
+            note="Posting to social accounts. Shown on the pricing dialog to free users and subscribers switching plans."
             onAdd={() => setDialog({ plan: null, type: "SUBSCRIPTION" })}
             addLabel="Add plan"
           >
             <PlanList plans={subs} onEdit={(plan) => setDialog({ plan, type: plan.type })} />
+          </Section>
+
+          <Section
+            title="Monthly credits plans"
+            note="A second subscription, with or without a scheduler plan. No trial. Credits reset each period and don't roll over. Without a Stripe price, one is created on the first checkout."
+            onAdd={() => setDialog({ plan: null, type: "CREDIT_SUBSCRIPTION" })}
+            addLabel="Add plan"
+          >
+            <PlanList plans={creditPlans} onEdit={(plan) => setDialog({ plan, type: plan.type })} />
           </Section>
 
           <Section
@@ -205,6 +215,7 @@ function summary(plan: AdminPlan): string {
     if (plan.socialAccounts != null) parts.push(`${plan.socialAccounts} social accounts`);
     parts.push(`${plan.subscribers ?? 0} active`);
   }
+  if (plan.type === "CREDIT_SUBSCRIPTION") parts.push(`${plan.subscribers ?? 0} active`);
   if (plan.type !== "PROMO" && plan.credits > 0 && plan.priceCents > 0) {
     parts.push(`${formatUsd(plan.priceCents / 100 / plan.credits)}/credit`);
   }

@@ -25,10 +25,15 @@ export interface SubscriptionStartedInput {
   kind: "trial" | "paid" | "upgraded";
   /** When the trial converts to paid (trial only). */
   trialEndsAt?: Date | null;
+  /** Which subscription started. Defaults to the scheduler plan. */
+  product?: "scheduler" | "credits";
+  /** When this period's monthly credits reset (credits only). */
+  periodEnd?: Date | null;
 }
 
 /** Sent when a subscription starts (first invoice of a new subscription). */
 export function subscriptionStartedEmail(input: SubscriptionStartedInput): RenderedEmail {
+  if (input.product === "credits") return monthlyCreditsStartedEmail(input);
   const plan = input.planName;
   const credits = fmtNumber(input.credits);
   const url = appUrl("/scheduler/new");
@@ -80,6 +85,45 @@ export function subscriptionStartedEmail(input: SubscriptionStartedInput): Rende
     ...(extra ? [extra] : []),
     "",
     `Create a post: ${url}`,
+    `Billing: ${appUrl("/billing")}`,
+  ].join("\n");
+
+  return { subject: title, html, text };
+}
+
+/** A Monthly credits subscription started, or moved to another tier. */
+function monthlyCreditsStartedEmail(input: SubscriptionStartedInput): RenderedEmail {
+  const plan = `${input.planName} monthly credits`;
+  const credits = fmtNumber(input.credits);
+  const url = appUrl("/");
+  const title = input.kind === "upgraded" ? `You're now on ${plan}` : `Your ${plan} are ready`;
+  const resets = input.periodEnd ? ` on ${fmtDate(input.periodEnd)}` : " at the end of each month";
+  const lead = `${strong(credits)} credits are in your account for clipping and creating.`;
+  const rule = `Monthly credits reset${resets} and don't roll over. Credits you buy as top-ups never expire, and are only used once your monthly credits run out.`;
+
+  const html = layout({
+    preheader: `${title}. ${credits} credits are ready to use.`,
+    content: [
+      heading(title),
+      paragraph(lead),
+      paragraph(rule),
+      button("Start creating", url),
+      paragraph(`Manage your subscriptions any time from <a href="${appUrl("/billing")}" style="color:inherit;">Billing</a>.`, {
+        muted: true,
+        small: true,
+        last: true,
+      }),
+    ].join("\n"),
+    footer: accountFooter(input.email),
+  });
+
+  const text = [
+    title,
+    "",
+    lead.replace(/<[^>]+>/g, ""),
+    rule,
+    "",
+    `Start creating: ${url}`,
     `Billing: ${appUrl("/billing")}`,
   ].join("\n");
 

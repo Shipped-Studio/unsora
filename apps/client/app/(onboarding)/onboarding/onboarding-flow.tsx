@@ -4,15 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { CONNECT_PARAM, connectorApp } from "@/components/onboarding/connector-app";
-import { CreditPacksStep, CreditsAskStep } from "@/components/onboarding/credits-steps";
+import { CreditPlansStep, CreditsAskStep, PlanStep } from "@/components/onboarding/credits-steps";
 import { MarkOnboarded } from "@/components/onboarding/mark-onboarded";
 import {
   CHECKOUT_PARAM,
-  PACKS_VIEW,
+  CREDITS_PLAN_PARAM,
+  MONTHLY_VIEW,
   SETUP_PARAM,
-  TOPUP_PARAM,
   VIEW_PARAM,
   hasPaidPlan,
+  normalizeStep,
   type SetupContext,
   type StepId,
 } from "@/components/onboarding/setup";
@@ -27,7 +28,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { useConnectedAccounts } from "@/hooks/use-connected-accounts";
 import { useUpdatePreferences } from "@/hooks/use-schedule";
-import { useUserUsage } from "@/hooks/use-user-usage";
+import { hasCreditPlan, useUserUsage } from "@/hooks/use-user-usage";
 import { getBrowserTimezone } from "@/lib/timezone";
 
 /**
@@ -59,11 +60,14 @@ export function OnboardingFlow() {
   const app = connectorApp(connectKey);
 
   const fromCheckout = searchParams.get(CHECKOUT_PARAM) === "success";
-  const requested = searchParams.get(SETUP_PARAM) as StepId | null;
+  const requested = normalizeStep(searchParams.get(SETUP_PARAM));
   const paid = hasPaidPlan(usage);
   // Stripe's return is a full page load, and moving on from it drops the
   // param. The webhook may still be behind, so remember the plan is coming.
   const [startedPlan] = useState(fromCheckout);
+  // Monthly credits count as a plan too (the credits-only way in).
+  const [startedCredits] = useState(searchParams.get(CREDITS_PLAN_PARAM) === "success");
+  const anyPlan = paid || startedPlan || hasCreditPlan(usage) || startedCredits;
 
   // Decided once, so starting the trial doesn't reshuffle the steps. Back
   // from the trial's checkout the plan may show already; the trial step
@@ -71,11 +75,22 @@ export function OnboardingFlow() {
   // reload or a purchase's checkout, by when the plan shows.
   const [steps, setSteps] = useState<StepId[] | null>(null);
   if (!steps && usage && accounts && user) {
-    const backFromTrial = fromCheckout && requested === "trial";
-    const trial: StepId[] =
-      paid && !backFromTrial && requested !== "credits" ? [] : ["trial", "credits"];
+    // The plan step until there's a plan. The credits add-on joins it once a
+    // trial has started (back from its checkout, or a reload after).
+    const backFromTrial = fromCheckout && requested === "plan";
+    const trialStarted = paid || backFromTrial || requested === "credits";
+    // Already on Monthly credits (or just bought them on the plan step's
+    // tab): no point asking about credits. Back from buying them on the
+    // credits step itself, it stays for its success screen.
+    const haveCredits = (hasCreditPlan(usage) || startedCredits) && requested !== "credits";
+    const plan: StepId[] =
+      paid && !backFromTrial && requested !== "credits" && requested !== "plan"
+        ? []
+        : trialStarted && !haveCredits
+          ? ["plan", "credits"]
+          : ["plan"];
     const source: StepId[] = user.unsafeMetadata?.heardFrom ? [] : ["source"];
-    setSteps([...source, "channels", "howto", ...trial, ...(app ? (["connect"] as const) : [])]);
+    setSteps([...source, "channels", "howto", ...plan, ...(app ? (["connect"] as const) : [])]);
   }
 
   const current = steps ? (requested && steps.includes(requested) ? requested : steps[0]) : null;
@@ -103,7 +118,7 @@ export function OnboardingFlow() {
     // The app sends new accounts back here until they're marked onboarded
     // (mustFinishOnboarding). MarkOnboarded saves the flag in the background,
     // so make sure it has landed before going in, or a quick click races it.
-    if (user && !user.unsafeMetadata?.onboardedAt && (paid || startedPlan)) {
+    if (user && !user.unsafeMetadata?.onboardedAt && anyPlan) {
       await user
         .update({ unsafeMetadata: { ...user.unsafeMetadata, onboardedAt: new Date().toISOString() } })
         .catch(() => {});
@@ -128,9 +143,9 @@ export function OnboardingFlow() {
 
   // Focus the new step's heading so screen readers announce it.
   const headingRef = useRef<HTMLDivElement>(null);
-  const packsView = current === "credits" && searchParams.get(VIEW_PARAM) === PACKS_VIEW;
+  const monthlyView = current === "credits" && searchParams.get(VIEW_PARAM) === MONTHLY_VIEW;
   // Each of the credits step's screens gets its own heading focus and entrance.
-  const screen = packsView ? `${PACKS_VIEW}-${searchParams.get(TOPUP_PARAM)}` : current;
+  const screen = `${current}-${searchParams.get(VIEW_PARAM)}-${searchParams.get(CREDITS_PLAN_PARAM)}`;
   const lastStep = useRef(screen);
   useEffect(() => {
     if (lastStep.current === screen) return;
@@ -162,17 +177,19 @@ export function OnboardingFlow() {
       {/* Onboarding counts as done once there's a plan and the last step is
           reached, so connecting the app after it goes straight to Allow.
           Without a plan it isn't done, and the next sign-in comes back here. */}
-      {last && hasPaidPlan(usage) ? <MarkOnboarded /> : null}
+      {last && (hasPaidPlan(usage) || hasCreditPlan(usage)) ? <MarkOnboarded /> : null}
       <div
         key={screen}
         ref={headingRef}
-        className="w-full animate-in duration-300 fade-in slide-in-from-bottom-2"
+        className="flex w-full flex-col animate-in duration-300 fade-in slide-in-from-bottom-2"
       >
         {current === "channels" ? <ChannelsStep ctx={ctx} /> : null}
         {current === "howto" ? <HowToStep ctx={ctx} app={app} /> : null}
-        {current === "trial" ? <TrialStep ctx={ctx} /> : null}
-        {current === "credits" && !packsView ? <CreditsAskStep ctx={ctx} finishing={finishing} /> : null}
-        {packsView ? <CreditPacksStep ctx={ctx} finishing={finishing} /> : null}
+        {current === "plan" ? (
+          <PlanStep ctx={ctx} finishing={finishing} scheduler={<TrialStep ctx={ctx} />} />
+        ) : null}
+        {current === "credits" && !monthlyView ? <CreditsAskStep ctx={ctx} finishing={finishing} /> : null}
+        {monthlyView ? <CreditPlansStep ctx={ctx} finishing={finishing} /> : null}
         {current === "source" ? <SourceStep ctx={ctx} finishing={finishing} /> : null}
         {current === "connect" && app ? (
           <ConnectStep ctx={ctx} app={app} finishing={finishing} />

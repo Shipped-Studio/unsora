@@ -5,7 +5,10 @@ import prisma from "./db";
  * Plan service — thin wrapper around the `Plan` table.
  *
  * Every credit-bearing offering lives here:
- *   - SUBSCRIPTION : recurring tiers (basic / pro / power). Mapped to a
+ *   - CREDIT_SUBSCRIPTION : Monthly credits tiers, a subscription of their
+ *     own (CreditSubscription) that a user can hold with or without a
+ *     scheduler plan. Credits reset each month and don't roll over.
+ *   - SUBSCRIPTION : recurring scheduler tiers (starter / growth / scale). Mapped to a
  *     Stripe Price via `stripePriceId`. Webhooks look this up to know how
  *     many credits to mint per cycle.
  *   - TOPUP        : one-time credit packs shown in the billing UI.
@@ -257,6 +260,30 @@ export async function listTopupPlans(): Promise<Plan[]> {
 /** All SUBSCRIPTION plans (basic / pro / power / etc.). */
 export async function listSubscriptionPlans(): Promise<Plan[]> {
   return listActivePlans("SUBSCRIPTION");
+}
+
+/** Monthly credits tiers on sale, cheapest first. */
+export async function listCreditSubscriptionPlans(): Promise<Plan[]> {
+  return listActivePlans("CREDIT_SUBSCRIPTION");
+}
+
+/**
+ * The Monthly credits plan behind a Stripe price, including prices it was
+ * sold at before a price change (subscribers stay on those). Null for a
+ * scheduler price, so this also tells the two kinds of subscription apart.
+ */
+export async function getCreditPlanByStripePriceId(
+  stripePriceId: string,
+): Promise<Plan | null> {
+  return prisma.plan.findFirst({
+    where: {
+      type: "CREDIT_SUBSCRIPTION",
+      OR: [
+        { stripePriceId },
+        { metadata: { path: ["previousStripePriceIds"], array_contains: [stripePriceId] } },
+      ],
+    },
+  });
 }
 
 /** Lookup by stable key. Returns null if no row matches. */

@@ -9,11 +9,22 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { PricingDialog } from "@/components/pricing-dialog";
-import { BUY_CREDITS_EVENT, OPEN_BILLING_EVENT, OPEN_PRICING_EVENT } from "@/lib/toast-error";
+import { PricingDialog, type PricingTab } from "@/components/pricing-dialog";
+import { hasCreditPlan, useUserUsage } from "@/hooks/use-user-usage";
+import {
+  BILLING_TAB_EVENT,
+  BUY_CREDITS_EVENT,
+  OPEN_BILLING_EVENT,
+  OPEN_PRICING_EVENT,
+} from "@/lib/toast-error";
 
 interface PricingContextValue {
+  /** Opens the pricing dialog on the Subscription tab. */
   openPricing: () => void;
+  /** Opens the pricing dialog on the One-time packs tab. */
+  openCredits: () => void;
+  /** Opens the pricing dialog on the Monthly credits tab. */
+  openMonthlyCredits: () => void;
   closePricing: () => void;
   isOpen: boolean;
 }
@@ -22,10 +33,19 @@ const PricingContext = createContext<PricingContextValue | null>(null);
 
 export function PricingProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [tab, setTab] = useState<PricingTab>("plans");
   const router = useRouter();
   const pathname = usePathname();
+  const { usage } = useUserUsage();
+  const subscribedToCredits = hasCreditPlan(usage);
 
-  const openPricing = useCallback(() => setIsOpen(true), []);
+  const openOn = useCallback((which: PricingTab) => {
+    setTab(which);
+    setIsOpen(true);
+  }, []);
+  const openPricing = useCallback(() => openOn("plans"), [openOn]);
+  const openCredits = useCallback(() => openOn("credits"), [openOn]);
+  const openMonthlyCredits = useCallback(() => openOn("monthly"), [openOn]);
   const closePricing = useCallback(() => setIsOpen(false), []);
 
   useEffect(() => {
@@ -33,19 +53,23 @@ export function PricingProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener(OPEN_PRICING_EVENT, openPricing);
   }, [openPricing]);
 
-  // "Buy credits" in a toast: go to the packs, or scroll to them when already there.
+  // "Buy credits" (a toast, the sidebar): Monthly credits for someone
+  // without them, a one-time pack (a top-up) for a subscriber who ran out.
+  // On Billing, where both are on the page, its tab instead of the dialog.
   useEffect(() => {
-    const openPacks = () => {
-      const packs = document.getElementById("credits");
-      if (pathname === "/billing" && packs) {
-        packs.scrollIntoView({ behavior: "smooth", block: "start" });
+    const buyCredits = () => {
+      if (pathname === "/billing") {
+        const tab = subscribedToCredits ? "credits" : "monthly";
+        window.dispatchEvent(new CustomEvent(BILLING_TAB_EVENT, { detail: tab }));
+      } else if (subscribedToCredits) {
+        openCredits();
       } else {
-        router.push("/billing#credits");
+        openMonthlyCredits();
       }
     };
-    window.addEventListener(BUY_CREDITS_EVENT, openPacks);
-    return () => window.removeEventListener(BUY_CREDITS_EVENT, openPacks);
-  }, [pathname, router]);
+    window.addEventListener(BUY_CREDITS_EVENT, buyCredits);
+    return () => window.removeEventListener(BUY_CREDITS_EVENT, buyCredits);
+  }, [pathname, openCredits, openMonthlyCredits, subscribedToCredits]);
 
   // "Update card" in a toast: the past-due banner on Billing has the button.
   useEffect(() => {
@@ -58,9 +82,11 @@ export function PricingProvider({ children }: { children: ReactNode }) {
   }, [pathname, router]);
 
   return (
-    <PricingContext.Provider value={{ openPricing, closePricing, isOpen }}>
+    <PricingContext.Provider
+      value={{ openPricing, openCredits, openMonthlyCredits, closePricing, isOpen }}
+    >
       {children}
-      <PricingDialog open={isOpen} onOpenChange={setIsOpen} />
+      <PricingDialog open={isOpen} onOpenChange={setIsOpen} tab={tab} onTabChange={setTab} />
     </PricingContext.Provider>
   );
 }

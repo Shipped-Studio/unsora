@@ -22,7 +22,7 @@ export function AuthShowcase() {
     <div className="relative flex w-full flex-col justify-between gap-12 overflow-hidden rounded-2xl bg-stage px-10 py-10 text-stage-foreground ring-1 ring-stage-border xl:px-14 xl:py-12">
       <div className="relative max-w-md space-y-4">
         <span className="inline-flex items-center gap-2 rounded-full border border-stage-border px-3 py-1 text-xs text-stage-muted">
-          <span className="size-1.5 rounded-full bg-brand" />
+          <span className="size-1.5 rounded-full bg-stage-foreground" />
           Social scheduler and AI studio
         </span>
         <h2 className="font-display text-3xl leading-[1.08] font-bold tracking-[-0.04em] xl:text-4xl">
@@ -43,7 +43,7 @@ export function AuthShowcase() {
           {/* The post being scheduled. */}
           <div className="rounded-2xl border border-stage-border bg-stage-card p-4 shadow-xl">
             <div className="flex gap-4">
-              <div className="relative flex aspect-4/5 w-28 shrink-0 items-center justify-center rounded-xl bg-brand/20">
+              <div className="relative flex aspect-4/5 w-28 shrink-0 items-center justify-center rounded-xl bg-stage-foreground/10">
                 <span className="flex size-8 items-center justify-center rounded-full bg-stage text-stage-foreground">
                   <Play className="size-3.5" weight="fill" />
                 </span>
@@ -61,7 +61,7 @@ export function AuthShowcase() {
                       <PlatformIcon provider={p.provider} className="size-4" />
                       <span className="flex-1">{p.name}</span>
                       <span className="text-stage-muted tabular-nums">{p.when}</span>
-                      <Check className="size-3.5 text-brand" weight="bold" />
+                      <Check className="size-3.5 text-stage-foreground" weight="bold" />
                     </li>
                   ))}
                 </ul>
@@ -72,7 +72,7 @@ export function AuthShowcase() {
           {/* The agent, floating over the corner of the card. */}
           <div className="absolute -right-4 -bottom-20 w-64 rounded-2xl border border-stage-border bg-stage-card p-3.5 shadow-xl xl:-right-12">
             <div className="flex items-center gap-2 text-xs text-stage-muted">
-              <span className="flex size-5 items-center justify-center rounded-full bg-brand text-brand-foreground">
+              <span className="flex size-5 items-center justify-center rounded-full bg-stage-foreground text-stage">
                 <Sparkle className="size-3" weight="fill" />
               </span>
               Claude, via Unsora
