@@ -14,7 +14,7 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="onboarding-theme grid min-h-svh bg-background lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+    <div className="grid min-h-svh bg-background lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
       <div className="flex flex-col px-6 py-6 sm:px-10">
         <Link href="https://tryunsora.com" className="inline-flex w-fit rounded-md">
           <UnsoraLogo variant="full" priority className="h-7" />

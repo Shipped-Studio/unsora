@@ -19,7 +19,7 @@ export const metadata: Metadata = {
  */
 export default function OAuthConsentPage() {
   return (
-    <div className="onboarding-theme flex min-h-svh flex-col bg-background">
+    <div className="flex min-h-svh flex-col bg-background">
       <Suspense
         fallback={
           <div className="flex flex-1 items-center justify-center">
