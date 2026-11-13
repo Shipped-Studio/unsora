@@ -53,7 +53,7 @@ export function CreditBalanceCard({
             <div
               className="flex h-2 overflow-hidden rounded-full bg-foreground/10"
               role="img"
-              aria-label={`${monthlyLeft.toLocaleString()} monthly credits${planLeft > 0 ? `, ${planLeft.toLocaleString()} plan credits` : ""} and ${permanent.toLocaleString()} top-up credits`}
+              aria-label={`${monthlyLeft.toLocaleString()} AI Studio credits${planLeft > 0 ? `, ${planLeft.toLocaleString()} plan credits` : ""} and ${permanent.toLocaleString()} top-up credits`}
             >
               {monthlyLeft > 0 ? (
                 <div className="h-full bg-foreground" style={{ width: `${share(monthlyLeft)}%` }} />
@@ -66,7 +66,7 @@ export function CreditBalanceCard({
             <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
               <Legend
                 swatch="bg-foreground"
-                label="Monthly"
+                label="AI Studio"
                 value={monthlyLeft}
                 note={
                   monthlyLeft > 0
@@ -75,7 +75,7 @@ export function CreditBalanceCard({
                       : "used first"
                     : subscribedToCredits
                       ? "used up this month"
-                      : "no monthly plan"
+                      : "no AI Studio plan"
                 }
               />
               {planLeft > 0 ? (
@@ -97,7 +97,7 @@ export function CreditBalanceCard({
 
         <div className="flex shrink-0 gap-2">
           {subscribedToCredits ? null : (
-            <Button onClick={onGetMonthly}>Get monthly credits</Button>
+            <Button onClick={onGetMonthly}>Get AI Studio</Button>
           )}
           <Button variant="outline" onClick={onTopUp}>
             Top up

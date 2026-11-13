@@ -41,7 +41,7 @@ export function creditsPurchasedEmail(input: CreditsPurchasedInput): RenderedEma
     preheader: `${credits} credits were added to your account.`,
     content: [
       heading(`${credits} credits added`),
-      paragraph("Thanks for your purchase. Top-up credits never expire and are used after your plan's monthly credits."),
+      paragraph("Thanks for your purchase. Top-up credits never expire and are used after your AI Studio credits."),
       detailsTable(rows),
       button("Create something", url),
     ].join("\n"),
@@ -50,7 +50,7 @@ export function creditsPurchasedEmail(input: CreditsPurchasedInput): RenderedEma
 
   const text = [
     `${credits} credits were added to your Unsora account.`,
-    "Top-up credits never expire and are used after your plan's monthly credits.",
+    "Top-up credits never expire and are used after your AI Studio credits.",
     "",
     detailsText(rows),
   ].join("\n");

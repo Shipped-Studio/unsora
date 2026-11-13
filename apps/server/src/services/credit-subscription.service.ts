@@ -345,7 +345,7 @@ export async function handleCreditInvoiceFailed(opts: {
     void onPaymentFailed({
       email: user.email,
       invoiceId: invoice.id ?? sub.id,
-      planName: plan?.name ?? "Monthly credits",
+      planName: plan?.name ?? "AI Studio",
       amountCents: invoice.amount_due,
       currency: invoice.currency,
       product: "credits",

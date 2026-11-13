@@ -36,7 +36,7 @@ export function useCreditPlans(enabled = true) {
       const res = await authFetch("/api/stripe/credit-plans");
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success) {
-        throw new Error(data?.error || "Couldn't load monthly credit plans.");
+        throw new Error(data?.error || "Couldn't load AI Studio plans.");
       }
       return data.data as CreditPlan[];
     },

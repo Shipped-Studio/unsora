@@ -97,7 +97,7 @@ export default function AdminPricingPage() {
           </Section>
 
           <Section
-            title="Monthly credits plans"
+            title="AI Studio plans"
             note="A second subscription, with or without a scheduler plan. No trial. Credits reset each period and don't roll over. Without a Stripe price, one is created on the first checkout."
             onAdd={() => setDialog({ plan: null, type: "CREDIT_SUBSCRIPTION" })}
             addLabel="Add plan"

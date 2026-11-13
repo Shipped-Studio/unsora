@@ -43,7 +43,7 @@ export function useCreditPlanChoice(returnPath?: string, enabled = true) {
 
   const description = subscribed
     ? "Switching starts the new plan today. Credits you haven't used this month move to it."
-    : "Credits every month for clipping and AI. Unused monthly credits don't roll over; top-ups never expire.";
+    : "Credits every month for clipping and AI. Unused AI Studio credits don't roll over; top-ups never expire.";
 
   return {
     plans,
@@ -70,11 +70,11 @@ export function CreditPlanGrid({ choice }: { choice: CreditPlanChoice }) {
   if (loading) return <CardGridSkeleton />;
   if (error) {
     return (
-      <ErrorState title="Couldn't load monthly credit plans" description={error} onRetry={() => void refetch()} />
+      <ErrorState title="Couldn't load AI Studio plans" description={error} onRetry={() => void refetch()} />
     );
   }
   if (!plans?.length) {
-    return <EmptyState title="No monthly credit plans right now" description="Check back in a few minutes." />;
+    return <EmptyState title="No AI Studio plans right now" description="Check back in a few minutes." />;
   }
 
   return (

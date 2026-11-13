@@ -411,8 +411,8 @@ function creditReasonLabel(type: string, reason: string): string {
 
   const monthly = reason.startsWith("monthly-credits:");
   if (type === "REFUND") return `Refund: ${base}`;
-  if (type === "EXPIRY") return monthly ? "Monthly credits reset" : "Expired credits";
-  if (type === "GRANT" && monthly) return "Monthly credits";
+  if (type === "EXPIRY") return monthly ? "AI Studio credits reset" : "Expired credits";
+  if (type === "GRANT" && monthly) return "AI Studio credits";
   if (type === "GRANT" && reason.startsWith("topup:")) return "Credit pack";
   if (type === "GRANT" && !CREDIT_REASON_LABELS[reason]) return "Credits added";
   return base;

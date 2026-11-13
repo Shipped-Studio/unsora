@@ -43,7 +43,7 @@ function productName(plan: Pick<PlanStripeState, "type" | "name">) {
   // Scheduler product names land in User.plan via the webhook, so they must
   // stay the plain plan name. The others get a clearer checkout label.
   if (plan.type === "TOPUP") return `${plan.name} credit pack`;
-  if (plan.type === "CREDIT_SUBSCRIPTION") return `${plan.name} monthly credits`;
+  if (plan.type === "CREDIT_SUBSCRIPTION") return `AI Studio ${plan.name}`;
   return plan.name;
 }
 
