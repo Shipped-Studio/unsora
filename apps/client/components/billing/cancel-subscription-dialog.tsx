@@ -97,7 +97,7 @@ export function CancelSubscriptionDialog({
               <DialogDescription>
                 You&apos;ll finish cancelling in the Stripe billing portal.{" "}
                 {consequence ??
-                  `You can keep posting until ${until}, then posting stops. Top-ups and monthly credits stay.`}
+                  `You can keep posting until ${until}, then posting stops. Top-ups and AI Studio credits stay.`}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>

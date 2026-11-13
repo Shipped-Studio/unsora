@@ -44,7 +44,7 @@ import {
 
 export const PLAN_TYPE_LABEL: Record<PlanType, string> = {
   SUBSCRIPTION: "Scheduler plan",
-  CREDIT_SUBSCRIPTION: "Monthly credits plan",
+  CREDIT_SUBSCRIPTION: "AI Studio plan",
   TOPUP: "Credit pack",
   PROMO: "Promo grant",
 };
@@ -194,7 +194,7 @@ export function PlanDialog({
               : form.type === "SUBSCRIPTION"
                 ? "A scheduler plan: posting to social accounts. Any credits it includes are granted every billing period and expire at the end of it."
                 : form.type === "CREDIT_SUBSCRIPTION"
-                  ? "A Monthly credits plan, held apart from the scheduler plan. No trial. Its credits are granted on each paid invoice and expire at the end of that period."
+                  ? "An AI Studio plan, held apart from the scheduler plan. No trial. Its credits are granted on each paid invoice and expire at the end of that period."
                 : form.type === "TOPUP"
                   ? "A one-time credit pack subscribers can buy. Its credits never expire."
                   : "Credits granted outside checkout."}

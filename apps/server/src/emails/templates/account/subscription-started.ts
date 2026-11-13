@@ -93,13 +93,13 @@ export function subscriptionStartedEmail(input: SubscriptionStartedInput): Rende
 
 /** A Monthly credits subscription started, or moved to another tier. */
 function monthlyCreditsStartedEmail(input: SubscriptionStartedInput): RenderedEmail {
-  const plan = `${input.planName} monthly credits`;
+  const plan = `AI Studio ${input.planName}`;
   const credits = fmtNumber(input.credits);
   const url = appUrl("/");
-  const title = input.kind === "upgraded" ? `You're now on ${plan}` : `Your ${plan} are ready`;
+  const title = input.kind === "upgraded" ? `You're now on ${plan}` : `Your ${plan} credits are ready`;
   const resets = input.periodEnd ? ` on ${fmtDate(input.periodEnd)}` : " at the end of each month";
   const lead = `${strong(credits)} credits are in your account for clipping and creating.`;
-  const rule = `Monthly credits reset${resets} and don't roll over. Credits you buy as top-ups never expire, and are only used once your monthly credits run out.`;
+  const rule = `AI Studio credits reset${resets} and don't roll over. Credits you buy as top-ups never expire, and are only used once your AI Studio credits run out.`;
 
   const html = layout({
     preheader: `${title}. ${credits} credits are ready to use.`,

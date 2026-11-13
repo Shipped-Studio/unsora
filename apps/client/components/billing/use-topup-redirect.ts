@@ -38,7 +38,7 @@ export function useTopupRedirect(refresh: () => void) {
       const purchased = Number(searchParams.get("credits") || 0);
       const message =
         creditsPlan === "success"
-          ? "Monthly credits are on. Your credits will show in a moment."
+          ? "AI Studio is on. Your credits will show in a moment."
           : upgrade === "success"
           ? "Plan updated. Your remaining credits carried over."
           : purchased > 0

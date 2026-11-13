@@ -74,7 +74,7 @@ export function PlanStep({
           }
           items={[
             { value: "scheduler", label: "Scheduler · free trial" },
-            { value: "monthly", label: "Monthly credits" },
+            { value: "monthly", label: "AI Studio" },
           ]}
           className="mb-8 items-center"
         />
@@ -116,7 +116,7 @@ export function CreditsAskStep({ ctx, finishing }: { ctx: SetupContext; finishin
           <div className="min-w-0 flex-1">
             <p className="font-medium">Clipping and AI creation</p>
             <p className="text-sm text-muted-foreground">
-              Monthly credits{lowest !== null ? `, from ${formatUsd(lowest)}/month` : ""}.
+              AI Studio{lowest !== null ? `, from ${formatUsd(lowest)}/month` : ""}.
             </p>
           </div>
         </li>
@@ -157,7 +157,7 @@ export function CreditPlansStep({
     return (
       <section className="mx-auto flex w-full flex-1 flex-col max-w-xl">
         <StepHeader
-          title="Monthly credits are on"
+          title="AI Studio is on"
           lead={
             withScheduler
               ? "You're ready to clip, create and post. New credits arrive every month."
@@ -187,7 +187,7 @@ export function CreditPlansStep({
   return (
     <section className="mx-auto flex w-full flex-1 flex-col max-w-6xl">
       <StepHeader
-        title={withScheduler ? "Add monthly credits" : "Get monthly credits"}
+        title={withScheduler ? "Add AI Studio" : "Get AI Studio"}
         lead={
           withScheduler
             ? "Credits every month for clipping and AI, separate from your scheduler plan."

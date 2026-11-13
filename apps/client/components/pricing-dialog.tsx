@@ -45,7 +45,7 @@ export function PricingDialog({ open, onOpenChange, tab, onTabChange }: PricingD
       description: choice.description,
     },
     monthly: {
-      title: creditChoice.subscribed ? "Change monthly credits" : "Monthly credits",
+      title: creditChoice.subscribed ? "Change AI Studio plan" : "AI Studio",
       description: creditChoice.description,
     },
     credits: { title: "One-time packs", description: PACKS_DESCRIPTION },
@@ -65,7 +65,7 @@ export function PricingDialog({ open, onOpenChange, tab, onTabChange }: PricingD
             onValueChange={onTabChange}
             items={[
               { value: "plans", label: "Scheduler" },
-              { value: "monthly", label: "Monthly credits" },
+              { value: "monthly", label: "AI Studio" },
               { value: "credits", label: "One-time packs" },
             ]}
           />

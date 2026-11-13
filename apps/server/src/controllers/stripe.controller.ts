@@ -1810,7 +1810,7 @@ export class StripeController {
         if (live.status === "past_due") {
           return res.status(400).json({
             success: false,
-            error: "Your last monthly credits payment didn't go through. Update your card in Billing first.",
+            error: "Your last AI Studio payment didn't go through. Update your card in Billing first.",
             code: "PAYMENT_FAILED",
           });
         }
@@ -1854,8 +1854,8 @@ export class StripeController {
         custom_text: {
           submit: {
             message: switchFrom
-              ? "Your current monthly credits plan ends now. Credits you haven't used this month move to the new plan."
-              : `${plan.credits.toLocaleString()} credits are added now and every month you're subscribed. Monthly credits don't roll over.`,
+              ? "Your current AI Studio plan ends now. Credits you haven't used this month move to the new plan."
+              : `${plan.credits.toLocaleString()} credits are added now and every month you're subscribed. AI Studio credits don't roll over.`,
           },
         },
       };

@@ -119,7 +119,7 @@ export async function onSubscriptionStarted(event: SubscriptionStartedEvent): Pr
           userId: event.userId,
           email: event.email,
           planName:
-            event.product === "credits" ? `${event.planName} monthly credits` : event.planName,
+            event.product === "credits" ? `AI Studio ${event.planName}` : event.planName,
           kind: event.kind,
           amountPaidCents: event.amountPaidCents,
           currency: event.currency,
