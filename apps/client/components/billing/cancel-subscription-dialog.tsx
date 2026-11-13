@@ -23,6 +23,8 @@ interface CancelSubscriptionDialogProps {
   endsOn: string | null;
   /** True while the billing portal URL is being fetched. */
   isCancelling: boolean;
+  /** What happens once it ends; defaults to the scheduler plan's. */
+  consequence?: string;
   onConfirm: (reason: CancelReason) => void;
 }
 
@@ -36,8 +38,10 @@ export function CancelSubscriptionDialog({
   planName,
   endsOn,
   isCancelling,
+  consequence,
   onConfirm,
 }: CancelSubscriptionDialogProps) {
+  const until = endsOn ?? "the end of the billing period";
   const [step, setStep] = useState<"reason" | "confirm">("reason");
   const [reason, setReason] = useState<CancelReason | null>(null);
 
@@ -91,10 +95,9 @@ export function CancelSubscriptionDialog({
             <DialogHeader>
               <DialogTitle>Cancel your {planName} plan?</DialogTitle>
               <DialogDescription>
-                You&apos;ll finish cancelling in the Stripe billing portal. You
-                keep access and your credits until{" "}
-                {endsOn ?? "the end of the billing period"}, then your account
-                moves to Free.
+                You&apos;ll finish cancelling in the Stripe billing portal.{" "}
+                {consequence ??
+                  `You can keep posting until ${until}, then posting stops. Top-ups and monthly credits stay.`}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>

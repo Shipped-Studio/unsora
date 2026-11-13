@@ -26,6 +26,15 @@ interface UserUsage {
     stripeCurrentPeriodEnd: string | null;
   };
   credits: number;
+  /** The Monthly credits subscription, or null when the user has none. */
+  creditSubscription?: CreditSubscriptionState | null;
+  /**
+   * How much of `credits` is monthly credits, and when they reset. The rest
+   * (top-ups and other grants) doesn't expire.
+   */
+  monthlyCredits?: { remaining: number; expiresAt: string | null };
+  /** Credits that came with the scheduler plan (older plans): they end with it. */
+  planCredits?: { remaining: number; expiresAt: string | null };
   preferences?: {
     /** IANA zone the user picked; null until they set one. */
     timezone: string | null;
@@ -36,7 +45,28 @@ interface UserUsage {
   counts?: { socialAccounts: number };
 }
 
-export type { UserUsage };
+interface CreditSubscriptionState {
+  planKey: string;
+  planName: string;
+  /** Credits the plan adds each period. */
+  credits: number;
+  priceUsd: number | null;
+  interval: "MONTH" | "YEAR";
+  /** Stripe status: active, past_due, canceled, ... */
+  status: string;
+  /** active or past_due. */
+  isActive: boolean;
+  /** Won't renew (or already ended). */
+  isCancelled: boolean;
+  currentPeriodEnd: string | null;
+}
+
+/** A live Monthly credits subscription (past due included). */
+export function hasCreditPlan(usage: Pick<UserUsage, "creditSubscription"> | null | undefined) {
+  return usage?.creditSubscription?.isActive === true;
+}
+
+export type { UserUsage, CreditSubscriptionState };
 
 export const userUsageQueryKeys = {
   all: ["user-usage"] as const,

@@ -4,7 +4,7 @@ import { planMeta, type PlanMeta } from "./plans";
 import { logger } from "./logger";
 
 /**
- * Keeps sellable plans (SUBSCRIPTION, TOPUP) backed by a Stripe product and
+ * Keeps sellable plans (SUBSCRIPTION, CREDIT_SUBSCRIPTION, TOPUP) backed by a Stripe product and
  * price, so an admin can create or reprice a plan without opening Stripe.
  *
  * Stripe prices can't change amount, so a new amount (or currency, or
@@ -31,14 +31,20 @@ export function stripeMode(): "live" | "test" {
   return process.env.STRIPE_SECRET_KEY?.startsWith("sk_live") ? "live" : "test";
 }
 
-function sellable(plan: PlanStripeState) {
-  return (plan.type === "SUBSCRIPTION" || plan.type === "TOPUP") && plan.priceCents > 0;
+function recurring(type: PlanType) {
+  return type === "SUBSCRIPTION" || type === "CREDIT_SUBSCRIPTION";
 }
 
-function productName(plan: PlanStripeState) {
-  // Subscription product names land in User.plan via the webhook, so they
-  // must stay the plain plan name. Packs get a clearer checkout label.
-  return plan.type === "TOPUP" ? `${plan.name} credit pack` : plan.name;
+function sellable(plan: PlanStripeState) {
+  return (recurring(plan.type) || plan.type === "TOPUP") && plan.priceCents > 0;
+}
+
+function productName(plan: Pick<PlanStripeState, "type" | "name">) {
+  // Scheduler product names land in User.plan via the webhook, so they must
+  // stay the plain plan name. The others get a clearer checkout label.
+  if (plan.type === "TOPUP") return `${plan.name} credit pack`;
+  if (plan.type === "CREDIT_SUBSCRIPTION") return `${plan.name} monthly credits`;
+  return plan.name;
 }
 
 /**
@@ -101,7 +107,7 @@ export async function syncPlanToStripe(
       product: stripeProductId,
       unit_amount: next.priceCents,
       currency: next.currency,
-      ...(next.type === "SUBSCRIPTION" && next.interval
+      ...(recurring(next.type) && next.interval
         ? { recurring: { interval: next.interval === "YEAR" ? "year" : "month" } }
         : {}),
       metadata: { planKey: next.key },

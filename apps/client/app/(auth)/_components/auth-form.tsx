@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth, useSignIn, useSignUp } from "@clerk/nextjs";
 import { ArrowLeft, Info } from "@phosphor-icons/react";
@@ -139,6 +139,15 @@ export function AuthForm() {
     event.preventDefault();
     router.replace(`/sign-in?redirect_url=${encodeURIComponent(resume)}`);
   };
+  // Sign in / Sign up tabs. Both pages run the same email-first form (a new
+  // email signs up, a known one signs in), so either tab works; the tab sets
+  // the page and the heading, and keeps the URL's params (redirect_url, plan).
+  const pathname = usePathname();
+  const onSignUpPage = pathname.startsWith("/sign-up");
+  const withParams = (path: string) => {
+    const query = searchParams.toString();
+    return query ? `${path}?${query}` : path;
+  };
   const authSwitch = connector ? (
     <AuthSwitch
       current={joining ? "sign-up" : "sign-in"}
@@ -146,7 +155,13 @@ export function AuthForm() {
       signUpHref={`/sign-up?${CONNECT_PARAM}=${connector.key}`}
       onSignIn={joining ? resumeSignIn : undefined}
     />
-  ) : null;
+  ) : (
+    <AuthSwitch
+      current={onSignUpPage ? "sign-up" : "sign-in"}
+      signInHref={withParams("/sign-in")}
+      signUpHref={withParams("/sign-up")}
+    />
+  );
   const { isSignedIn, isLoaded: authLoaded } = useAuth();
 
   // Already signed in (another tab, or the back button): carry on to where
@@ -569,11 +584,19 @@ export function AuthForm() {
         </>
       ) : (
         <AuthHeader
-          title={connecting ? "Sign in to Unsora" : "Get started with Unsora"}
+          title={
+            connecting
+              ? "Sign in to Unsora"
+              : onSignUpPage
+                ? "Create your Unsora account"
+                : "Welcome back"
+          }
           description={
             connecting
               ? `Sign in to connect ${connecting.name}.`
-              : "Sign in or create a free account. Just enter your email."
+              : onSignUpPage
+                ? "Free to start. Continue with Google or your email."
+                : "Sign in with Google or your email."
           }
         />
       )}

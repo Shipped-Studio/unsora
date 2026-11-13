@@ -63,6 +63,15 @@ router.get(
   stripeController.getTrialEligibility,
 );
 
+// Monthly credits subscription tiers, and checkout for one (or a switch
+// between them). Independent of the scheduler plan above.
+router.get("/credit-plans", requireAuth, stripeController.getCreditPlans);
+router.post(
+  "/create-credits-subscription-session",
+  requireAuth,
+  stripeController.createCreditSubscriptionSession,
+);
+
 // Top-up credit packs (one-time purchases). The list endpoint is auth-only
 // because it's used from the in-app billing UI; if you want to surface pack
 // pricing on a public marketing page, drop `requireAuth` from this one.

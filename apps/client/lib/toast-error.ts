@@ -10,6 +10,11 @@ export function openPricingDialog() {
 
 /** Fired to take the user to the credit packs on the billing page. */
 export const BUY_CREDITS_EVENT = "unsora:buy-credits";
+/**
+ * Asks an open Billing page to show one of its tabs (`detail`: "plans",
+ * "monthly" or "credits") and scroll to it.
+ */
+export const BILLING_TAB_EVENT = "unsora:billing-tab";
 
 export function openCreditPacks() {
   window.dispatchEvent(new Event(BUY_CREDITS_EVENT));
