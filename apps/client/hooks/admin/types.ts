@@ -48,6 +48,20 @@ export interface OverviewData {
     tasks: DayPoint[];
     credits: DayPoint[];
   };
+  /** Post counts across all users. Numbers only: no post or owner. */
+  posts: {
+    /** Published (fully or to some accounts), all time. */
+    published: number;
+    publishedInRange: number;
+    /** Waiting for a time still to come. */
+    scheduled: number;
+    scheduledNext7d: number;
+    /** Being published now, or due and about to be picked up. */
+    publishing: number;
+    failed: number;
+    failedInRange: number;
+    publishedSeries: DayPoint[];
+  };
   /** Range sign-ups by onboarding answer; null when Clerk couldn't be reached. */
   sources: SourceCount[] | null;
   /** Range sign-ups by sign-in country; null when Clerk couldn't be reached. */
