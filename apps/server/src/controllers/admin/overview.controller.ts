@@ -26,7 +26,9 @@ const NO_COUNTRY = "Unknown";
  * The landing view of the admin dashboard: headline KPIs, task-status and
  * per-feature breakdowns, connected-account providers, and daily time series
  * for new users / tasks / credit consumption, and where the range's
- * sign-ups heard about Unsora and which countries they're in.
+ * sign-ups heard about Unsora and which countries they're in. Also post
+ * counts by state; only numbers, never which posts or whose (they're
+ * customers' content).
  */
 export class AdminOverviewController {
   async get(req: Request, res: Response) {
@@ -52,6 +54,7 @@ export class AdminOverviewController {
         taskSeries,
         creditSeries,
         signupBreakdown,
+        posts,
       ] = await Promise.all([
         prisma.user.count(),
         prisma.user.count({ where: { isActive: true } }),
@@ -87,6 +90,7 @@ export class AdminOverviewController {
           logger.error("[admin] overview sign-up breakdown error:", error);
           return null;
         }),
+        this.postStats(since, days),
       ]);
 
       const tasks24hRow = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
@@ -141,6 +145,7 @@ export class AdminOverviewController {
             tasks: taskSeries,
             credits: creditSeries,
           },
+          posts,
           sources: signupBreakdown?.sources ?? null,
           countries: signupBreakdown?.countries ?? null,
         },
@@ -205,6 +210,46 @@ export class AdminOverviewController {
        GROUP BY d ORDER BY d`,
     );
     return rows.map((r) => ({ date: r.date, count: num(r.count) }));
+  }
+
+  /**
+   * Post counts by state, across all users. Counts only: nothing that says
+   * which post or whose. A scheduled post whose time has passed is being
+   * picked up, so it counts as publishing.
+   */
+  private async postStats(since: Date, days: number) {
+    const [row] = await prisma.$queryRawUnsafe<Record<string, bigint>[]>(
+      `SELECT
+         COUNT(*) FILTER (WHERE status IN ('PUBLISHED', 'PARTIALLY_PUBLISHED')) AS published,
+         COUNT(*) FILTER (WHERE status IN ('PUBLISHED', 'PARTIALLY_PUBLISHED') AND "publishedAt" >= $1) AS "publishedInRange",
+         COUNT(*) FILTER (WHERE status = 'SCHEDULED' AND "scheduledFor" >= now()) AS scheduled,
+         COUNT(*) FILTER (WHERE status = 'SCHEDULED' AND "scheduledFor" >= now() AND "scheduledFor" < now() + interval '7 days') AS "scheduledNext7d",
+         COUNT(*) FILTER (WHERE status = 'PUBLISHING' OR (status = 'SCHEDULED' AND ("scheduledFor" < now() OR "scheduledFor" IS NULL))) AS publishing,
+         COUNT(*) FILTER (WHERE status = 'FAILED') AS failed,
+         COUNT(*) FILTER (WHERE status = 'FAILED' AND "updatedAt" >= $1) AS "failedInRange"
+       FROM posts`,
+      since,
+    );
+    const series = await prisma.$queryRawUnsafe<{ date: string; count: bigint }[]>(
+      `SELECT to_char(d, 'YYYY-MM-DD') AS date, COUNT(p.id)::int AS count
+       FROM generate_series(
+         (CURRENT_DATE - ${days - 1})::timestamp, CURRENT_DATE::timestamp, '1 day'
+       ) d
+       LEFT JOIN posts p
+         ON date_trunc('day', p."publishedAt") = d
+        AND p.status IN ('PUBLISHED', 'PARTIALLY_PUBLISHED')
+       GROUP BY d ORDER BY d`,
+    );
+    return {
+      published: num(row?.published),
+      publishedInRange: num(row?.publishedInRange),
+      scheduled: num(row?.scheduled),
+      scheduledNext7d: num(row?.scheduledNext7d),
+      publishing: num(row?.publishing),
+      failed: num(row?.failed),
+      failedInRange: num(row?.failedInRange),
+      publishedSeries: series.map((r) => ({ date: r.date, count: num(r.count) })),
+    };
   }
 
   /** Daily task counts across the unified feed. */
