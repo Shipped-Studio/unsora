@@ -1,6 +1,63 @@
+<p align="center">
+  <a href="https://tryunsora.com">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset=".github/assets/banner-dark.png">
+      <img alt="Unsora: create, clip and schedule from your AI agent" src=".github/assets/banner-light.png" width="100%">
+    </picture>
+  </a>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-0a0a0a?style=flat-square"></a>
+  <a href="https://modelcontextprotocol.io"><img alt="MCP server" src="https://img.shields.io/badge/MCP-server-0a0a0a?style=flat-square"></a>
+  <a href="https://github.com/Shipped-Studio/unsora/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/Shipped-Studio/unsora?style=flat-square&color=0a0a0a"></a>
+  <a href="https://github.com/Shipped-Studio/unsora/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Shipped-Studio/unsora/ci.yml?branch=main&style=flat-square&label=CI"></a>
+</p>
+
+<p align="center">
+  <a href="https://tryunsora.com"><b>Website</b></a> ·
+  <a href="https://docs.tryunsora.com"><b>Docs</b></a> ·
+  <a href="#connect-your-agent"><b>Connect your agent</b></a>
+</p>
+
 # Unsora
 
 AI content generation and social scheduling. Generate images, video, voiceovers, music and clips, then schedule and publish them to connected social accounts, from the web app, the public API, or any MCP client.
+
+<table>
+  <tr>
+    <td width="25%" valign="top">
+      <img src=".github/assets/icon-create.svg" width="44" alt=""><br>
+      <b>Create</b><br>
+      Images, video, voiceovers and music from leading AI models.
+    </td>
+    <td width="25%" valign="top">
+      <img src=".github/assets/icon-clip.svg" width="44" alt=""><br>
+      <b>Clip</b><br>
+      Turn long videos into captioned shorts, ready to post.
+    </td>
+    <td width="25%" valign="top">
+      <img src=".github/assets/icon-schedule.svg" width="44" alt=""><br>
+      <b>Schedule</b><br>
+      Plan and publish to Instagram, TikTok, YouTube, LinkedIn, X, Facebook, Threads, Pinterest, Bluesky and Google Business Profile.
+    </td>
+    <td width="25%" valign="top">
+      <img src=".github/assets/icon-connect.svg" width="44" alt=""><br>
+      <b>Connect</b><br>
+      Do it all from ChatGPT, Claude, Cursor or any MCP client, or through the REST API.
+    </td>
+  </tr>
+</table>
+
+## Connect your agent
+
+Add Unsora as a remote MCP server and sign in when your client asks:
+
+```
+https://mcp.tryunsora.com/mcp
+```
+
+Setup guides for each client are in the [docs](https://docs.tryunsora.com).
 
 ## Repository layout
 
