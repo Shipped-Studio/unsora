@@ -88,6 +88,35 @@ export default function AdminOverviewPage() {
             />
           </div>
 
+          <PageSection
+            title="Posts"
+            description="Across all customers. Counts only, never which posts or whose."
+          >
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <StatTile
+                label="Published"
+                value={data.posts.published.toLocaleString()}
+                hint={`${data.posts.publishedInRange.toLocaleString()} in the last ${days} days`}
+                spark={data.posts.publishedSeries.map((d) => d.count)}
+              />
+              <StatTile
+                label="Scheduled"
+                value={data.posts.scheduled.toLocaleString()}
+                hint={`${data.posts.scheduledNext7d.toLocaleString()} going out in the next 7 days`}
+              />
+              <StatTile
+                label="Publishing now"
+                value={data.posts.publishing.toLocaleString()}
+                hint="Due now or being sent"
+              />
+              <StatTile
+                label="Failed"
+                value={data.posts.failed.toLocaleString()}
+                hint={`${data.posts.failedInRange.toLocaleString()} in the last ${days} days`}
+              />
+            </div>
+          </PageSection>
+
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <ChartCard
               title="Tasks per day"
