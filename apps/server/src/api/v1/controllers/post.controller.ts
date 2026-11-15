@@ -69,7 +69,18 @@ export class PublicPostController {
         }
 
         const accountIds = payload.accounts.map((a) => a.accountId);
-        
+
+        // Each account can appear once; a repeat would fail the unique
+        // post-account constraint, and its overrides would be ambiguous.
+        if (new Set(accountIds).size !== accountIds.length) {
+          res.status(400).json({
+            success: false,
+            error: "Each account can only be listed once",
+            code: "DUPLICATE_ACCOUNTS",
+          });
+          return null;
+        }
+
         const ownsAccounts = await verifyUserAccounts(user.id, accountIds);
         
         if (!ownsAccounts) {
