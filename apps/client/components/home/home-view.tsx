@@ -209,11 +209,11 @@ function PostCard({ post, timeZone, onOpen }: { post: Post; timeZone: string; on
             <span className="text-sm font-semibold tabular-nums">{formatTime(postDate(post), timeZone)}</span>
             <PostStatusBadge status={post.status} />
           </span>
-          <span className="line-clamp-1 block text-sm text-muted-foreground">
+          <span className="line-clamp-1 text-sm text-muted-foreground">
             {post.mainCaption.trim() || "No caption"}
           </span>
           {failed && post.error ? (
-            <span className="line-clamp-1 block text-xs text-destructive" title={post.error}>
+            <span className="line-clamp-1 text-xs text-destructive" title={post.error}>
               {readableError(post.error)}
             </span>
           ) : null}

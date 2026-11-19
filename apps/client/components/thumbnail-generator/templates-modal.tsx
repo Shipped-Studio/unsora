@@ -118,7 +118,7 @@ export function TemplatesModal({
                           className="object-cover"
                         />
                       </span>
-                      <span className="mt-1.5 line-clamp-2 block text-xs font-medium">
+                      <span className="mt-1.5 line-clamp-2 text-xs font-medium">
                         {template.title}
                       </span>
                     </button>
