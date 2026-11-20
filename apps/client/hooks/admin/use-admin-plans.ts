@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthFetch } from "../use-auth-fetch";
 import { creditPacksQueryKeys } from "../use-credit-packs";
+import { promotionQueryKey, type Promotion } from "../use-promotion";
 import { subscriptionPlansQueryKeys } from "../use-subscription-plans";
 import { useIsAdmin } from "./use-admin-data";
 
@@ -138,5 +139,45 @@ export function useSaveGenerationPricing() {
         )
       ).data,
     onSuccess: (data) => qc.setQueryData(PRICING_KEY, data),
+  });
+}
+
+/** The featured promotion: the saved choice and what it resolves to in Stripe. */
+export interface AdminPromotion {
+  setting: { code: string; enabled: boolean; bannerText: string | null } | null;
+  /** Null when there's no code, it's switched off, or Stripe can't use it. */
+  promotion: Promotion | null;
+  /** Why Stripe can't use the saved code, in plain words. */
+  problem: string | null;
+}
+
+const PROMOTION_KEY = ["admin", "promotion"] as const;
+
+export function useAdminPromotion() {
+  const { authFetch } = useAuthFetch();
+  const { isAdmin } = useIsAdmin();
+  return useQuery({
+    queryKey: PROMOTION_KEY,
+    queryFn: async () => (await readJson<AdminPromotion>(await authFetch("/api/admin/promotion"))).data,
+    enabled: isAdmin,
+    staleTime: 15_000,
+  });
+}
+
+export function useSavePromotion() {
+  const { authFetch } = useAuthFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (value: { code: string; enabled: boolean; bannerText: string }) =>
+      (
+        await readJson<AdminPromotion>(
+          await authFetch("/api/admin/promotion", { method: "PUT", body: JSON.stringify(value) }),
+        )
+      ).data,
+    onSuccess: (data) => {
+      qc.setQueryData(PROMOTION_KEY, data);
+      // The banner and prices read the public endpoint.
+      void qc.invalidateQueries({ queryKey: promotionQueryKey });
+    },
   });
 }

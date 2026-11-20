@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { AdminPage } from "@/components/admin/admin-page";
 import { PlanDialog } from "@/components/admin/plan-dialog";
+import { PromotionForm } from "@/components/admin/promotion-form";
 import { formatUsd, intervalLabel } from "@/components/billing/format";
 import { ErrorState } from "@/components/shared/states";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import {
   useAdminPlans,
+  useAdminPromotion,
   useGenerationPricing,
   useSaveGenerationPricing,
   useSavePlan,
@@ -37,6 +39,7 @@ type DialogState = { plan: AdminPlan | null; type: PlanType } | null;
 export default function AdminPricingPage() {
   const plans = useAdminPlans();
   const pricing = useGenerationPricing();
+  const promotion = useAdminPromotion();
   const [dialog, setDialog] = useState<DialogState>(null);
 
   const all = plans.data?.plans ?? [];
@@ -86,6 +89,27 @@ export default function AdminPricingPage() {
               Plans saved here exist only in that environment&apos;s database and Stripe account.
             </p>
           )}
+
+          <Section
+            title="Featured promotion"
+            note="A Stripe promotion code shown in a banner across the app and the landing page, as crossed-out prices on the plans its coupon covers, and applied at checkout by itself."
+          >
+            {promotion.error && !promotion.data ? (
+              <ErrorState
+                title="Couldn't load the promotion"
+                description={promotion.error.message}
+                onRetry={() => void promotion.refetch()}
+              />
+            ) : !promotion.data ? (
+              <Skeleton className="h-40 rounded-xl" />
+            ) : (
+              <PromotionForm
+                key={JSON.stringify(promotion.data.setting)}
+                data={promotion.data}
+                plans={all}
+              />
+            )}
+          </Section>
 
           <Section
             title="Scheduler plans"
