@@ -1,34 +1,34 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { ArrowRight, CalendarCheck, Check, Scissors } from "@phosphor-icons/react";
-import { CreditPlanGrid, useCreditPlanChoice } from "@/components/billing/credit-plan-grid";
 import { formatUsd } from "@/components/billing/format";
+import { CardGridSkeleton, PackCard, cardGridClass, cardItemClass } from "@/components/billing/pricing-cards";
 import { Button } from "@/components/ui/button";
-import { PlanTabs } from "@/components/billing/plan-tabs";
 import { Spinner } from "@/components/ui/spinner";
-import { useCreditPlans } from "@/hooks/use-credit-plans";
-import { useUserUsage } from "@/hooks/use-user-usage";
+import { EmptyState, ErrorState } from "@/components/shared/states";
+import { useAuthFetch } from "@/hooks/use-auth-fetch";
+import { useCreditPacks, type CreditPack } from "@/hooks/use-credit-packs";
+import { userUsageQueryKeys, useUserUsage } from "@/hooks/use-user-usage";
 import { cn } from "@/lib/utils";
 import {
-  CREDITS_PLAN_PARAM,
-  MONTHLY_VIEW,
+  CREDITS_PARAM,
+  PACKS_VIEW,
+  TOPUP_PARAM,
   VIEW_PARAM,
-  hasPaidPlan,
   type SetupContext,
 } from "./setup";
 import { CARD, StepFooter, StepHeader } from "./setup-steps";
 
 /*
- * Monthly credits in onboarding, in two places:
- *
- *   - the plan step's second tab, for someone who doesn't post: one of the
- *     tiers is the way on (the other tab is the scheduler trial).
- *   - the credits step, after the free trial: the scheduler is unlocked but
- *     includes no credits, so first the question, then on a yes the tiers.
- *     Both can be skipped.
- *
- * Only Monthly credits here; one-time packs are sold in the app.
+ * The credits step, right after the free trial. A trial unlocks the scheduler
+ * but includes no credits, so clipping wouldn't work yet: first the question,
+ * then, on a yes, the one-time packs. Both can be skipped. No Back to the
+ * trial, which has already started. AI Studio (monthly credits) is sold in
+ * the app, not here.
  */
 
 /** What the scheduler came with: someone who's had a plan before gets no new trial. */
@@ -37,61 +37,15 @@ function usePlanWord() {
   return usage?.user.status === "active" ? "plan" : "free trial";
 }
 
-const monthlyHref = (ctx: SetupContext, step: "plan" | "credits" = "credits") =>
-  ctx.hrefFor(step, { [VIEW_PARAM]: MONTHLY_VIEW });
-
-/**
- * The plan step: the scheduler with its free trial, or Monthly credits on
- * their own. The tab is in the URL (`view=monthly`), so Stripe's return
- * lands on the one that was bought.
- */
-export function PlanStep({
-  ctx,
-  finishing,
-  scheduler,
-}: {
-  ctx: SetupContext;
-  finishing?: boolean;
-  /** The scheduler tab's content (setup-steps' TrialStep). */
-  scheduler: React.ReactNode;
-}) {
-  const searchParams = useSearchParams();
-  const monthly = searchParams.get(VIEW_PARAM) === MONTHLY_VIEW;
-  const bought = searchParams.get(CREDITS_PLAN_PARAM) === "success";
-
-  return (
-    <div className="flex w-full flex-1 flex-col">
-      {/* After buying, the success screen stands alone. */}
-      {bought ? null : (
-        <PlanTabs
-          value={monthly ? "monthly" : "scheduler"}
-          onValueChange={(value) =>
-            window.history.pushState(
-              null,
-              "",
-              value === "monthly" ? monthlyHref(ctx, "plan") : ctx.hrefFor("plan"),
-            )
-          }
-          items={[
-            { value: "scheduler", label: "Scheduler · free trial" },
-            { value: "monthly", label: "AI Studio" },
-          ]}
-          className="mb-8 items-center"
-        />
-      )}
-      {monthly ? <CreditPlansStep ctx={ctx} finishing={finishing} step="plan" /> : scheduler}
-    </div>
-  );
-}
-
 export function CreditsAskStep({ ctx, finishing }: { ctx: SetupContext; finishing?: boolean }) {
-  const { plans } = useCreditPlans();
+  const { packs } = useCreditPacks();
   const planWord = usePlanWord();
-  const lowest = plans?.length ? Math.min(...plans.map((plan) => plan.priceUsd)) : null;
-  const showPlans = () => window.history.pushState(null, "", monthlyHref(ctx));
+  const lowest = packs?.length ? Math.min(...packs.map((pack) => pack.priceUsd)) : null;
+  const showPacks = () =>
+    window.history.pushState(null, "", ctx.hrefFor("credits", { [VIEW_PARAM]: PACKS_VIEW }));
 
   return (
-    <section className="mx-auto flex w-full flex-1 flex-col max-w-xl">
+    <section className="mx-auto flex w-full max-w-xl flex-1 flex-col">
       <StepHeader
         eyebrow="Scheduler unlocked"
         title="Do you also need clipping and AI credits?"
@@ -116,7 +70,7 @@ export function CreditsAskStep({ ctx, finishing }: { ctx: SetupContext; finishin
           <div className="min-w-0 flex-1">
             <p className="font-medium">Clipping and AI creation</p>
             <p className="text-sm text-muted-foreground">
-              AI Studio{lowest !== null ? `, from ${formatUsd(lowest)}/month` : ""}.
+              Needs credits{lowest !== null ? `, from ${formatUsd(lowest)}` : ""}.
             </p>
           </div>
         </li>
@@ -127,7 +81,7 @@ export function CreditsAskStep({ ctx, finishing }: { ctx: SetupContext; finishin
           {finishing ? <Spinner data-icon="inline-start" /> : null}
           Skip for now
         </Button>
-        <Button size="lg" onClick={showPlans} disabled={finishing}>
+        <Button size="lg" onClick={showPacks} disabled={finishing}>
           Yes, add credits
           <ArrowRight data-icon="inline-end" />
         </Button>
@@ -136,33 +90,66 @@ export function CreditsAskStep({ ctx, finishing }: { ctx: SetupContext; finishin
   );
 }
 
-export function CreditPlansStep({
-  ctx,
-  finishing,
-  step = "credits",
-}: {
-  ctx: SetupContext;
-  finishing?: boolean;
-  /** `plan`: the plan step's tab; `credits`: the add-on after a trial. */
-  step?: "plan" | "credits";
-}) {
+export function CreditPacksStep({ ctx, finishing }: { ctx: SetupContext; finishing?: boolean }) {
   const searchParams = useSearchParams();
-  const { usage } = useUserUsage();
-  // Stripe comes back here, with `creditsPlan=success|cancel` added.
-  const choice = useCreditPlanChoice(monthlyHref(ctx, step));
-  const withScheduler = hasPaidPlan(usage);
-  const addOn = step === "credits";
+  const { authFetch } = useAuthFetch();
+  const queryClient = useQueryClient();
+  const { packs, loading, error, refetch } = useCreditPacks();
+  const planWord = usePlanWord();
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
+  // One id per pack on this screen, so trying again after an error or a lost
+  // response can't charge the card a second time.
+  const requestIds = useRef(new Map<string, string>());
 
-  if (searchParams.get(CREDITS_PLAN_PARAM) === "success") {
+  // In the URL so a reload keeps it, and a purchase that went through Stripe
+  // Checkout comes back to the same place.
+  const bought = searchParams.get(TOPUP_PARAM) === "success";
+  const boughtCredits = Number(searchParams.get(CREDITS_PARAM) || 0);
+  const packsHref = (extra: Record<string, string> = {}) =>
+    ctx.hrefFor("credits", { [VIEW_PARAM]: PACKS_VIEW, ...extra });
+
+  const buy = async (pack: CreditPack) => {
+    setPendingKey(pack.key);
+    const requestId = requestIds.current.get(pack.key) ?? crypto.randomUUID();
+    requestIds.current.set(pack.key, requestId);
+    try {
+      const res = await authFetch("/api/stripe/buy-credits", {
+        method: "POST",
+        body: JSON.stringify({
+          packKey: pack.key,
+          requestId,
+          returnPath: packsHref(),
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      // The card can't be charged here: Stripe takes it from there.
+      if (typeof data?.url === "string" && data.url) {
+        window.location.assign(data.url);
+        return;
+      }
+      if (!res.ok || !data?.success) {
+        toast.error("Couldn't buy credits", { description: data?.error || "Try again in a moment." });
+        setPendingKey(null);
+        return;
+      }
+      void queryClient.invalidateQueries({ queryKey: userUsageQueryKeys.all });
+      window.history.replaceState(
+        null,
+        "",
+        packsHref({ [TOPUP_PARAM]: "success", [CREDITS_PARAM]: String(data.credits) }),
+      );
+    } catch {
+      toast.error("Couldn't buy credits", { description: "Check your connection and try again." });
+      setPendingKey(null);
+    }
+  };
+
+  if (bought) {
     return (
-      <section className="mx-auto flex w-full flex-1 flex-col max-w-xl">
+      <section className="mx-auto flex w-full max-w-xl flex-1 flex-col">
         <StepHeader
-          title="AI Studio is on"
-          lead={
-            withScheduler
-              ? "You're ready to clip, create and post. New credits arrive every month."
-              : "You're ready to clip and create. New credits arrive every month, and you can add the scheduler any time from Billing."
-          }
+          title={boughtCredits > 0 ? `${boughtCredits.toLocaleString()} credits added` : "Credits added"}
+          lead="You're ready to clip and create. Credits never expire."
         />
         <div className="mt-10 flex justify-center">
           <span className="flex size-16 animate-in items-center justify-center rounded-full bg-brand text-brand-foreground duration-300 zoom-in-75 fade-in">
@@ -180,36 +167,54 @@ export function CreditPlansStep({
     );
   }
 
-  const busy = choice.pendingKey !== null;
-  // The add-on goes back to its question; the plan tab to the step before.
-  const back = addOn ? () => window.history.pushState(null, "", ctx.hrefFor("credits")) : ctx.back;
+  const busy = pendingKey !== null;
+  const back = () => window.history.pushState(null, "", ctx.hrefFor("credits"));
 
   return (
-    <section className="mx-auto flex w-full flex-1 flex-col max-w-6xl">
-      <StepHeader
-        title={withScheduler ? "Add AI Studio" : "Get AI Studio"}
-        lead={
-          withScheduler
-            ? "Credits every month for clipping and AI, separate from your scheduler plan."
-            : "Credits every month for clipping and AI. No scheduler needed."
-        }
-      />
+    <section className="mx-auto flex w-full max-w-6xl flex-1 flex-col">
+      <StepHeader title="Add clipping and AI credits" lead="One click to buy. Credits never expire." />
 
       <div className="mt-10">
-        <CreditPlanGrid choice={choice} />
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          Charged today, then monthly. Unused credits don&apos;t roll over. Cancel anytime from Billing.
-        </p>
+        {loading ? (
+          <CardGridSkeleton />
+        ) : error ? (
+          <ErrorState title="Couldn't load credit packs" description={error} onRetry={() => void refetch()} />
+        ) : !packs?.length ? (
+          <EmptyState title="No credit packs right now" description="You can add credits later from Billing." />
+        ) : (
+          <>
+            <ul className={cardGridClass(packs.length)}>
+              {packs.map((pack) => (
+                <li key={pack.key} className={cardItemClass(packs.length)}>
+                  <PackCard
+                    pack={pack}
+                    highlight={Boolean(pack.popular)}
+                    badge={pack.popular ? "Popular" : undefined}
+                    action={{
+                      label: `Buy for ${formatUsd(pack.priceUsd)}`,
+                      onClick: () => void buy(pack),
+                      pending: pendingKey === pack.key,
+                      disabled: busy || finishing,
+                    }}
+                  />
+                </li>
+              ))}
+            </ul>
+            <p className="mt-6 text-center text-sm text-muted-foreground">
+              It all comes from the same credits: each number is the whole pack spent on just that,
+              at standard settings.
+              <br />
+              Charged now to the card you just added, separate from your {planWord}.
+            </p>
+          </>
+        )}
       </div>
 
       <StepFooter back={busy ? null : back}>
-        {/* On the plan step a tier (or the trial) is the way on: nothing to skip to. */}
-        {addOn ? (
-          <Button size="lg" variant="outline" onClick={ctx.next} disabled={busy || finishing}>
-            {finishing ? <Spinner data-icon="inline-start" /> : null}
-            Skip for now
-          </Button>
-        ) : null}
+        <Button size="lg" variant="outline" onClick={ctx.next} disabled={busy || finishing}>
+          {finishing ? <Spinner data-icon="inline-start" /> : null}
+          Skip for now
+        </Button>
       </StepFooter>
     </section>
   );

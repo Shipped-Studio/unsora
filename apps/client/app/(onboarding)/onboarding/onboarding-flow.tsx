@@ -4,13 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { CONNECT_PARAM, connectorApp } from "@/components/onboarding/connector-app";
-import { CreditPlansStep, CreditsAskStep, PlanStep } from "@/components/onboarding/credits-steps";
+import { CreditPacksStep, CreditsAskStep } from "@/components/onboarding/credits-steps";
 import { MarkOnboarded } from "@/components/onboarding/mark-onboarded";
 import {
   CHECKOUT_PARAM,
-  CREDITS_PLAN_PARAM,
-  MONTHLY_VIEW,
+  PACKS_VIEW,
   SETUP_PARAM,
+  TOPUP_PARAM,
   VIEW_PARAM,
   hasPaidPlan,
   normalizeStep,
@@ -65,9 +65,8 @@ export function OnboardingFlow() {
   // Stripe's return is a full page load, and moving on from it drops the
   // param. The webhook may still be behind, so remember the plan is coming.
   const [startedPlan] = useState(fromCheckout);
-  // Monthly credits count as a plan too (the credits-only way in).
-  const [startedCredits] = useState(searchParams.get(CREDITS_PLAN_PARAM) === "success");
-  const anyPlan = paid || startedPlan || hasCreditPlan(usage) || startedCredits;
+  // An AI Studio plan (bought in the app) counts as a plan too.
+  const anyPlan = paid || startedPlan || hasCreditPlan(usage);
 
   // Decided once, so starting the trial doesn't reshuffle the steps. Back
   // from the trial's checkout the plan may show already; the trial step
@@ -75,14 +74,13 @@ export function OnboardingFlow() {
   // reload or a purchase's checkout, by when the plan shows.
   const [steps, setSteps] = useState<StepId[] | null>(null);
   if (!steps && usage && accounts && user) {
-    // The plan step until there's a plan. The credits add-on joins it once a
-    // trial has started (back from its checkout, or a reload after).
+    // The free trial step until there's a plan. The credits step joins it
+    // once a trial has started (back from its checkout, or a reload after).
     const backFromTrial = fromCheckout && requested === "plan";
     const trialStarted = paid || backFromTrial || requested === "credits";
-    // Already on Monthly credits (or just bought them on the plan step's
-    // tab): no point asking about credits. Back from buying them on the
-    // credits step itself, it stays for its success screen.
-    const haveCredits = (hasCreditPlan(usage) || startedCredits) && requested !== "credits";
+    // Already on AI Studio: no point asking about credits. Back from buying
+    // a pack on the credits step itself, it stays for its success screen.
+    const haveCredits = hasCreditPlan(usage) && requested !== "credits";
     const plan: StepId[] =
       paid && !backFromTrial && requested !== "credits" && requested !== "plan"
         ? []
@@ -143,9 +141,9 @@ export function OnboardingFlow() {
 
   // Focus the new step's heading so screen readers announce it.
   const headingRef = useRef<HTMLDivElement>(null);
-  const monthlyView = current === "credits" && searchParams.get(VIEW_PARAM) === MONTHLY_VIEW;
+  const packsView = current === "credits" && searchParams.get(VIEW_PARAM) === PACKS_VIEW;
   // Each of the credits step's screens gets its own heading focus and entrance.
-  const screen = `${current}-${searchParams.get(VIEW_PARAM)}-${searchParams.get(CREDITS_PLAN_PARAM)}`;
+  const screen = packsView ? `${PACKS_VIEW}-${searchParams.get(TOPUP_PARAM)}` : current;
   const lastStep = useRef(screen);
   useEffect(() => {
     if (lastStep.current === screen) return;
@@ -185,11 +183,9 @@ export function OnboardingFlow() {
       >
         {current === "channels" ? <ChannelsStep ctx={ctx} /> : null}
         {current === "howto" ? <HowToStep ctx={ctx} app={app} /> : null}
-        {current === "plan" ? (
-          <PlanStep ctx={ctx} finishing={finishing} scheduler={<TrialStep ctx={ctx} />} />
-        ) : null}
-        {current === "credits" && !monthlyView ? <CreditsAskStep ctx={ctx} finishing={finishing} /> : null}
-        {monthlyView ? <CreditPlansStep ctx={ctx} finishing={finishing} /> : null}
+        {current === "plan" ? <TrialStep ctx={ctx} /> : null}
+        {current === "credits" && !packsView ? <CreditsAskStep ctx={ctx} finishing={finishing} /> : null}
+        {packsView ? <CreditPacksStep ctx={ctx} finishing={finishing} /> : null}
         {current === "source" ? <SourceStep ctx={ctx} finishing={finishing} /> : null}
         {current === "connect" && app ? (
           <ConnectStep ctx={ctx} app={app} finishing={finishing} />
