@@ -1,4 +1,5 @@
-import { Check, Play, Sparkle } from "@phosphor-icons/react/dist/ssr";
+import { Check, Play } from "@phosphor-icons/react/dist/ssr";
+import { ClaudeIcon, OpenAIIcon, OpenClawIcon } from "@/components/icons";
 import { PlatformIcon } from "@/components/scheduler/platform-icon";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +11,13 @@ const THUMBS = {
   sand: "bg-[linear-gradient(150deg,#5a4a38,#211b15)]",
 } as const;
 
+/** The AI agents that can schedule through Unsora, each with its own mark. */
+const AGENTS = {
+  claude: { name: "Claude", Icon: ClaudeIcon },
+  chatgpt: { name: "ChatGPT", Icon: OpenAIIcon },
+  openclaw: { name: "OpenClaw", Icon: OpenClawIcon },
+} as const;
+
 const QUEUE: {
   day: string;
   time: string;
@@ -17,12 +25,12 @@ const QUEUE: {
   providers: string[];
   thumb: keyof typeof THUMBS;
   video?: boolean;
-  byAgent?: boolean;
+  agent?: keyof typeof AGENTS;
 }[] = [
   { day: "Tue", time: "9:00", caption: "Spring drop, behind the scenes", providers: ["instagram", "tiktok", "google"], thumb: "rose", video: true },
-  { day: "Wed", time: "18:00", caption: "Studio tour, part one", providers: ["google", "linkedin"], thumb: "indigo", video: true, byAgent: true },
-  { day: "Thu", time: "10:15", caption: "New collection, five looks", providers: ["instagram", "threads"], thumb: "teal", byAgent: true },
-  { day: "Fri", time: "12:30", caption: "Three tips for better reels", providers: ["tiktok", "x"], thumb: "sand", video: true, byAgent: true },
+  { day: "Wed", time: "18:00", caption: "Studio tour, part one", providers: ["google", "linkedin"], thumb: "indigo", video: true, agent: "claude" },
+  { day: "Thu", time: "10:15", caption: "New collection, five looks", providers: ["instagram", "threads"], thumb: "teal", agent: "chatgpt" },
+  { day: "Fri", time: "12:30", caption: "Three tips for better reels", providers: ["tiktok", "x"], thumb: "sand", video: true, agent: "openclaw" },
 ];
 
 /**
@@ -52,7 +60,7 @@ export function AuthShowcase() {
         </h2>
         <p className="max-w-md text-[15px] leading-relaxed text-stage-muted">
           One calendar for Instagram, TikTok, YouTube, LinkedIn and more. Make posts with AI, or
-          let Claude and ChatGPT fill your week.
+          let Claude, ChatGPT or OpenClaw fill your week.
         </p>
       </div>
 
@@ -66,12 +74,18 @@ export function AuthShowcase() {
 
           {/* The agent's note, part of the window rather than floating over it. */}
           <div className="mx-5 mt-4 flex items-center gap-3 rounded-xl bg-stage-foreground/[0.06] px-3.5 py-3">
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-stage-foreground text-stage">
-              <Sparkle className="size-3.5" weight="fill" />
+            <span className="flex shrink-0 -space-x-1.5">
+              {Object.values(AGENTS).map(({ name, Icon }) => (
+                <span
+                  key={name}
+                  className="flex size-7 items-center justify-center rounded-full bg-stage-foreground text-stage ring-2 ring-stage-card"
+                >
+                  <Icon className="size-4" />
+                </span>
+              ))}
             </span>
             <p className="min-w-0 flex-1 text-[13px] leading-snug">
-              <span className="text-stage-muted">Claude · </span>
-              Made 3 posts from your shoot and scheduled them.
+              Your agents made 3 posts and scheduled them.
             </p>
             <Check className="size-4 shrink-0 text-stage-foreground" weight="bold" />
           </div>
@@ -102,17 +116,22 @@ export function AuthShowcase() {
                     ))}
                   </span>
                 </span>
-                {post.byAgent ? (
-                  <span className="hidden shrink-0 items-center gap-1 rounded-full border border-stage-border px-2 py-0.5 text-[11px] text-stage-muted xl:inline-flex">
-                    <Sparkle className="size-2.5" weight="fill" />
-                    By Claude
-                  </span>
-                ) : null}
+                {post.agent ? <AgentTag agent={post.agent} /> : null}
               </li>
             ))}
           </ul>
         </div>
       </div>
     </div>
+  );
+}
+
+function AgentTag({ agent }: { agent: keyof typeof AGENTS }) {
+  const { name, Icon } = AGENTS[agent];
+  return (
+    <span className="hidden shrink-0 items-center gap-1.5 rounded-full border border-stage-border px-2 py-0.5 text-[11px] text-stage-muted xl:inline-flex">
+      <Icon className="size-3 text-stage-foreground" />
+      By {name}
+    </span>
   );
 }
