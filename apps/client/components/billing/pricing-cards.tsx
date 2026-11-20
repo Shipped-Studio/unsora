@@ -1,11 +1,12 @@
 "use client";
 
-import { ArrowRight, CheckCircle, FilmStrip, FrameCorners, Scissors } from "@phosphor-icons/react";
+import { ArrowRight, CheckCircle, FilmStrip, FrameCorners, Scissors, Tag } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import type { CreditPack } from "@/hooks/use-credit-packs";
 import type { CreditPlan } from "@/hooks/use-credit-plans";
+import { discountLabel, discountedPrice, durationLabel, usePromotion } from "@/hooks/use-promotion";
 import { useCatalogQuote, type CatalogRequest } from "@/hooks/use-model-catalog";
 import type { SubscriptionPlan } from "@/hooks/use-subscription-plans";
 import { CLIPPING_CREDITS_PER_MINUTE } from "@/lib/clipping-pricing";
@@ -129,16 +130,51 @@ function Panel({
   );
 }
 
-function Price({ usd, per, dark }: { usd: number; per?: string | null; dark: boolean }) {
+/**
+ * The card's price. When the running promotion covers this plan, the old
+ * price is crossed out next to the new one, with the terms and the code
+ * under it (it's applied at checkout by itself).
+ */
+function Price({
+  usd,
+  per,
+  dark,
+  planKey,
+}: {
+  usd: number;
+  per?: string | null;
+  dark: boolean;
+  planKey: string;
+}) {
+  const promo = usePromotion();
+  const discounted = discountedPrice(promo, planKey, usd);
+  const muted = dark ? "text-white/60" : "text-muted-foreground";
   return (
-    <p className="flex items-baseline gap-1.5">
-      <span className="font-display text-4xl font-semibold tracking-[-0.045em] tabular-nums">
-        {formatUsd(usd)}
-      </span>
-      {per ? (
-        <span className={cn("text-sm", dark ? "text-white/60" : "text-muted-foreground")}>/{per}</span>
+    <div>
+      <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        {discounted !== null ? (
+          <span className={cn("text-lg tabular-nums line-through decoration-1", muted)}>{formatUsd(usd)}</span>
+        ) : null}
+        <span className="font-display text-4xl font-semibold tracking-[-0.045em] tabular-nums">
+          {formatUsd(discounted ?? usd)}
+        </span>
+        {per ? <span className={cn("text-sm", muted)}>/{per}</span> : null}
+      </p>
+      {discounted !== null && promo ? (
+        <p
+          className={cn(
+            "mt-2 inline-flex flex-wrap items-center gap-1.5 rounded-lg px-2 py-1 text-xs",
+            dark ? "bg-white/10 text-white" : "bg-foreground/[0.06] text-foreground",
+          )}
+        >
+          <Tag className="size-3.5 shrink-0" weight="fill" />
+          <span>
+            {discountLabel(promo)} {per ? durationLabel(promo) : ""} with{" "}
+            <span className="font-mono font-medium tracking-wider">{promo.code}</span>
+          </span>
+        </p>
       ) : null}
-    </p>
+    </div>
   );
 }
 
@@ -252,7 +288,7 @@ export function PlanCard({
                 {trialDays}&#8209;day free trial
               </span>
             ) : null}
-            <Price usd={plan.priceUsd} per={per} dark={highlight} />
+            <Price usd={plan.priceUsd} per={per} dark={highlight} planKey={plan.key} />
           </>
         }
       />
@@ -353,7 +389,7 @@ export function PackCard({
         badge={badge}
         bottom={
           <>
-            <Price usd={pack.priceUsd} dark={highlight} />
+            <Price usd={pack.priceUsd} dark={highlight} planKey={pack.key} />
             {showPerCredit && perCredit ? (
               <p className={cn("mt-1 text-xs tabular-nums", highlight ? "text-white/60" : "text-muted-foreground")}>
                 ${perCredit.toFixed(3)} per credit
@@ -418,7 +454,7 @@ export function CreditPlanCard({
         badgeTone={badgeTone}
         bottom={
           <>
-            <Price usd={plan.priceUsd} per={per} dark={highlight} />
+            <Price usd={plan.priceUsd} per={per} dark={highlight} planKey={plan.key} />
             {perCredit ? (
               <p className={cn("mt-1 text-xs tabular-nums", highlight ? "text-white/60" : "text-muted-foreground")}>
                 ${perCredit.toFixed(3)} per credit

@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { AppNavProvider, AppRail, MobileNav, MobileTabBar, hasTabBar } from "@/components/layout/app-rail";
 import { CommandMenuProvider } from "@/components/layout/command-menu";
+import { PromoBanner } from "@/components/promotion/promo-banner";
 import { MusicPlayerProvider } from "@/contexts/music-player-context";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +23,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         >
           Skip to content
         </a>
-        <div className="flex h-svh bg-sidebar">
+        <div className="flex h-svh flex-col bg-sidebar">
+          {/* A running promotion, across the top of everything. */}
+          <PromoBanner />
+          <div className="flex min-h-0 flex-1">
           <AppRail />
           <div className="min-w-0 flex-1 md:py-2 md:pr-2">
             <main
@@ -35,6 +39,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             >
               <MusicPlayerProvider>{children}</MusicPlayerProvider>
             </main>
+          </div>
           </div>
         </div>
         <MobileNav />

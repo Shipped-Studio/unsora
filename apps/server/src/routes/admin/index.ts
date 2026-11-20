@@ -7,6 +7,7 @@ import contentRoutes from "./content.routes";
 import analyticsRoutes from "./analytics.routes";
 import plansRoutes from "./plans.routes";
 import pricingRoutes from "./pricing.routes";
+import promotionRoutes from "./promotion.routes";
 import skillsRoutes from "./skills.routes";
 import platformsRoutes from "./platforms.routes";
 
@@ -24,6 +25,7 @@ router.use("/content", contentRoutes);
 router.use("/analytics", analyticsRoutes);
 router.use("/plans", plansRoutes);
 router.use("/pricing", pricingRoutes);
+router.use("/promotion", promotionRoutes);
 router.use("/skills", skillsRoutes);
 router.use("/platforms", platformsRoutes);
 
