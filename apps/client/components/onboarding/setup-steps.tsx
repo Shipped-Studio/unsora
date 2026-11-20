@@ -422,8 +422,7 @@ export function TrialStep({ ctx }: { ctx: SetupContext }) {
         </p>
       ) : null}
 
-      {/* No way past this step without a plan: a scheduler plan or Monthly
-          credits (the other tab) is the only way on. */}
+      {/* No way past this step without a plan: picking one is the only way on. */}
       <StepFooter back={ctx.back}>{null}</StepFooter>
     </section>
   );
