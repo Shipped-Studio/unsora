@@ -1,6 +1,7 @@
 import express from "express";
 import { StripeController } from "../controllers/stripe.controller";
 import { requireAuth } from "../middleware/auth";
+import { activePromotion, publicPromotion } from "../lib/promotion";
 
 const router = express.Router();
 
@@ -21,6 +22,14 @@ router.post(
   requireAuth,
   stripeController.generateCheckoutSession,
 );
+
+// The featured promotion (banner and discounted plans). Public, for the app
+// and the landing page; only what customers see anyway (the code and its terms).
+router.get("/promotion", async (_req, res) => {
+  const promotion = publicPromotion(await activePromotion());
+  res.set("Cache-Control", "public, max-age=60");
+  res.json({ success: true, data: promotion });
+});
 
 router.post("/cancel-trial", requireAuth, stripeController.cancelTrial);
 

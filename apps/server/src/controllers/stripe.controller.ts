@@ -26,6 +26,7 @@ import {
   trialDays,
 } from "../lib/plans";
 import { logger } from "../lib/logger";
+import { checkoutDiscount, createCheckoutSession, promotionCodeFor } from "../lib/promotion";
 import {
   CREDIT_SUBSCRIPTION_KIND,
   LIVE_SUBSCRIPTION_STATUSES,
@@ -183,7 +184,7 @@ async function createTopupCheckoutUrl(
     cancel_url: cancelUrl,
     payment_method_types: ["card"],
     billing_address_collection: "auto",
-    allow_promotion_codes: true,
+    ...(await checkoutDiscount(pack.key)),
     line_items: [lineItem],
     // CRITICAL: these two fields drive the webhook handler in
     // `handleWebhook` → `checkout.session.completed`. Do not rename them
@@ -215,7 +216,7 @@ async function createTopupCheckoutUrl(
     sessionConfig.customer_creation = "always";
   }
 
-  const session = await stripe.checkout.sessions.create(sessionConfig);
+  const session = await createCheckoutSession(sessionConfig);
   return session.url;
 }
 
@@ -989,7 +990,7 @@ export class StripeController {
         billing_address_collection: "auto",
         line_items: [{ price: priceId, quantity: 1 }],
         mode: "subscription",
-        allow_promotion_codes: true,
+        ...(await checkoutDiscount(plan.key)),
         metadata: {
           userId: user.id,
         },
@@ -1026,7 +1027,7 @@ export class StripeController {
         sessionConfig.customer_email = email;
       }
 
-      const session = await stripe.checkout.sessions.create(sessionConfig);
+      const session = await createCheckoutSession(sessionConfig);
 
       res.json({ url: session.url });
     } catch (error) {
@@ -1111,7 +1112,7 @@ export class StripeController {
 
       const billingBase = CLIENT_URL ? `${CLIENT_URL}/billing` : SUCCESS_URL;
 
-      const session = await stripe.checkout.sessions.create({
+      const session = await createCheckoutSession({
         mode: "subscription",
         customer: user.stripeCustomerId,
         success_url: billingBase
@@ -1120,7 +1121,7 @@ export class StripeController {
         cancel_url: billingBase ? `${billingBase}?upgrade=cancel` : CANCEL_URL,
         payment_method_types: ["card"],
         billing_address_collection: "auto",
-        allow_promotion_codes: true,
+        ...(await checkoutDiscount(plan.key)),
         line_items: [{ price: plan.stripePriceId, quantity: 1 }],
         metadata: { userId: user.id, kind: "plan_upgrade" },
         // No trial — this is a paid-to-paid switch, charged in full now.
@@ -1664,6 +1665,10 @@ export class StripeController {
           url: await createTopupCheckoutUrl(pack, user, returnPath),
         });
 
+      // The featured promotion covers this pack: Checkout, where it applies,
+      // rather than charging the saved card at full price.
+      if (await promotionCodeFor(pack.key)) return await toCheckout();
+
       // The trial's checkout saved the card on the customer. Straight after
       // it, the webhook may not have linked that customer to this user yet.
       if (!user.stripeCustomerId) return await toCheckout();
@@ -1837,7 +1842,7 @@ export class StripeController {
           (billingBase ? `${billingBase}?${new URLSearchParams(cancel)}` : CANCEL_URL),
         payment_method_types: ["card"],
         billing_address_collection: "auto",
-        allow_promotion_codes: true,
+        ...(await checkoutDiscount(plan.key)),
         line_items: [{ price: priceId, quantity: 1 }],
         metadata: { userId: user.id, kind: CREDIT_SUBSCRIPTION_KIND },
         // CRITICAL: `kind` and `planKey` route this subscription's webhooks
@@ -1866,7 +1871,7 @@ export class StripeController {
         sessionConfig.customer_email = user.email;
       }
 
-      const session = await stripe.checkout.sessions.create(sessionConfig);
+      const session = await createCheckoutSession(sessionConfig);
       return res.json({ success: true, url: session.url });
     } catch (error) {
       logger.error("Error creating credit subscription checkout:", error);
