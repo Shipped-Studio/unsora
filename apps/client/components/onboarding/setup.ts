@@ -1,43 +1,42 @@
 /**
  * The app's onboarding after sign-up (app/(onboarding)/onboarding):
  *
- *   where you heard about us → channels → how it works → plan (→ credits)
+ *   where you heard about us → channels → how it works → free trial → credits
  *
- * The plan step has two tabs: the scheduler (with its free trial) and
- * Monthly credits on their own, for someone who only wants clipping and AI
- * (no trial on those). Either one gets you in. Starting the trial adds the
- * credits step, which offers Monthly credits on top. One-time packs aren't
- * offered here, only in the app.
+ * The free trial step (`plan` in the URL) is the scheduler. The trial
+ * includes no credits, so the credits step after it offers the one-time
+ * packs; it can be skipped. AI Studio (monthly credits) is sold in the app,
+ * not here.
  *
  * An account made while connecting ChatGPT or Claude (`?connect=`, see
  * connector-app.ts) gets the same steps, then one asking it to connect again
  * from that app:
  *
- *   where you heard about us → channels → how it works → plan (→ credits) → connect
+ *   where you heard about us → channels → how it works → free trial → credits → connect
  *
- * The plan and credits steps are left out for anyone who already has a
- * scheduler plan. The credits step can be skipped. The step lives in the URL so it survives the
- * channel OAuth and Stripe round trips.
+ * The free trial and credits steps are left out for anyone who already has a
+ * scheduler plan, and the credits step for anyone already on AI Studio. The
+ * step lives in the URL so it survives the channel OAuth and Stripe round
+ * trips.
  */
 
 /** The step's query param. */
 export const SETUP_PARAM = "setup";
 /** Added by the server to Stripe's return URL: `success` or `cancel`. */
 export const CHECKOUT_PARAM = "checkout";
-/**
- * `monthly`: the Monthly credits screen, on the plan step (its second tab)
- * or the credits step (after the question).
- */
+/** The credits step's second screen, `packs`; without it, the question. */
 export const VIEW_PARAM = "view";
-export const MONTHLY_VIEW = "monthly";
-/** Added by the server to a Monthly credits checkout's return: `success` or `cancel`. */
-export const CREDITS_PLAN_PARAM = "creditsPlan";
+export const PACKS_VIEW = "packs";
+/** A credit purchase's result on the packs screen: `success` or `cancel`. */
+export const TOPUP_PARAM = "topup";
+/** How many credits a successful purchase added. */
+export const CREDITS_PARAM = "credits";
 
 export const STEP_LABELS = {
   source: "About you",
   channels: "Channels",
   howto: "How it works",
-  plan: "Plan",
+  plan: "Free trial",
   credits: "Credits",
   connect: "Connect",
 } as const;
@@ -102,7 +101,7 @@ export function needsOnboarding(user: OnboardingUser): boolean {
   return Date.now() - Number(user.createdAt) < NEW_ACCOUNT_MS;
 }
 
-/** Steps from before the plan step's rename, still in in-flight Stripe return URLs. */
+/** `trial` is the free trial step's older name, still in old Stripe return URLs. */
 export function normalizeStep(step: string | null): StepId | null {
   if (step === "trial") return "plan";
   return step && step in STEP_LABELS ? (step as StepId) : null;
