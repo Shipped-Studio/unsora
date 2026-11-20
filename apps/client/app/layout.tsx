@@ -55,6 +55,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          defer
+          data-site="iaudl99o"
+          data-domain="app.tryunsora.com"
+          src="https://piqo.app/piqo.js"
+        />
+      </head>
       <body
         className={`${dmSans.variable} ${dmMono.variable} ${sora.variable}`}
       >
