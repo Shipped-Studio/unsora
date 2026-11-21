@@ -122,9 +122,14 @@ export class PublicInfluencerStudioController {
           .json({ success: false, error: "User not found" });
       }
 
-      await prisma.imageGeneration.delete({
-        where: { id: generationId, userId: user.id },
+      const { count } = await prisma.imageGeneration.deleteMany({
+        where: { id: generationId, userId: user.id, type: "INFLUENCER" },
       });
+      if (count === 0) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Generation not found" });
+      }
 
       return res.json({
         success: true,
