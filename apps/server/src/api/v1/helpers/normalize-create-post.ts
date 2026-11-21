@@ -179,9 +179,14 @@ function parseSimpleMedia(media: unknown): MediaParseResult {
       }
       mediaItems.push({ type: "IMAGE", url: url.trim(), order: i });
     }
+    // One image is a single-image post, not a carousel: Google Business
+    // Profile only accepts IMAGE, and Instagram carousels need 2+ items.
     return {
       ok: true,
-      partial: { postType: "CAROUSEL", media: mediaItems },
+      partial: {
+        postType: mediaItems.length === 1 ? "IMAGE" : "CAROUSEL",
+        media: mediaItems,
+      },
     };
   }
 

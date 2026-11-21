@@ -360,6 +360,7 @@ router.get("/uploads", ...auth, uploadController.list);
 router.delete("/uploads/:assetId", ...auth, uploadController.remove);
 
 // User
+router.get("/user/me", ...auth, userController.getMe);
 router.get("/user/credits", ...auth, userController.getCredits);
 router.get("/user/subscription", ...auth, userController.getSubscription);
 
