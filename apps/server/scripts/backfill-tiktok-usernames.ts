@@ -4,7 +4,7 @@
  * built from it, so without it the fallback link is a bare tiktok.com.
  *
  * Uses the token each user already granted: refreshes it if expired (via
- * ensureValidToken, which saves the new tokens), then reads creator_username
+ * the locked getAccountWithFreshToken, which saves the rotated tokens), then reads creator_username
  * from creator_info. Accounts whose access was revoked are reported and left
  * alone; they get the username when the user reconnects.
  *
@@ -14,7 +14,7 @@
  *   npx ts-node scripts/backfill-tiktok-usernames.ts --write   # save
  */
 import { prisma } from "../src/lib/db";
-import { ensureValidToken } from "../src/services/token.service";
+import { tokenRefreshService } from "../src/services/token-refresh.service";
 import { getTikTokCreatorInfo } from "../src/oauth/tiktok";
 
 const WRITE = process.argv.includes("--write");
@@ -38,8 +38,8 @@ async function main() {
 
   for (const account of accounts) {
     try {
-      const token = await ensureValidToken(account.id);
-      const info = await getTikTokCreatorInfo(token as string);
+      const fresh = await tokenRefreshService.getAccountWithFreshToken(account.id);
+      const info = await getTikTokCreatorInfo(fresh.accessToken as string);
       const username = info?.creator_username;
       if (!username) {
         failed.push({ id: account.id, reason: "creator_info returned no username" });
