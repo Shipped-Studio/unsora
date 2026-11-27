@@ -309,6 +309,19 @@ const VIDEO: CatalogModel[] = [
     isNew: true,
   },
   {
+    key: "magi-2",
+    label: "MAGI-2",
+    provider: "Sand AI",
+    icon: "/models/sand-ai.svg",
+    category: "video",
+    description: "Open-source 1080p video with native audio, up to 30s, from text, an image or references",
+    modes: [
+      textOrImage("sand-ai/magi-2"),
+      referenceMode("sand-ai/magi-2/reference-to-video"),
+    ],
+    isNew: true,
+  },
+  {
     key: "sora-2",
     label: "Sora 2",
     provider: "OpenAI",

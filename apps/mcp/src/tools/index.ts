@@ -1812,7 +1812,7 @@ export function registerTools(
       description:
         "Generate a short video for a social post, Reel, TikTok or ad. Models include " +
         "Seedance 2.5 / 2.5 Turbo / 2.0, Veo 3.1 (Fast, Lite), Gemini Omni 1.1 Flash, " +
-        "Kling O3 Pro / 3.0, Wan 3.0, Grok Imagine Video 1.5 and Sora 2 — see list_models " +
+        "Kling O3 Pro / 3.0, Wan 3.0, Grok Imagine Video 1.5, MAGI-2 and Sora 2 — see list_models " +
         "for modes and inputs. Video is expensive: call get_price first, tell the user the " +
         "credits, and pass them as maxCredits. Poll with wait_for_video. Renders a live " +
         "preview in app-capable hosts.",
