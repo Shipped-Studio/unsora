@@ -48,7 +48,7 @@ export class InstagramService {
       );
     }
 
-    const postUrl = await this.getMediaPermalink(postId, accessToken, baseUrl);
+    const postUrl = await this.getMediaPermalink(postId, accessToken, baseUrl, account);
 
     return { postId, postUrl };
   }
@@ -308,21 +308,24 @@ export class InstagramService {
     mediaId: string,
     accessToken: string,
     baseUrl: string,
+    account: SocialAccount,
   ): Promise<string> {
     try {
       const response = await axios.get(`${baseUrl}/${mediaId}`, {
         params: { access_token: accessToken, fields: "permalink" },
       });
-
-      return response.data.permalink;
+      if (response.data?.permalink) return response.data.permalink;
     } catch (error: any) {
       logger.error("Failed to fetch Instagram permalink:", {
         mediaId,
         message: error.message,
         response: error.response?.data,
       });
-      return `https://www.instagram.com`;
     }
+    // Profile URL beats a bare instagram.com when the permalink is missing.
+    return account.accountUsername
+      ? `https://www.instagram.com/${account.accountUsername}/`
+      : "https://www.instagram.com";
   }
 
   /**
