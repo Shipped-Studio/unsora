@@ -3,6 +3,8 @@ import { ensureTikTokPhotoUrl } from "../../lib/jpeg-image";
 import type { PostMediaWithAsset } from "../post.service";
 import axios, { AxiosResponse } from "axios";
 import { logger } from "../../lib/logger";
+import { prisma } from "../../lib/db";
+import { getTikTokCreatorInfo } from "../../oauth/tiktok";
 
 /**
  * TikTok API Service
@@ -305,8 +307,34 @@ export class TikTokService {
 
     return {
       postId: postId ?? publishId,
-      postUrl: shareUrl ?? this.buildFallbackUrl(account, kind, postId),
+      postUrl:
+        shareUrl ??
+        this.buildFallbackUrl(await this.withUsername(account), kind, postId),
     };
+  }
+
+  /**
+   * Accounts connected before the username was stored have none, which makes
+   * every fallback URL a bare tiktok.com. Look it up once via creator_info
+   * (video.publish scope) and save it on the account.
+   */
+  async withUsername(account: SocialAccount): Promise<SocialAccount> {
+    if (account.accountUsername || !account.accessToken) return account;
+    const info = await getTikTokCreatorInfo(account.accessToken);
+    const username = info?.creator_username;
+    if (!username) return account;
+    try {
+      await prisma.socialAccount.update({
+        where: { id: account.id },
+        data: { accountUsername: username },
+      });
+    } catch (error: any) {
+      logger.error("Failed to save TikTok username:", {
+        accountId: account.id,
+        message: error.message,
+      });
+    }
+    return { ...account, accountUsername: username };
   }
 
   /** Best-effort URL when the Display API can't resolve a share_url. */
