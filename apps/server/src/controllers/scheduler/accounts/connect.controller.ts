@@ -13,21 +13,15 @@ import {
   getInstagramFacebookAccountInfo,
   isFacebookLoginAccount,
 } from "../../../oauth/instagram-facebook";
-import { getTikTokUserInfo, refreshTikTokToken } from "../../../oauth/tiktok";
+import { getTikTokCreatorInfo, getTikTokUserInfo } from "../../../oauth/tiktok";
 import {
   getBlueskyAgent,
   getBlueskyProfile,
   revokeBlueskySession,
 } from "../../../oauth/bluesky";
 import { getThreadsProfile, refreshThreadsToken } from "../../../oauth/threads";
-import {
-  getLinkedInUser,
-  refreshLinkedInToken,
-} from "../../../oauth/linkedin";
-import {
-  getPinterestUser,
-  refreshPinterestToken,
-} from "../../../oauth/pinterest";
+import { getLinkedInUser } from "../../../oauth/linkedin";
+import { getPinterestUser } from "../../../oauth/pinterest";
 import { getXUser, revokeXToken } from "../../../oauth/x";
 import {
   getGoogleBusinessLocation,
@@ -228,15 +222,20 @@ export class SchedulerAccountsController {
             });
           }
 
-          const tokens = await refreshTikTokToken(account.refreshToken);
-          const userInfo = await getTikTokUserInfo(tokens.access_token);
+          // Locked refresh: TikTok rotates refresh tokens, so refreshing
+          // here unsynchronized could race a publish and lose one.
+          const fresh = await tokenRefreshService.getAccountWithFreshToken(
+            account.id,
+          );
+          const userInfo = await getTikTokUserInfo(fresh.accessToken);
+          // user.info.basic has no username; creator_info does.
+          const username =
+            userInfo?.username ||
+            (await getTikTokCreatorInfo(fresh.accessToken))?.creator_username;
 
           updatedData = {
-            accessToken: tokens.access_token,
-            refreshToken: tokens.refresh_token || account.refreshToken,
-            expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
             accountName: userInfo?.displayName || account.accountName,
-            accountUsername: userInfo?.username || account.accountUsername,
+            accountUsername: username || account.accountUsername,
             profilePicture: userInfo?.profilePicture || account.profilePicture,
           };
           break;
@@ -344,15 +343,13 @@ export class SchedulerAccountsController {
             });
           }
 
-          const tokens = await refreshPinterestToken(account.refreshToken);
-          const user = await getPinterestUser(tokens.access_token);
+          // Locked refresh: Pinterest rotates refresh tokens.
+          const fresh = await tokenRefreshService.getAccountWithFreshToken(
+            account.id,
+          );
+          const user = await getPinterestUser(fresh.accessToken);
 
           updatedData = {
-            accessToken: tokens.access_token,
-            refreshToken: tokens.refresh_token || account.refreshToken,
-            expiresAt: new Date(
-              Date.now() + (tokens.expires_in || 2592000) * 1000,
-            ),
             accountName: user?.username || account.accountName,
             accountUsername: user?.username || account.accountUsername,
             profilePicture: user?.profilePicture || account.profilePicture,
@@ -363,20 +360,12 @@ export class SchedulerAccountsController {
         case "linkedin": {
           // Refresh tokens are partner-only on LinkedIn; without one the
           // stored 60-day token is reused and only profile info is updated.
-          let accessToken = account.accessToken;
-          if (account.refreshToken) {
-            const tokens = await refreshLinkedInToken(account.refreshToken);
-            accessToken = tokens.access_token;
-            updatedData = {
-              accessToken: tokens.access_token,
-              refreshToken: tokens.refresh_token || account.refreshToken,
-              expiresAt: new Date(
-                Date.now() + (tokens.expires_in || 5184000) * 1000,
-              ),
-            };
-          }
+          // Locked refresh (LinkedIn rotates refresh tokens too).
+          const fresh = await tokenRefreshService.getAccountWithFreshToken(
+            account.id,
+          );
 
-          const user = await getLinkedInUser(accessToken);
+          const user = await getLinkedInUser(fresh.accessToken);
           updatedData = {
             ...updatedData,
             accountName: user?.name || account.accountName,
