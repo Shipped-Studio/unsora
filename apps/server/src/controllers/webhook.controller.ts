@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import crypto from "crypto";
 import { prisma } from "../lib/db";
 import { tiktokService } from "../services/platforms/tiktok.service";
+import { tokenRefreshService } from "../services/token-refresh.service";
 import { logger } from "../lib/logger";
 
 export class WebhookController {
@@ -322,9 +323,13 @@ export class WebhookController {
     // Prefer the exact share URL from the Display API; fall back to a
     // constructed profile URL. Single attempt — the webhook can be redelivered
     // and the profile-based fallback is already correct.
+    // The webhook can arrive after the 24h access token expired.
+    const account = await tokenRefreshService
+      .getAccountWithFreshToken(postAccount.account.id)
+      .catch(() => postAccount.account);
     const shareUrl = await tiktokService.queryShareUrl(
       postId,
-      postAccount.account.accessToken,
+      account.accessToken,
       1,
     );
 
@@ -338,7 +343,7 @@ export class WebhookController {
         publishedUrl:
           shareUrl ??
           tiktokService.buildFallbackUrl(
-            await tiktokService.withUsername(postAccount.account),
+            await tiktokService.withUsername(account),
             kind,
             postId,
           ),
