@@ -337,7 +337,11 @@ export class WebhookController {
         publishedPostId: postId,
         publishedUrl:
           shareUrl ??
-          tiktokService.buildFallbackUrl(postAccount.account, kind, postId),
+          tiktokService.buildFallbackUrl(
+            await tiktokService.withUsername(postAccount.account),
+            kind,
+            postId,
+          ),
         error: null,
       },
     });
