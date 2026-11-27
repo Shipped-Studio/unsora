@@ -220,7 +220,12 @@ export class PublicPostController {
         prisma.post.findMany({
           where,
           include: postInclude,
-          orderBy: { createdAt: "desc" },
+          // sort=updated lets polling triggers see posts that changed status
+          // recently, even if they were created long ago.
+          orderBy:
+            req.query.sort === "updated"
+              ? { updatedAt: "desc" }
+              : { createdAt: "desc" },
           skip,
           take: limit,
         }),

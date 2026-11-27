@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { prisma } from "../../../lib/db";
+import { tokenRefreshService } from "../../../services/token-refresh.service";
 import {
   exchangeTikTokCode,
   getTikTokAuthUrl,
@@ -63,6 +64,12 @@ export class TikTokSchedulerController {
 
       const tokens = await exchangeTikTokCode(code as string);
       const userInfo = await getTikTokUserInfo(tokens.access_token);
+      // user.info.basic has no username; creator_info (video.publish) does.
+      // Post URLs are built from it (tiktok.com/@username/video/<id>).
+      const username =
+        userInfo?.username ||
+        (await getTikTokCreatorInfo(tokens.access_token))?.creator_username ||
+        null;
 
       if (!(await canAddAccount(connect.userId, "tiktok", tokens.open_id))) {
         return res.redirect(redirect("error", ACCOUNT_LIMIT_MESSAGE));
@@ -81,7 +88,7 @@ export class TikTokSchedulerController {
           expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
           scope: tokens.scope,
           accountName: userInfo?.displayName || null,
-          accountUsername: userInfo?.username || null,
+          accountUsername: username,
           profilePicture: userInfo?.profilePicture || null,
         },
         create: {
@@ -93,7 +100,7 @@ export class TikTokSchedulerController {
           expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
           scope: tokens.scope,
           accountName: userInfo?.displayName || null,
-          accountUsername: userInfo?.username || null,
+          accountUsername: username,
           profilePicture: userInfo?.profilePicture || null,
         },
       });
@@ -135,7 +142,9 @@ export class TikTokSchedulerController {
         });
       }
 
-      const creatorInfo = await getTikTokCreatorInfo(account.accessToken as string);
+      // TikTok access tokens last 24h; refresh (locked) before using it.
+      const fresh = await tokenRefreshService.getAccountWithFreshToken(account.id);
+      const creatorInfo = await getTikTokCreatorInfo(fresh.accessToken as string);
 
       if (!creatorInfo) {
         return res.status(500).json({

@@ -11,6 +11,57 @@ import { refreshTikTokToken } from "../oauth/tiktok";
 import { refreshXToken } from "../oauth/x";
 import { logger } from "../lib/logger";
 
+const MINUTE = 60 * 1000;
+const DAY = 24 * 60 * MINUTE;
+
+/**
+ * How long before expiry a token gets refreshed.
+ *
+ * Instagram (Instagram Login) and Threads issue 60-day tokens that can only
+ * be refreshed while still valid, so a 5-minute window meant they were never
+ * refreshed and expired. Pinterest's continuous refresh chain also dies if
+ * the account sits idle. These get a 7-day window, which the daily
+ * refresh-expiring-tokens task also uses. Short-lived tokens get 15 minutes
+ * so a long upload or processing poll doesn't outlive the token.
+ */
+export function refreshWindowMs(
+  account: Pick<SocialAccount, "provider" | "scope">,
+): number {
+  switch (account.provider.toLowerCase()) {
+    case "instagram":
+      // Facebook Login connections hold a Page token; keep the old window.
+      return isFacebookLoginAccount(account) ? 5 * MINUTE : 7 * DAY;
+    case "threads":
+    case "pinterest":
+      return 7 * DAY;
+    case "google":
+    case "google_business":
+    case "tiktok":
+    case "x":
+      return 15 * MINUTE;
+    default:
+      return 5 * MINUTE;
+  }
+}
+
+/**
+ * A token endpoint answering 400/401 (invalid_grant and friends) means the
+ * user revoked access or the refresh token died: only reconnecting fixes it.
+ * The wording matches the accounts health check's reconnect pattern.
+ */
+function describeRefreshError(error: unknown): string {
+  const status = (error as any)?.response?.status;
+  const data = (error as any)?.response?.data;
+  if (status === 400 || status === 401) {
+    const detail =
+      data?.error_description || data?.error?.message || data?.error || "";
+    return `access was revoked or expired${
+      detail && typeof detail === "string" ? ` (${detail})` : ""
+    }. Please reconnect your account.`;
+  }
+  return error instanceof Error ? error.message : "Unknown error";
+}
+
 export class TokenRefreshService {
   /**
    * Refresh access token for a social account and update in database
@@ -257,15 +308,15 @@ export class TokenRefreshService {
         error
       );
       throw new Error(
-        `Token refresh failed for ${account.provider}: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
+        `Token refresh failed for ${account.provider}: ${describeRefreshError(
+          error
+        )}`
       );
     }
   }
 
   /**
-   * Check if token needs refresh (within 5 minutes of expiry or already expired)
+   * Check if token needs refresh (inside its refreshWindowMs or already expired)
    * @param account - The social account to check
    * @returns true if token should be refreshed
    */
@@ -275,12 +326,8 @@ export class TokenRefreshService {
       return true;
     }
 
-    // Refresh if token expires within 5 minutes (300000ms)
-    const buffer = 5 * 60 * 1000;
     const expiryTime = new Date(account.expiresAt).getTime();
-    const now = Date.now();
-
-    return expiryTime - now <= buffer;
+    return expiryTime - Date.now() <= refreshWindowMs(account);
   }
 
   /**

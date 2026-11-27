@@ -80,10 +80,34 @@ export class PublicClippingController {
           .json({ success: false, error: "User not found" });
       }
 
+      // Optional filters for polling integrations. Without them the response
+      // is unchanged: every clipping, newest first.
+      const STATUSES = ["QUEUED", "PROCESSING", "COMPLETED", "FAILED"] as const;
+      const rawStatus =
+        typeof req.query.status === "string"
+          ? req.query.status.toUpperCase()
+          : undefined;
+      const status = STATUSES.find((s) => s === rawStatus);
+      if (rawStatus && !status) {
+        return res.status(400).json({
+          success: false,
+          error: `status must be one of ${STATUSES.join(", ")}`,
+        });
+      }
+      const rawLimit = Number(req.query.limit);
+      const limit =
+        Number.isInteger(rawLimit) && rawLimit > 0
+          ? Math.min(rawLimit, 100)
+          : undefined;
+
       const clippings = await prisma.aIClipping.findMany({
-        where: { userId: user.id },
-        orderBy: { createdAt: "desc" },
+        where: { userId: user.id, ...(status ? { status } : {}) },
+        orderBy:
+          req.query.sort === "updated"
+            ? { updatedAt: "desc" }
+            : { createdAt: "desc" },
         include: clippingInclude,
+        ...(limit ? { take: limit } : {}),
       });
 
       res.json({ success: true, data: clippings });
